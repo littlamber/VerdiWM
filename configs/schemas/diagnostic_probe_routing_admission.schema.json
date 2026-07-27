@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "sources",
+    "summary",
+    "probe_rows",
+    "primitive_rows",
+    "blockers",
+    "side_effects",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-diagnostic-probe-routing-admission"]},
+    "state": {"enum": ["routing_ready", "preview_only", "blocked"]},
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "failure_signature_bank_manifest",
+        "failure_signature_bank_report",
+        "probe_admission_manifest",
+        "primitive_materialization_gate_manifest"
+      ],
+      "properties": {
+        "failure_signature_bank_manifest": {"type": "string", "minLength": 1},
+        "failure_signature_bank_report": {"type": "string", "minLength": 1},
+        "probe_admission_manifest": {"type": "string", "minLength": 1},
+        "primitive_materialization_gate_manifest": {"type": "string", "minLength": 1}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "probe_work_order_count",
+        "admitted_probe_count",
+        "runtime_ready_probe_count",
+        "primitive_route_count",
+        "routing_ready_route_count",
+        "preview_only_route_count",
+        "blocked_route_count"
+      ],
+      "properties": {
+        "probe_work_order_count": {"type": "integer", "minimum": 0},
+        "admitted_probe_count": {"type": "integer", "minimum": 0},
+        "runtime_ready_probe_count": {"type": "integer", "minimum": 0},
+        "primitive_route_count": {"type": "integer", "minimum": 0},
+        "routing_ready_route_count": {"type": "integer", "minimum": 0},
+        "preview_only_route_count": {"type": "integer", "minimum": 0},
+        "blocked_route_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "probe_rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "probe_id",
+          "environment",
+          "signature",
+          "priority",
+          "work_order_present",
+          "admission_state",
+          "runtime_smoke_on_dev_split",
+          "routing_authority",
+          "verdict_exposure_allowed"
+        ],
+        "properties": {
+          "probe_id": {"type": "string", "minLength": 1},
+          "environment": {"type": "string", "minLength": 1},
+          "signature": {"type": "string", "minLength": 1},
+          "priority": {"type": "string", "minLength": 1},
+          "work_order_present": {"type": "boolean"},
+          "admission_state": {"type": "string", "minLength": 1},
+          "runtime_smoke_on_dev_split": {"type": "string", "minLength": 1},
+          "routing_authority": {"type": "string", "minLength": 1},
+          "verdict_exposure_allowed": {"type": "boolean"}
+        }
+      }
+    },
+    "primitive_rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "environment",
+          "primitive",
+          "routing_decision",
+          "primitive_admission_state",
+          "closed_loop_eligible",
+          "matched_probe_ids",
+          "environment_probe_authority",
+          "route_gate",
+          "reason"
+        ],
+        "properties": {
+          "environment": {"type": "string", "minLength": 1},
+          "primitive": {"type": "string", "minLength": 1},
+          "routing_decision": {"type": "string", "minLength": 1},
+          "primitive_admission_state": {"type": "string", "minLength": 1},
+          "closed_loop_eligible": {"type": "boolean"},
+          "matched_probe_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "environment_probe_authority": {"type": "string", "minLength": 1},
+          "route_gate": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_code_mutated",
+        "goal_config_mutated",
+        "constitution_mutated",
+        "probe_registry_mutated",
+        "verdict_probe_mutated",
+        "primitive_registry_mutated",
+        "gpu_execution_started",
+        "formal_verdict_mutated"
+      ],
+      "properties": {
+        "source_code_mutated": {"type": "boolean"},
+        "goal_config_mutated": {"type": "boolean"},
+        "constitution_mutated": {"type": "boolean"},
+        "probe_registry_mutated": {"type": "boolean"},
+        "verdict_probe_mutated": {"type": "boolean"},
+        "primitive_registry_mutated": {"type": "boolean"},
+        "gpu_execution_started": {"type": "boolean"},
+        "formal_verdict_mutated": {"type": "boolean"}
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

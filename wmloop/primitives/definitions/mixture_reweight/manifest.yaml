@@ -1,0 +1,14 @@
+{
+  "name": "mixture_reweight",
+  "layer": "L1",
+  "family": "data_mixture",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["frontier_weight"], "properties": {"frontier_weight": {"type": "number", "minimum": 0.0}}},
+  "cost_class": "low",
+  "literature": ["data-mixture ablations"],
+  "targets_failures": ["ood_physics", "train_infer_mismatch"],
+  "estimated_gpu_hours": 8.0,
+  "conflicts_with": [],
+  "hooks": ["H1"],
+  "hook_order": {"H1": 20},
+  "apply_module": "wmloop.primitives.definitions.mixture_reweight.apply"
+}

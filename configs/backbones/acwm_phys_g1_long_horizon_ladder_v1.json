@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-backbone-instance",
+  "instance_id": "acwm_phys_g1_long_horizon_ladder_v1",
+  "backbone_family": "acwm_phys",
+  "goal_id": "g1_long_horizon_ladder_v1",
+  "campaign_state": "active_ready",
+  "claim_scope": "Public ACWM-Phys reference instance for the long-horizon ladder and operational minimal-loop evidence.",
+  "surfaces": [
+    {
+      "surface_id": "goal_spec",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/goal/g1_long_horizon_ladder_v1.yaml",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Declares the G1 metric family, environment set, budget, and ladder protocol."
+    },
+    {
+      "surface_id": "horizon_ladder",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/goal/horizon_ladder_g1_acwm_phys_v1.yaml",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Prevents dataset-length differences from silently changing verdict horizons."
+    },
+    {
+      "surface_id": "probe_registry",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/probes/acwm_v1.json",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Separates verdict probes from diagnostic-only probes."
+    },
+    {
+      "surface_id": "constitution_config",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/constitution/acwm_g1_long_horizon_ladder_v1.json",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Lists all verifier-affecting frozen surfaces."
+    },
+    {
+      "surface_id": "constitution_freeze",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/constitution/acwm_g1_long_horizon_ladder_v1.freeze.json",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "SHA-256 freeze manifest for the constitutional layer."
+    },
+    {
+      "surface_id": "evaluator_freeze",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/eval_frozen.sha256",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Hash guard for the external read-only ACWM-Phys evaluator."
+    },
+    {
+      "surface_id": "primitive_registry",
+      "role": "adapter",
+      "status": "ready",
+      "artifact_ref": "configs/registry_frozen.sha256",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Frozen primitive registry digest."
+    },
+    {
+      "surface_id": "executor_adapter",
+      "role": "adapter",
+      "status": "ready",
+      "artifact_ref": "wmloop/orchestrator_training_eval_smoke.py",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": false,
+      "notes": "ACWM training/evaluation executor adapter. External assets are required for GPU use."
+    },
+    {
+      "surface_id": "public_minimal_loop_export",
+      "role": "archive",
+      "status": "ready",
+      "artifact_ref": "examples/acwm_minimal_loop_cloth_next_forcing_v2/minimal-loop-proof.json",
+      "required_for_closed_loop": false,
+      "required_for_formal_verdict": false,
+      "notes": "Public integrity-checked operational evidence; not an independent-seed paper claim."
+    }
+  ],
+  "invariants": [
+    "Changing verifier-affecting surfaces after launch requires a new version and freeze.",
+    "Proposal freedom is limited to primitive selection, parameters, rationale, and falsifiable prediction.",
+    "Surrogate outputs may sort proposals only and never enter verifier evidence.",
+    "ACWM-Phys metrics are not assumed to transfer unchanged to other world-model families."
+  ],
+  "next_actions": [
+    "Replicate retained effects with independent seeds and cohorts.",
+    "Fit measured IRG charts and calibrate transfer certificates on a second backbone.",
+    "Promote only factorized confirmed effects into paper-level causal claims."
+  ]
+}

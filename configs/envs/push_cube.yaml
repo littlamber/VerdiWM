@@ -1,0 +1,3 @@
+id: push_cube
+vendor_env_id: push_cube
+provider_env_config: vendor/ACWM-Phys/configs/envs/push_cube.yaml

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "constitution_id", "constitution_sha256", "goal_id", "verdict_probe_ids", "entries"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-constitutional-freeze"]},
+    "constitution_id": {"type": "string", "minLength": 1},
+    "constitution_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "goal_id": {"type": "string", "minLength": 1},
+    "verdict_probe_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["component", "path", "sha256", "size"],
+        "properties": {
+          "component": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size": {"type": "integer", "minimum": 0}
+        }
+      }
+    }
+  }
+}

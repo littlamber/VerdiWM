@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "source_failure_signature_bank",
+    "prompt_count",
+    "probe_ids",
+    "records",
+    "alignment_contract",
+    "side_effects",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-diagnostic-probe-materialization-prompt-batch"]},
+    "state": {"enum": ["ready", "blocked"]},
+    "source_failure_signature_bank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_path", "state", "probe_work_order_count"],
+      "properties": {
+        "manifest_path": {"type": "string", "minLength": 1},
+        "state": {"type": "string", "minLength": 1},
+        "probe_work_order_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "prompt_count": {"type": "integer", "minimum": 0},
+    "probe_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "probe_id",
+          "environment",
+          "signature",
+          "priority",
+          "work_order_path",
+          "work_order_sha256",
+          "prompt_path",
+          "report_path",
+          "markdown_path"
+        ],
+        "properties": {
+          "probe_id": {"type": "string", "minLength": 1},
+          "environment": {"type": "string", "minLength": 1},
+          "signature": {"type": "string", "minLength": 1},
+          "priority": {"type": "string", "minLength": 1},
+          "work_order_path": {"type": "string", "minLength": 1},
+          "work_order_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "prompt_path": {"type": "string", "minLength": 1},
+          "report_path": {"type": "string", "minLength": 1},
+          "markdown_path": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "alignment_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["must_not_change", "required_runtime_evidence", "promotion_boundary", "engineering_practice_policy"],
+      "properties": {
+        "must_not_change": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "required_runtime_evidence": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "promotion_boundary": {"type": "string", "minLength": 1},
+        "engineering_practice_policy": {"type": "object"}
+      }
+    },
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_code_mutated",
+        "goal_config_mutated",
+        "verdict_probe_mutated",
+        "primitive_registry_mutated",
+        "gpu_execution_started",
+        "formal_verdict_mutated"
+      ],
+      "properties": {
+        "source_code_mutated": {"type": "boolean"},
+        "goal_config_mutated": {"type": "boolean"},
+        "verdict_probe_mutated": {"type": "boolean"},
+        "primitive_registry_mutated": {"type": "boolean"},
+        "gpu_execution_started": {"type": "boolean"},
+        "formal_verdict_mutated": {"type": "boolean"}
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

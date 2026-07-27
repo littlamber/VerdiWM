@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "artifact_type": "acwm-m0-baseline-official-reference",
+  "source": "arXiv:2605.08567v2 HTML Table 1, ACWM-DiT-S on all eight ACWM-Phys environments at 100k training steps and 50 inference steps, https://arxiv.org/html/2605.08567v2#S5.T1",
+  "metric": "psnr",
+  "metric_unit": "dB",
+  "reference_scope": {
+    "paper": "ACWM-Phys",
+    "model": "ACWM-DiT-S",
+    "training_steps": 100000,
+    "inference_steps": 50,
+    "table": "Table 1",
+    "source_url": "https://arxiv.org/html/2605.08567v2#S5.T1"
+  },
+  "environments": {
+    "cloth_move": {
+      "category": "Deformable",
+      "display_name": "Cloth Move",
+      "ind": {
+        "psnr": 19.72
+      },
+      "ood": {
+        "psnr": 16.23
+      }
+    },
+    "pour_water": {
+      "category": "Particle",
+      "display_name": "Pour Water",
+      "ind": {
+        "psnr": 25.8
+      },
+      "ood": {
+        "psnr": 24.57
+      }
+    },
+    "push_cube": {
+      "category": "Rigid",
+      "display_name": "Push Cube",
+      "ind": {
+        "psnr": 25.35
+      },
+      "ood": {
+        "psnr": 25.3
+      }
+    },
+    "push_rope": {
+      "category": "Deformable",
+      "display_name": "Push Rope",
+      "ind": {
+        "psnr": 36.7
+      },
+      "ood": {
+        "psnr": 34.83
+      }
+    },
+    "push_sand": {
+      "category": "Particle",
+      "display_name": "Push Sand",
+      "ind": {
+        "psnr": 32.85
+      },
+      "ood": {
+        "psnr": 28.16
+      }
+    },
+    "reacher": {
+      "category": "Kinematics",
+      "display_name": "Reacher",
+      "ind": {
+        "psnr": 35.85
+      },
+      "ood": {
+        "psnr": 35.65
+      }
+    },
+    "robot_arm": {
+      "category": "Kinematics",
+      "display_name": "Robot Arm",
+      "ind": {
+        "psnr": 28.43
+      },
+      "ood": {
+        "psnr": 21.83
+      }
+    },
+    "stack_cube": {
+      "category": "Rigid",
+      "display_name": "Stack Cube",
+      "ind": {
+        "psnr": 22.58
+      },
+      "ood": {
+        "psnr": 21.55
+      }
+    }
+  }
+}

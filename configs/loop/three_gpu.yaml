@@ -1,0 +1,18 @@
+# Degraded launch profile approved for the three GPUs currently available.
+# Eight baseline environments run in three waves: 3 + 3 + 2. Candidate rounds
+# for the same environment remain serial; no run may claim the 4--8 GPU plan.
+gpus: [0, 1, 2]
+parallel_slots: 3
+launch_mode: three_gpu_degraded
+baseline_wave_size: 3
+ucb_coefficient: 1.0
+novelty_beta: 0.25
+cost_gamma: 1.0
+violation_delta: 1000.0
+local_saturation_rounds: 5
+ablation:
+  no_diagnosis: false
+  no_prior: false
+  no_explore: false
+  no_factorize: false
+  no_af_gate: false

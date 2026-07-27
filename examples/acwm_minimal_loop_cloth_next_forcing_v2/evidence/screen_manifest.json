@@ -1,0 +1,67 @@
+{
+  "action_following_gate": {
+    "enabled": true,
+    "observed": 1.0,
+    "pass": true,
+    "threshold": 0.0
+  },
+  "artifact_type": "wmloop-m3-training-eval-smoke-manifest",
+  "budget_db_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/budget.db",
+  "candidate_checkpoint_retained": true,
+  "candidate_checkpoint_retained_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/retained_training/latest.pt",
+  "candidate_checkpoint_sha256": "3b300477d903eff0626bcb2effc42f974db5bd3d8af1d07b84abd238dd82fae0",
+  "candidate_runtime_retained": true,
+  "candidate_runtime_root": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/retained_runtime",
+  "candidate_runtime_sha256": "ce63b70515994c46df0416c62e083bc5abf83fe8038e54112d719d69dbb661dd",
+  "cas_refs": {
+    "budget_db": "cas://sha256/7e1ed53005de1c5264da8deab10192870baec7e761f515332ef6b6a733789612",
+    "orchestrator_training_eval_smoke_json": "cas://sha256/d49e1ac16cc92ca9f8dea2fddf234c636f4d9496012fc13c572e6bf555d9896d",
+    "orchestrator_training_eval_smoke_markdown": "cas://sha256/101b6000eb0aac52e131ae1366114af3ead7587aa6f5aeaa4b87e8bb58a5cbac"
+  },
+  "delta_m_ver": {
+    "ladder_auc_psnr_envmax": 11.905507229944192
+  },
+  "environment": "cloth_move",
+  "evaluation_dir": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/evaluation",
+  "formal_settled_trial_published": false,
+  "goal_id": "g1_long_horizon_ladder_v1",
+  "gpu_exclusivity_audit": {
+    "age_seconds": 1.780661,
+    "artifact_type": "wmloop-gpu-exclusivity-authorization",
+    "audited_requested_gpus": [
+      0
+    ],
+    "cas_refs": {
+      "gpu_exclusivity_audit_json": "cas://sha256/ef7dbd245ea509737251bb9500035dfa28189c73669932d5e635178b1263c40d",
+      "gpu_exclusivity_audit_markdown": "cas://sha256/b638557d872000a95b1191a882afa4e72f5369a8f0d5ff732cbd84c6e785f387"
+    },
+    "formal_training_allowed": false,
+    "m4_launch_allowed": false,
+    "manifest_path": "${VERDIWM_REPO}/results/reports/gpu-exclusivity-audit-acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1-gpu0-20260726T150719Z-i001/manifest.json",
+    "manifest_sha256": "a594dd3d09f0e597b2ccfc8244ed6bb41065dc3134d61099bb109335e5e87a9a",
+    "max_age_seconds": 3600.0,
+    "report_path": "${VERDIWM_REPO}/results/reports/gpu-exclusivity-audit-acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1-gpu0-20260726T150719Z-i001/gpu-exclusivity-audit.json",
+    "report_sha256": "ef7dbd245ea509737251bb9500035dfa28189c73669932d5e635178b1263c40d",
+    "required_gpus": [
+      0
+    ],
+    "schema_version": 1,
+    "state": "ready"
+  },
+  "limitations": [
+    "This is a 512-step cloth_move smoke for orchestration and metric-evidence wiring, not a formal model-quality claim.",
+    "It evaluates one or more frozen ind_accept trajectory batches; small-count smoke evidence is not a formal model-quality claim.",
+    "The evaluator runs from the frozen vendor checkout; the trial worktree patch cannot modify evaluator files.",
+    "The final candidate and configured checkpoint ladder are retained under retained_training; formal claims still require frozen official evaluator receipts."
+  ],
+  "markdown_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/orchestrator-training-eval-smoke.md",
+  "primary_metric": "ladder_auc_psnr_envmax",
+  "proposal_id": "m3-cloth_move-training-eval-smoke-next_forcing-unlabeled-s2802-r1",
+  "report_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/orchestrator-training-eval-smoke.json",
+  "retained_runtime_dir": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/retained_runtime",
+  "retained_training_dir": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/retained_training",
+  "schema_version": 1,
+  "seed": 2802,
+  "state": "ready",
+  "verdict": "INCONCLUSIVE"
+}

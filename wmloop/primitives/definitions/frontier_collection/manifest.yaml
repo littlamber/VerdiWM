@@ -1,0 +1,14 @@
+{
+  "name": "frontier_collection",
+  "layer": "L1",
+  "family": "failure_frontier_data",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["condition", "n_episodes"], "properties": {"condition": {"type": "string", "minLength": 1}, "n_episodes": {"type": "integer", "minimum": 1}}},
+  "cost_class": "very_low",
+  "literature": ["ACWM-Phys simulator collection"],
+  "targets_failures": ["ood_physics"],
+  "estimated_gpu_hours": 0.5,
+  "conflicts_with": [],
+  "hooks": ["H1"],
+  "hook_order": {"H1": 10},
+  "apply_module": "wmloop.primitives.definitions.frontier_collection.apply"
+}

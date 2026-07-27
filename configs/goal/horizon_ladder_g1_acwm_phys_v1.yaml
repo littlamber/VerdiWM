@@ -1,0 +1,115 @@
+schema_version: 1
+artifact_type: wmloop-horizon-ladder
+protocol_id: g1_acwm_phys_horizon_ladder_v1
+mode: per_environment_max_horizon
+goal_id: g1_long_horizon_ladder_v1
+source_availability_report: results/reports/m1-horizon-availability-ladder-r1/horizon-availability.json
+base_horizons:
+  - 16
+  - 32
+  - 48
+  - 64
+splits:
+  - ind_test
+  - ood_test
+common_horizons_all_envs:
+  - 16
+  - 32
+cross_environment_comparison_horizons:
+  - 16
+  - 32
+horizons_by_environment:
+  push_cube:
+    - 16
+    - 32
+    - 48
+    - 64
+  stack_cube:
+    - 16
+    - 32
+    - 48
+  push_rope:
+    - 16
+    - 32
+    - 48
+  cloth_move:
+    - 16
+    - 32
+    - 48
+  push_sand:
+    - 16
+    - 32
+    - 48
+  pour_water:
+    - 16
+    - 32
+    - 48
+    - 64
+  robot_arm:
+    - 16
+    - 32
+    - 48
+  reacher:
+    - 16
+    - 32
+max_horizon_by_environment:
+  push_cube: 64
+  stack_cube: 48
+  push_rope: 48
+  cloth_move: 48
+  push_sand: 48
+  pour_water: 64
+  robot_arm: 48
+  reacher: 32
+max_horizon_groups:
+  16: []
+  32:
+    - reacher
+  48:
+    - stack_cube
+    - push_rope
+    - cloth_move
+    - push_sand
+    - robot_arm
+  64:
+    - push_cube
+    - pour_water
+claim_envs_by_horizon:
+  16:
+    - push_cube
+    - stack_cube
+    - push_rope
+    - cloth_move
+    - push_sand
+    - pour_water
+    - robot_arm
+    - reacher
+  32:
+    - push_cube
+    - stack_cube
+    - push_rope
+    - cloth_move
+    - push_sand
+    - pour_water
+    - robot_arm
+    - reacher
+  48:
+    - push_cube
+    - stack_cube
+    - push_rope
+    - cloth_move
+    - push_sand
+    - pour_water
+    - robot_arm
+  64:
+    - push_cube
+    - pour_water
+long_horizon_64_envs:
+  - push_cube
+  - pour_water
+reporting_policy:
+  cross_environment: Compare environments only on common_horizons_all_envs.
+  long_horizon_64: Report horizon-64 claims only for long_horizon_64_envs.
+  environment_metric: Use ladder_auc_psnr_envmax as the per-environment AUC over its declared horizon set.
+m4_launch_allowed: false
+formal_training_allowed: false

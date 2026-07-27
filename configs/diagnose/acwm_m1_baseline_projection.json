@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-diagnosis-thresholds",
+  "mode": "m0_baseline_metric_projection",
+  "thresholds": {
+    "appearance_low_motion_ssim_min": 0.65,
+    "action_following_accuracy_min": 0.6,
+    "no_action_delta_psnr_min": 0.5,
+    "ood_auc_gap_min": 50.0,
+    "negative_drift_slope_min": 0.2,
+    "mixed_relative_margin": 0.1
+  },
+  "projection": {
+    "source": "completed M0 baseline summary",
+    "horizon_method": "linear proxy from mean InD PSNR to OoD PSNR across goal horizons",
+    "appearance_method": "OoD aggregate SSIM used as low-motion proxy",
+    "action_following_method": "neutral placeholder because inverse-dynamics head is not trained in this projection",
+    "inverse_dynamics_r2": 0.0
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-m1-attribution-review-expectations",
+  "required_review_count": 3,
+  "expectations": [
+    {
+      "environment": "pour_water",
+      "dominant_failure": "ood_physics",
+      "source": "工程落地实施方案_v2.md §11.2 manual attribution requirement"
+    }
+  ]
+}

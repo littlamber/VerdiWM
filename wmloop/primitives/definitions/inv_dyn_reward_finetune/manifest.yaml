@@ -1,0 +1,14 @@
+{
+  "name": "inv_dyn_reward_finetune",
+  "layer": "L3",
+  "family": "reward_objective",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["reward_weight", "steps", "lr"], "properties": {"reward_weight": {"type": "number", "exclusiveMinimum": 0.0}, "steps": {"type": "integer", "minimum": 1}, "lr": {"type": "number", "exclusiveMinimum": 0.0}}},
+  "cost_class": "medium",
+  "literature": ["RLIR"],
+  "targets_failures": ["action_binding"],
+  "estimated_gpu_hours": 48.0,
+  "conflicts_with": ["latent_motion_prior", "self_forcing_finetune"],
+  "hooks": ["H3"],
+  "hook_order": {"H3": 30},
+  "apply_module": "wmloop.primitives.definitions.inv_dyn_reward_finetune.apply"
+}

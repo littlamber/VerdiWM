@@ -1,0 +1,37 @@
+{
+  "artifact_type": "wmloop-materialized-primitive-smoke",
+  "hook": "H3",
+  "intent_to_code_contract": {
+    "declared_proxy": "Uses latent prefix windows as the executable proxy for multi-chunk next-token forcing.",
+    "method_intent": "Reduce train-inference mismatch by adding supervised losses on shorter rollout prefixes.",
+    "not_claimed": [
+      "does not run model-generated rollouts inside this smoke hook",
+      "does not change held-out evaluation",
+      "does not override the frozen primitive conflict rules"
+    ],
+    "runtime_behavior": "Replaces the single base loss call with a base loss plus bounded prefix-window auxiliary losses computed through the model's existing training_loss."
+  },
+  "layer": "L3",
+  "materialization_state": "acwm_runtime_hook_smoke",
+  "notes": [
+    "Adds bounded multi-window next-forcing auxiliary losses around the ACWM training_loss path.",
+    "The lr parameter is consumed by the wm-loop training config for this primitive.",
+    "The hook is trial-worktree only and does not modify frozen evaluator files."
+  ],
+  "params": {
+    "chunks": 3,
+    "lr": 1e-05,
+    "steps": 1
+  },
+  "primitive": "next_forcing",
+  "runtime_hook": {
+    "function": "apply_next_forcing_loss",
+    "module": "acwm.wmloop_hooks.next_forcing",
+    "trainer_patch": "acwm/trainer/train_dynamics.py"
+  },
+  "runtime_hook_paths": [
+    "acwm/trainer/train_dynamics.py",
+    "acwm/wmloop_hooks/next_forcing.py"
+  ],
+  "schema_version": 1
+}

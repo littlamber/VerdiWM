@@ -1,0 +1,3 @@
+id: stack_cube
+vendor_env_id: stack_cube
+provider_env_config: vendor/ACWM-Phys/configs/envs/stack_cube.yaml

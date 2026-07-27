@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal_id", "round", "env", "goal_id", "based_on_failure", "interventions", "falsifiable_prediction", "budget_estimate_gpu_hours", "rationale_ref", "library_version"],
+  "properties": {
+    "proposal_id": {"type": "string", "minLength": 1},
+    "round": {"type": "integer", "minimum": 0},
+    "env": {"type": "string", "minLength": 1},
+    "goal_id": {"type": "string", "minLength": 1},
+    "based_on_failure": {"type": "string", "minLength": 1},
+    "interventions": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["layer", "primitive", "params"], "properties": {"layer": {"pattern": "^L[1-5]$"}, "primitive": {"type": "string"}, "params": {"type": "object"}}}},
+    "falsifiable_prediction": {"type": "object", "required": ["metric", "horizon", "split", "min_relative_gain"]},
+    "budget_estimate_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+    "rationale_ref": {"type": "string", "minLength": 1},
+    "library_version": {"type": "string", "minLength": 1}
+  }
+}

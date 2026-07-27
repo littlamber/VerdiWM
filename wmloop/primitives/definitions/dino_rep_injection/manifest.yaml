@@ -1,0 +1,14 @@
+{
+  "name": "dino_rep_injection",
+  "layer": "L2",
+  "family": "representation_injection",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["injection_weight"], "properties": {"injection_weight": {"type": "number", "minimum": 0.0, "maximum": 1.0}}},
+  "cost_class": "low",
+  "literature": ["DINO representation conditioning"],
+  "targets_failures": ["appearance_drift", "ood_physics"],
+  "estimated_gpu_hours": 8.0,
+  "conflicts_with": [],
+  "hooks": ["H2"],
+  "hook_order": {"H2": 30},
+  "apply_module": "wmloop.primitives.definitions.dino_rep_injection.apply"
+}

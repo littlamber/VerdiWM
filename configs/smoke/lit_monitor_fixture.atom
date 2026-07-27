@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>http://arxiv.org/abs/2607.12345v1</id>
+    <published>2026-07-20T10:00:00Z</published>
+    <title>Fixture world model intervention</title>
+    <summary>Untrusted metadata fixture for deterministic lit monitor smoke.</summary>
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2501.00001</id>
+    <published>2025-01-01T10:00:00Z</published>
+    <title>Old fixture paper</title>
+    <summary>Outside the deterministic lookback window.</summary>
+  </entry>
+</feed>

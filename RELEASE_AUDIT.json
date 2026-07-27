@@ -1,0 +1,46 @@
+{
+  "artifact_type": "verdiwm-github-release-audit",
+  "checks": {
+    "allowlist_copy": true,
+    "no_blocked_extensions": true,
+    "no_blocked_paths": true,
+    "no_high_confidence_secrets": true,
+    "no_machine_local_paths": true,
+    "no_oversized_files": true,
+    "no_symlinks": true
+  },
+  "file_count_before_manifest": 371,
+  "public_example_validation": {
+    "artifact_count": 9,
+    "artifact_type": "verdiwm-public-example-validation",
+    "example": "acwm_minimal_loop_cloth_next_forcing_v2",
+    "operational_minimal_loop_pass": true,
+    "paper_confirmed_effect": false,
+    "schema_version": 1,
+    "state": "ready",
+    "verified_bytes": 212627
+  },
+  "public_experience_validation": {
+    "artifact_type": "verdiwm-public-experience-bundle",
+    "causal_edge_count": 0,
+    "claim_boundary": "The screen table preserves positive and negative triage evidence. Only the four showcase records carry frozen official-gate and confirmation admission; experience-atlas records remain context-local routing priors unless causal_credit_eligible is true.",
+    "experience_record_count": 22,
+    "experience_source_map_count": 25,
+    "horizon_measurement_count": 874,
+    "negative_screen_count": 209,
+    "positive_screen_count": 69,
+    "schema_version": 1,
+    "screen_trial_count": 284,
+    "showcase_case_count": 4,
+    "showcase_confirmed_case_count": 4,
+    "state": "ready"
+  },
+  "release_notes": [
+    "Training data, model checkpoints, run outputs, archive databases, and vendor checkouts are excluded.",
+    "VerdiWM source code is distributed under Apache-2.0; external assets retain their upstream terms."
+  ],
+  "schema_version": 1,
+  "source_license": "Apache-2.0",
+  "state": "ready",
+  "total_bytes_before_manifest": 6058704
+}

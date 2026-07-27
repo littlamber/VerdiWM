@@ -1,0 +1,1062 @@
+{
+  "artifact_type": "verdiwm-public-experience-atlas",
+  "causal_edge_count": 0,
+  "claim_boundary": "Records are context-local observational priors and anti-conditions unless causal_credit_eligible is true.",
+  "record_count": 22,
+  "records": [
+    {
+      "anti_conditions": "Can be expensive and unstable without enough long trajectories.",
+      "candidate_checkpoint_step": 11800,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 1.5671538514366363,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        16,
+        32,
+        48
+      ],
+      "environment": "cloth_move",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "16": 1.5882582203955131,
+        "32": 1.367661146285986,
+        "48": 1.0753057123904952
+      },
+      "late_half_mean_delta_psnr": 0.8974222675457953,
+      "layer": "L3",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "Multi-chunk prediction objective",
+      "positive_trajectory_rate_at_max_horizon": 0.6666666666666666,
+      "primitive": "next_forcing",
+      "record_sha256": "03f7cc496b54421d0823e6cab3b716d279e67e30a75671baef68a272ee0f3392",
+      "response_shape": "sustained_long_horizon_gain",
+      "roles": [
+        "observational_edge",
+        "routing_prior"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-cloth_move-next_forcing-s2802-r1"
+      ],
+      "tail_frame_delta_psnr": 0.3971972604960996,
+      "transfer_preconditions": "Requires objective/training loop control over chunked horizons."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 11512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.9909011307451738,
+      "effect_scope": "short_horizon_only_positive",
+      "effective_horizons": [
+        16
+      ],
+      "environment": "cloth_move",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 32,
+      "horizon_psnr_delta": {
+        "16": 1.1036844424030399,
+        "32": -0.012545082152271902,
+        "48": -0.049883115738456496
+      },
+      "late_half_mean_delta_psnr": -0.4316472482708618,
+      "layer": "L3",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 0.6666666666666666,
+      "primitive": "self_forcing_finetune",
+      "record_sha256": "c77e822e1c6437f9364d12526d682ab261b3467bb73935117eb2f36e850e526b",
+      "response_shape": "short_horizon_gain_then_failure",
+      "roles": [
+        "observational_edge",
+        "routing_prior",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-cloth_move-self_forcing_finetune-s2805-r1"
+      ],
+      "tail_frame_delta_psnr": 0.023677684218124995,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.09917432176552668,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 200,
+      "horizon_psnr_delta": {
+        "128": 0.0169229866074474,
+        "160": 0.016046813841750662,
+        "200": 0.009031641987142791,
+        "32": 0.15655794531122424,
+        "64": 0.044798924869503765,
+        "96": 0.01513893493207874
+      },
+      "late_half_mean_delta_psnr": -0.00021153220113404814,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "1595e029c67d0e80cc5c74ac1cf253ce214db4ed4dfed2b6ac752bef631e399e",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p1-h200-r1"
+      ],
+      "tail_frame_delta_psnr": 0.007324059652784598,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.4813204184505109,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "128": 0.0603586818950852,
+        "160": 0.05005943739509178,
+        "32": 0.8112301853311337,
+        "64": 0.2510127042243582,
+        "96": 0.06984856482434765
+      },
+      "late_half_mean_delta_psnr": 0.029754235493065197,
+      "layer": "L3",
+      "max_horizon": 160,
+      "max_horizon_seconds": 16.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "273f06cabbd9bffa668a07c6457805aeb7531c475ed1319c9279b129c9d45ba5",
+      "response_shape": "nonpositive_or_mixed",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h160-event-aware-r1"
+      ],
+      "tail_frame_delta_psnr": 0.0045421708420505524,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.7091586909789344,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        32,
+        48,
+        64,
+        96
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 16,
+      "horizon_psnr_delta": {
+        "16": -0.08834849859155725,
+        "32": 0.8111048761054818,
+        "48": 1.1505541112208633,
+        "64": 0.2511114437246995,
+        "96": 0.06993270561575216
+      },
+      "late_half_mean_delta_psnr": 0.09689431744872475,
+      "layer": "L3",
+      "max_horizon": 96,
+      "max_horizon_seconds": 9.6,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "4ab188db70bb550f3235ba724b03071b500dd474e7a6fde6665889e4abdf227d",
+      "response_shape": "sustained_long_horizon_gain",
+      "roles": [
+        "observational_edge",
+        "routing_prior"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h96-r1"
+      ],
+      "tail_frame_delta_psnr": -0.008106638520324339,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.012820642111675138,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        128,
+        160,
+        200
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 64,
+      "horizon_psnr_delta": {
+        "128": 0.0025958771592122787,
+        "160": 0.006230269066087146,
+        "200": 0.0008364585509070821,
+        "32": 0.11598213215654951,
+        "64": -0.026098212647937657,
+        "96": -0.005310581227458755
+      },
+      "late_half_mean_delta_psnr": -0.0017229198983039495,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "84ebfd7ced063b2edd59896fbb03ce9136b86208581f7a2f8d9103b418fd67db",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p1-h200-r2"
+      ],
+      "tail_frame_delta_psnr": 0.0072188869175882076,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.39095794818339386,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160,
+        200
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "128": 0.06035305746664221,
+        "160": 0.050072462028278863,
+        "200": 0.0311725823807123,
+        "32": 0.8112605539874131,
+        "64": 0.25102357060313807,
+        "96": 0.06984073951785064
+      },
+      "late_half_mean_delta_psnr": -0.0032851782226379633,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "96eb754338127df2bbe38f79bfbb783cbb7057d0b39878b2f0360c260322946f",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h200-r1",
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h200-r2"
+      ],
+      "tail_frame_delta_psnr": 0.0053905867910657435,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.010095449893656613,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        128,
+        160,
+        200
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 64,
+      "horizon_psnr_delta": {
+        "128": 0.0016021916840571748,
+        "160": 0.003692121889503852,
+        "200": 0.0007046698093517989,
+        "32": 0.06435941550665447,
+        "64": -0.013695255736188017,
+        "96": -0.002799570324842904
+      },
+      "late_half_mean_delta_psnr": -0.0006009637401125189,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "97386ff883ae990d035d2095b4d6fc36a4278a44f159a823f302a624a668a978",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p05-h200-r1"
+      ],
+      "tail_frame_delta_psnr": 0.0033017835156563535,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.4813204184505109,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "128": 0.0603586818950852,
+        "160": 0.05005943739509178,
+        "32": 0.8112301853311337,
+        "64": 0.2510127042243582,
+        "96": 0.06984856482434765
+      },
+      "late_half_mean_delta_psnr": 0.029754235493065197,
+      "layer": "L3",
+      "max_horizon": 160,
+      "max_horizon_seconds": 16.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "9be11ead2e7ec417026c3271d8e2789196fac903a78059e4ea5e0a2f7d957c50",
+      "response_shape": "sustained_long_horizon_gain",
+      "roles": [
+        "observational_edge",
+        "routing_prior"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h160-r1"
+      ],
+      "tail_frame_delta_psnr": 0.0045421708420505524,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.00515518665633973,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        128,
+        160,
+        200
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 64,
+      "horizon_psnr_delta": {
+        "128": 0.0006981948401829641,
+        "160": 0.0016291332735498543,
+        "200": 0.0003732929788924366,
+        "32": 0.02745423045751849,
+        "64": -0.005871070683973301,
+        "96": -0.0011744516861789123
+      },
+      "late_half_mean_delta_psnr": -0.00013332433232104534,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "ccb161ce627e61f8e7280655126f2bc47acd200248c272605a9693f7c09554ac",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p02-h200-r2"
+      ],
+      "tail_frame_delta_psnr": 0.0012897076111748618,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.21945782940434255,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 200,
+      "horizon_psnr_delta": {
+        "128": 0.03689597339008088,
+        "160": 0.03258652365858694,
+        "200": 0.018839210437914033,
+        "32": 0.37460568161155194,
+        "64": 0.12194478370733819,
+        "96": 0.0375762932710586
+      },
+      "late_half_mean_delta_psnr": -0.0023716440058309195,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "d1403f4960857f01898b6d7810ad85ba354ca618401cd3b094dc1b98959f60b1",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h200-r1"
+      ],
+      "tail_frame_delta_psnr": 0.013119246846255095,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 1.2185880747169973,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160,
+        200,
+        240,
+        297
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "128": 1.5163195787845858,
+        "160": 1.012382577789488,
+        "200": 0.9169143842565148,
+        "240": 0.8434361567356774,
+        "297": 0.543568662281448,
+        "32": 0.6149781421582077,
+        "64": 1.2812949685573152,
+        "96": 2.114158334328966
+      },
+      "late_half_mean_delta_psnr": 0.5136903485937345,
+      "layer": "L3",
+      "max_horizon": 297,
+      "max_horizon_seconds": 29.7,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "e52930bc6ebc55f8881a3229c9fe331bb90414ee80f2b8cb50552982839b5de3",
+      "response_shape": "sustained_long_horizon_gain",
+      "roles": [
+        "observational_edge",
+        "routing_prior"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour-positive-push-sand-overfit-r1",
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h297-r2",
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h297-r3"
+      ],
+      "tail_frame_delta_psnr": 0.16773831701832265,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": -0.001955956677320157,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        96,
+        240,
+        297
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 64,
+      "horizon_psnr_delta": {
+        "128": -0.003603818406794801,
+        "160": -0.026525455160477662,
+        "200": 0.011326463660427777,
+        "240": 0.04095641457970345,
+        "297": 0.022865596520176723,
+        "32": 0.051201426150363716,
+        "64": 0.015974485626944812,
+        "96": 0.012838633058393611
+      },
+      "late_half_mean_delta_psnr": 0.04356647416677989,
+      "layer": "L3",
+      "max_horizon": 297,
+      "max_horizon_seconds": 29.7,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "e92ad02a6de069f38e44c02eb8827d72a18d861a8727e82d6ef453fafed4b4f3",
+      "response_shape": "nonpositive_or_mixed",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p02-h297-r2"
+      ],
+      "tail_frame_delta_psnr": -0.01250657400785471,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.022442636750511422,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": 200,
+      "horizon_psnr_delta": {
+        "128": 0.0035652737635487597,
+        "160": 0.003559547372919525,
+        "200": 0.001975881285446235,
+        "32": 0.03531322123424374,
+        "64": 0.008368405965345715,
+        "96": 0.002931705448066424
+      },
+      "late_half_mean_delta_psnr": 9.633237039277987e-05,
+      "layer": "L3",
+      "max_horizon": 200,
+      "max_horizon_seconds": 20.0,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "f46ec4b425f18fb5786bc10875d8050aaebfb17dd2b0ab0c32c8218f12637d31",
+      "response_shape": "nonpositive_or_mixed",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p02-h200-r1"
+      ],
+      "tail_frame_delta_psnr": 0.0013545401784185174,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 1.5661239866437908,
+      "effect_scope": "metric_positive_event_failure",
+      "effective_horizons": [
+        32,
+        64,
+        96,
+        128,
+        160,
+        200,
+        240,
+        297
+      ],
+      "environment": "pour_water",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "128": 1.7596849209043413,
+        "160": 1.464336824736904,
+        "200": 1.3335590511059259,
+        "240": 1.1710189986614097,
+        "297": 0.9845357994482455,
+        "32": 1.2282820257348952,
+        "64": 1.7152570949065336,
+        "96": 2.0250669415272533
+      },
+      "late_half_mean_delta_psnr": 0.859090964047772,
+      "layer": "L3",
+      "max_horizon": 297,
+      "max_horizon_seconds": 29.7,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "f63548d62e61d3ae199fabb97e0a49ba3a33271347ebdef91d6eb53f7c876237",
+      "response_shape": "nonpositive_or_mixed",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h297-r4"
+      ],
+      "tail_frame_delta_psnr": 1.190359213547433,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "Can overfit or hurt common-case performance when frontier labels are noisy.",
+      "candidate_checkpoint_step": 100500,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "checkpoint_ladder": null,
+      "early_half_mean_delta_psnr": -0.5058309322856736,
+      "effect_scope": "aggregate_negative_or_mixed",
+      "effective_horizons": [],
+      "effective_training_window": null,
+      "environment": "push_sand",
+      "failure_signatures": [
+        "ood_physics",
+        "action_binding"
+      ],
+      "first_aggregate_failure_horizon": 16,
+      "horizon_psnr_delta": {
+        "16": -0.967914745909944,
+        "32": -0.05853367773900686,
+        "48": 0.1972220130002995
+      },
+      "late_half_mean_delta_psnr": 0.5694057050604888,
+      "layer": "L1",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "Data distribution repair",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "eaa5560ca6ef60d94e8cce9a614d3e3d385c814fb4facc4b0e25ed25e5a73627",
+      "response_shape": "nonpositive_or_mixed",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-push_sand-checkpoint_delta_scaling-mixture_reweight-alpha0p5-h48-r1"
+      ],
+      "tail_frame_delta_psnr": 0.5406317161024816,
+      "transfer_preconditions": "Requires controllable sampler or dataset weights; transfers to any supervised/finetuning setup."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": -0.08262193919122869,
+      "effect_scope": "short_horizon_only_positive",
+      "effective_horizons": [
+        16
+      ],
+      "environment": "push_sand",
+      "failure_signatures": [
+        "ood_physics",
+        "action_binding"
+      ],
+      "first_aggregate_failure_horizon": 32,
+      "horizon_psnr_delta": {
+        "16": 0.3158226271365834,
+        "32": -0.8536162971756767,
+        "48": -1.2800926604459306
+      },
+      "late_half_mean_delta_psnr": -1.8488240867064831,
+      "layer": "L3",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "self_forcing_finetune",
+      "record_sha256": "07bcb07a2b37ac3477e3b86042b54df4dd6ad86348c054f4038abc379ffcec24",
+      "response_shape": "short_horizon_gain_then_failure",
+      "roles": [
+        "observational_edge",
+        "routing_prior",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-pour-positive-push-sand-overfit-r1",
+        "acwm-salvage-push_sand-self_forcing-s3017-horizon-experience-map-r1"
+      ],
+      "tail_frame_delta_psnr": -1.170476344606751,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    },
+    {
+      "anti_conditions": "Can be expensive and unstable without enough long trajectories.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 0.019759672957740504,
+      "effect_scope": "aggregate_negative_or_mixed",
+      "effective_horizons": [],
+      "environment": "reacher",
+      "failure_signatures": [
+        "action_binding"
+      ],
+      "first_aggregate_failure_horizon": 16,
+      "horizon_psnr_delta": {
+        "16": -0.001960542912129881,
+        "32": -0.009755852534020448
+      },
+      "late_half_mean_delta_psnr": -0.015265521930082349,
+      "layer": "L3",
+      "max_horizon": 32,
+      "max_horizon_seconds": 3.2,
+      "mechanism_family": "Multi-chunk prediction objective",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "1a31572fbc9cf450caf77b1dfe8efc811507122fee6d88c80a002818f3a5806d",
+      "response_shape": "early_gain_then_temporal_regression",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-reacher-checkpoint_delta_scaling-next_forcing-alpha0p02-h32-r2"
+      ],
+      "tail_frame_delta_psnr": -0.015571348009544295,
+      "transfer_preconditions": "Requires objective/training loop control over chunked horizons."
+    },
+    {
+      "anti_conditions": "Can be expensive and unstable without enough long trajectories.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": -0.348338542087433,
+      "effect_scope": "aggregate_negative_or_mixed",
+      "effective_horizons": [],
+      "environment": "reacher",
+      "failure_signatures": [
+        "action_binding"
+      ],
+      "first_aggregate_failure_horizon": 16,
+      "horizon_psnr_delta": {
+        "16": -0.4564359764037107,
+        "32": -0.516743687851509
+      },
+      "late_half_mean_delta_psnr": -0.6069587054708343,
+      "layer": "L3",
+      "max_horizon": 32,
+      "max_horizon_seconds": 3.2,
+      "mechanism_family": "Multi-chunk prediction objective",
+      "positive_trajectory_rate_at_max_horizon": 0.0,
+      "primitive": "checkpoint_delta_scaling",
+      "record_sha256": "505c48be8bc119c343ec74c24bc613ccbfe47661da49b5e9a1262692be4426de",
+      "response_shape": "degrading_with_horizon",
+      "roles": [
+        "observational_edge",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-reacher-checkpoint_delta_scaling-next_forcing-alpha0p02-h32-r1"
+      ],
+      "tail_frame_delta_psnr": -0.686932405882672,
+      "transfer_preconditions": "Requires objective/training loop control over chunked horizons."
+    },
+    {
+      "anti_conditions": "May improve appearance while hurting action binding if guidance overwhelms dynamics.",
+      "candidate_checkpoint_step": 100500,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": -0.18015426867229575,
+      "effect_scope": "hard_case_only_positive",
+      "effective_horizons": [],
+      "environment": "robot_arm",
+      "failure_signatures": [
+        "action_binding"
+      ],
+      "first_aggregate_failure_horizon": 16,
+      "horizon_psnr_delta": {
+        "16": -0.13827255888172374,
+        "32": -0.6017919242282694,
+        "48": -0.810706914645646
+      },
+      "late_half_mean_delta_psnr": -1.0694660594046266,
+      "layer": "L4",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "Inference guidance schedule",
+      "positive_trajectory_rate_at_max_horizon": 0.3333333333333333,
+      "primitive": "cfg_guidance_schedule",
+      "record_sha256": "28cf42024410d9dcbb0ed698ffa49d5cef6f0696001e0f77c69e65237f3aea51",
+      "response_shape": "heterogeneous_hard_case_repair",
+      "roles": [
+        "observational_edge",
+        "routing_prior",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-robot_arm-cfg_guidance_schedule-s910-step512-r2"
+      ],
+      "tail_frame_delta_psnr": -2.8500655464790903,
+      "transfer_preconditions": "Requires sampler guidance control; transfers to diffusion-style samplers."
+    },
+    {
+      "anti_conditions": "May improve appearance while hurting action binding if guidance overwhelms dynamics.",
+      "candidate_checkpoint_step": 100500,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "effect_scope": "hard_case_only_positive",
+      "effective_horizons": [],
+      "environment": "robot_arm",
+      "failure_signatures": [
+        "action_binding"
+      ],
+      "late_half_mean_delta_psnr": -1.0694660594046266,
+      "layer": "L4",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "Inference guidance schedule",
+      "positive_trajectory_rate_at_max_horizon": 0.3333333333333333,
+      "primitive": "cfg_guidance_schedule",
+      "record_sha256": "980b0b2e37a9a1b008b4101991dcd9184a2ff295cb2313130ffa723c029a87e4",
+      "roles": [
+        "observational_edge",
+        "routing_prior",
+        "anti_condition"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-r1"
+      ],
+      "transfer_preconditions": "Requires sampler guidance control; transfers to diffusion-style samplers."
+    },
+    {
+      "anti_conditions": "More expensive and can reinforce model errors without careful held-out validation.",
+      "candidate_checkpoint_step": 100512,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 1.3396041901871918,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        16,
+        32,
+        48
+      ],
+      "environment": "robot_arm",
+      "failure_signatures": [
+        "action_binding"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "16": 2.058982187657584,
+        "32": 0.5605775764532659,
+        "48": 0.2278374222666777
+      },
+      "late_half_mean_delta_psnr": -0.20966835857940178,
+      "layer": "L3",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "On-policy rollout objective",
+      "positive_trajectory_rate_at_max_horizon": 0.3333333333333333,
+      "primitive": "self_forcing_finetune",
+      "record_sha256": "2bc1f2b63c24aff7005474867d0b93c24f4424b1d935eef7e80bcd7d1d1653a8",
+      "response_shape": "sustained_long_horizon_gain",
+      "roles": [
+        "observational_edge",
+        "routing_prior"
+      ],
+      "source_map_ids": [
+        "acwm-horizon-experience-map-robot_arm-self_forcing_finetune-s2830-r1"
+      ],
+      "tail_frame_delta_psnr": -1.2196942489329707,
+      "transfer_preconditions": "Requires rollout training loop and train-objective hook."
+    }
+  ],
+  "schema_version": 1,
+  "source_map_count": 25,
+  "sources": [
+    {
+      "id": "acwm-horizon-experience-map-cloth_move-next_forcing-s2802-r1",
+      "sha256": "6305c228c13a29c14b31fc2f7bc55a665fae1d410094153b95064c639568ddb4"
+    },
+    {
+      "id": "acwm-horizon-experience-map-cloth_move-self_forcing_finetune-s2805-r1",
+      "sha256": "caa2fa7d4c0871ba25b3c09f5d130627845a5268d592a088829bee198b127421"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour-positive-push-sand-overfit-r1",
+      "sha256": "7aca1ceaa5765de606270a0446b3c2ce08e96f5a4d667c9ab0e37db1ebc1bad1"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h160-event-aware-r1",
+      "sha256": "caca6c828b2b060245817057b606207db606cf34357836341fbff35b0ea38d66"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h160-r1",
+      "sha256": "03e0ff0438678119a0ed3fcb43b3a4332606431a78e765c4111eb0ff2bcf2484"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h200-r1",
+      "sha256": "6d6fd4db0c7ed5b01361652c8aec6ff4b8cc4b744cf0bc60239b0f54f81dfbb7"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h200-r2",
+      "sha256": "6d6fd4db0c7ed5b01361652c8aec6ff4b8cc4b744cf0bc60239b0f54f81dfbb7"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-h96-r1",
+      "sha256": "e1e2882a80aa381a27af6fb94e00ad96714b5a0a7d0a6471458fe5e438c6bd36"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p02-h200-r1",
+      "sha256": "ed07839f13165c2b3a696bd2d8a798ae5b6129b464e329a98443ba6c552b79ee"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p02-h200-r2",
+      "sha256": "64378acdf4c9679eea48a0ba60fd03345de79862548e5e8d0cfa482bf52d038c"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p02-h297-r2",
+      "sha256": "76ed3d4ac75fb3f1940defcdc94ab5de8b42e68fc9beb1dcd6f906bb2f2a654f"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p05-h200-r1",
+      "sha256": "d749789790766c9f96a4efb51e8a8e8cdb02996f8c8ab989f792a0e10df75113"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p1-h200-r1",
+      "sha256": "dce26ffd51cc17c3bd6d344dc58ce78453216c6ad462be1c13c2a8b8684e23ee"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p1-h200-r2",
+      "sha256": "45b747db329e61edd59e7042b28369e8e6a1e5e5461b6b9640583c466d1573ae"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h200-r1",
+      "sha256": "c71343949a2f141ed8f21562940edd15e5a0613cd3ae38638652d59874b4b05a"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h297-r2",
+      "sha256": "daad8bde01d39f30f0e55112e993293f31e9f3cb58410089479eaa31f282262f"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h297-r3",
+      "sha256": "daad8bde01d39f30f0e55112e993293f31e9f3cb58410089479eaa31f282262f"
+    },
+    {
+      "id": "acwm-horizon-experience-map-pour_water-checkpoint_delta_scaling-self_forcing_finetune-alpha0p25-h297-r4",
+      "sha256": "05c1ed5361acb47820ea65eed9579af08e0f6f9d9d9cd16e214e0dc2e44dab72"
+    },
+    {
+      "id": "acwm-horizon-experience-map-push_sand-checkpoint_delta_scaling-mixture_reweight-alpha0p5-h48-r1",
+      "sha256": "574616a59b9a93ff9edea55078f529933a6762c42f6bd8b4c32888483c38d7bd"
+    },
+    {
+      "id": "acwm-horizon-experience-map-r1",
+      "sha256": "724949f74058341cc8105288f7bf6df3c47dfae089d83752890906b10c776954"
+    },
+    {
+      "id": "acwm-horizon-experience-map-reacher-checkpoint_delta_scaling-next_forcing-alpha0p02-h32-r1",
+      "sha256": "23c0fbafcf7e34eab5da7f1114416bf67107ba5a40368d499612a14a61cecd7e"
+    },
+    {
+      "id": "acwm-horizon-experience-map-reacher-checkpoint_delta_scaling-next_forcing-alpha0p02-h32-r2",
+      "sha256": "eac82ec7257de89e4410160b8a2195b6b6ed0ece6766c5a1659b95a7c97d9b88"
+    },
+    {
+      "id": "acwm-horizon-experience-map-robot_arm-cfg_guidance_schedule-s910-step512-r2",
+      "sha256": "0af8185c702f44c5f8e9727fd833b6de0ac17e61d9c4098f213b10d7afd3851e"
+    },
+    {
+      "id": "acwm-horizon-experience-map-robot_arm-self_forcing_finetune-s2830-r1",
+      "sha256": "ea2115fbe2dad828cca0872dd5df3c92c137483e343969776fe19183814c881f"
+    },
+    {
+      "id": "acwm-salvage-push_sand-self_forcing-s3017-horizon-experience-map-r1",
+      "sha256": "799b0df207c4b1e3f1cf39079e9ec704e556be5f5c2d8d1fc0208b4e3fdc3437"
+    }
+  ],
+  "state": "ready"
+}

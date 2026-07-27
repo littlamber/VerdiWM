@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "intent_binding_ready",
+    "goal_config",
+    "goal_id",
+    "intent_sha256",
+    "compiled_intent",
+    "active_goal_summary",
+    "binding",
+    "blockers",
+    "side_effects",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"type": "string", "minLength": 1},
+    "state": {"enum": ["ready", "staged_blocked", "blocked"]},
+    "intent_binding_ready": {"type": "boolean"},
+    "goal_config": {"type": "string", "minLength": 1},
+    "goal_id": {"type": "string", "minLength": 1},
+    "intent_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "compiled_intent": {"type": "object"},
+    "active_goal_summary": {"type": "object"},
+    "binding": {"type": "object"},
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "side_effects": {"type": "object"},
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

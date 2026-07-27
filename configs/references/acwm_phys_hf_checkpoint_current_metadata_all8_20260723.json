@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "artifact_type": "acwm-hf-external-checkpoint-metadata",
+  "observed_at_utc": "2026-07-23T00:00:00Z",
+  "source_urls": [
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints",
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints/tree/main"
+  ],
+  "notes": [
+    "Assembled from local HuggingFace download metadata written by the official t1an/ACWM-Phys-checkpoints download at commit f24a2a2af19b915ba69c5aa309146d35be4080f4.",
+    "Use this as download provenance for all eight files, not as fresh live-current proof when shell HTTP is unavailable.",
+    "The current live HuggingFace cloth_move file identity is separately captured in acwm_phys_hf_clothmove_current_metadata_20260723.json.",
+    "This manifest records file identity only and does not download checkpoint bodies or prove the embedded training step."
+  ],
+  "records": [
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_push_cube_240x240/latest.pt",
+      "lfs_sha256": "f5f1e0032bf2de6ea5357522961980ecf6ea5b214d5fee10e3899cd51f58aab9",
+      "size_bytes": 3139661517,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_push_cube_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_stack_cube_240x240/latest.pt",
+      "lfs_sha256": "907a2747efd8638320a15bf7462000b41e54a6472a36f26e04231243cca97584",
+      "size_bytes": 3139707597,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_stack_cube_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_push_rope_240x240/latest.pt",
+      "lfs_sha256": "3d1b5d152fade7d3348edd58e235bd5c964fa199680e3751ff8baeb7b62cf833",
+      "size_bytes": 3139661517,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_push_rope_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "live_current_identity_also_captured": "configs/references/acwm_phys_hf_clothmove_current_metadata_20260723.json",
+      "commit": "efb8619adf7ae3b75ad6ce30900e9477581cef21",
+      "checkpoint_relative_path": "VideoDiT_S_clothmove_240x240_240x240/latest.pt",
+      "lfs_sha256": "cb59c244a7a69cb7eb8f784d7f0501788d1e1990576a3d01e8f6a56ceddcefaa",
+      "local_content_sha256_verified": "cb59c244a7a69cb7eb8f784d7f0501788d1e1990576a3d01e8f6a56ceddcefaa",
+      "size_bytes": 3139716813,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_clothmove_240x240_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_push_sand_240x400/latest.pt",
+      "lfs_sha256": "79b14697a361f7f9080783384b9defddcbe8ead9be56c858bddc38ad666555be",
+      "size_bytes": 3139707597,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_push_sand_240x400/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_pour_water_240x240/latest.pt",
+      "lfs_sha256": "30585f0ba9c59453c43d025bc08e032a39b99053a497cdb85d1ab98d278c52bc",
+      "size_bytes": 3139697371,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_pour_water_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_robot_arm_240x240/latest.pt",
+      "lfs_sha256": "438303c23acfd153ac42ddb8eb84cc412687432242bafcb1276b85f03934c6f7",
+      "size_bytes": 3139707597,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_robot_arm_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    },
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "observed_via": "local_huggingface_download_metadata",
+      "download_commit": "f24a2a2af19b915ba69c5aa309146d35be4080f4",
+      "checkpoint_relative_path": "VideoDiT_S_reacher_240x240/latest.pt",
+      "lfs_sha256": "4f652a4633e10aa21bd629e1db9b9b5c2c05d646694d2008b6433eef7dfc12c8",
+      "size_bytes": 3139661517,
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_reacher_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    }
+  ]
+}

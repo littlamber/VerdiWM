@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "instance_id",
+    "backbone_family",
+    "goal_id",
+    "campaign_state",
+    "claim_scope",
+    "capability_summary",
+    "surface_matrix",
+    "hook_matrix",
+    "primitive_matrix",
+    "blockers",
+    "side_effects",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-backbone-capability-matrix"]},
+    "state": {"enum": ["ready", "pilot_draft", "blocked"]},
+    "instance_id": {"type": "string", "minLength": 1},
+    "backbone_family": {"type": "string", "minLength": 1},
+    "goal_id": {"type": "string", "minLength": 1},
+    "campaign_state": {"type": "string", "minLength": 1},
+    "claim_scope": {"type": "string", "minLength": 1},
+    "capability_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "surface_count",
+        "ready_surface_count",
+        "available_hooks",
+        "primitive_count",
+        "eligible_primitive_count",
+        "blocked_primitive_count",
+        "primitive_registry_ready",
+        "hook_adapter_ready",
+        "closed_loop_surface_ready",
+        "formal_surface_ready"
+      ],
+      "properties": {
+        "surface_count": {"type": "integer", "minimum": 0},
+        "ready_surface_count": {"type": "integer", "minimum": 0},
+        "available_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "primitive_count": {"type": "integer", "minimum": 0},
+        "eligible_primitive_count": {"type": "integer", "minimum": 0},
+        "blocked_primitive_count": {"type": "integer", "minimum": 0},
+        "primitive_registry_ready": {"type": "boolean"},
+        "hook_adapter_ready": {"type": "boolean"},
+        "closed_loop_surface_ready": {"type": "boolean"},
+        "formal_surface_ready": {"type": "boolean"}
+      }
+    },
+    "surface_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "surface_id",
+          "role",
+          "status",
+          "artifact_ref",
+          "path_exists",
+          "ready_for_declared_status",
+          "required_for_closed_loop",
+          "required_for_formal_verdict"
+        ],
+        "properties": {
+          "surface_id": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "minLength": 1},
+          "status": {"type": "string", "minLength": 1},
+          "artifact_ref": {"type": "string", "minLength": 1},
+          "path_exists": {"type": "boolean"},
+          "ready_for_declared_status": {"type": "boolean"},
+          "required_for_closed_loop": {"type": "boolean"},
+          "required_for_formal_verdict": {"type": "boolean"}
+        }
+      }
+    },
+    "hook_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hook", "available", "reason"],
+        "properties": {
+          "hook": {"type": "string", "minLength": 1},
+          "available": {"type": "boolean"},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "primitive_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primitive",
+          "layer",
+          "family",
+          "cost_class",
+          "hooks",
+          "targets_failures",
+          "status",
+          "blockers"
+        ],
+        "properties": {
+          "primitive": {"type": "string", "minLength": 1},
+          "layer": {"type": "string", "minLength": 1},
+          "family": {"type": "string", "minLength": 1},
+          "cost_class": {"type": "string", "minLength": 1},
+          "hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "targets_failures": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "status": {"type": "string", "minLength": 1},
+          "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_code_mutated",
+        "goal_config_mutated",
+        "protocol_changed",
+        "registry_changed",
+        "gpu_execution_started",
+        "formal_verdict_mutated"
+      ],
+      "properties": {
+        "source_code_mutated": {"type": "boolean"},
+        "goal_config_mutated": {"type": "boolean"},
+        "protocol_changed": {"type": "boolean"},
+        "registry_changed": {"type": "boolean"},
+        "gpu_execution_started": {"type": "boolean"},
+        "formal_verdict_mutated": {"type": "boolean"}
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "artifact_type": "acwm-hf-external-checkpoint-metadata",
+  "observed_at_utc": "2026-07-23T00:00:00Z",
+  "source_urls": [
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints",
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints/tree/main/VideoDiT_S_clothmove_240x240_240x240",
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_clothmove_240x240_240x240/latest.pt",
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints/commit/efb8619adf7ae3b75ad6ce30900e9477581cef21",
+    "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/efb8619adf7ae3b75ad6ce30900e9477581cef21/VideoDiT_S_clothmove_240x240_240x240/latest.pt"
+  ],
+  "notes": [
+    "Captured as external comparison metadata because shell HTTP probes from this host return ENETUNREACH.",
+    "This metadata does not download checkpoint bytes and does not prove checkpoint training step; it only records the current remote file identity visible on Hugging Face."
+  ],
+  "records": [
+    {
+      "repository_id": "t1an/ACWM-Phys-checkpoints",
+      "checkpoint_relative_path": "VideoDiT_S_clothmove_240x240_240x240/latest.pt",
+      "commit": "efb8619adf7ae3b75ad6ce30900e9477581cef21",
+      "lfs_sha256": "cb59c244a7a69cb7eb8f784d7f0501788d1e1990576a3d01e8f6a56ceddcefaa",
+      "local_content_sha256_verified": "cb59c244a7a69cb7eb8f784d7f0501788d1e1990576a3d01e8f6a56ceddcefaa",
+      "size_bytes": 3139716813,
+      "size_display": "3.14 GB",
+      "source_url": "https://huggingface.co/t1an/ACWM-Phys-checkpoints/blob/main/VideoDiT_S_clothmove_240x240_240x240/latest.pt",
+      "observed_at_utc": "2026-07-23T00:00:00Z"
+    }
+  ]
+}

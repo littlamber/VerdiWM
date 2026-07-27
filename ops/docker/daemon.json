@@ -1,0 +1,29 @@
+{
+  "data-root": "/var/lib/wm-loop/docker",
+  "exec-root": "/run/wm-loop-docker",
+  "storage-driver": "overlay2",
+  "log-driver": "local",
+  "log-opts": {
+    "compress": "true",
+    "max-file": "3",
+    "max-size": "10m"
+  },
+  "live-restore": true,
+  "iptables": false,
+  "ip6tables": false,
+  "bridge": "none",
+  "ip-forward": false,
+  "ip-masq": false,
+  "userland-proxy": false,
+  "default-cgroupns-mode": "private",
+  "features": {
+    "buildkit": true
+  },
+  "default-ulimits": {
+    "nofile": {
+      "Hard": 65536,
+      "Name": "nofile",
+      "Soft": 65536
+    }
+  }
+}

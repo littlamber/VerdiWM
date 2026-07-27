@@ -1,0 +1,25 @@
+goal_id: g1_long_horizon
+metric_family:
+  - psnr
+  - mmse
+horizons: [16, 32, 48, 64]
+primary_objective: auc_psnr_16_64
+action_following_gate:
+  tau_af: 0.0
+eval_protocol:
+  dev_split: configs/goal/heldout_split.json#dev
+  accept_split: configs/goal/heldout_split.json#accept
+  accept_horizon_extra: 16
+  seeds_accept: [101, 202, 303]
+budget:
+  total_gpu_hours: 1200
+  per_trial_max_gpu_hours: 48
+envs:
+  - push_cube
+  - stack_cube
+  - push_rope
+  - cloth_move
+  - push_sand
+  - pour_water
+  - robot_arm
+  - reacher

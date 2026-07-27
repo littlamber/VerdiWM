@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-probe-registry",
+  "library_version": "ctrl-world-wam-v1-draft",
+  "probes": [
+    {
+      "id": "task_success",
+      "role": "verdict",
+      "report_field": "task_success",
+      "description": "Environment-derived task success for WAM/action-success goals; this must not come from generated video scores."
+    },
+    {
+      "id": "task_progress",
+      "role": "verdict",
+      "report_field": "task_progress",
+      "description": "Bounded task progress signal used only under the declared G2 protocol."
+    },
+    {
+      "id": "safety_events",
+      "role": "verdict",
+      "report_field": "safety_events",
+      "description": "Drop, invalid-action, or unsafe-interaction evidence that can block ACCEPT."
+    },
+    {
+      "id": "route_interference",
+      "role": "diagnostic",
+      "report_field": "route_interference",
+      "description": "Diagnoses task-family or expert-route interference for proposal routing."
+    },
+    {
+      "id": "instruction_binding",
+      "role": "diagnostic",
+      "report_field": "instruction_binding",
+      "description": "Diagnoses language/task-conditioning mismatch without directly changing verdicts."
+    }
+  ]
+}

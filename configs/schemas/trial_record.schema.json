@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trial_id", "proposal_id", "goal_id", "library_version", "failure_context_ref", "verdict_ref", "receipt_ref", "cost", "fingerprint", "settlement"],
+  "properties": {
+    "trial_id": {"type": "string", "minLength": 1},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "goal_id": {"type": "string", "minLength": 1},
+    "library_version": {"type": "string", "minLength": 1},
+    "failure_context_ref": {"type": "string", "pattern": "^cas://sha256/"},
+    "verdict_ref": {"type": "string", "pattern": "^cas://sha256/"},
+    "receipt_ref": {"type": "string", "pattern": "^cas://sha256/"},
+    "cost": {"type": "object", "required": ["gpu_hours"]},
+    "fingerprint": {"type": "object", "required": ["hypothesis_hash", "impl_diff_hash", "evaluator_hash"]},
+    "settlement": {"type": "object", "required": ["state", "receipt_hash"]}
+  }
+}

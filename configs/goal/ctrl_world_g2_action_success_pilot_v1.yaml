@@ -1,0 +1,20 @@
+goal_id: ctrl_world_g2_action_success_pilot_v1
+metric_family:
+  - action_success
+  - progress
+  - safety
+horizons: [1, 2, 4, 8]
+primary_objective: action_success_accept
+action_following_gate:
+  tau_af: 0.0
+eval_protocol:
+  dev_split: configs/goal/ctrl_world_heldout_split.json#dev
+  accept_split: configs/goal/ctrl_world_heldout_split.json#accept
+  accept_horizon_extra: 1
+  seeds_accept: [101, 202, 303]
+budget:
+  total_gpu_hours: 180
+  per_trial_max_gpu_hours: 48
+envs:
+  - block_stacking_route_composed
+  - droid_manipulation_smoke

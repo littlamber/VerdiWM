@@ -1,0 +1,14 @@
+{
+  "name": "latent_motion_prior",
+  "layer": "L3",
+  "family": "motion_objective",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["weight"], "properties": {"weight": {"type": "number", "exclusiveMinimum": 0.0}}},
+  "cost_class": "medium",
+  "literature": ["LaMo"],
+  "targets_failures": ["action_binding", "ood_physics"],
+  "estimated_gpu_hours": 32.0,
+  "conflicts_with": ["self_forcing_finetune", "inv_dyn_reward_finetune"],
+  "hooks": ["H3"],
+  "hook_order": {"H3": 10},
+  "apply_module": "wmloop.primitives.definitions.latent_motion_prior.apply"
+}

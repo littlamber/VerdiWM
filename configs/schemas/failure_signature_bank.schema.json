@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "source_files",
+    "summary",
+    "records",
+    "diagnostic_probe_work_orders",
+    "primitive_routing",
+    "transfer_contract",
+    "side_effects",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-failure-signature-bank"]},
+    "state": {"enum": ["ready", "blocked"]},
+    "source_files": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uplift_plan", "gap_staging_plan", "mechanism_cards"],
+      "properties": {
+        "uplift_plan": {"type": "string", "minLength": 1},
+        "gap_staging_plan": {"type": ["string", "null"]},
+        "mechanism_cards": {"type": "string", "minLength": 1}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment_count",
+        "failure_signature_count",
+        "p0_probe_order_count",
+        "primitive_routing_count",
+        "positive_exemplar_count",
+        "uplift_gap_count",
+        "rejected_candidate_count"
+      ],
+      "properties": {
+        "environment_count": {"type": "integer", "minimum": 1},
+        "failure_signature_count": {"type": "integer", "minimum": 0},
+        "p0_probe_order_count": {"type": "integer", "minimum": 0},
+        "primitive_routing_count": {"type": "integer", "minimum": 0},
+        "positive_exemplar_count": {"type": "integer", "minimum": 0},
+        "uplift_gap_count": {"type": "integer", "minimum": 0},
+        "rejected_candidate_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "environment",
+          "regime",
+          "current_status",
+          "current_best_primitive",
+          "evidence_level",
+          "trial_count",
+          "positive_trial_count",
+          "positive_rate",
+          "mean_delta",
+          "max_delta",
+          "failure_signatures",
+          "next_action"
+        ],
+        "properties": {
+          "environment": {"type": "string", "minLength": 1},
+          "regime": {"type": "string", "minLength": 1},
+          "current_status": {"type": "string", "minLength": 1},
+          "current_best_primitive": {"type": "string", "minLength": 1},
+          "evidence_level": {"type": "string", "minLength": 1},
+          "trial_count": {"type": "integer", "minimum": 0},
+          "positive_trial_count": {"type": "integer", "minimum": 0},
+          "positive_rate": {"type": ["number", "null"]},
+          "mean_delta": {"type": ["number", "null"]},
+          "max_delta": {"type": ["number", "null"]},
+          "next_action": {"type": "string", "minLength": 1},
+          "failure_signatures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signature",
+                "wm_dx_failure_family",
+                "diagnostic_probe_id",
+                "probe_role",
+                "priority",
+                "verdict_exposure_allowed",
+                "candidate_primitives",
+                "transfer_tags"
+              ],
+              "properties": {
+                "signature": {"type": "string", "minLength": 1},
+                "wm_dx_failure_family": {"type": "string", "minLength": 1},
+                "diagnostic_probe_id": {"type": "string", "minLength": 1},
+                "probe_role": {"enum": ["diagnostic"]},
+                "priority": {"type": "string", "minLength": 1},
+                "verdict_exposure_allowed": {"type": "boolean"},
+                "candidate_primitives": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1}
+                },
+                "transfer_tags": {
+                  "type": "array",
+                  "items": {"type": "string", "minLength": 1}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "diagnostic_probe_work_orders": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "work_order_id",
+          "environment",
+          "signature",
+          "probe_id",
+          "role",
+          "priority",
+          "signal_contract",
+          "allowed_mutation_paths",
+          "forbidden_surfaces",
+          "admission_gates",
+          "verdict_exposure_allowed"
+        ],
+        "properties": {
+          "work_order_id": {"type": "string", "minLength": 1},
+          "environment": {"type": "string", "minLength": 1},
+          "signature": {"type": "string", "minLength": 1},
+          "probe_id": {"type": "string", "minLength": 1},
+          "role": {"enum": ["diagnostic"]},
+          "priority": {"type": "string", "minLength": 1},
+          "signal_contract": {"type": "string", "minLength": 1},
+          "allowed_mutation_paths": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "forbidden_surfaces": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "admission_gates": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "verdict_exposure_allowed": {"type": "boolean"}
+        }
+      }
+    },
+    "primitive_routing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "environment",
+          "primitive",
+          "mechanism_family",
+          "layer",
+          "current_status",
+          "evidence_level",
+          "routing_decision",
+          "target_failures",
+          "transfer_preconditions",
+          "known_anti_conditions",
+          "next_gate"
+        ],
+        "properties": {
+          "environment": {"type": "string", "minLength": 1},
+          "primitive": {"type": "string", "minLength": 1},
+          "mechanism_family": {"type": "string", "minLength": 1},
+          "layer": {"type": "string", "minLength": 1},
+          "current_status": {"type": "string", "minLength": 1},
+          "evidence_level": {"type": "string", "minLength": 1},
+          "routing_decision": {"type": "string", "minLength": 1},
+          "target_failures": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "transfer_preconditions": {"type": "string", "minLength": 1},
+          "known_anti_conditions": {"type": "string", "minLength": 1},
+          "next_gate": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "transfer_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_boundary", "portable_inputs", "portable_outputs", "not_allowed"],
+      "properties": {
+        "claim_boundary": {"type": "string", "minLength": 1},
+        "portable_inputs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "portable_outputs": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "not_allowed": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict_probe_mutated",
+        "goal_config_mutated",
+        "primitive_registry_mutated",
+        "gpu_execution_started",
+        "formal_verdict_mutated"
+      ],
+      "properties": {
+        "verdict_probe_mutated": {"type": "boolean"},
+        "goal_config_mutated": {"type": "boolean"},
+        "primitive_registry_mutated": {"type": "boolean"},
+        "gpu_execution_started": {"type": "boolean"},
+        "formal_verdict_mutated": {"type": "boolean"}
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

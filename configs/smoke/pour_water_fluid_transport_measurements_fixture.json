@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-fluid-transport-measurements",
+  "source_kind": "fixture",
+  "environment": "pour_water",
+  "frames": [
+    {
+      "frame": 0,
+      "water_area": 100.0,
+      "water_centroid_x": 0.0,
+      "water_centroid_y": 0.0,
+      "target_centroid_x": 10.0,
+      "target_centroid_y": 0.0,
+      "spill_area": 0.0
+    },
+    {
+      "frame": 1,
+      "water_area": 94.0,
+      "water_centroid_x": 3.8,
+      "water_centroid_y": 0.2,
+      "target_centroid_x": 10.0,
+      "target_centroid_y": 0.0,
+      "spill_area": 2.0
+    },
+    {
+      "frame": 2,
+      "water_area": 88.0,
+      "water_centroid_x": 6.7,
+      "water_centroid_y": 0.1,
+      "target_centroid_x": 10.0,
+      "target_centroid_y": 0.0,
+      "spill_area": 5.0
+    }
+  ],
+  "evidence_refs": []
+}

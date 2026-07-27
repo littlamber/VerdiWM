@@ -1,0 +1,22 @@
+{
+  "name": "action_dimension_balancing",
+  "layer": "L2",
+  "family": "structured_action_conditioning",
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["blend", "max_gain"],
+    "properties": {
+      "blend": {"type": "number", "exclusiveMinimum": 0.0, "maximum": 1.0},
+      "max_gain": {"type": "number", "minimum": 1.0, "maximum": 8.0}
+    }
+  },
+  "cost_class": "low",
+  "literature": ["arXiv:2606.27325v1"],
+  "targets_failures": ["action_binding"],
+  "estimated_gpu_hours": 8.0,
+  "conflicts_with": [],
+  "hooks": ["H2"],
+  "hook_order": {"H2": 15},
+  "apply_module": "wmloop.primitives.definitions.action_dimension_balancing.apply"
+}

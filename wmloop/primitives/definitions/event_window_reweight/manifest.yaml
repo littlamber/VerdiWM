@@ -1,0 +1,23 @@
+{
+  "name": "event_window_reweight",
+  "layer": "L1",
+  "family": "self_supervised_event_sampling",
+  "params_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["event_weight", "event_quantile", "visual_motion_blend"],
+    "properties": {
+      "event_weight": {"type": "number", "exclusiveMinimum": 0.0, "maximum": 16.0},
+      "event_quantile": {"type": "number", "minimum": 0.5, "maximum": 0.95},
+      "visual_motion_blend": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+    }
+  },
+  "cost_class": "low",
+  "literature": ["self-paced learning and rare-event replay"],
+  "targets_failures": ["fluid_volume_transport", "sparse_event_undercoverage", "train_infer_mismatch"],
+  "estimated_gpu_hours": 8.0,
+  "conflicts_with": ["mixture_reweight"],
+  "hooks": ["H1"],
+  "hook_order": {"H1": 25},
+  "apply_module": "wmloop.primitives.definitions.event_window_reweight.apply"
+}

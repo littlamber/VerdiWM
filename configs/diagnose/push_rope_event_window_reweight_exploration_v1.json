@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-acwm-targeted-gap-plan",
+  "state": "ready",
+  "claim_boundary": "This plan changes proposal routing only. The frozen official evaluator, held-out protocol, and promotion gates remain authoritative.",
+  "environment_records": [
+    {
+      "environment": "push_rope",
+      "evidence_level": "no_validated_positive",
+      "gap_family": "deformable_contact_and_sparse_transition_undercoverage",
+      "diagnostic_probe_candidates": [
+        "acwm_push_rope_deformable_contact_diagnostic_v1",
+        "acwm_push_rope_endpoint_path_diagnostic_v1",
+        "acwm_push_rope_topology_change_diagnostic_v1"
+      ],
+      "recommended_existing_primitives": [
+        "event_window_reweight"
+      ],
+      "routed_failure_families": [
+        "sparse_event_undercoverage"
+      ],
+      "primitive_parameters": {
+        "event_window_reweight": {
+          "event_weight": 4.0,
+          "event_quantile": 0.75,
+          "event_visual_blend": 0.7
+        }
+      },
+      "mechanism_hypothesis": "Uniform sliding-window sampling underexposes sparse pusher-rope contact transitions. Reweighting the upper quantile of action-transition and visual-motion windows should improve contact response without changing the frozen evaluation protocol.",
+      "falsification_test": "Reject when the 512-step held-out horizon AUC does not improve, or when the official 50-step gate fails any PSNR, SSIM, MSE, or masked-MSE condition."
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+id: pour_water
+vendor_env_id: pour_water
+provider_env_config: vendor/ACWM-Phys/configs/envs/pour_water.yaml

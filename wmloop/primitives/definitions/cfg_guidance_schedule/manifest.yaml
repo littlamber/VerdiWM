@@ -1,0 +1,14 @@
+{
+  "name": "cfg_guidance_schedule",
+  "layer": "L4",
+  "family": "inference_guidance",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["guidance_start", "guidance_end"], "properties": {"guidance_start": {"type": "number", "minimum": 0.0}, "guidance_end": {"type": "number", "minimum": 0.0}}},
+  "cost_class": "very_low",
+  "literature": ["guidance scheduling"],
+  "targets_failures": ["appearance_drift", "action_binding"],
+  "estimated_gpu_hours": 0.5,
+  "conflicts_with": [],
+  "hooks": ["H4"],
+  "hook_order": {"H4": 20},
+  "apply_module": "wmloop.primitives.definitions.cfg_guidance_schedule.apply"
+}

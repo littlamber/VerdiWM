@@ -1,0 +1,15 @@
+[Unit]
+Description=wm-loop Docker API socket
+PartOf=wm-loop-docker.service
+
+[Socket]
+ListenStream=/run/wm-loop-docker/docker.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=wmloop-docker
+DirectoryMode=0750
+Service=wm-loop-docker.service
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,14 @@
+{
+  "name": "latent_spatial_memory",
+  "layer": "L2",
+  "family": "scene_memory",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["memory_slots", "memory_weight"], "properties": {"memory_slots": {"type": "integer", "minimum": 1, "maximum": 128}, "memory_weight": {"type": "number", "exclusiveMinimum": 0.0, "maximum": 1.0}}},
+  "cost_class": "low",
+  "literature": ["Latent Spatial Memory 2026-06"],
+  "targets_failures": ["appearance_drift", "ood_physics"],
+  "estimated_gpu_hours": 8.0,
+  "conflicts_with": [],
+  "hooks": ["H2"],
+  "hook_order": {"H2": 40},
+  "apply_module": "wmloop.primitives.definitions.latent_spatial_memory.apply"
+}

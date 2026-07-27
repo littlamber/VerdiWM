@@ -1,0 +1,232 @@
+{
+  "artifact_type": "wmloop-acwm-checkpoint-ladder-finalization",
+  "best_checkpoint_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/best_checkpoint.pt",
+  "best_checkpoint_sha256": "8983ae7ad027acb5acd3843d6d83e2969b05c6d114203ad8db90339f97626bc8",
+  "best_checkpoint_step": 800,
+  "best_checkpoint_storage_mode": "hardlink",
+  "checkpoint_manifest": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-cloth_move-next_forcing-s2802-t1000-r1/envs/cloth_move/retained_training/manifest.json",
+  "claim_boundary": "The finalizer selects only among checkpoints that pass the independent official 50-step quality gate. This is checkpoint selection evidence, not a formal multi-seed causal claim.",
+  "environment": "cloth_move",
+  "evaluated_steps": [
+    512,
+    800,
+    1000
+  ],
+  "primitive": "next_forcing",
+  "schema_version": 1,
+  "seed": 2802,
+  "selected_paired_videos": [
+    {
+      "path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/paired_videos/sample_00.mp4",
+      "sample_index": 0,
+      "storage_mode": "hardlink"
+    },
+    {
+      "path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/paired_videos/sample_01.mp4",
+      "sample_index": 1,
+      "storage_mode": "hardlink"
+    },
+    {
+      "path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/paired_videos/sample_02.mp4",
+      "sample_index": 2,
+      "storage_mode": "hardlink"
+    }
+  ],
+  "selection": {
+    "artifact_type": "wmloop-official-checkpoint-ladder-selection",
+    "best_checkpoint": {
+      "candidate_masked_mse": 0.06682,
+      "candidate_mse": 0.008525,
+      "candidate_psnr": 20.78,
+      "candidate_ssim": 0.9249,
+      "checkpoint_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-cloth_move-next_forcing-s2802-t1000-r1/envs/cloth_move/retained_training/checkpoints/relative_step_000800.pt",
+      "checkpoint_sha256": "8983ae7ad027acb5acd3843d6d83e2969b05c6d114203ad8db90339f97626bc8",
+      "checkpoint_step": 800,
+      "consecutive_regressions": 0,
+      "official_gate_passed": true,
+      "official_manifest_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-official-gate-cloth_move-next_forcing-s2802-step800-r1/manifest.json",
+      "official_quality_gate": {
+        "baseline": {
+          "masked_mse": 0.07586,
+          "mse": 0.010537,
+          "psnr": 19.84,
+          "ssim": 0.915,
+          "steps": 50.0
+        },
+        "candidate": {
+          "masked_mse": 0.06682,
+          "mse": 0.008525,
+          "psnr": 20.78,
+          "ssim": 0.9249,
+          "steps": 50.0
+        },
+        "checks": {
+          "masked_mse_does_not_regress": true,
+          "mse_does_not_regress": true,
+          "psnr_strictly_improves": true,
+          "ssim_does_not_regress": true
+        },
+        "delta_candidate_minus_baseline": {
+          "masked_mse": -0.009039999999999992,
+          "mse": -0.002012,
+          "psnr": 0.9400000000000013,
+          "ssim": 0.00990000000000002
+        },
+        "pass": true,
+        "protocol": "official_acwm_eval_py",
+        "rule": "PSNR must improve; SSIM, MSE, and masked-MSE must not regress.",
+        "schema_version": 1,
+        "state": "pass"
+      },
+      "regressed_from_running_best": false
+    },
+    "extension_allowed": false,
+    "max_consecutive_regressions": 2,
+    "max_observed_consecutive_regressions": 1,
+    "records": [
+      {
+        "candidate_masked_mse": 0.070207,
+        "candidate_mse": 0.008815,
+        "candidate_psnr": 20.63,
+        "candidate_ssim": 0.9239,
+        "checkpoint_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-screen-cloth_move-next_forcing-s2802-t512-r1/envs/cloth_move/retained_training/latest.pt",
+        "checkpoint_sha256": "3b300477d903eff0626bcb2effc42f974db5bd3d8af1d07b84abd238dd82fae0",
+        "checkpoint_step": 512,
+        "consecutive_regressions": 0,
+        "official_gate_passed": true,
+        "official_manifest_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-official-gate-cloth_move-next_forcing-s2802-r1/manifest.json",
+        "official_quality_gate": {
+          "baseline": {
+            "masked_mse": 0.07586,
+            "mse": 0.010537,
+            "psnr": 19.84,
+            "ssim": 0.915,
+            "steps": 50.0
+          },
+          "candidate": {
+            "masked_mse": 0.070207,
+            "mse": 0.008815,
+            "psnr": 20.63,
+            "ssim": 0.9239,
+            "steps": 50.0
+          },
+          "checks": {
+            "masked_mse_does_not_regress": true,
+            "mse_does_not_regress": true,
+            "psnr_strictly_improves": true,
+            "ssim_does_not_regress": true
+          },
+          "delta_candidate_minus_baseline": {
+            "masked_mse": -0.005652999999999991,
+            "mse": -0.0017219999999999996,
+            "psnr": 0.7899999999999991,
+            "ssim": 0.008900000000000019
+          },
+          "pass": true,
+          "protocol": "official_acwm_eval_py",
+          "rule": "PSNR must improve; SSIM, MSE, and masked-MSE must not regress.",
+          "schema_version": 1,
+          "state": "pass"
+        },
+        "regressed_from_running_best": false
+      },
+      {
+        "candidate_masked_mse": 0.06682,
+        "candidate_mse": 0.008525,
+        "candidate_psnr": 20.78,
+        "candidate_ssim": 0.9249,
+        "checkpoint_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-cloth_move-next_forcing-s2802-t1000-r1/envs/cloth_move/retained_training/checkpoints/relative_step_000800.pt",
+        "checkpoint_sha256": "8983ae7ad027acb5acd3843d6d83e2969b05c6d114203ad8db90339f97626bc8",
+        "checkpoint_step": 800,
+        "consecutive_regressions": 0,
+        "official_gate_passed": true,
+        "official_manifest_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-official-gate-cloth_move-next_forcing-s2802-step800-r1/manifest.json",
+        "official_quality_gate": {
+          "baseline": {
+            "masked_mse": 0.07586,
+            "mse": 0.010537,
+            "psnr": 19.84,
+            "ssim": 0.915,
+            "steps": 50.0
+          },
+          "candidate": {
+            "masked_mse": 0.06682,
+            "mse": 0.008525,
+            "psnr": 20.78,
+            "ssim": 0.9249,
+            "steps": 50.0
+          },
+          "checks": {
+            "masked_mse_does_not_regress": true,
+            "mse_does_not_regress": true,
+            "psnr_strictly_improves": true,
+            "ssim_does_not_regress": true
+          },
+          "delta_candidate_minus_baseline": {
+            "masked_mse": -0.009039999999999992,
+            "mse": -0.002012,
+            "psnr": 0.9400000000000013,
+            "ssim": 0.00990000000000002
+          },
+          "pass": true,
+          "protocol": "official_acwm_eval_py",
+          "rule": "PSNR must improve; SSIM, MSE, and masked-MSE must not regress.",
+          "schema_version": 1,
+          "state": "pass"
+        },
+        "regressed_from_running_best": false
+      },
+      {
+        "candidate_masked_mse": 0.076037,
+        "candidate_mse": 0.009714,
+        "candidate_psnr": 20.31,
+        "candidate_ssim": 0.9174,
+        "checkpoint_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-cloth_move-next_forcing-s2802-t1000-r1/envs/cloth_move/retained_training/checkpoints/relative_step_001000.pt",
+        "checkpoint_sha256": "3db8b8d7cc00b2dbfdc80ade61a77e88230b7275869c23be92130e4e3e7125df",
+        "checkpoint_step": 1000,
+        "consecutive_regressions": 1,
+        "official_gate_passed": false,
+        "official_manifest_path": "${VERDIWM_REPO}/results/reports/acwm-autoloop-confirm-official-gate-cloth_move-next_forcing-s2802-step1000-r1/manifest.json",
+        "official_quality_gate": {
+          "baseline": {
+            "masked_mse": 0.07586,
+            "mse": 0.010537,
+            "psnr": 19.84,
+            "ssim": 0.915,
+            "steps": 50.0
+          },
+          "candidate": {
+            "masked_mse": 0.076037,
+            "mse": 0.009714,
+            "psnr": 20.31,
+            "ssim": 0.9174,
+            "steps": 50.0
+          },
+          "checks": {
+            "masked_mse_does_not_regress": false,
+            "mse_does_not_regress": true,
+            "psnr_strictly_improves": true,
+            "ssim_does_not_regress": true
+          },
+          "delta_candidate_minus_baseline": {
+            "masked_mse": 0.0001769999999999966,
+            "mse": -0.0008229999999999991,
+            "psnr": 0.46999999999999886,
+            "ssim": 0.0023999999999999577
+          },
+          "pass": false,
+          "protocol": "official_acwm_eval_py",
+          "rule": "PSNR must improve; SSIM, MSE, and masked-MSE must not regress.",
+          "schema_version": 1,
+          "state": "fail"
+        },
+        "regressed_from_running_best": true
+      }
+    ],
+    "schema_version": 1,
+    "selection_rule": "best passing official gate by candidate PSNR, SSIM, inverse MSE, inverse masked-MSE, then earlier step",
+    "state": "ready",
+    "stop_requested": false
+  },
+  "state": "ready"
+}

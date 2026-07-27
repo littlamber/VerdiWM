@@ -1,0 +1,14 @@
+{
+  "name": "drift_token_trim",
+  "layer": "L4",
+  "family": "inference_context",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["keep_tokens"], "properties": {"keep_tokens": {"type": "integer", "minimum": 1}}},
+  "cost_class": "very_low",
+  "literature": ["TokenTrim"],
+  "targets_failures": ["appearance_drift", "train_infer_mismatch"],
+  "estimated_gpu_hours": 0.5,
+  "conflicts_with": [],
+  "hooks": ["H4"],
+  "hook_order": {"H4": 10},
+  "apply_module": "wmloop.primitives.definitions.drift_token_trim.apply"
+}

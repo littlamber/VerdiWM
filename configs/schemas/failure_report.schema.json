@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["env", "model_ref", "round", "goal_id", "horizon_curve", "appearance_drift", "action_following", "ood_profile", "dominant_failure", "dominant_failure_candidates", "evidence_frames"],
+  "properties": {
+    "env": {"type": "string", "minLength": 1},
+    "model_ref": {"type": "string", "pattern": "^cas://sha256/"},
+    "round": {"type": "integer", "minimum": 0},
+    "goal_id": {"type": "string", "minLength": 1},
+    "horizon_curve": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["psnr", "auc_psnr_envmax", "drift_slope", "segment_drift"],
+      "properties": {
+        "psnr": {"type": "object"},
+        "auc_psnr_envmax": {"type": "number"},
+        "auc_psnr_16_64": {"type": "number"},
+        "drift_slope": {"type": "number"},
+        "segment_drift": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["window", "worst_drop", "onset_frame"],
+          "properties": {
+            "window": {"type": "integer", "minimum": 2},
+            "worst_drop": {"type": "number"},
+            "onset_frame": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "appearance_drift": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["low_motion_ssim_64"],
+      "properties": {"low_motion_ssim_64": {"type": "number", "minimum": 0, "maximum": 1}}
+    },
+    "action_following": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inv_dyn_acc_perframe", "no_action_delta_psnr", "inverse_dynamics_r2", "low_confidence"],
+      "properties": {
+        "inv_dyn_acc_perframe": {"type": "number", "minimum": 0, "maximum": 1},
+        "no_action_delta_psnr": {"type": "number"},
+        "inverse_dynamics_r2": {"type": ["number", "null"]},
+        "low_confidence": {"type": "boolean"}
+      }
+    },
+    "ood_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ind_auc", "ood_auc", "gap", "worst_ood_condition"],
+      "properties": {
+        "ind_auc": {"type": "number"},
+        "ood_auc": {"type": "number"},
+        "gap": {"type": "number"},
+        "worst_ood_condition": {"type": "string", "minLength": 1}
+      }
+    },
+    "dominant_failure": {"enum": ["train_infer_mismatch", "appearance_drift", "action_binding", "ood_physics", "mixed"]},
+    "dominant_failure_candidates": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "evidence_frames": {"type": "array", "items": {"type": "string", "pattern": "^cas://sha256/"}},
+    "routed_failure_families": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "signature_bank_routed_primitive": {"type": "string", "minLength": 1},
+    "positive_transfer_routed_primitive": {"type": "string", "minLength": 1},
+    "targeted_gap_plan_routed_primitive": {"type": "string", "minLength": 1},
+    "proposal_routing_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "primitive", "routed_failure_families"],
+        "properties": {
+          "source": {"enum": ["failure_signature_bank", "positive_transfer_exemplar", "targeted_gap_plan"]},
+          "primitive": {"type": "string", "minLength": 1},
+          "routed_failure_families": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "path": {"type": "string", "minLength": 1},
+          "diagnostic_probe_candidates": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "mechanism_hypothesis": {"type": "string", "minLength": 1},
+          "claim_boundary": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

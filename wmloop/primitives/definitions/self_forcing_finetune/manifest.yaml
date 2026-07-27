@@ -1,0 +1,14 @@
+{
+  "name": "self_forcing_finetune",
+  "layer": "L3",
+  "family": "rollout_objective",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["rollout_horizon", "steps", "lr"], "properties": {"rollout_horizon": {"type": "integer", "minimum": 2}, "steps": {"type": "integer", "minimum": 1}, "lr": {"type": "number", "exclusiveMinimum": 0.0}}},
+  "cost_class": "medium",
+  "literature": ["Self-Forcing"],
+  "targets_failures": ["train_infer_mismatch", "appearance_drift"],
+  "estimated_gpu_hours": 48.0,
+  "conflicts_with": ["latent_motion_prior", "inv_dyn_reward_finetune"],
+  "hooks": ["H3"],
+  "hook_order": {"H3": 20},
+  "apply_module": "wmloop.primitives.definitions.self_forcing_finetune.apply"
+}

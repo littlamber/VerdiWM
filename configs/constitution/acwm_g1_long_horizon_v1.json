@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-constitutional-config",
+  "constitution_id": "acwm_g1_long_horizon_v1",
+  "goal_spec": "configs/goal/long_horizon_v1.yaml",
+  "dataset_freeze": "runs/m0/protocol/dataset-freeze.json",
+  "heldout_protocol": "runs/m0/protocol/heldout-protocol.json",
+  "evaluator_freeze": "configs/eval_frozen.sha256",
+  "probe_registry": "configs/probes/acwm_v1.json",
+  "verdict_probe_ids": ["horizon_curve", "action_following"],
+  "frozen_code": {
+    "verdict_policy": ["wmloop/verify/judge.py", "configs/schemas/verdict.schema.json"],
+    "verdict_evidence_projection": ["wmloop/diagnose/probe_registry.py"],
+    "attribution_policy": ["wmloop/diagnose/diagnoser.py"],
+    "hook_contracts": ["wmloop/primitives/hooks.py"],
+    "schema_contracts": [
+      "configs/schemas/probe_registry.schema.json",
+      "configs/schemas/verdict_evidence.schema.json",
+      "configs/schemas/constitutional_config.schema.json",
+      "configs/schemas/constitutional_manifest.schema.json"
+    ]
+  }
+}

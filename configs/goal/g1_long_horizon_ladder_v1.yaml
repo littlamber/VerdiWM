@@ -1,0 +1,56 @@
+{
+  "action_following_gate": {
+    "tau_af": 0.0
+  },
+  "budget": {
+    "per_trial_max_gpu_hours": 48,
+    "total_gpu_hours": 1200
+  },
+  "envs": [
+    "push_cube",
+    "stack_cube",
+    "push_rope",
+    "cloth_move",
+    "push_sand",
+    "pour_water",
+    "robot_arm",
+    "reacher"
+  ],
+  "eval_protocol": {
+    "accept_horizon_extra": 16,
+    "accept_split": "configs/goal/heldout_split.json#accept",
+    "cross_environment_comparison_horizons": [
+      16,
+      32
+    ],
+    "dev_split": "configs/goal/heldout_split.json#dev",
+    "horizon_ladder_path": "configs/goal/horizon_ladder_g1_acwm_phys_v1.yaml",
+    "long_horizon_claim_policy": "horizon_64_claims_only_for_ladder_long_horizon_64_envs",
+    "mode": "per_environment_horizon_ladder",
+    "seeds_accept": [
+      101,
+      202,
+      303
+    ],
+    "t4_4_prior_convergence": {
+      "min_seed_count": 3,
+      "plateau_tolerance": 0.05,
+      "progress_threshold": 0.8,
+      "speedup_target": 1.5,
+      "target_progress_delta": 100.0,
+      "target_progress_delta_basis": "Predeclared engineering protocol target: M_target - M_baseline = 100.0 ladder_auc_psnr_envmax units. This calibrates T4.4 progress math for smoke/admission evidence; formal M4 claims still require full-scale target calibration and ready convergence gates."
+    }
+  },
+  "goal_id": "g1_long_horizon_ladder_v1",
+  "horizons": [
+    16,
+    32,
+    48,
+    64
+  ],
+  "metric_family": [
+    "psnr",
+    "mmse"
+  ],
+  "primary_objective": "ladder_auc_psnr_envmax"
+}

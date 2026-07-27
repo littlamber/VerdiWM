@@ -1,0 +1,14 @@
+{
+  "name": "history_noise_schedule",
+  "layer": "L2",
+  "family": "conditioning_noise",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["history_noise"], "properties": {"history_noise": {"type": "number", "minimum": 0.0, "maximum": 1.0}}},
+  "cost_class": "low",
+  "literature": ["Diffusion Forcing"],
+  "targets_failures": ["train_infer_mismatch"],
+  "estimated_gpu_hours": 6.0,
+  "conflicts_with": [],
+  "hooks": ["H2"],
+  "hook_order": {"H2": 20},
+  "apply_module": "wmloop.primitives.definitions.history_noise_schedule.apply"
+}

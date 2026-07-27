@@ -1,0 +1,14 @@
+{
+  "name": "motion_region_reweight",
+  "layer": "L5",
+  "family": "motion_aware_objective",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["weight"], "properties": {"weight": {"type": "number", "exclusiveMinimum": 0.0, "maximum": 4.0}}},
+  "cost_class": "low",
+  "literature": ["ACWM-Phys motion-aware latent weighting implementation"],
+  "targets_failures": ["ood_physics", "train_infer_mismatch", "appearance_drift"],
+  "estimated_gpu_hours": 8.0,
+  "conflicts_with": [],
+  "hooks": ["H5"],
+  "hook_order": {"H5": 20},
+  "apply_module": "wmloop.primitives.definitions.motion_region_reweight.apply"
+}

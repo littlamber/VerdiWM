@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "candidate_id",
+    "arxiv_id",
+    "title",
+    "mechanism_summary",
+    "proposed_manifest"
+  ],
+  "properties": {
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "arxiv_id": {
+      "type": "string",
+      "pattern": "^(?:arXiv:)?[0-9]{4}\\.[0-9]{4,5}(?:v[0-9]+)?$"
+    },
+    "title": {"type": "string", "minLength": 1},
+    "mechanism_summary": {"type": "string", "minLength": 1},
+    "proposed_manifest": {"type": "object"}
+  }
+}

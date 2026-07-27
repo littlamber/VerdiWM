@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "constitution_id", "goal_spec", "dataset_freeze", "heldout_protocol", "evaluator_freeze", "probe_registry", "verdict_probe_ids", "frozen_code"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-constitutional-config"]},
+    "constitution_id": {"type": "string", "minLength": 1},
+    "goal_spec": {"type": "string", "minLength": 1},
+    "horizon_ladder": {"type": "string", "minLength": 1},
+    "dataset_freeze": {"type": "string", "minLength": 1},
+    "heldout_protocol": {"type": "string", "minLength": 1},
+    "evaluator_freeze": {"type": "string", "minLength": 1},
+    "probe_registry": {"type": "string", "minLength": 1},
+    "verdict_probe_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "frozen_code": {"type": "object"}
+  }
+}

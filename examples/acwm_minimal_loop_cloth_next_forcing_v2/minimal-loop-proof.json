@@ -1,0 +1,173 @@
+{
+  "artifact_type": "verdiwm-minimal-loop-proof",
+  "artifacts": [
+    {
+      "path": "evidence/failure_report.json",
+      "role": "failure_report",
+      "sha256": "6d95298f022277f59150265d08bd14704218e0add750aff3fe8e917a1122aa20",
+      "size_bytes": 1167,
+      "source_sha256": "dac9e5a5c0507302261356025ec6ca7ece265d3e1e6da73db7b7633a3a71104c"
+    },
+    {
+      "path": "evidence/intervention_receipt.json",
+      "role": "intervention_receipt",
+      "sha256": "989ab0aad67db1d257fbd0ef5bc8acbac139447badf7a9bba5cd3dfa95dcaa71",
+      "size_bytes": 1476,
+      "source_sha256": "989ab0aad67db1d257fbd0ef5bc8acbac139447badf7a9bba5cd3dfa95dcaa71"
+    },
+    {
+      "path": "evidence/screen_manifest.json",
+      "role": "screen_manifest",
+      "sha256": "376d2e247e3409959af1b8805c1b0ab6abbbc75b603bb9b2942ef5198d86b130",
+      "size_bytes": 4214,
+      "source_sha256": "8dc6b265f6ef22f131d4ea48a51bb42631be7ae309fcfdd865128bacb26c34ba"
+    },
+    {
+      "path": "evidence/official_gate_manifest.json",
+      "role": "official_gate_manifest",
+      "sha256": "c34565b3fdd1e595b8995224a9e738a1db16ca62fdd53c9925f3ff677b69a374",
+      "size_bytes": 22918,
+      "source_sha256": "9e0735123d95c201ce80f0149e6c5f19ec240c9185d327fbe09bc4b3a53e7ed3"
+    },
+    {
+      "path": "evidence/confirmation_manifest.json",
+      "role": "confirmation_manifest",
+      "sha256": "7db333cce6621ddab49e1072ec4b41a8e6167196622e4f5de2a2158e26cf68aa",
+      "size_bytes": 23504,
+      "source_sha256": "3b3af2f55f31ca691c893cbd75148b3b21e707e14cfda7bd86b8c2985fa955a0"
+    },
+    {
+      "path": "evidence/checkpoint_ladder.json",
+      "role": "checkpoint_ladder",
+      "sha256": "2790c7219c90fd228cc322edd44d63b9f8cc9ad6b9c073d2cba0e2f7b1fb5735",
+      "size_bytes": 9228,
+      "source_sha256": "604c1b10546097665fc8ce75dc2db7bc8f90fcd2fca48e79110f15d09dc367f9"
+    },
+    {
+      "path": "evidence/effect_profile.json",
+      "role": "effect_profile",
+      "sha256": "2b7aa26110ca95d7fe79de357c3e26f91bb938574047aae6aeed2171c17dd499",
+      "size_bytes": 9997,
+      "source_sha256": "3340bd6b74122a19047357f6d520107faea04cf36347aec897893ba924356a3b"
+    },
+    {
+      "path": "evidence/experience_map.json",
+      "role": "experience_map",
+      "sha256": "a2cf17a1ff2764e09d36ea05296264b6bf4428e61826cb90c6e093eb92f77024",
+      "size_bytes": 3710,
+      "source_sha256": "6305c228c13a29c14b31fc2f7bc55a665fae1d410094153b95064c639568ddb4"
+    },
+    {
+      "path": "media/showcase_video.mp4",
+      "role": "showcase_video",
+      "sha256": "ec797b07970c5fcdd3e90bfff38ebb3e6e05498d49898b86d929ab8206388210",
+      "size_bytes": 136413,
+      "source_sha256": "ec797b07970c5fcdd3e90bfff38ebb3e6e05498d49898b86d929ab8206388210"
+    }
+  ],
+  "chain_checks": {
+    "confirmation_gate_pass": true,
+    "diagnosis_ready": true,
+    "intervention_materialized": true,
+    "long_horizon_effect_positive": true,
+    "official_gate_pass": true,
+    "routing_prior_written": true,
+    "same_frozen_baseline": true,
+    "screen_action_gate_pass": true,
+    "screen_ready": true,
+    "selected_checkpoint_confirmed": true,
+    "verifier_protocol_frozen": true
+  },
+  "claim_boundary": {
+    "not_proven": "This bundle does not by itself establish IRG cross-backbone transfer, a calibrated transfer certificate, or a paper-level replicated causal effect when evaluation seeds are shared.",
+    "proven": "A diagnosis-routed primitive was materially compiled, produced a positive 512-step screen, passed the frozen official 50-step pixel gate, survived checkpoint-ladder confirmation, and yielded an aggregate long-horizon routing prior."
+  },
+  "confirmation_independence": {
+    "candidate_checkpoint_independent": true,
+    "confirmation_eval_seed": 2802,
+    "evaluation_seed_independent": false,
+    "initial_eval_seed": 2802,
+    "paper_replication_requirement_pass": false
+  },
+  "framework_projection": {
+    "diagnostic_state": {
+      "diagnostic_only": true,
+      "dominant_failure": "mixed",
+      "failure_candidates": [
+        "mixed"
+      ]
+    },
+    "effect_memory": {
+      "admission": "routing_prior_only",
+      "causal_credit_eligible": false,
+      "causal_edge_count": 0,
+      "routing_prior_count": 1
+    },
+    "goal_and_verifier": {
+      "frozen_gate_checks": {
+        "masked_mse_does_not_regress": true,
+        "mse_does_not_regress": true,
+        "psnr_strictly_improves": true,
+        "ssim_does_not_regress": true
+      },
+      "goal_id": "g1_long_horizon_ladder_v1",
+      "official_protocol": "official_acwm_eval_py"
+    },
+    "interventional_effect": {
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        16,
+        32,
+        48
+      ],
+      "horizon_psnr_delta": {
+        "16": 1.5882582203955131,
+        "32": 1.367661146285986,
+        "48": 1.0753057123904952
+      },
+      "positive_trajectory_rate_at_max_horizon": 0.6666666666666666
+    },
+    "progressive_fidelity": {
+      "confirmation_gate_delta": {
+        "masked_mse": -0.009039999999999992,
+        "mse": -0.002012,
+        "psnr": 0.9400000000000013,
+        "ssim": 0.00990000000000002
+      },
+      "official_gate_delta": {
+        "masked_mse": -0.005652999999999991,
+        "mse": -0.0017219999999999996,
+        "psnr": 0.7899999999999991,
+        "ssim": 0.008900000000000019
+      },
+      "screen_primary_delta": 11.905507229944192,
+      "screen_steps": 512,
+      "selected_checkpoint_step": 800
+    },
+    "typed_intervention": {
+      "hook": "H3",
+      "intent_to_code_contract": {
+        "declared_proxy": "Uses latent prefix windows as the executable proxy for multi-chunk next-token forcing.",
+        "method_intent": "Reduce train-inference mismatch by adding supervised losses on shorter rollout prefixes.",
+        "not_claimed": [
+          "does not run model-generated rollouts inside this smoke hook",
+          "does not change held-out evaluation",
+          "does not override the frozen primitive conflict rules"
+        ],
+        "runtime_behavior": "Replaces the single base loss call with a base loss plus bounded prefix-window auxiliary losses computed through the model's existing training_loss."
+      },
+      "materialization_state": "acwm_runtime_hook_smoke",
+      "primitive": "next_forcing"
+    }
+  },
+  "identity": {
+    "environment": "cloth_move",
+    "goal_id": "g1_long_horizon_ladder_v1",
+    "primitive": "next_forcing",
+    "seed": 2802
+  },
+  "operational_minimal_loop_pass": true,
+  "paper_confirmed_effect": false,
+  "schema_version": 1,
+  "state": "ready"
+}

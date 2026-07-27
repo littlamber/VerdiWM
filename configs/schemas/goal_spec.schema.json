@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["goal_id", "metric_family", "horizons", "primary_objective", "action_following_gate", "eval_protocol", "budget", "envs"],
+  "properties": {
+    "goal_id": {"type": "string", "minLength": 1},
+    "metric_family": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+    "primary_objective": {"type": "string", "minLength": 1},
+    "action_following_gate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tau_af"],
+      "properties": {"tau_af": {"type": "number"}}
+    },
+    "eval_protocol": {
+      "type": "object", "additionalProperties": false,
+      "required": ["dev_split", "accept_split", "accept_horizon_extra", "seeds_accept"],
+      "properties": {
+        "dev_split": {"type": "string", "minLength": 1},
+        "accept_split": {"type": "string", "minLength": 1},
+        "accept_horizon_extra": {"type": "integer", "minimum": 1},
+        "seeds_accept": {"type": "array", "minItems": 3, "items": {"type": "integer"}},
+        "mode": {"enum": ["uniform_horizons", "per_environment_horizon_ladder"]},
+        "horizon_ladder_path": {"type": "string", "minLength": 1},
+        "cross_environment_comparison_horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "long_horizon_claim_policy": {"type": "string", "minLength": 1},
+        "t4_4_prior_convergence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target_progress_delta", "progress_threshold", "min_seed_count", "plateau_tolerance", "speedup_target", "target_progress_delta_basis"],
+          "properties": {
+            "target_progress_delta": {"type": "number", "exclusiveMinimum": 0},
+            "progress_threshold": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+            "min_seed_count": {"type": "integer", "minimum": 1},
+            "plateau_tolerance": {"type": "number", "minimum": 0},
+            "speedup_target": {"type": "number", "exclusiveMinimum": 0},
+            "target_progress_delta_basis": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["total_gpu_hours", "per_trial_max_gpu_hours"],
+      "properties": {
+        "total_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+        "per_trial_max_gpu_hours": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "envs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  }
+}

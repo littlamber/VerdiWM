@@ -1,0 +1,9 @@
+environment,primitive,campaign_id,seed,train_steps,screen_decision,delta_primary_metric,action_following_pass,official_visual_asset_count
+cloth_move,mixture_reweight,acwm-autoloop-screen-cloth_move-mixture_reweight-s2800-t512-r1,2800,512,promote_to_confirmation,48.21308080878396,True,0
+pour_water,self_forcing_finetune,acwm-autoloop-screen-pour_water-self_forcing_finetune-s873-t512-r1,873,512,promote_to_confirmation,84.05862586324656,True,0
+push_cube,action_contrastive_finetune,acwm-autoloop-screen-push_cube-action_contrastive_finetune-s2015-t512-r1,2015,512,reject_or_revise,-36.14298764280397,True,0
+push_rope,self_forcing_finetune,acwm-autoloop-screen-push_rope-self_forcing_finetune-s874-t512-r1,874,512,reject_or_revise,-14.276204910437627,True,0
+push_sand,mixture_reweight,acwm-autoloop-screen-push_sand-mixture_reweight-s801-t512-r1,801,512,reject_or_revise,-3.324118189837918,True,0
+reacher,next_forcing,acwm-autoloop-screen-reacher-next_forcing-s2843-t512-r1,2843,512,promote_to_confirmation,53.08148593186979,True,0
+robot_arm,cfg_guidance_schedule,acwm-autoloop-screen-robot_arm-cfg_guidance_schedule-s910-t512-r1,910,512,promote_to_confirmation,105.87382191902782,True,70
+stack_cube,self_forcing_finetune,acwm-autoloop-screen-stack_cube-self_forcing_finetune-s1810-t512-r1,1810,512,reject_or_revise,-597.7726538968957,True,0

@@ -1,0 +1,12 @@
+{
+  "library_version": "v1.2",
+  "registry_digest": "309606c8183e98b72f89f2dc9a8a440e74e84950405cce260f3395d045b61234",
+  "entries": [
+    {
+      "failure": "action_binding",
+      "primitive_names": ["action_dimension_balancing"],
+      "rationale": "Bounded per-dimension action RMS balancing targets heterogeneous action-scale binding before the existing ActionEmbedder without adding checkpoint parameters.",
+      "sources": ["2606.27325v1"]
+    }
+  ]
+}

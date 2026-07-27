@@ -1,0 +1,43 @@
+{
+  "action_following": {
+    "inv_dyn_acc_perframe": 1.0,
+    "inverse_dynamics_r2": -0.015219688415527344,
+    "low_confidence": true,
+    "no_action_delta_psnr": 5.760321292478761
+  },
+  "appearance_drift": {
+    "low_motion_ssim_64": 0.9040684799353281
+  },
+  "dominant_failure": "mixed",
+  "dominant_failure_candidates": [
+    "mixed"
+  ],
+  "env": "cloth_move",
+  "evidence_frames": [
+    "cas://sha256/ba4cd6efc146a59b8142ba1530d390867805eae3e9d1a886a1bc01b72000506f"
+  ],
+  "goal_id": "g1_long_horizon_ladder_v1",
+  "horizon_curve": {
+    "auc_psnr_16_48": 615.8181433334244,
+    "auc_psnr_envmax": 615.8181433334244,
+    "drift_slope": -0.1308719787930357,
+    "psnr": {
+      "16": 21.75689449406397,
+      "32": 18.82569112496362,
+      "48": 17.56899117268683
+    },
+    "segment_drift": {
+      "onset_frame": 0,
+      "window": 12,
+      "worst_drop": 24.68489029374149
+    }
+  },
+  "model_ref": "cas://sha256/cdc102112e05abab41feebf8c46a2ba4bcfbc52f0d5a75930130980f62048da8",
+  "ood_profile": {
+    "gap": -78.68678506092886,
+    "ind_auc": 615.8181433334244,
+    "ood_auc": 694.5049283943532,
+    "worst_ood_condition": "ood_test"
+  },
+  "round": 0
+}

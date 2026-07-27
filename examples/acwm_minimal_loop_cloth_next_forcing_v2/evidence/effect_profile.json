@@ -1,0 +1,310 @@
+{
+  "artifact_type": "wmloop-acwm-horizon-effect-profile",
+  "claim_boundary": "This artifact estimates a paired horizon response. It can update routing priors and anti-conditions, but cannot enter the failure-to-fix causal map until a factorized held-out replication receives a settled verifier verdict. A hard-case-only improvement is qualitative evidence, not aggregate uplift.",
+  "effect_classification": {
+    "aggregate_max_horizon_pass": true,
+    "aggregate_passing_horizons": [
+      16,
+      32,
+      48
+    ],
+    "claim_license": "routing_prior_only_pending_factorized_heldout_replication",
+    "effect_scope": "aggregate_long_horizon_positive",
+    "first_aggregate_failure_horizon": null,
+    "late_half_mean_delta_psnr": 0.8974222675457953,
+    "positive_trajectory_indices_at_max_horizon": [
+      31,
+      40
+    ],
+    "positive_trajectory_rate_at_max_horizon": 0.6666666666666666
+  },
+  "environment": "cloth_move",
+  "fps": 10.0,
+  "horizon_effects": [
+    {
+      "aligned_gain": {
+        "masked_mse": 0.012405198067426682,
+        "mse": 0.0029912993001441164,
+        "psnr": 1.5882582203955131,
+        "ssim": 0.015059343228737587
+      },
+      "baseline": {
+        "masked_mse": 0.08262196555733681,
+        "mse": 0.009717033710330725,
+        "psnr": 20.3071924072394,
+        "ssim": 0.9203442993263403
+      },
+      "candidate": {
+        "masked_mse": 0.07021676748991013,
+        "mse": 0.006725734410186608,
+        "psnr": 21.89545062763491,
+        "ssim": 0.9354036425550779
+      },
+      "checks": {
+        "masked_mse_does_not_regress": true,
+        "mse_does_not_regress": true,
+        "psnr_strictly_improves": true,
+        "ssim_does_not_regress": true
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.012405198067426682,
+        "mse": -0.0029912993001441164,
+        "psnr": 1.5882582203955131,
+        "ssim": 0.015059343228737587
+      },
+      "horizon": 16,
+      "sample_count": 3,
+      "seconds": 1.6,
+      "strict_quality_pass": true
+    },
+    {
+      "aligned_gain": {
+        "masked_mse": 0.009364835917949677,
+        "mse": 0.003957814381768307,
+        "psnr": 1.367661146285986,
+        "ssim": 0.016391926134626145
+      },
+      "baseline": {
+        "masked_mse": 0.09422897671659787,
+        "mse": 0.014687491580843925,
+        "psnr": 18.59181233606432,
+        "ssim": 0.9053606937328974
+      },
+      "candidate": {
+        "masked_mse": 0.0848641407986482,
+        "mse": 0.010729677199075619,
+        "psnr": 19.959473482350305,
+        "ssim": 0.9217526198675235
+      },
+      "checks": {
+        "masked_mse_does_not_regress": true,
+        "mse_does_not_regress": true,
+        "psnr_strictly_improves": true,
+        "ssim_does_not_regress": true
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.009364835917949677,
+        "mse": -0.003957814381768307,
+        "psnr": 1.367661146285986,
+        "ssim": 0.016391926134626145
+      },
+      "horizon": 32,
+      "sample_count": 3,
+      "seconds": 3.2,
+      "strict_quality_pass": true
+    },
+    {
+      "aligned_gain": {
+        "masked_mse": 0.014031966527303055,
+        "mse": 0.0033371864507595692,
+        "psnr": 1.0753057123904952,
+        "ssim": 0.016097598605685826
+      },
+      "baseline": {
+        "masked_mse": 0.09929271787405014,
+        "mse": 0.016227304314573605,
+        "psnr": 17.972887120295194,
+        "ssim": 0.9009419456124306
+      },
+      "candidate": {
+        "masked_mse": 0.08526075134674709,
+        "mse": 0.012890117863814035,
+        "psnr": 19.04819283268569,
+        "ssim": 0.9170395442181164
+      },
+      "checks": {
+        "masked_mse_does_not_regress": true,
+        "mse_does_not_regress": true,
+        "psnr_strictly_improves": true,
+        "ssim_does_not_regress": true
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.014031966527303055,
+        "mse": -0.0033371864507595692,
+        "psnr": 1.0753057123904952,
+        "ssim": 0.016097598605685826
+      },
+      "horizon": 48,
+      "sample_count": 3,
+      "seconds": 4.8,
+      "strict_quality_pass": true
+    }
+  ],
+  "horizon_seconds": {
+    "16": 1.6,
+    "32": 3.2,
+    "48": 4.8
+  },
+  "horizons": [
+    16,
+    32,
+    48
+  ],
+  "paired_trajectory_count": 3,
+  "per_frame_effect": {
+    "delta_psnr_by_frame": {
+      "0": 0.0,
+      "1": 3.4006049882500733,
+      "10": 1.4419141944999119,
+      "11": 0.8194275494592098,
+      "12": 0.720325881056386,
+      "13": 1.085925029487953,
+      "14": 1.3928260346428836,
+      "15": 1.4658000467055032,
+      "16": 1.3382890103880314,
+      "17": 1.1493518937442282,
+      "18": 1.0836544137315975,
+      "19": 1.100650913803591,
+      "2": 3.7525988346106267,
+      "20": 0.7540729357420837,
+      "21": 0.2744634746300214,
+      "22": 0.44396609984296376,
+      "23": 0.8792958283730812,
+      "24": 1.3854788458703382,
+      "25": 1.6037202405859752,
+      "26": 1.6950584039197203,
+      "27": 1.6644722251031574,
+      "28": 1.5130148833256314,
+      "29": 1.5450025705143986,
+      "3": 2.932231012311128,
+      "30": 1.6290164885936278,
+      "31": 1.619905345629892,
+      "32": 1.6618334574984246,
+      "33": 1.4694494968269822,
+      "34": 1.1528634107637394,
+      "35": 0.8926052483654807,
+      "36": 0.7233520881618354,
+      "37": 0.05577770284255479,
+      "38": 0.11382399636063312,
+      "39": 0.30112997336459557,
+      "4": 3.9226762735903833,
+      "40": 0.2571758221600504,
+      "41": 0.3958333923698625,
+      "42": 0.3619361474380369,
+      "43": 0.30836150976206156,
+      "44": 0.23939040988100402,
+      "45": 0.22605137589796698,
+      "46": 0.32568412536701885,
+      "47": 0.3971972604960996,
+      "5": 2.255071027754685,
+      "6": 1.982300277136055,
+      "7": 2.3588194923991814,
+      "8": 1.634808199112797,
+      "9": 1.4226190232068952
+    },
+    "duration_seconds": 4.8,
+    "early_half_mean_delta_psnr": 1.5671538514366363,
+    "frame_count": 48,
+    "late_half_mean_delta_psnr": 0.8974222675457953,
+    "tail_frame_delta_psnr": 0.3971972604960996
+  },
+  "primitive": "next_forcing",
+  "schema_version": 1,
+  "selection_policy": {
+    "candidate_gain_used_for_sample_selection": false,
+    "hard_case_selection_allowed_for_qualitative_showcase_only": true,
+    "trajectory_pool": "exact_baseline_candidate_intersection"
+  },
+  "source": {
+    "baseline_checkpoint": "${ACWM_CHECKPOINT_ROOT}/VideoDiT_S_clothmove_240x240_240x240/latest.pt",
+    "baseline_manifest": "${VERDIWM_REPO}/results/reports/acwm-autoloop-long-horizon-baseline-cloth_move-next_forcing-s2802-r1/manifest.json",
+    "candidate_checkpoint": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/best_checkpoint.pt",
+    "candidate_checkpoint_step": 11800,
+    "candidate_manifest": "${VERDIWM_REPO}/results/reports/acwm-autoloop-long-horizon-candidate-cloth_move-next_forcing-s2802-r1/manifest.json",
+    "failure_report": "${VERDIWM_REPO}/results/reports/m1-raw-failure-reports-ladder-r2-threshold-aligned/failure_reports/cloth_move.json",
+    "mechanism_cards": "${VERDIWM_REPO}/results/reports/primitive-mechanism-cards-r1/mechanism_cards.csv"
+  },
+  "split": "ind_test",
+  "state": "ready",
+  "trajectory_effects_at_max_horizon": [
+    {
+      "baseline": {
+        "masked_mse": 0.06931161880493164,
+        "mse": 0.012183170765638351,
+        "psnr": 19.142393119803323,
+        "ssim": 0.907694603006045
+      },
+      "candidate": {
+        "masked_mse": 0.07595976442098618,
+        "mse": 0.014002288691699505,
+        "psnr": 18.5380066238088,
+        "ssim": 0.9114709546168646
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": 0.006648145616054535,
+        "mse": 0.0018191179260611534,
+        "psnr": -0.6043864959945218,
+        "ssim": 0.0037763516108195727
+      },
+      "horizon": 48,
+      "strict_quality_pass": false,
+      "trajectory_index": 7
+    },
+    {
+      "baseline": {
+        "masked_mse": 0.1211157739162445,
+        "mse": 0.017942141741514206,
+        "psnr": 17.461254747016934,
+        "ssim": 0.899676206211249
+      },
+      "candidate": {
+        "masked_mse": 0.11708777397871017,
+        "mse": 0.016115421429276466,
+        "psnr": 17.927580634159312,
+        "ssim": 0.9087663305302461
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.004027999937534332,
+        "mse": -0.0018267203122377396,
+        "psnr": 0.46632588714237855,
+        "ssim": 0.00909012431899714
+      },
+      "horizon": 48,
+      "strict_quality_pass": true,
+      "trajectory_index": 31
+    },
+    {
+      "baseline": {
+        "masked_mse": 0.10745076090097427,
+        "mse": 0.01855660043656826,
+        "psnr": 17.315013494065333,
+        "ssim": 0.8954550276199976
+      },
+      "candidate": {
+        "masked_mse": 0.06273471564054489,
+        "mse": 0.008552643470466137,
+        "psnr": 20.678991240088955,
+        "ssim": 0.9308813475072384
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.04471604526042938,
+        "mse": -0.010003956966102123,
+        "psnr": 3.3639777460236218,
+        "ssim": 0.035426319887240765
+      },
+      "horizon": 48,
+      "strict_quality_pass": true,
+      "trajectory_index": 40
+    }
+  ],
+  "transfer_prior": {
+    "anti_conditions": "Can be expensive and unstable without enough long trajectories.",
+    "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+    "causal_credit_eligible": false,
+    "effect_scope": "aggregate_long_horizon_positive",
+    "effective_horizons": [
+      16,
+      32,
+      48
+    ],
+    "evidence_level": "paired_horizon_observation",
+    "failure_signatures": [
+      "mixed"
+    ],
+    "first_aggregate_failure_horizon": null,
+    "layer": "L3",
+    "mechanism_family": "Multi-chunk prediction objective",
+    "primitive": "next_forcing",
+    "transfer_preconditions": "Requires objective/training loop control over chunked horizons."
+  }
+}

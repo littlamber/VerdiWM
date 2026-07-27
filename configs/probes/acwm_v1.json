@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-probe-registry",
+  "library_version": "v1.0",
+  "probes": [
+    {
+      "id": "horizon_curve",
+      "role": "verdict",
+      "report_field": "horizon_curve",
+      "description": "Long-horizon objective curve and segment drift evidence used by the verifier."
+    },
+    {
+      "id": "action_following",
+      "role": "verdict",
+      "report_field": "action_following",
+      "description": "Behavior-validity gate evidence; failed action following blocks ACCEPT credit."
+    },
+    {
+      "id": "appearance_drift",
+      "role": "diagnostic",
+      "report_field": "appearance_drift",
+      "description": "Appearance-stability signal used for failure attribution and proposal routing."
+    },
+    {
+      "id": "ood_profile",
+      "role": "diagnostic",
+      "report_field": "ood_profile",
+      "description": "InD-vs-OoD gap signal used for failure attribution and proposal routing."
+    }
+  ]
+}

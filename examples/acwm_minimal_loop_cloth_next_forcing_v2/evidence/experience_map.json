@@ -1,0 +1,94 @@
+{
+  "admission_policy": {
+    "causal_edge_requires_profile_causal_credit": true,
+    "hard_case_only_can_support_general_uplift": false,
+    "observational_edges_can_rank_proposals": true,
+    "required_causal_evidence": "factorized heldout replication plus settled verifier verdict"
+  },
+  "anti_conditions": [],
+  "artifact_type": "wmloop-acwm-horizon-experience-map",
+  "causal_edges": [],
+  "claim_boundary": "Routing priors and anti-conditions are scoped observational experience. Only profiles carrying verified causal credit may enter causal_edges; ACWM-Phys metric values never transfer as a new backbone verdict.",
+  "observational_edges": [
+    {
+      "anti_conditions": "Can be expensive and unstable without enough long trajectories.",
+      "candidate_checkpoint": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/best_checkpoint.pt",
+      "candidate_checkpoint_step": 11800,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 1.5671538514366363,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        16,
+        32,
+        48
+      ],
+      "environment": "cloth_move",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "16": 1.5882582203955131,
+        "32": 1.367661146285986,
+        "48": 1.0753057123904952
+      },
+      "late_half_mean_delta_psnr": 0.8974222675457953,
+      "layer": "L3",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "Multi-chunk prediction objective",
+      "positive_trajectory_rate_at_max_horizon": 0.6666666666666666,
+      "primitive": "next_forcing",
+      "response_shape": "sustained_long_horizon_gain",
+      "tail_frame_delta_psnr": 0.3971972604960996,
+      "transfer_preconditions": "Requires objective/training loop control over chunked horizons."
+    }
+  ],
+  "routing_priors": [
+    {
+      "anti_conditions": "Can be expensive and unstable without enough long trajectories.",
+      "candidate_checkpoint": "${VERDIWM_REPO}/results/reports/acwm-autoloop-checkpoint-finalize-cloth_move-next_forcing-s2802-r1/best_checkpoint.pt",
+      "candidate_checkpoint_step": 11800,
+      "causal_credit_blocker": "requires_factorized_heldout_replication_and_settled_verdict",
+      "causal_credit_eligible": false,
+      "early_half_mean_delta_psnr": 1.5671538514366363,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "effective_horizons": [
+        16,
+        32,
+        48
+      ],
+      "environment": "cloth_move",
+      "failure_signatures": [
+        "mixed"
+      ],
+      "first_aggregate_failure_horizon": null,
+      "horizon_psnr_delta": {
+        "16": 1.5882582203955131,
+        "32": 1.367661146285986,
+        "48": 1.0753057123904952
+      },
+      "late_half_mean_delta_psnr": 0.8974222675457953,
+      "layer": "L3",
+      "max_horizon": 48,
+      "max_horizon_seconds": 4.8,
+      "mechanism_family": "Multi-chunk prediction objective",
+      "positive_trajectory_rate_at_max_horizon": 0.6666666666666666,
+      "primitive": "next_forcing",
+      "response_shape": "sustained_long_horizon_gain",
+      "tail_frame_delta_psnr": 0.3971972604960996,
+      "transfer_preconditions": "Requires objective/training loop control over chunked horizons."
+    }
+  ],
+  "schema_version": 1,
+  "state": "ready",
+  "summary": {
+    "anti_condition_count": 0,
+    "causal_edge_count": 0,
+    "environment_count": 1,
+    "primitive_count": 1,
+    "profile_count": 1,
+    "routing_prior_count": 1
+  }
+}

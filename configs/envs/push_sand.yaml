@@ -1,0 +1,3 @@
+id: push_sand
+vendor_env_id: push_sand
+provider_env_config: vendor/ACWM-Phys/configs/envs/push_sand.yaml

@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="720" viewBox="0 0 1800 720">
+  <defs>
+    <style>
+      .title { font: 700 24px Arial, Helvetica, sans-serif; fill: #202124; }
+      .label { font: 700 19px Arial, Helvetica, sans-serif; fill: #202124; }
+      .sub { font: 15px Arial, Helvetica, sans-serif; fill: #4D4D4D; }
+      .tiny { font: 13px Arial, Helvetica, sans-serif; fill: #4D4D4D; }
+      .box { fill: #FFFFFF; stroke: #7A7A7A; stroke-width: 2; rx: 5; }
+      .main-arrow { fill: none; stroke: #4D4D4D; stroke-width: 3; marker-end: url(#arrow-gray); }
+      .memory-arrow { fill: none; stroke: #CC79A7; stroke-width: 3; marker-end: url(#arrow-magenta); }
+      .prior-arrow { fill: none; stroke: #CC79A7; stroke-width: 3; stroke-dasharray: 10 7; marker-end: url(#arrow-magenta); }
+      .evolve-arrow { fill: none; stroke: #D55E00; stroke-width: 3; stroke-dasharray: 3 7; marker-end: url(#arrow-red); }
+    </style>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#4D4D4D"/>
+    </marker>
+    <marker id="arrow-magenta" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#CC79A7"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#D55E00"/>
+    </marker>
+  </defs>
+
+  <rect width="1800" height="720" fill="#FFFFFF"/>
+  <text x="40" y="42" class="title">VerdiWM: Self-Evolving Repair Loop for World Models</text>
+  <text x="1760" y="42" class="sub" text-anchor="end">online campaign</text>
+
+  <g id="campaign">
+    <rect x="35" y="90" width="185" height="230" class="box"/>
+    <rect x="35" y="90" width="185" height="10" fill="#4D4D4D"/>
+    <text x="127.5" y="145" class="label" text-anchor="middle">Campaign</text>
+    <text x="127.5" y="185" class="sub" text-anchor="middle">Backbone</text>
+    <text x="127.5" y="215" class="sub" text-anchor="middle">Goal</text>
+    <text x="127.5" y="245" class="sub" text-anchor="middle">Budget</text>
+    <rect x="72" y="270" width="111" height="25" fill="#F2F2F2" stroke="#7A7A7A" rx="3"/>
+    <text x="127.5" y="288" class="tiny" text-anchor="middle">goal_spec</text>
+  </g>
+
+  <g id="audit">
+    <rect x="260" y="90" width="210" height="230" class="box"/>
+    <rect x="260" y="90" width="210" height="10" fill="#0072B2"/>
+    <text x="365" y="138" class="label" text-anchor="middle">Probe &amp;</text>
+    <text x="365" y="164" class="label" text-anchor="middle">Capability Audit</text>
+    <circle cx="315" cy="210" r="18" fill="#E6F2F8" stroke="#0072B2" stroke-width="2"/>
+    <path d="M303 210 L312 219 L329 199" fill="none" stroke="#0072B2" stroke-width="3"/>
+    <text x="345" y="216" class="sub">static probes</text>
+    <circle cx="315" cy="260" r="18" fill="#E6F2F8" stroke="#0072B2" stroke-width="2"/>
+    <path d="M304 260 H326 M315 249 V271" stroke="#0072B2" stroke-width="3"/>
+    <text x="345" y="266" class="sub">hook mask</text>
+  </g>
+
+  <g id="irg">
+    <rect x="510" y="70" width="360" height="270" class="box" stroke="#0072B2" stroke-width="3"/>
+    <rect x="510" y="70" width="360" height="12" fill="#0072B2"/>
+    <text x="690" y="116" class="label" text-anchor="middle">Interventional Repair Geometry</text>
+    <text x="690" y="142" class="tiny" text-anchor="middle">paired finite differences define repair response</text>
+
+    <circle cx="555" cy="220" r="10" fill="#4D4D4D"/>
+    <text x="555" y="253" class="tiny" text-anchor="middle">baseline</text>
+    <path d="M565 216 L625 178" stroke="#0072B2" stroke-width="3" marker-end="url(#arrow-gray)"/>
+    <path d="M565 220 L630 220" stroke="#0072B2" stroke-width="3" marker-end="url(#arrow-gray)"/>
+    <path d="M565 224 L625 264" stroke="#0072B2" stroke-width="3" marker-end="url(#arrow-gray)"/>
+    <text x="600" y="171" class="tiny" fill="#0072B2">dose</text>
+
+    <rect x="650" y="171" width="72" height="100" fill="#E6F2F8" stroke="#0072B2" rx="3"/>
+    <text x="686" y="195" class="label" text-anchor="middle">J</text>
+    <path d="M666 210 H706 M666 228 H706 M666 246 H706" stroke="#0072B2" stroke-width="2"/>
+    <path d="M679 203 V254 M693 203 V254" stroke="#0072B2" stroke-width="1.5"/>
+
+    <rect x="742" y="171" width="103" height="100" fill="#F7FBFD" stroke="#0072B2" rx="3"/>
+    <ellipse cx="793" cy="222" rx="39" ry="31" fill="#DDEFF7" stroke="#0072B2" stroke-width="2"/>
+    <circle cx="788" cy="218" r="6" fill="#D55E00"/>
+    <circle cx="803" cy="227" r="6" fill="#D55E00"/>
+    <path d="M795 188 V203" stroke="#D55E00" stroke-width="2"/>
+    <text x="795" y="184" class="tiny" text-anchor="middle" fill="#D55E00">collision</text>
+    <text x="793" y="297" class="tiny" text-anchor="middle">repair neighborhood</text>
+  </g>
+
+  <g id="selector">
+    <rect x="910" y="90" width="290" height="230" class="box"/>
+    <rect x="910" y="90" width="290" height="10" fill="#E69F00"/>
+    <text x="1055" y="138" class="label" text-anchor="middle">Selective Transfer</text>
+    <text x="1055" y="164" class="label" text-anchor="middle">&amp; Repair Selector</text>
+    <rect x="940" y="187" width="230" height="64" fill="#FFF7E5" stroke="#E69F00" rx="4"/>
+    <text x="1055" y="212" class="sub" text-anchor="middle">align  |  support  |  LCB</text>
+    <path d="M973 232 H1135" stroke="#E69F00" stroke-width="3"/>
+    <text x="990" y="281" class="sub" text-anchor="middle">transfer</text>
+    <text x="1120" y="281" class="sub" text-anchor="middle" fill="#D55E00">abstain</text>
+    <path d="M1055 251 L990 267" stroke="#009E73" stroke-width="2.5" marker-end="url(#arrow-gray)"/>
+    <path d="M1055 251 L1120 267" stroke="#D55E00" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+  </g>
+
+  <g id="trials">
+    <rect x="1240" y="90" width="230" height="230" class="box"/>
+    <rect x="1240" y="90" width="230" height="10" fill="#009E73"/>
+    <text x="1355" y="143" class="label" text-anchor="middle">Paired Sandbox</text>
+    <text x="1355" y="169" class="label" text-anchor="middle">Trials</text>
+    <text x="1270" y="214" class="tiny">base</text>
+    <line x1="1310" y1="209" x2="1435" y2="209" stroke="#7A7A7A" stroke-width="5"/>
+    <circle cx="1348" cy="209" r="7" fill="#7A7A7A"/>
+    <circle cx="1400" cy="209" r="7" fill="#7A7A7A"/>
+    <text x="1270" y="264" class="tiny">repair</text>
+    <line x1="1310" y1="259" x2="1435" y2="259" stroke="#009E73" stroke-width="5"/>
+    <circle cx="1348" cy="259" r="7" fill="#009E73"/>
+    <circle cx="1400" cy="259" r="7" fill="#009E73"/>
+    <path d="M1348 216 V252 M1400 216 V252" stroke="#4D4D4D" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text x="1374" y="297" class="tiny" text-anchor="middle">matched seeds</text>
+  </g>
+
+  <g id="verifier">
+    <rect x="1510" y="90" width="250" height="230" class="box"/>
+    <rect x="1510" y="90" width="250" height="10" fill="#D55E00"/>
+    <text x="1635" y="145" class="label" text-anchor="middle">Frozen Verifier</text>
+    <g transform="translate(1550 185)">
+      <rect width="26" height="26" fill="#FFF0EB" stroke="#D55E00" rx="3"/>
+      <path d="M6 13 L11 19 L21 7" fill="none" stroke="#D55E00" stroke-width="3"/>
+      <text x="42" y="19" class="sub">quality</text>
+    </g>
+    <g transform="translate(1550 230)">
+      <rect width="26" height="26" fill="#FFF0EB" stroke="#D55E00" rx="3"/>
+      <path d="M6 13 L11 19 L21 7" fill="none" stroke="#D55E00" stroke-width="3"/>
+      <text x="42" y="19" class="sub">behavior</text>
+    </g>
+    <g transform="translate(1550 275)">
+      <rect width="26" height="26" fill="#FFF0EB" stroke="#D55E00" rx="3"/>
+      <path d="M6 13 L11 19 L21 7" fill="none" stroke="#D55E00" stroke-width="3"/>
+      <text x="42" y="19" class="sub">regression</text>
+    </g>
+  </g>
+
+  <path d="M220 205 H248" class="main-arrow"/>
+  <path d="M470 205 H498" class="main-arrow"/>
+  <path d="M870 205 H898" class="main-arrow"/>
+  <path d="M1200 205 H1228" class="main-arrow"/>
+  <path d="M1470 205 H1498" class="main-arrow"/>
+
+  <text x="40" y="404" class="sub">cross-campaign memory and versioned evolution</text>
+
+  <g id="registry">
+    <rect x="180" y="430" width="300" height="150" class="box"/>
+    <rect x="180" y="430" width="300" height="10" fill="#0072B2"/>
+    <text x="330" y="477" class="label" text-anchor="middle">Frame &amp; Primitive Registry</text>
+    <text x="330" y="514" class="sub" text-anchor="middle">typed probes and repairs</text>
+    <text x="330" y="542" class="sub" text-anchor="middle">versioned after replay</text>
+  </g>
+
+  <g id="memory">
+    <rect x="750" y="430" width="360" height="150" class="box"/>
+    <rect x="750" y="430" width="360" height="10" fill="#CC79A7"/>
+    <text x="930" y="477" class="label" text-anchor="middle">Intervention-Effect Memory</text>
+    <text x="930" y="514" class="sub" text-anchor="middle">context  -  repair  -  effect +/- uncertainty</text>
+    <path d="M800 548 C830 520 860 565 890 537 S950 565 980 537 S1040 557 1060 530" fill="none" stroke="#CC79A7" stroke-width="3"/>
+  </g>
+
+  <g id="replay">
+    <rect x="1320" y="430" width="300" height="150" class="box"/>
+    <rect x="1320" y="430" width="300" height="10" fill="#D55E00"/>
+    <text x="1470" y="477" class="label" text-anchor="middle">Counterexample Replay Gate</text>
+    <text x="1470" y="514" class="sub" text-anchor="middle">nested held-out replay</text>
+    <text x="1470" y="542" class="sub" text-anchor="middle">promote only verified gains</text>
+  </g>
+
+  <path d="M1635 320 V385 H930 V418" class="memory-arrow"/>
+  <text x="1305" y="378" class="tiny" fill="#CC79A7">verified effects</text>
+  <path d="M930 430 V395 H1055 V332" class="prior-arrow"/>
+  <text x="962" y="390" class="tiny" fill="#CC79A7">effect prior</text>
+
+  <path d="M803 227 C870 370 1230 365 1470 418" class="evolve-arrow"/>
+  <path d="M1320 505 V625 H330 V592" class="evolve-arrow"/>
+  <path d="M330 430 V390 H690 V350" class="evolve-arrow"/>
+  <rect x="750" y="592" width="300" height="28" fill="#FFFFFF"/>
+  <text x="900" y="612" class="sub" text-anchor="middle" fill="#D55E00">reduce future selection regret</text>
+
+  <rect x="0" y="650" width="1800" height="70" fill="#4D4D4D"/>
+  <text x="900" y="693" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" fill="#FFFFFF" text-anchor="middle">Frozen within a campaign: split | evaluator | gates | acceptance rule</text>
+</svg>

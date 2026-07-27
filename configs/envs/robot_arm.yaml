@@ -1,0 +1,3 @@
+id: robot_arm
+vendor_env_id: robot_arm
+provider_env_config: vendor/ACWM-Phys/configs/envs/robot_arm.yaml

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal_id", "gates", "action_following_gate", "delta_m_ver", "negative_metrics", "verdict", "violation"],
+  "properties": {
+    "proposal_id": {"type": "string", "minLength": 1},
+    "gates": {"type": "object", "required": ["G1_readonly", "G2_heldout", "G3_audit", "G4_replication"]},
+    "action_following_gate": {"type": "object", "required": ["enabled", "threshold", "observed", "pass"]},
+    "delta_m_ver": {"type": "object"},
+    "negative_metrics": {"type": "object"},
+    "verdict": {"enum": ["ACCEPT", "REJECT", "INCONCLUSIVE", "VOID"]},
+    "violation": {"type": ["string", "null"]}
+  }
+}

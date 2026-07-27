@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.coverage
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+htmlcov/
+results/
+runs/
+vendor/ACWM-Phys/

@@ -1,0 +1,14 @@
+{
+  "name": "action_contrastive_finetune",
+  "layer": "L3",
+  "family": "action_binding_contrastive_objective",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["weight"], "properties": {"weight": {"type": "number", "exclusiveMinimum": 0.0, "maximum": 1.0}}},
+  "cost_class": "medium",
+  "literature": ["counterfactual action negatives", "contrastive action conditioning"],
+  "targets_failures": ["action_binding"],
+  "estimated_gpu_hours": 12.0,
+  "conflicts_with": ["latent_motion_prior", "self_forcing_finetune", "inv_dyn_reward_finetune", "next_forcing", "wmsd_self_distill"],
+  "hooks": ["H3"],
+  "hook_order": {"H3": 35},
+  "apply_module": "wmloop.primitives.definitions.action_contrastive_finetune.apply"
+}

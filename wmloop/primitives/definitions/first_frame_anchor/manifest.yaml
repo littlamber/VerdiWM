@@ -1,0 +1,14 @@
+{
+  "name": "first_frame_anchor",
+  "layer": "L2",
+  "family": "memory_anchor",
+  "params_schema": {"type": "object", "additionalProperties": false, "required": ["anchor_every"], "properties": {"anchor_every": {"type": "integer", "minimum": 4, "maximum": 32}, "anchor_weight": {"type": "number", "minimum": 0.0, "maximum": 1.0}}},
+  "cost_class": "low",
+  "literature": ["WoVR", "EMA-Sink"],
+  "targets_failures": ["appearance_drift", "train_infer_mismatch"],
+  "estimated_gpu_hours": 6.0,
+  "conflicts_with": [],
+  "hooks": ["H2"],
+  "hook_order": {"H2": 10},
+  "apply_module": "wmloop.primitives.definitions.first_frame_anchor.apply"
+}

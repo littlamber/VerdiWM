@@ -1,0 +1,23 @@
+[Unit]
+Description=wm-loop isolated Docker daemon
+Documentation=https://docs.docker.com/engine/
+Requires=wm-loop-docker.socket
+After=network-online.target wm-loop-docker.socket
+Wants=network-online.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/dockerd --config-file=/etc/wm-loop/docker/daemon.json --host=fd://
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+TimeoutStartSec=0
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TasksMax=infinity
+Delegate=yes
+KillMode=process
+
+[Install]
+RequiredBy=wm-loop-docker.socket

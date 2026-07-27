@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-m2-manual-primitive-smoke-input",
+  "interventions": [
+    {
+      "primitive": "frontier_collection",
+      "params": {"condition": "particle_count_x2", "n_episodes": 2}
+    },
+    {
+      "primitive": "first_frame_anchor",
+      "params": {"anchor_every": 8, "anchor_weight": 0.5}
+    },
+    {
+      "primitive": "latent_motion_prior",
+      "params": {"weight": 0.2}
+    }
+  ]
+}

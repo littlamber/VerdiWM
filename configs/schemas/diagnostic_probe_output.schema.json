@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "probe_id",
+    "role",
+    "environment",
+    "signature",
+    "state",
+    "metrics",
+    "flags",
+    "evidence_refs",
+    "verdict_exposure_allowed",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-diagnostic-probe-output"]},
+    "probe_id": {"type": "string", "minLength": 1},
+    "role": {"enum": ["diagnostic"]},
+    "environment": {"type": "string", "minLength": 1},
+    "signature": {"type": "string", "minLength": 1},
+    "state": {"enum": ["measured", "incomplete"]},
+    "metrics": {"type": "object"},
+    "flags": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"}
+    },
+    "verdict_exposure_allowed": {"type": "boolean"},
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

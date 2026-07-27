@@ -1,0 +1,20 @@
+{
+  "action_gate_fail_count": 0,
+  "artifact_type": "verdiwm-public-screen-summary",
+  "best_by_environment_count": 8,
+  "campaign_count": 397,
+  "claim_boundary": "Screen decisions are triage evidence, not official quality verdicts.",
+  "completed_row_count": 284,
+  "horizon_row_count": 874,
+  "limitations": [
+    "This exporter is read-only and does not change frozen verdicts or launch training.",
+    "Screen decisions are triage labels. Paper-facing claims still require the frozen evaluator, action gate, and official visualization/eval evidence.",
+    "Runs below 512 training steps are treated as startup/health checks and cannot be promoted as positive method signals.",
+    "Running rows are derived from campaign status and checkpoint filenames; final metrics only appear after the campaign writes its env manifest."
+  ],
+  "negative_screen_count": 209,
+  "positive_screen_count": 69,
+  "schema_version": 1,
+  "source_manifest_sha256": "723f65ff131243023042b215dac17c26d1c5c7e66d3ec9e5773427b26dd55877",
+  "state": "ready"
+}

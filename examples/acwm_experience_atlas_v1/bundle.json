@@ -1,0 +1,15 @@
+{
+  "artifact_type": "verdiwm-public-experience-bundle",
+  "causal_edge_count": 0,
+  "claim_boundary": "The screen table preserves positive and negative triage evidence. Only the four showcase records carry frozen official-gate and confirmation admission; experience-atlas records remain context-local routing priors unless causal_credit_eligible is true.",
+  "experience_record_count": 22,
+  "experience_source_map_count": 25,
+  "horizon_measurement_count": 874,
+  "negative_screen_count": 209,
+  "positive_screen_count": 69,
+  "schema_version": 1,
+  "screen_trial_count": 284,
+  "showcase_case_count": 4,
+  "showcase_confirmed_case_count": 4,
+  "state": "ready"
+}

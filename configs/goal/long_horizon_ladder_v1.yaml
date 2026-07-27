@@ -1,0 +1,29 @@
+goal_id: g1_long_horizon_ladder_v1
+metric_family:
+  - psnr
+  - mmse
+horizons: [16, 32, 48, 64]
+primary_objective: ladder_auc_psnr_envmax
+action_following_gate:
+  tau_af: 0.0
+eval_protocol:
+  dev_split: configs/goal/heldout_split.json#dev
+  accept_split: configs/goal/heldout_split.json#accept
+  accept_horizon_extra: 16
+  seeds_accept: [101, 202, 303]
+  mode: per_environment_horizon_ladder
+  horizon_ladder_path: configs/goal/horizon_ladder_g1_acwm_phys_v1.yaml
+  cross_environment_comparison_horizons: [16, 32]
+  long_horizon_claim_policy: horizon_64_claims_only_for_ladder_long_horizon_64_envs
+budget:
+  total_gpu_hours: 1200
+  per_trial_max_gpu_hours: 48
+envs:
+  - push_cube
+  - stack_cube
+  - push_rope
+  - cloth_move
+  - push_sand
+  - pour_water
+  - robot_arm
+  - reacher

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "protocol_id",
+    "mode",
+    "goal_id",
+    "source_availability_report",
+    "base_horizons",
+    "splits",
+    "common_horizons_all_envs",
+    "cross_environment_comparison_horizons",
+    "horizons_by_environment",
+    "max_horizon_by_environment",
+    "max_horizon_groups",
+    "claim_envs_by_horizon",
+    "long_horizon_64_envs",
+    "reporting_policy",
+    "m4_launch_allowed",
+    "formal_training_allowed"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["wmloop-horizon-ladder"]},
+    "protocol_id": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["per_environment_max_horizon"]},
+    "goal_id": {"type": "string", "minLength": 1},
+    "source_availability_report": {"type": "string", "minLength": 1},
+    "base_horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+    "splits": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "common_horizons_all_envs": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+    "cross_environment_comparison_horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+    "horizons_by_environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["push_cube", "stack_cube", "push_rope", "cloth_move", "push_sand", "pour_water", "robot_arm", "reacher"],
+      "properties": {
+        "push_cube": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "stack_cube": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "push_rope": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "cloth_move": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "push_sand": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "pour_water": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "robot_arm": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "reacher": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}}
+      }
+    },
+    "max_horizon_by_environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["push_cube", "stack_cube", "push_rope", "cloth_move", "push_sand", "pour_water", "robot_arm", "reacher"],
+      "properties": {
+        "push_cube": {"type": "integer", "minimum": 1},
+        "stack_cube": {"type": "integer", "minimum": 1},
+        "push_rope": {"type": "integer", "minimum": 1},
+        "cloth_move": {"type": "integer", "minimum": 1},
+        "push_sand": {"type": "integer", "minimum": 1},
+        "pour_water": {"type": "integer", "minimum": 1},
+        "robot_arm": {"type": "integer", "minimum": 1},
+        "reacher": {"type": "integer", "minimum": 1}
+      }
+    },
+    "max_horizon_groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["16", "32", "48", "64"],
+      "properties": {
+        "16": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "32": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "48": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "64": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "claim_envs_by_horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["16", "32", "48", "64"],
+      "properties": {
+        "16": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "32": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "48": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "64": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "long_horizon_64_envs": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "reporting_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cross_environment", "long_horizon_64", "environment_metric"],
+      "properties": {
+        "cross_environment": {"type": "string", "minLength": 1},
+        "long_horizon_64": {"type": "string", "minLength": 1},
+        "environment_metric": {"type": "string", "minLength": 1}
+      }
+    },
+    "m4_launch_allowed": {"type": "boolean"},
+    "formal_training_allowed": {"type": "boolean"}
+  }
+}
