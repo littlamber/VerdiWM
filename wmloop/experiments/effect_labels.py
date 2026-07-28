@@ -28,7 +28,13 @@ def build_effect_label_index(
 ) -> dict[str, object]:
     root = Path(reports_root).resolve()
     labels: list[dict[str, object]] = []
-    for manifest_path in sorted(root.glob("acwm-autoloop-confirm-official-gate-*/manifest.json")):
+    manifest_paths = sorted(
+        {
+            *root.glob("acwm-autoloop-confirm-official-gate-*/manifest.json"),
+            *root.glob("acwm-effect-label-gate-*/manifest.json"),
+        }
+    )
+    for manifest_path in manifest_paths:
         payload = _load_json(manifest_path)
         gate = payload.get("official_quality_gate")
         if not isinstance(gate, Mapping):
@@ -57,6 +63,11 @@ def build_effect_label_index(
                 "seed": payload.get("seed"),
                 "train_steps": payload.get("candidate_checkpoint_step"),
                 "inference_steps": payload.get("steps"),
+                "label_source": (
+                    "independent_confirmation_gate"
+                    if manifest_path.parent.name.startswith("acwm-autoloop-confirm-official-gate-")
+                    else "retained_checkpoint_completion_gate"
+                ),
                 "settled": settled,
                 "positive": bool(gate_pass) if settled else None,
                 "official_gate_state": gate.get("state"),
@@ -75,7 +86,7 @@ def build_effect_label_index(
         "schema_version": 1,
         "artifact_type": "verdiwm-settled-effect-label-index",
         "state": "ready",
-        "claim_boundary": "Only complete official confirm-gate manifests become settled labels. Screen, hard-case, and visual-only evidence are excluded.",
+        "claim_boundary": "Only complete official confirmation gates or explicit retained-checkpoint completion gates become settled labels. Screen, hard-case-only, and visual-only evidence are excluded.",
         "expected_environments": list(expected),
         "label_count": len(labels),
         "settled_label_count": len(settled_labels),

@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from wmloop.experiments.effect_labels import build_effect_label_completion_plan
+from wmloop.experiments.effect_labels import build_effect_label_completion_plan, build_effect_label_index
 
 
 class AcwmEffectLabelCompletionPlanTests(unittest.TestCase):
@@ -81,6 +81,44 @@ class AcwmEffectLabelCompletionPlanTests(unittest.TestCase):
             self.assertEqual(report["reusable_checkpoint_action_count"], 1)
             self.assertEqual(report["new_screen_action_count"], 2)
             self.assertEqual(report["actions"][0]["action"], "official_gate_existing_checkpoint")
+
+    def test_completion_gate_manifest_becomes_a_settled_label(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            reports = root / "reports"
+            gate = reports / "acwm-effect-label-gate-reacher-next_forcing-s1-r1"
+            gate.mkdir(parents=True)
+            (gate / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "state": "ready",
+                        "environment": "reacher",
+                        "primitive": "next_forcing",
+                        "seed": 1,
+                        "steps": 50,
+                        "official_quality_gate": {
+                            "state": "fail",
+                            "pass": False,
+                            "checks": {
+                                "psnr_strictly_improves": False,
+                                "ssim_does_not_regress": False,
+                            },
+                            "delta_candidate_minus_baseline": {"psnr": -1.0},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = root / "index"
+            build_effect_label_index(
+                reports_root=reports,
+                output_root=output,
+                expected_environments=("reacher",),
+            )
+            report = json.loads((output / "effect-label-index.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["settled_label_count"], 1)
+            self.assertEqual(report["settled_negative_count"], 1)
+            self.assertEqual(report["labels"][0]["label_source"], "retained_checkpoint_completion_gate")
 
 
 if __name__ == "__main__":
