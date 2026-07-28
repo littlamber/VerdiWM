@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-acwm-targeted-gap-plan",
+  "state": "ready",
+  "claim_boundary": "This plan changes proposal routing only. The frozen official evaluator, held-out protocol, and promotion gates remain authoritative.",
+  "environment_records": [
+    {
+      "environment": "push_rope",
+      "evidence_level": "no_validated_positive",
+      "gap_family": "late_horizon_context_contamination",
+      "diagnostic_probe_candidates": [
+        "acwm_push_rope_deformable_contact_diagnostic_v1",
+        "acwm_push_rope_topology_change_diagnostic_v1"
+      ],
+      "recommended_existing_primitives": [
+        "drift_token_trim"
+      ],
+      "routed_failure_families": [
+        "appearance_drift"
+      ],
+      "primitive_parameters": {
+        "drift_token_trim": {
+          "keep_tokens": 2
+        }
+      },
+      "mechanism_hypothesis": "The frozen baseline report shows late segment drift after frame 36. If stale autoregressive context contaminates rope appearance and geometry, retaining only recent history tokens while preserving the observed anchor should reduce drift without changing actions or evaluator code.",
+      "falsification_test": "Reject when the official 50-step gate does not strictly improve PSNR while preserving SSIM, MSE, and masked-MSE, or when the runtime effect and hook-receipt gates do not prove changed outputs."
+    }
+  ]
+}

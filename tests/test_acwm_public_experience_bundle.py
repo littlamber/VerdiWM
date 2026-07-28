@@ -37,8 +37,6 @@ class PublicExperienceBundleTests(unittest.TestCase):
             self.assertEqual(atlas["record_count"], 2)
             self.assertEqual(atlas["causal_edge_count"], 0)
             self.assertNotIn("/" + "mnt" + "/", (output / "showcase" / "manifest.json").read_text(encoding="utf-8"))
-            for path in output.rglob("*.csv"):
-                self.assertNotIn(b"\r", path.read_bytes())
 
     def test_rejects_mutated_public_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

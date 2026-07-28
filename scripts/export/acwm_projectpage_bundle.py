@@ -47,6 +47,12 @@ def run_bundle(*, output_root: Path, spec_path: Path) -> dict[str, object]:
         for case in cases
     ):
         raise ProjectPageBundleError("PROJECTPAGE_CONFIRMATION_REQUIRED")
+    require_visual_saliency = spec.get("require_visual_saliency") is True
+    if require_visual_saliency and any(
+        not isinstance(case, Mapping) or case.get("visual_saliency_manifest") is None
+        for case in cases
+    ):
+        raise ProjectPageBundleError("PROJECTPAGE_VISUAL_SALIENCY_REQUIRED")
 
     temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
     try:
@@ -66,8 +72,12 @@ def run_bundle(*, output_root: Path, spec_path: Path) -> dict[str, object]:
             "distinct_environment_count": len(set(environments)),
             "require_distinct_environments": require_distinct_environments,
             "require_confirmation": require_confirmation,
+            "require_visual_saliency": require_visual_saliency,
             "confirmed_case_count": sum(
                 record.get("independent_confirmation_pass") is True for record in records
+            ),
+            "visually_admitted_case_count": sum(
+                record.get("visual_saliency_pass") is True for record in records
             ),
             "layout": "labeled_GT|baseline_prediction|ours_prediction",
             "selection_policy": spec.get("selection_policy"),
@@ -109,6 +119,28 @@ def _export_case(
     visual = _load_json(visual_path)
     _validate_gate(gate, environment=environment, primitive=primitive, case_id=case_id)
     _validate_visual_source(visual, source_video=source_video, environment=environment, case_id=case_id)
+
+    start_frame = _optional_int(case.get("start_frame"))
+    end_frame = _optional_int(case.get("end_frame"))
+    visual_saliency_evidence = None
+    visual_saliency_value = case.get("visual_saliency_manifest")
+    if visual_saliency_value is not None:
+        visual_saliency_path = _regular_file(
+            visual_saliency_value, "VISUAL_SALIENCY_MANIFEST", case_id
+        )
+        visual_saliency_evidence = _validate_visual_saliency(
+            _load_json(visual_saliency_path),
+            receipt_path=visual_saliency_path,
+            source_video=source_video,
+            visual_manifest=visual_path,
+            environment=environment,
+            primitive=primitive,
+            sample_index=case.get("sample_index"),
+            trajectory_index=case.get("trajectory_index"),
+            start_frame=start_frame,
+            end_frame=end_frame,
+            case_id=case_id,
+        )
 
     confirmation_evidence = None
     confirmation_value = case.get("confirmation_manifest")
@@ -153,8 +185,6 @@ def _export_case(
 
     safe_id = "".join(char if char.isalnum() or char in "-_" else "_" for char in case_id)
     target = temporary / "videos" / f"{ordinal:02d}_{safe_id}_gt_baseline_ours.mp4"
-    start_frame = _optional_int(case.get("start_frame"))
-    end_frame = _optional_int(case.get("end_frame"))
     _transcode(source_video, target, start_frame=start_frame, end_frame=end_frame)
     media = _probe(target)
     requested_poster_frame = _optional_int(case.get("poster_frame"))
@@ -179,6 +209,8 @@ def _export_case(
         "selected_trajectory_event_positive": bool(event_evidence),
         "independent_confirmation_pass": confirmation_evidence is not None,
         "confirmation_evidence": confirmation_evidence,
+        "visual_saliency_pass": visual_saliency_evidence is not None,
+        "visual_saliency_evidence": visual_saliency_evidence,
         "selection_disclosure": str(case.get("selection_disclosure") or ""),
         "sample_index": case.get("sample_index"),
         "trajectory_index": case.get("trajectory_index"),
@@ -277,6 +309,87 @@ def _validate_visual_source(
         raise ProjectPageBundleError(f"PROJECTPAGE_VIDEO_NOT_IN_VISUAL_MANIFEST:{case_id}")
     if "labeled_GT|baseline_prediction|ours_prediction" not in layouts:
         raise ProjectPageBundleError(f"PROJECTPAGE_LAYOUT_NOT_TRIPTYCH:{case_id}")
+
+
+def _validate_visual_saliency(
+    receipt: Mapping[str, object],
+    *,
+    receipt_path: Path,
+    source_video: Path,
+    visual_manifest: Path,
+    environment: str,
+    primitive: str,
+    sample_index: object,
+    trajectory_index: object,
+    start_frame: int | None,
+    end_frame: int | None,
+    case_id: str,
+) -> dict[str, object]:
+    if (
+        receipt.get("artifact_type") != "wmloop-acwm-visual-saliency-gate"
+        or receipt.get("state") != "pass"
+        or receipt.get("pass") is not True
+    ):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_NOT_PASSING:{case_id}")
+    if (
+        str(receipt.get("environment") or "") != environment
+        or str(receipt.get("primitive") or "") != primitive
+    ):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_IDENTITY_MISMATCH:{case_id}")
+    if (
+        Path(str(receipt.get("source_video") or "")).resolve() != source_video
+        or str(receipt.get("source_video_sha256") or "") != _sha256(source_video)
+    ):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_SOURCE_MISMATCH:{case_id}")
+    if (
+        Path(str(receipt.get("visual_manifest") or "")).resolve() != visual_manifest
+        or str(receipt.get("visual_manifest_sha256") or "") != _sha256(visual_manifest)
+    ):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_POOL_MISMATCH:{case_id}")
+    selection = receipt.get("selection")
+    if not isinstance(selection, Mapping):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_SELECTION_MISSING:{case_id}")
+    unit_field = str(selection.get("unit_field") or "")
+    expected_unit = sample_index if unit_field == "sample_index" else trajectory_index
+    if unit_field not in {"sample_index", "trajectory_index"} or expected_unit is None:
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_UNIT_INVALID:{case_id}")
+    if selection.get("unit_value") != expected_unit:
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_UNIT_MISMATCH:{case_id}")
+    observed_rank = int(selection.get("observed_baseline_only_rank") or 0)
+    required_rank = int(selection.get("required_baseline_rank") or 0)
+    if observed_rank < 1 or required_rank < 1 or observed_rank > required_rank:
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_RANK_INVALID:{case_id}")
+    window = receipt.get("analysis_window")
+    if not isinstance(window, Mapping):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_WINDOW_MISSING:{case_id}")
+    if int(window.get("start_frame") or 0) != (start_frame or 0):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_WINDOW_MISMATCH:{case_id}")
+    receipt_end = window.get("end_frame")
+    if (None if receipt_end is None else int(receipt_end)) != end_frame:
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_WINDOW_MISMATCH:{case_id}")
+    checks = receipt.get("checks")
+    if not isinstance(checks, Mapping) or not checks or not all(value is True for value in checks.values()):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_CHECKS_INVALID:{case_id}")
+    measurements = receipt.get("measurements")
+    if not isinstance(measurements, Mapping):
+        raise ProjectPageBundleError(f"PROJECTPAGE_VISUAL_SALIENCY_MEASUREMENTS_MISSING:{case_id}")
+    return {
+        "visual_saliency_manifest": str(receipt_path),
+        "visual_saliency_manifest_sha256": _sha256(receipt_path),
+        "baseline_only_rank": observed_rank,
+        "selection_pool_size": int(selection.get("pool_size") or 0),
+        "frame_count": int(measurements.get("frame_count") or 0),
+        "mean_mse_gain_baseline_minus_candidate": float(
+            measurements.get("mean_mse_gain_baseline_minus_candidate") or 0.0
+        ),
+        "improved_frame_fraction": float(measurements.get("improved_frame_fraction") or 0.0),
+        "mean_candidate_baseline_rmse": float(
+            measurements.get("mean_candidate_baseline_rmse") or 0.0
+        ),
+        "peak_candidate_baseline_rmse": float(
+            measurements.get("peak_candidate_baseline_rmse") or 0.0
+        ),
+    }
 
 
 def _validate_event(
@@ -408,6 +521,8 @@ def _write_csv(path: Path, records: Sequence[Mapping[str, object]]) -> None:
         "psnr_delta", "ssim_delta", "mse_delta", "masked_mse_delta", "aggregate_event_gate_pass",
         "selected_trajectory_event_positive", "independent_confirmation_pass", "confirmation_psnr_delta",
         "confirmation_ssim_delta", "confirmation_mse_delta", "confirmation_masked_mse_delta",
+        "visual_saliency_pass", "baseline_only_rank", "visual_mean_mse_gain",
+        "visual_improved_frame_fraction", "visual_mean_candidate_baseline_rmse",
         "video_path", "poster_path",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -419,6 +534,14 @@ def _write_csv(path: Path, records: Sequence[Mapping[str, object]]) -> None:
             if isinstance(confirmation, Mapping):
                 for metric in ("psnr", "ssim", "mse", "masked_mse"):
                     row[f"confirmation_{metric}_delta"] = confirmation.get(f"{metric}_delta")
+            visual = record.get("visual_saliency_evidence")
+            if isinstance(visual, Mapping):
+                row["baseline_only_rank"] = visual.get("baseline_only_rank")
+                row["visual_mean_mse_gain"] = visual.get("mean_mse_gain_baseline_minus_candidate")
+                row["visual_improved_frame_fraction"] = visual.get("improved_frame_fraction")
+                row["visual_mean_candidate_baseline_rmse"] = visual.get(
+                    "mean_candidate_baseline_rmse"
+                )
             writer.writerow(row)
 
 
@@ -428,8 +551,8 @@ def _markdown(records: Sequence[Mapping[str, object]]) -> str:
         "",
         "All videos use the full-frame `GT | Baseline | Ours` layout with paired trajectories. No GT pixels are injected into predictions.",
         "",
-        "| Case | Environment | Primitive | Evidence | PSNR | SSIM | Confirmation | Event note | Video | Poster |",
-        "|---|---|---|---|---:|---:|---|---|---|---|",
+        "| Case | Environment | Primitive | Evidence | PSNR | SSIM | Confirmation | Visual gate | Event note | Video | Poster |",
+        "|---|---|---|---|---:|---:|---|---|---|---|---|",
     ]
     for record in records:
         event = record.get("event_evidence")
@@ -440,9 +563,16 @@ def _markdown(records: Sequence[Mapping[str, object]]) -> str:
         confirmation_note = "not declared" if not isinstance(confirmation, Mapping) else (
             f"pass; PSNR {float(confirmation['psnr_delta']):+.3f}"
         )
+        visual = record.get("visual_saliency_evidence")
+        visual_note = "not declared" if not isinstance(visual, Mapping) else (
+            f"pass; rank {int(visual['baseline_only_rank'])}; "
+            f"gain {float(visual['mean_mse_gain_baseline_minus_candidate']):+.1f}; "
+            f"frames {float(visual['improved_frame_fraction']):.0%}"
+        )
         lines.append(
             f"| {record['id']} | {record['environment']} | {record['primitive']} | {record['evidence_type']} | "
-            f"{float(record['psnr_delta']):+.3f} | {float(record['ssim_delta']):+.4f} | {confirmation_note} | {note} | "
+            f"{float(record['psnr_delta']):+.3f} | {float(record['ssim_delta']):+.4f} | {confirmation_note} | "
+            f"{visual_note} | {note} | "
             f"{Path(str(record['video_path'])).name} | {Path(str(record['poster_path'])).name} |"
         )
     lines.extend([

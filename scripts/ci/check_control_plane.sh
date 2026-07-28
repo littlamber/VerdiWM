@@ -7,7 +7,7 @@ trap 'rm -rf "$build_dir"' EXIT
 uv build --wheel --out-dir "$build_dir"
 wheel_path="$(find "$build_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
 test -n "$wheel_path"
-python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/__init__.py" in names; assert "configs/schemas/goal_spec.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/__init__.py" in names; assert "configs/schemas/goal_spec.schema.json" in names; assert "configs/schemas/cross_backbone_experiment.schema.json" in names; assert "configs/schemas/experiment_stage_receipt.schema.json" in names' "$wheel_path"
 
 uv run python -m py_compile \
   wmloop/geometry/types.py \
@@ -15,6 +15,10 @@ uv run python -m py_compile \
   wmloop/geometry/transfer.py \
   wmloop/geometry/memory.py \
   wmloop/geometry/evolution.py \
+  wmloop/experiments/spec.py \
+  wmloop/experiments/lobo.py \
+  wmloop/experiments/ledger.py \
+  wmloop/experiments/report.py \
   wmloop/control/agent_engineering_policy.py \
   wmloop/control/backbone_capability_matrix.py \
   wmloop/propose/primitive_materialization_prompt.py \
@@ -53,6 +57,7 @@ uv run pytest -q \
   tests/test_agent_engineering_policy.py \
   tests/test_backbone_capability_matrix.py \
   tests/test_backbone_instance.py \
+  tests/test_cross_backbone_experiments.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \
   tests/test_diagnostic_probe_routing_admission.py \

@@ -42,6 +42,7 @@ PUBLIC_TEST_FILES = (
     "test_agent_engineering_policy.py",
     "test_backbone_capability_matrix.py",
     "test_backbone_instance.py",
+    "test_cross_backbone_experiments.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -67,7 +68,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_cloth_move_cloth_identity_drift_diagnostic_v1.py",
     "test_acwm_cloth_move_deformable_memory_diagnostic_v1.py",
 )
-CONFIG_TREES = ("constitution", "diagnose", "envs", "goal", "loop", "probes", "references", "schemas", "smoke")
+CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
     ".csv", ".json", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".toml", ".txt", ".yaml", ".yml"
 }
@@ -216,15 +217,11 @@ def _copy_file(source: Path, destination: Path) -> None:
 
 def _write_manifest(root: Path) -> None:
     rows = []
-    root_manifest = root / "MANIFEST.sha256"
     for path in sorted(root.rglob("*")):
-        relative = path.relative_to(root)
-        if any(part in BLOCKED_PARTS for part in relative.parts):
+        if not path.is_file() or path.is_symlink() or path.name == "MANIFEST.sha256":
             continue
-        if not path.is_file() or path.is_symlink() or path == root_manifest:
-            continue
-        rows.append(f"{_sha256(path)}  {relative.as_posix()}")
-    root_manifest.write_text("\n".join(rows) + "\n", encoding="utf-8")
+        rows.append(f"{_sha256(path)}  {path.relative_to(root).as_posix()}")
+    (root / "MANIFEST.sha256").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
 
 def _sha256(path: Path) -> str:

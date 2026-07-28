@@ -172,7 +172,9 @@ def run_horizon_probe(config: HorizonProbeConfig) -> dict[str, object]:
             torch.cuda.manual_seed_all(config.seed + trajectory_index)
         o_0 = torch.from_numpy(frames[0]).to(device=device, dtype=torch.float32).unsqueeze(0)
         action = torch.from_numpy(actions[:output_length]).to(device=device, dtype=torch.float32).unsqueeze(0)
-        with torch.no_grad():
+        # Materialized ACWM hooks resolve their reviewed sidecars from the runtime root.
+        # Keep generation under the same cwd contract as the official evaluator.
+        with _runtime_working_directory(vendor_root), torch.no_grad():
             prediction = model.generate(
                 o_0,
                 action,
@@ -847,6 +849,16 @@ def _vendor_context(*, vendor_root: Path, data_root: Path, vae_path: Path) -> It
         sys.dont_write_bytecode = previous_bytecode
         _restore_env("ACWM_DATA_ROOT", previous_data)
         _restore_env("WAN_VAE_PATH", previous_vae)
+
+
+@contextmanager
+def _runtime_working_directory(vendor_root: Path) -> Iterator[None]:
+    previous_cwd = Path.cwd()
+    os.chdir(vendor_root)
+    try:
+        yield
+    finally:
+        os.chdir(previous_cwd)
 
 
 def _restore_env(name: str, value: str | None) -> None:

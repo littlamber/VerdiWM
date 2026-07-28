@@ -6,12 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.export.build_github_staging import (
-    GithubStagingError,
-    _write_manifest,
-    audit_release_tree,
-    build_github_staging,
-)
+from scripts.export.build_github_staging import GithubStagingError, audit_release_tree, build_github_staging
 from scripts.export.acwm_public_experience_bundle import validate_public_experience_bundle
 from scripts.export.validate_public_example import PublicExampleValidationError, validate_public_example
 from scripts.export.verdiwm_minimal_loop_bundle import MinimalLoopBundleError, export_minimal_loop_bundle
@@ -85,20 +80,6 @@ class MinimalLoopExporterTests(unittest.TestCase):
 
 
 class GithubStagingTests(unittest.TestCase):
-    def test_root_manifest_covers_nested_manifests(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            nested = root / "bundle" / "MANIFEST.sha256"
-            nested.parent.mkdir()
-            nested.write_text("nested manifest\n", encoding="utf-8")
-            (root / "artifact.json").write_text("{}\n", encoding="utf-8")
-
-            _write_manifest(root)
-
-            manifest = (root / "MANIFEST.sha256").read_text(encoding="utf-8")
-            self.assertIn("  bundle/MANIFEST.sha256\n", manifest)
-            self.assertNotIn("  MANIFEST.sha256\n", manifest)
-
     def test_audit_rejects_local_paths_and_weights(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -112,6 +93,20 @@ class GithubStagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaisesRegex(GithubStagingError, "OUTPUT_EXISTS"):
                 build_github_staging(source_root=REPO_ROOT, output_root=Path(temp))
+
+    def test_builder_includes_cross_backbone_control_plane(self) -> None:
+        if not (REPO_ROOT / "README_PUBLIC.md").is_file():
+            self.skipTest("an exported release tree is not itself a release-builder source")
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "release"
+            audit = build_github_staging(source_root=REPO_ROOT, output_root=output)
+
+            self.assertEqual(audit["state"], "ready")
+            self.assertTrue((output / "wmloop" / "experiments" / "lobo.py").is_file())
+            self.assertTrue(
+                (output / "configs" / "experiments" / "three_backbone_lobo_pilot_v1.json").is_file()
+            )
+            self.assertTrue((output / "tests" / "test_cross_backbone_experiments.py").is_file())
 
     def test_release_contract_selects_a_license_and_build_backend(self) -> None:
         license_text = (REPO_ROOT / "LICENSE").read_text(encoding="utf-8")

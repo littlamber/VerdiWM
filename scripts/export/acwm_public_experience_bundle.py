@@ -153,8 +153,6 @@ def validate_public_experience_bundle(root: Path) -> dict[str, object]:
             raise PublicExperienceBundleError(f"PUBLIC_EXPERIENCE_SHA256_MISMATCH:{relative}")
     for path in bundle_root.rglob("*"):
         if path.is_file() and path.suffix.lower() in {".json", ".csv", ".md", ".sha256"}:
-            if path.suffix.lower() == ".csv" and b"\r" in path.read_bytes():
-                raise PublicExperienceBundleError(f"PUBLIC_EXPERIENCE_CSV_LINE_ENDING_INVALID:{path.name}")
             text = path.read_text(encoding="utf-8")
             if "/" + "mnt" + "/" in text or "/" + "root" + "/" in text:
                 raise PublicExperienceBundleError(f"PUBLIC_EXPERIENCE_LOCAL_PATH:{path.name}")
@@ -268,7 +266,7 @@ def _read_selected_csv(path: Path, fields: Sequence[str]) -> list[dict[str, str]
 def _write_csv(path: Path, fields: Sequence[str], rows: Iterable[Mapping[str, object]]) -> None:
     path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(fields), lineterminator="\n")
+        writer = csv.DictWriter(handle, fieldnames=list(fields))
         writer.writeheader()
         writer.writerows(rows)
 

@@ -189,6 +189,9 @@ def replenish_autoloop_queue(
     gpu: int,
     seed: int,
     repo_root: Path = ROOT,
+    runtime_python: Path = DEFAULT_RUNTIME_PYTHON,
+    data_root: Path = DEFAULT_DATA_ROOT,
+    checkpoint_root: Path = DEFAULT_CHECKPOINT_ROOT,
     quality_discovery_only: bool = False,
     promote_current_contract_queues: bool = False,
 ) -> dict[str, object]:
@@ -321,6 +324,14 @@ def replenish_autoloop_queue(
             registry=registry,
             report_root=Path(report_root),
             failure_manifest=failure_manifest,
+        )
+        target_failures = tuple(
+            dict.fromkeys(
+                (
+                    *target_failures,
+                    *_staged_diagnostic_failure_names(plan=plan, record=raw_record),
+                )
+            )
         )
         for primitive in _diagnosis_matched_primitive_names(
             environment=environment,
@@ -503,6 +514,9 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             seed=seed,
             materialization_gate=Path(materialization_gate),
@@ -515,6 +529,9 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             seed=seed,
             unavailable=unavailable,
@@ -526,6 +543,9 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             eval_seed=seed,
             unavailable=unavailable,
@@ -537,6 +557,9 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             unavailable=unavailable,
             attempted_signature_count=len(attempted),
@@ -547,6 +570,9 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             trajectory_seed=seed,
             unavailable=unavailable,
@@ -558,6 +584,9 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             unavailable=unavailable,
             attempted_signature_count=len(attempted),
@@ -568,17 +597,61 @@ def replenish_autoloop_queue(
             destination=destination,
             report_root=Path(report_root),
             repo_root=Path(repo_root),
+            runtime_python=Path(runtime_python),
+            data_root=Path(data_root),
+            checkpoint_root=Path(checkpoint_root),
             gpu=gpu,
             unavailable=unavailable,
             attempted_signature_count=len(attempted),
         )
     destination.mkdir(mode=0o700, parents=True)
     gap_plan_path = destination / "gap-plan.json"
+    source_record = next(
+        (
+            dict(record)
+            for record in records
+            if isinstance(record, Mapping) and record.get("environment") == environment
+        ),
+        {},
+    )
+    primitive_targets = (
+        tuple(registry.manifest(primitive).targets_failures)
+        if registry is not None and primitive in registry.names()
+        else ()
+    )
+    routed_failures = [
+        str(value)
+        for value in selected.get("target_failure_signatures", [])
+        if isinstance(value, str) and value and value != "mixed"
+        and (not primitive_targets or value in primitive_targets)
+    ]
+    if not routed_failures and primitive_targets:
+        routed_failures = [str(primitive_targets[0])]
+    if not routed_failures:
+        routed_failures = ["targeted_exploration"]
+    probe_candidates = [
+        str(value)
+        for value in source_record.get("diagnostic_probe_candidates", [])
+        if isinstance(value, str) and value
+    ]
+    if not probe_candidates:
+        probe_candidates = ["existing_frozen_failure_report"]
+    mechanism_hypothesis = str(source_record.get("mechanism_hypothesis") or "").strip()
+    if not mechanism_hypothesis:
+        mechanism_hypothesis = (
+            f"{primitive} may reduce {', '.join(routed_failures)} in {environment}; "
+            "the frozen verdict protocol determines whether the intervention is retained."
+        )
     _write_json(
         gap_plan_path,
         {
             "schema_version": 1,
-            "artifact_type": "wmloop-acwm-dynamic-gap-plan",
+            "artifact_type": "wmloop-acwm-targeted-gap-plan",
+            "state": "ready",
+            "claim_boundary": (
+                "Routing-only intervention hypothesis; frozen diagnosis and verdict protocol "
+                "remain authoritative."
+            ),
             "selection": selected,
             "environment_records": [
                 {
@@ -586,6 +659,9 @@ def replenish_autoloop_queue(
                     "evidence_level": "candidate_unstable",
                     "recommended_existing_primitives": [primitive],
                     "primitive_parameters": {primitive: parameters},
+                    "routed_failure_families": routed_failures,
+                    "diagnostic_probe_candidates": probe_candidates,
+                    "mechanism_hypothesis": mechanism_hypothesis,
                 }
             ],
         },
@@ -599,6 +675,9 @@ def replenish_autoloop_queue(
         output_root=queue_root,
         repo_root=Path(repo_root),
         report_root=Path(report_root),
+        runtime_python=Path(runtime_python),
+        data_root=Path(data_root),
+        checkpoint_root=Path(checkpoint_root),
         gpus=[gpu],
         seeds=[seed],
         train_batch_size=8,
@@ -630,6 +709,9 @@ def _build_runtime_only_official_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     seed: int,
     unavailable: list[dict[str, object]],
@@ -678,11 +760,11 @@ def _build_runtime_only_official_queue(
             "--output-root",
             str(output_root),
             "--runtime-python",
-            str(DEFAULT_RUNTIME_PYTHON),
+            str(runtime_python),
             "--data-root",
-            str(DEFAULT_DATA_ROOT),
+            str(data_root),
             "--checkpoint-root",
-            str(DEFAULT_CHECKPOINT_ROOT),
+            str(checkpoint_root),
             "--dataset-freeze",
             str(repo_root.resolve() / "runs/m0/protocol/dataset-freeze.json"),
             "--heldout-protocol",
@@ -772,6 +854,9 @@ def _build_confirmation_official_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     unavailable: list[dict[str, object]],
     attempted_signature_count: int,
@@ -789,9 +874,9 @@ def _build_confirmation_official_queue(
         confirmation_output_root=confirmation_output_root,
         report_root=report_root.resolve(),
         repo_root=repo_root.resolve(),
-        runtime_python=DEFAULT_RUNTIME_PYTHON,
-        data_root=DEFAULT_DATA_ROOT,
-        checkpoint_root=DEFAULT_CHECKPOINT_ROOT,
+        runtime_python=runtime_python,
+        data_root=data_root,
+        checkpoint_root=checkpoint_root,
         gpus=[gpu],
         requires_ready_manifest=ready_manifest,
     )
@@ -851,6 +936,9 @@ def _build_checkpoint_delta_recovery_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     unavailable: list[dict[str, object]],
     attempted_signature_count: int,
@@ -898,7 +986,7 @@ def _build_checkpoint_delta_recovery_queue(
         if scaling_root.exists() or scaling_root.is_symlink():
             raise AcwmAutoloopReplenisherError("ACWM_REPLENISH_DELTA_SCALING_OUTPUT_INVALID")
         command = [
-            str(DEFAULT_RUNTIME_PYTHON),
+            str(runtime_python),
             str(repo_root.resolve() / "scripts/export/acwm_checkpoint_delta_scaling.py"),
             "--output-root",
             str(scaling_root),
@@ -1016,11 +1104,11 @@ def _build_checkpoint_delta_recovery_queue(
                     "--seed",
                     str(seed),
                     "--runtime-python",
-                    str(DEFAULT_RUNTIME_PYTHON),
+                    str(runtime_python),
                     "--data-root",
-                    str(DEFAULT_DATA_ROOT),
+                    str(data_root),
                     "--checkpoint-root",
-                    str(DEFAULT_CHECKPOINT_ROOT),
+                    str(checkpoint_root),
                     "--dataset-freeze",
                     str(repo_root.resolve() / "runs/m0/protocol/dataset-freeze.json"),
                     "--heldout-protocol",
@@ -1099,6 +1187,9 @@ def _build_checkpoint_delta_confirmation_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     eval_seed: int,
     unavailable: list[dict[str, object]],
@@ -1197,11 +1288,11 @@ def _build_checkpoint_delta_confirmation_queue(
             "--seed",
             str(eval_seed),
             "--runtime-python",
-            str(DEFAULT_RUNTIME_PYTHON),
+            str(runtime_python),
             "--data-root",
-            str(DEFAULT_DATA_ROOT),
+            str(data_root),
             "--checkpoint-root",
-            str(DEFAULT_CHECKPOINT_ROOT),
+            str(checkpoint_root),
             "--dataset-freeze",
             str(repo_root.resolve() / "runs/m0/protocol/dataset-freeze.json"),
             "--heldout-protocol",
@@ -1289,6 +1380,9 @@ def _build_checkpoint_delta_horizon_evidence_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     unavailable: list[dict[str, object]],
     attempted_signature_count: int,
@@ -1325,9 +1419,9 @@ def _build_checkpoint_delta_horizon_evidence_queue(
         output_root=queue_root,
         report_root=report_root.resolve(),
         repo_root=repo_root.resolve(),
-        runtime_python=DEFAULT_RUNTIME_PYTHON,
-        data_root=DEFAULT_DATA_ROOT,
-        checkpoint_root=DEFAULT_CHECKPOINT_ROOT,
+        runtime_python=runtime_python,
+        data_root=data_root,
+        checkpoint_root=checkpoint_root,
         gpus=[gpu],
         horizons=horizons,
         mode="autoregressive",
@@ -1359,6 +1453,9 @@ def _build_checkpoint_delta_horizon_replication_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     trajectory_seed: int,
     unavailable: list[dict[str, object]],
@@ -1398,9 +1495,9 @@ def _build_checkpoint_delta_horizon_replication_queue(
         output_root=queue_root,
         report_root=report_root.resolve(),
         repo_root=repo_root.resolve(),
-        runtime_python=DEFAULT_RUNTIME_PYTHON,
-        data_root=DEFAULT_DATA_ROOT,
-        checkpoint_root=DEFAULT_CHECKPOINT_ROOT,
+        runtime_python=runtime_python,
+        data_root=data_root,
+        checkpoint_root=checkpoint_root,
         gpus=[gpu],
         horizons=horizons,
         mode="autoregressive",
@@ -1466,6 +1563,9 @@ def _build_materialization_admission_queue(
     destination: Path,
     report_root: Path,
     repo_root: Path,
+    runtime_python: Path,
+    data_root: Path,
+    checkpoint_root: Path,
     gpu: int,
     seed: int,
     materialization_gate: Path,
@@ -1505,11 +1605,11 @@ def _build_materialization_admission_queue(
             "--output-root",
             str(admission_root),
             "--runtime-python",
-            str(DEFAULT_RUNTIME_PYTHON),
+            str(runtime_python),
             "--data-root",
-            str(DEFAULT_DATA_ROOT),
+            str(data_root),
             "--checkpoint-root",
-            str(DEFAULT_CHECKPOINT_ROOT),
+            str(checkpoint_root),
             "--primitive",
             primitive,
             "--gpu-index",
@@ -1727,6 +1827,40 @@ def _diagnosed_failure_names(
             )
         )
     return tuple(dict.fromkeys(failures))
+
+
+def _staged_diagnostic_failure_names(
+    *,
+    plan: Mapping[str, object],
+    record: Mapping[str, object],
+) -> tuple[str, ...]:
+    """Admit diagnostic routing to proposals without changing verdict evidence."""
+
+    if (
+        plan.get("artifact_type") != "wmloop-acwm-targeted-gap-plan"
+        or plan.get("state") != "ready"
+        or not isinstance(plan.get("claim_boundary"), str)
+        or not str(plan["claim_boundary"]).strip()
+    ):
+        return ()
+    probes = record.get("diagnostic_probe_candidates")
+    hypothesis = record.get("mechanism_hypothesis")
+    routed = record.get("routed_failure_families")
+    if (
+        not isinstance(probes, list)
+        or not any(isinstance(value, str) and value.strip() for value in probes)
+        or not isinstance(hypothesis, str)
+        or not hypothesis.strip()
+        or not isinstance(routed, list)
+    ):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            str(value).strip()
+            for value in routed
+            if isinstance(value, str) and value.strip() and value != "mixed"
+        )
+    )
 
 
 def _pour_water_event_failure_names(report_root: Path) -> tuple[str, ...]:
@@ -3349,6 +3483,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--report-root", type=Path, default=ROOT / "results/reports")
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=ROOT)
+    parser.add_argument("--runtime-python", type=Path, default=DEFAULT_RUNTIME_PYTHON)
+    parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
+    parser.add_argument("--checkpoint-root", type=Path, default=DEFAULT_CHECKPOINT_ROOT)
     parser.add_argument("--gpu", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--quality-discovery-only", action="store_true")
@@ -3361,6 +3498,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         gpu=args.gpu,
         seed=args.seed,
         repo_root=args.repo_root,
+        runtime_python=args.runtime_python,
+        data_root=args.data_root,
+        checkpoint_root=args.checkpoint_root,
         quality_discovery_only=args.quality_discovery_only,
     )
     print(json.dumps(result, ensure_ascii=True, sort_keys=True))

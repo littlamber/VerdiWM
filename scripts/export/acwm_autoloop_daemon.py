@@ -16,6 +16,11 @@ from typing import Callable, Mapping, Sequence
 
 from scripts.export.acwm_8env_live_coverage import build_live_coverage
 from scripts.export.acwm_candidate_frontier import build_candidate_frontier
+from scripts.export.acwm_autoloop_queue import (
+    DEFAULT_CHECKPOINT_ROOT,
+    DEFAULT_DATA_ROOT,
+    DEFAULT_RUNTIME_PYTHON,
+)
 from scripts.export.acwm_autoloop_replenisher import replenish_autoloop_queue
 from wmloop.execute.acwm_primitive_routes import INVALIDATED_QUALITY_PRIMITIVES
 from wmloop.execute.training_monitor_policy import DEFAULT_CONFIRMATION_STEPS
@@ -1005,6 +1010,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--report-root", type=Path, default=Path("results/reports"))
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--runtime-python", type=Path, default=DEFAULT_RUNTIME_PYTHON)
+    parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
+    parser.add_argument("--checkpoint-root", type=Path, default=DEFAULT_CHECKPOINT_ROOT)
     parser.add_argument("--seed-start", type=int, default=900)
     parser.add_argument(
         "--static-queue-scan-budget-seconds",
@@ -1041,6 +1049,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 gpu=gpu,
                 seed=resolved_seed_start + sequence - 1,
                 repo_root=args.repo_root.resolve(strict=True),
+                runtime_python=args.runtime_python.resolve(strict=True),
+                data_root=args.data_root.resolve(strict=True),
+                checkpoint_root=args.checkpoint_root.resolve(strict=True),
                 quality_discovery_only=args.quality_discovery_only,
                 promote_current_contract_queues=args.promote_current_contract_queues,
             )

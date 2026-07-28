@@ -16,6 +16,8 @@ still require experiments.
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
 | Repair-collision discovery | `wmloop/geometry/evolution.py` | Implemented and unit tested; online atlas evolution pending |
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
+| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; current Ctrl-World/Cosmos pilot is explicitly blocked until their instances are ready |
+| Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
 | Public minimal-loop proof | `examples/acwm_minimal_loop_cloth_next_forcing_v2/` | Integrity checked; not independent-seed replication |
 
 ## Intervention descriptor
@@ -68,3 +70,41 @@ effect profile, and routing memory. It does not contain a measured IRG chart or
 cross-backbone transfer certificate, so those modules remain framework code
 until the corresponding experiments are added.
 
+## Cross-backbone experiment control plane
+
+The checked-in LOBO pilot specification is
+`configs/experiments/three_backbone_lobo_pilot_v1.json`. It is deliberately a
+protocol artifact rather than a fabricated result. Generate the deterministic
+trial plan with:
+
+```bash
+uv run verdiwm-experiment-plan \
+  --spec configs/experiments/three_backbone_lobo_pilot_v1.json \
+  --output-root results/reports/three-backbone-lobo-plan-r1 \
+  --archive-db results/archive.db \
+  --cas-root results
+```
+
+The three arms have different meanings: `warm_start` may consume source
+Effect Memory and chooses one of `environment_label`, `static_probe`,
+`raw_response`, or `irg`; `cold_start` uses only target-local diagnosis; and
+`random_search` samples the target-compatible registry uniformly. The latter
+is not an alias for `shuffled_prior`.
+
+Each executed stage must emit a settled
+`verdiwm-experiment-stage-receipt`. Produce paper tables with:
+
+```bash
+uv run verdiwm-experiment-report \
+  --spec configs/experiments/three_backbone_lobo_pilot_v1.json \
+  --receipt-dir results/experiments/three_backbone_lobo_pilot_v1/receipts \
+  --output-root results/reports/three-backbone-lobo-report-r1 \
+  --archive-db results/archive.db \
+  --cas-root results
+```
+
+Only a settled `confirm` receipt can establish a formal positive. Missing
+confirm receipts, screen/gate positives, and unsettled jobs are not promoted
+into the paper result tables. The report exports deterministic CSV and LaTeX
+tables for hit rate, negative transfer, abstention, coverage/risk, and stage
+GPU cost; values remain incomplete until real receipts exist.

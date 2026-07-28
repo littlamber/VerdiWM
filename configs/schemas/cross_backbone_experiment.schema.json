@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "experiment_id",
+    "claim_scope",
+    "metric_contract",
+    "backbones",
+    "folds",
+    "arms",
+    "selectors",
+    "stages",
+    "seeds"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-cross-backbone-experiment"]},
+    "experiment_id": {"type": "string", "minLength": 1},
+    "claim_scope": {"type": "string", "minLength": 1},
+    "metric_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_name", "direction", "positive_delta_threshold"],
+      "properties": {
+        "metric_name": {"type": "string", "minLength": 1},
+        "direction": {"enum": ["higher_is_better", "lower_is_better"]},
+        "positive_delta_threshold": {"type": "number", "minimum": 0}
+      }
+    },
+    "backbones": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["backbone_id", "family", "instance_ref", "status", "goal_contract"],
+        "properties": {
+          "backbone_id": {"type": "string", "minLength": 1},
+          "family": {"type": "string", "minLength": 1},
+          "instance_ref": {"type": "string", "minLength": 1},
+          "status": {"enum": ["ready", "pilot_draft", "blocked", "missing"]},
+          "goal_contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "folds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fold_id", "target_backbone", "source_backbones", "scenarios"],
+        "properties": {
+          "fold_id": {"type": "string", "minLength": 1},
+          "target_backbone": {"type": "string", "minLength": 1},
+          "source_backbones": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "scenarios": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "arms": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["arm", "uses_source_experience", "candidate_policy"],
+        "properties": {
+          "arm": {"enum": ["warm_start", "cold_start", "random_search"]},
+          "uses_source_experience": {"type": "boolean"},
+          "candidate_policy": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "selectors": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["selector", "input_contract"],
+        "properties": {
+          "selector": {"enum": ["environment_label", "static_probe", "raw_response", "irg"]},
+          "input_contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage", "max_gpu_hours", "formal_evidence"],
+        "properties": {
+          "stage": {"enum": ["screen", "gate", "confirm"]},
+          "max_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+          "formal_evidence": {"type": "boolean"}
+        }
+      }
+    },
+    "seeds": {"type": "array", "minItems": 3, "items": {"type": "integer"}}
+  }
+}

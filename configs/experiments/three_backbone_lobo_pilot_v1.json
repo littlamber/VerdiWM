@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cross-backbone-experiment",
+  "experiment_id": "three_backbone_lobo_pilot_v1",
+  "claim_scope": "Protocol-only ACWM-Phys, Ctrl-World, and Cosmos3 leave-one-backbone-out pilot; no transfer claim until every backbone instance and every confirm receipt is settled.",
+  "metric_contract": {
+    "metric_name": "normalized_goal_progress",
+    "direction": "higher_is_better",
+    "positive_delta_threshold": 0.0
+  },
+  "backbones": [
+    {
+      "backbone_id": "acwm_phys",
+      "family": "action_conditioned_video_prediction",
+      "instance_ref": "configs/backbones/acwm_phys_g1_long_horizon_ladder_v1.json",
+      "status": "ready",
+      "goal_contract": "predictive_world_model_quality_v1"
+    },
+    {
+      "backbone_id": "ctrl_world",
+      "family": "action_conditioned_video_prediction",
+      "instance_ref": "configs/backbones/ctrl_world_g2_action_success_pilot_v1.json",
+      "status": "pilot_draft",
+      "goal_contract": "predictive_world_model_quality_v1"
+    },
+    {
+      "backbone_id": "cosmos3",
+      "family": "action_conditioned_video_prediction",
+      "instance_ref": "configs/backbones/cosmos3_predictive_quality_pilot_v1.json",
+      "status": "missing",
+      "goal_contract": "predictive_world_model_quality_v1"
+    }
+  ],
+  "folds": [
+    {
+      "fold_id": "holdout_acwm_phys",
+      "target_backbone": "acwm_phys",
+      "source_backbones": ["ctrl_world", "cosmos3"],
+      "scenarios": ["action_conditioning", "long_horizon_prediction"]
+    },
+    {
+      "fold_id": "holdout_ctrl_world",
+      "target_backbone": "ctrl_world",
+      "source_backbones": ["acwm_phys", "cosmos3"],
+      "scenarios": ["action_conditioning", "long_horizon_prediction"]
+    },
+    {
+      "fold_id": "holdout_cosmos3",
+      "target_backbone": "cosmos3",
+      "source_backbones": ["acwm_phys", "ctrl_world"],
+      "scenarios": ["action_conditioning", "long_horizon_prediction"]
+    }
+  ],
+  "arms": [
+    {
+      "arm": "warm_start",
+      "uses_source_experience": true,
+      "candidate_policy": "rank_target_compatible_source_effect_memory"
+    },
+    {
+      "arm": "cold_start",
+      "uses_source_experience": false,
+      "candidate_policy": "target_local_diagnosis_and_retrieval"
+    },
+    {
+      "arm": "random_search",
+      "uses_source_experience": false,
+      "candidate_policy": "uniform_target_compatible_registry_sampling"
+    }
+  ],
+  "selectors": [
+    {"selector": "environment_label", "input_contract": "coarse task and environment tags only"},
+    {"selector": "static_probe", "input_contract": "frozen non-interventional target probe summary"},
+    {"selector": "raw_response", "input_contract": "unaligned intervention response vector"},
+    {"selector": "irg", "input_contract": "uncertainty-bearing aligned IRG chart plus capability profile"}
+  ],
+  "stages": [
+    {"stage": "screen", "max_gpu_hours": 2.0, "formal_evidence": false},
+    {"stage": "gate", "max_gpu_hours": 8.0, "formal_evidence": false},
+    {"stage": "confirm", "max_gpu_hours": 40.0, "formal_evidence": true}
+  ],
+  "seeds": [101, 202, 303]
+}
