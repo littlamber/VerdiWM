@@ -10,7 +10,7 @@ still require experiments.
 | Typed semantic intervention | `wmloop/geometry/types.py`, `wmloop/primitives/` | Implemented and unit tested |
 | Intent-to-code materialization gate | `wmloop/propose/primitive_materialization_prompt.py`, `wmloop/verify/primitive_materialization_gate.py` | Implemented; 17 ACWM primitives materialized |
 | Local response chart | `wmloop/geometry/irg.py` | Central/one-sided secants implemented and unit tested |
-| IRG metric and response coordinates | `wmloop/geometry/irg.py` | Implemented and unit tested; broad empirical atlas pending |
+| IRG metric and response coordinates | `wmloop/geometry/irg.py`, `wmloop/geometry/assets.py` | Implemented and unit tested; eight ACWM-Phys assets included |
 | Progressive-fidelity validation | `scripts/export/acwm_screen_summary.py`, `wmloop/verify/` | Operational on ACWM-Phys |
 | Transfer certificate | `wmloop/geometry/transfer.py` | Six fail-closed terms implemented; calibration across backbones pending |
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
@@ -36,11 +36,17 @@ For local intervention doses `d` and goal outcomes `m`, VerdiWM estimates a
 response Jacobian by paired central differences when both dose signs are
 available, otherwise by a one-sided secant. Outcome weights induce the local
 metric `G = J^T W J`. The current implementation also records response
-coordinates, baseline covariance, and locality residuals.
+coordinates, paired-seed covariance, locality residuals, support masks, and
+source hashes. Canonical per-environment assets serialize these as `J_X`,
+`G_X`, `r_X`, and `Sigma_X` through a stable symbol table.
 
-IRG is intended to support mechanism-aware routing. The checked-in code does
-not establish that charts are aligned across arbitrary backbones; that requires
-paired chart data and held-out calibration.
+IRG is intended to support mechanism-aware routing. The checked-in
+`examples/acwm_unified_irg_assets_v1` bundle composes seven semantic probe
+directions across all eight ACWM-Phys environments. It does not establish that
+charts are aligned across arbitrary backbones. The contributing campaigns have
+two incompatible zero-dose baseline frames, so cross-group covariance is
+marked unobserved and every current asset abstains from transfer licensing.
+Jointly paired chart data and held-out calibration are still required.
 
 ## Transfer certificate
 
@@ -66,11 +72,11 @@ calibration and frozen regression checks.
 
 ## ACWM reference instance
 
-The public example projects one ACWM run into the method objects: diagnosis,
-typed materialized intervention, progressive-fidelity gates, long-horizon
-effect profile, and routing memory. It does not contain a measured IRG chart or
-cross-backbone transfer certificate, so those modules remain framework code
-until the corresponding experiments are added.
+The public examples project ACWM runs into diagnosis, typed materialized
+interventions, progressive-fidelity gates, long-horizon effect profiles,
+routing memory, and measured IRG assets. The eight-environment asset bundle is
+valid for within-instance routing. It carries an explicit transfer abstention,
+so a cross-backbone certificate remains an unestablished empirical claim.
 
 ## Cross-backbone experiment control plane
 

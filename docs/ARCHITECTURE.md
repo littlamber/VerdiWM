@@ -33,7 +33,14 @@ Primary code:
 
 - `wmloop/diagnose/`
 - `wmloop/geometry/irg.py`
+- `wmloop/geometry/assets.py`
 - `wmloop/geometry/types.py`
+
+Each canonical `IRGAsset` keeps raw finite-dose evidence separate from the
+locality-supported effective objects `J_X`, `G_X`, and `r_X`. Response
+covariance is composed only inside source groups with a shared paired baseline
+frame. Missing cross-group covariance remains explicitly unobserved and forces
+transfer abstention without disabling target-local routing.
 
 ### Proposal and compilation plane
 
@@ -116,4 +123,3 @@ useful for planning but is not licensed for formal claims.
 - Agent-written patches cannot modify frozen evaluators or held-out data.
 - The archive is append-oriented and content addressed.
 - Transfer is opt-in and abstains when evidence is insufficient.
-

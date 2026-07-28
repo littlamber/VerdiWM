@@ -1,0 +1,9 @@
+environment,outcome_count,probe_path_count,supported_probe_path_count,baseline_group_count,routing_state,transfer_state,transfer_blockers
+cloth_move,4,7,7,2,ready,abstain,joint_baseline_frame_mismatch
+pour_water,4,7,5,2,ready,abstain,joint_baseline_frame_mismatch
+push_cube,4,7,6,2,ready,abstain,joint_baseline_frame_mismatch
+push_rope,4,7,3,2,ready,abstain,joint_baseline_frame_mismatch
+push_sand,4,7,4,2,ready,abstain,joint_baseline_frame_mismatch
+reacher,4,7,3,2,ready,abstain,joint_baseline_frame_mismatch
+robot_arm,4,7,6,2,ready,abstain,joint_baseline_frame_mismatch
+stack_cube,4,7,6,2,ready,abstain,joint_baseline_frame_mismatch

@@ -13,6 +13,7 @@ from wmloop.geometry.evolution import (
     detect_repair_collisions,
     rank_probe_candidates,
 )
+from wmloop.geometry.assets import IRGChartSource, compose_irg_asset, validate_irg_asset
 from wmloop.geometry.irg import ResponseChart, estimate_response_chart, irg_distance
 from wmloop.geometry.memory import EffectContext, EffectMemory, EffectRecord
 from wmloop.geometry.transfer import TransferCertificate, evaluate_transfer_certificate
@@ -33,14 +34,17 @@ __all__ = [
     "EffectRecord",
     "GeometryValidationError",
     "InterventionDescriptor",
+    "IRGChartSource",
     "ProbeCandidate",
     "RepairCollision",
     "ResponseChart",
     "TransferCertificate",
     "compile_intervention",
+    "compose_irg_asset",
     "detect_repair_collisions",
     "estimate_response_chart",
     "evaluate_transfer_certificate",
     "irg_distance",
     "rank_probe_candidates",
+    "validate_irg_asset",
 ]

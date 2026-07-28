@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verdiwm.dev/schemas/irg_asset.schema.json",
+  "title": "VerdiWM unified IRG asset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "asset_id",
+    "environment",
+    "backbone_family",
+    "capability_class",
+    "backbone_instance_ref",
+    "goal_schema",
+    "outcome_names",
+    "outcome_weights",
+    "probe_path_names",
+    "seeds",
+    "checkpoint_steps",
+    "dimensions",
+    "symbol_table",
+    "raw_jacobian",
+    "jacobian",
+    "raw_repair_metric",
+    "repair_metric",
+    "raw_response_coordinate",
+    "response_coordinate",
+    "coordinate_names",
+    "raw_response_covariance",
+    "response_covariance",
+    "locality_residuals",
+    "locality_threshold",
+    "support_mask",
+    "supported_probe_path_count",
+    "ridge",
+    "metric_contract",
+    "covariance_contract",
+    "routing_state",
+    "transfer_state",
+    "transfer_blockers",
+    "source_charts",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-unified-irg-asset"},
+    "asset_id": {"type": "string", "minLength": 1},
+    "environment": {"type": "string", "minLength": 1},
+    "backbone_family": {"type": "string", "minLength": 1},
+    "capability_class": {"type": "string", "minLength": 1},
+    "backbone_instance_ref": {"type": "string", "minLength": 1},
+    "goal_schema": {"type": "string", "minLength": 1},
+    "outcome_names": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "outcome_weights": {"type": "array", "minItems": 1, "items": {"type": "number", "exclusiveMinimum": 0}},
+    "probe_path_names": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "seeds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer"}},
+    "checkpoint_steps": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome_count", "probe_path_count", "response_coordinate_count"],
+      "properties": {
+        "outcome_count": {"type": "integer", "minimum": 1},
+        "probe_path_count": {"type": "integer", "minimum": 1},
+        "response_coordinate_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "symbol_table": {
+      "const": {
+        "J_X": "jacobian",
+        "G_X": "repair_metric",
+        "r_X": "response_coordinate",
+        "Sigma_X": "response_covariance"
+      }
+    },
+    "raw_jacobian": {"$ref": "#/$defs/matrix"},
+    "jacobian": {"$ref": "#/$defs/matrix"},
+    "raw_repair_metric": {"$ref": "#/$defs/matrix"},
+    "repair_metric": {"$ref": "#/$defs/matrix"},
+    "raw_response_coordinate": {"$ref": "#/$defs/numericVector"},
+    "response_coordinate": {"$ref": "#/$defs/numericVector"},
+    "coordinate_names": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "raw_response_covariance": {"$ref": "#/$defs/matrix"},
+    "response_covariance": {"$ref": "#/$defs/matrix"},
+    "locality_residuals": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "number", "minimum": 0}},
+    "locality_threshold": {"type": "number", "minimum": 0},
+    "support_mask": {"type": "array", "minItems": 1, "items": {"type": "boolean"}},
+    "supported_probe_path_count": {"type": "integer", "minimum": 0},
+    "ridge": {"type": "number", "minimum": 0},
+    "metric_contract": {"type": "string", "minLength": 1},
+    "covariance_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["estimator", "baseline_absolute_tolerance", "observed_blocks", "cross_group_entries", "joint_baseline_group_count"],
+      "properties": {
+        "estimator": {"type": "string", "minLength": 1},
+        "baseline_absolute_tolerance": {"type": "number", "minimum": 0},
+        "observed_blocks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/covarianceBlock"}},
+        "cross_group_entries": {"const": "unmeasured_zero_filled"},
+        "joint_baseline_group_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "routing_state": {"enum": ["ready", "abstain"]},
+    "transfer_state": {"enum": ["ready", "abstain"]},
+    "transfer_blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "source_charts": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sourceChart"}},
+    "claim_boundary": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "numericVector": {"type": "array", "minItems": 1, "items": {"type": "number"}},
+    "matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/numericVector"}},
+    "covarianceBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["group_id", "source_ids", "path_names", "coordinate_indices", "repeat_count", "maximum_baseline_deviation"],
+      "properties": {
+        "group_id": {"type": "string", "minLength": 1},
+        "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "path_names": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "coordinate_indices": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 0}},
+        "repeat_count": {"type": "integer", "minimum": 1},
+        "maximum_baseline_deviation": {"type": "number", "minimum": 0}
+      }
+    },
+    "sourceChart": {
+      "type": "object",
+      "required": ["source_id", "campaign_id", "probe_path_names", "checkpoint_step"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "campaign_id": {"type": "string", "minLength": 1},
+        "probe_path_names": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "checkpoint_step": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    }
+  }
+}

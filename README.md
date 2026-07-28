@@ -10,9 +10,9 @@ null, and harmful effects for later transfer.
 
 The repository is an early research release. It contains a working control
 plane, typed intervention and evidence contracts, ACWM-Phys and Ctrl-World ACWM
-adapters, 17 materialized intervention primitives, an initial Interventional
-Repair Geometry (IRG) implementation, and one integrity-checked operational
-closed-loop example.
+adapters, 17 materialized intervention primitives, an Interventional Repair
+Geometry (IRG) implementation, eight provenance-bearing ACWM-Phys IRG assets,
+and one integrity-checked operational closed-loop example.
 
 ## What is implemented
 
@@ -22,7 +22,7 @@ closed-loop example.
 | Fail-closed intervention compilation and runtime receipts | Implemented |
 | Diagnosis, proposal, budgeted execution, independent verification, archive | Implemented |
 | Per-environment horizon ladder and frozen verifier checks | Implemented |
-| IRG local response charts and distances | Implemented, unit tested |
+| IRG local response charts, composed assets, and distances | Implemented, unit tested; eight ACWM-Phys assets included |
 | Transfer certificate with explicit abstention | Implemented, unit tested |
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
@@ -76,7 +76,7 @@ uv run python scripts/export/validate_public_example.py \
 Run the IRG tests directly:
 
 ```bash
-uv run pytest -q tests/test_verdiwm_geometry.py
+uv run pytest -q tests/test_verdiwm_geometry.py tests/test_acwm_unified_irg_assets.py
 ```
 
 GPU execution is adapter-specific. ACWM-Phys data and checkpoints are not
@@ -128,6 +128,22 @@ and PDF; source tables are provided as CSV, Markdown, and LaTeX. Crossed probe
 cells fail the frozen locality threshold and are excluded from routing. Probe
 responses and the PCA are diagnostic pilot evidence, not repair-quality or
 cross-backbone transfer claims.
+
+## Unified IRG assets
+
+[`examples/acwm_unified_irg_assets_v1`](examples/acwm_unified_irg_assets_v1)
+contains one canonical asset for each ACWM-Phys environment. Each asset stores
+the locality-masked Jacobian `J_X`, repair metric `G_X`, response coordinate
+`r_X`, paired-seed response covariance, support mask, checkpoint identity, and
+content hashes for all contributing charts and measurements. The symbol names
+map to stable serialized fields through each asset's `symbol_table`.
+
+All eight assets are routing-ready. They intentionally abstain from licensing
+cross-backbone transfer because the six contributing campaigns use two
+materially different zero-dose baseline frames. Covariance is estimated only
+inside baseline-compatible blocks; unmeasured cross-block entries are explicit
+zero-filled gaps rather than inferred evidence. A jointly paired calibration
+campaign is required before the transfer state can become `ready`.
 
 ## Repository layout
 
