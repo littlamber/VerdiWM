@@ -11,7 +11,8 @@
     "self_rollout_temporal_mix",
     "motion_region_scale",
     "action_embedding_temporal_mix",
-    "motion_region_event_alignment"
+    "motion_region_event_alignment",
+    "action_temporal_alignment"
   ],
   "minimum_covered_candidates_per_fold": 2,
   "require_full_candidate_coverage": true,
@@ -32,9 +33,9 @@
     },
     "inv_dyn_reward_finetune": {
       "coverage_state": "covered",
-      "required_probe_paths": ["action_embedding_temporal_mix"],
-      "successor_probe_axis": "action_temporal_alignment",
-      "mechanism_rationale": "The primitive depends on action-identifiable rollouts. Mean-preserving temporal action-embedding contrast is the calibrated local proxy for that precondition and avoids conflating identifiability with global conditioning gain."
+      "required_probe_paths": ["action_temporal_alignment"],
+      "successor_probe_axis": "action_temporal_alignment_phase",
+      "mechanism_rationale": "The primitive depends on temporally identifiable actions. Mean-preserving action-transition-aligned embedding contrast is the admitted local proxy for that precondition and avoids conflating event identifiability with global conditioning gain."
     },
     "motion_region_reweight": {
       "coverage_state": "covered",

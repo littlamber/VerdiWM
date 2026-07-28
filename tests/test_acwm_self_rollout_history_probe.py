@@ -9,9 +9,11 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from scripts.run_acwm_fingerprint_probe import (
+    ActionEmbeddingEventAlignmentDose,
     ActionEmbeddingTemporalMixDose,
     AutoregressiveHistoryDose,
     AutoregressiveHistoryTemporalMixDose,
+    AutoregressiveTeacherRecoveryDose,
     AutoregressiveMotionDose,
     AutoregressiveMotionEventAlignmentDose,
     AutoregressiveMotionRegionDose,
@@ -26,12 +28,18 @@ MOTION_CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_motion_history_p
 ACTION_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_mix_probe_pilot_v1.json"
 )
+ACTION_EVENT_ALIGNMENT_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_alignment_probe_pilot_v1.json"
+)
 MOTION_REGION_CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_motion_region_probe_pilot_v1.json"
 MOTION_EVENT_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_motion_region_event_alignment_probe_pilot_v1.json"
 )
 SELF_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_temporal_mix_probe_pilot_v1.json"
+)
+SELF_TEACHER_RECOVERY_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_teacher_recovery_probe_pilot_v1.json"
 )
 
 
@@ -112,6 +120,30 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         campaign = load_campaign(ACTION_TEMPORAL_MIX_CAMPAIGN)
         self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), ActionEmbeddingTemporalMixDose)
 
+    def test_action_event_alignment_preserves_embedding_mean(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.tensor([[[0.0], [1.0], [1.0], [3.0]]])
+
+        with ActionEmbeddingEventAlignmentDose(dynamics, 0.5):
+            observed = embedder(action)
+
+        self.assertFalse(torch.equal(observed, action))
+        self.assertTrue(torch.allclose(observed.mean(dim=1), action.mean(dim=1)))
+        self.assertTrue(torch.equal(embedder(action), action))
+        campaign = load_campaign(ACTION_EVENT_ALIGNMENT_CAMPAIGN)
+        self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), ActionEmbeddingEventAlignmentDose)
+
+    def test_action_event_alignment_is_identity_without_action_transition(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.ones(1, 4, 2)
+
+        with ActionEmbeddingEventAlignmentDose(dynamics, 0.5):
+            observed = embedder(action)
+
+        self.assertTrue(torch.equal(observed, action))
+
     def test_motion_region_dose_changes_dynamic_pixels_only(self) -> None:
         dit = _IdentityDiT()
         dynamics = SimpleNamespace(model=dit)
@@ -180,6 +212,32 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         self.assertTrue(torch.equal(observed[:, 1:3], torch.tensor([[[2.0], [5.0]]])))
         campaign = load_campaign(SELF_TEMPORAL_MIX_CAMPAIGN)
         self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), AutoregressiveHistoryTemporalMixDose)
+
+    def test_self_rollout_teacher_recovery_preserves_anchor_and_noisy_state(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [3.0], [7.0], [9.0]]])
+        teacher = torch.tensor([[[1.0], [2.0], [5.0], [8.0]]])
+        t = torch.zeros(1, 4)
+        action = torch.zeros(1, 4, 1)
+
+        with AutoregressiveTeacherRecoveryDose(dynamics, 0.5, teacher):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :1], z[:, :1]))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(observed[:, 1:3], torch.tensor([[[2.5], [6.0]]])))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(SELF_TEACHER_RECOVERY_CAMPAIGN)
+        context = _dose_context(dynamics, campaign, 0.0, teacher_history=teacher)
+        self.assertIsInstance(context, AutoregressiveTeacherRecoveryDose)
+
+    def test_self_rollout_teacher_recovery_fails_without_reference(self) -> None:
+        dynamics = SimpleNamespace(model=_IdentityDiT())
+        campaign = load_campaign(SELF_TEACHER_RECOVERY_CAMPAIGN)
+
+        with self.assertRaisesRegex(RuntimeError, "REFERENCE_MISSING"):
+            _dose_context(dynamics, campaign, 0.0)
 
 
 if __name__ == "__main__":

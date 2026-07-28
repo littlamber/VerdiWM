@@ -88,6 +88,53 @@ class ActionEmbeddingTemporalMixDose:
         return False
 
 
+class ActionEmbeddingEventAlignmentDose:
+    """Dose mean-preserving action-embedding contrast at action transitions."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.embedder = dynamics_model.model.action_embedder
+        self.original = self.embedder.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def aligned_forward(_module, action):
+            embedding = original(action)
+            if action.ndim != 3 or embedding.ndim != 3 or action.shape[0] != embedding.shape[0]:
+                raise RuntimeError("ACWM_ACTION_EVENT_ALIGNMENT_SHAPE_INVALID")
+            action_delta = torch.cat(
+                [torch.zeros_like(action[:, :1]), action[:, 1:] - action[:, :-1]], dim=1
+            ).abs().mean(dim=-1)
+            event_scale = action_delta.amax(dim=1, keepdim=True)
+            event_weight = torch.where(
+                event_scale > 1e-12,
+                action_delta / event_scale.clamp_min(1e-12),
+                torch.zeros_like(action_delta),
+            )
+            if event_weight.shape[1] != embedding.shape[1]:
+                event_weight = torch.nn.functional.interpolate(
+                    event_weight.unsqueeze(1),
+                    size=embedding.shape[1],
+                    mode="linear",
+                    align_corners=True,
+                ).squeeze(1)
+            temporal_mean = embedding.mean(dim=1, keepdim=True)
+            perturbation = event_weight.unsqueeze(-1).to(embedding.dtype) * (
+                embedding - temporal_mean
+            )
+            perturbation = perturbation - perturbation.mean(dim=1, keepdim=True)
+            return embedding + dose * perturbation
+
+        self.embedder.forward = MethodType(aligned_forward, self.embedder)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.embedder.forward = self.original
+        return False
+
+
 class AutoregressiveHistoryDose:
     """Scale generated latent history around the first conditioned latent."""
 
@@ -136,6 +183,45 @@ class AutoregressiveHistoryTemporalMixDose:
             return original(torch.cat([mixed_history, z[:, -1:]], dim=1), t, action)
 
         self.dit.forward = MethodType(mixed_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
+class AutoregressiveTeacherRecoveryDose:
+    """Mix generated history toward paired teacher latents at a small dose."""
+
+    def __init__(self, dynamics_model, dose: float, teacher_history: torch.Tensor) -> None:
+        self.dose = float(dose)
+        self.teacher_history = teacher_history.detach()
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        dose = self.dose
+        teacher_history = self.teacher_history
+        original = self.original
+
+        def recovered_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            if (
+                teacher_history.shape[0] != history.shape[0]
+                or teacher_history.shape[1] < history.shape[1]
+                or teacher_history.shape[2:] != history.shape[2:]
+            ):
+                raise RuntimeError("ACWM_TEACHER_RECOVERY_HISTORY_SHAPE_INVALID")
+            teacher = teacher_history[:, : history.shape[1]].to(
+                device=history.device, dtype=history.dtype
+            )
+            recovered_tail = history[:, 1:] + dose * (teacher[:, 1:] - history[:, 1:])
+            recovered_history = torch.cat([history[:, :1], recovered_tail], dim=1)
+            return original(torch.cat([recovered_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(recovered_forward, self.dit)
         return self
 
     def __exit__(self, exc_type, exc, traceback):
@@ -266,7 +352,13 @@ class AutoregressiveMotionEventAlignmentDose:
         return False
 
 
-def _dose_context(dynamics_model, campaign: dict[str, object], dose: float):
+def _dose_context(
+    dynamics_model,
+    campaign: dict[str, object],
+    dose: float,
+    *,
+    teacher_history: torch.Tensor | None = None,
+):
     probe = campaign["probe"]
     if not isinstance(probe, dict):
         raise RuntimeError("ACWM_PROBE_INVALID")
@@ -279,6 +371,10 @@ def _dose_context(dynamics_model, campaign: dict[str, object], dose: float):
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_EMBEDDER_HOOK_MISSING")
         return ActionEmbeddingTemporalMixDose(dynamics_model, dose)
+    if probe_id == "action_temporal_alignment":
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_ACTION_EVENT_ALIGNMENT_HOOK_MISSING")
+        return ActionEmbeddingEventAlignmentDose(dynamics_model, dose)
     if probe_id == "self_rollout_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_HISTORY_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -291,6 +387,14 @@ def _dose_context(dynamics_model, campaign: dict[str, object], dose: float):
         if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
             raise RuntimeError("ACWM_HISTORY_TEMPORAL_MIX_HOOK_MISSING")
         return AutoregressiveHistoryTemporalMixDose(dynamics_model, dose)
+    if probe_id == "self_rollout_teacher_recovery":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_TEACHER_RECOVERY_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_TEACHER_RECOVERY_HISTORY_HOOK_MISSING")
+        if teacher_history is None:
+            raise RuntimeError("ACWM_TEACHER_RECOVERY_REFERENCE_MISSING")
+        return AutoregressiveTeacherRecoveryDose(dynamics_model, dose, teacher_history)
     if probe_id == "motion_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_MOTION_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -354,6 +458,10 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     action = batch["action"].to(device)
     o_0 = obs[:, 0].permute(0, 2, 3, 1).contiguous()
     gt_video = obs.permute(0, 1, 3, 4, 2).contiguous()
+    teacher_history = None
+    if campaign["probe"]["probe_id"] == "self_rollout_teacher_recovery":
+        with torch.no_grad():
+            teacher_history = model.encode_obs(gt_video)
     measurements: list[dict[str, object]] = []
     generation_mode = str(campaign["probe"].get("generation_mode", "parallel"))
     for seed in campaign["seeds"]:
@@ -362,7 +470,12 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             np.random.seed(int(seed))
             torch.manual_seed(int(seed))
             torch.cuda.manual_seed_all(int(seed))
-            with _dose_context(model, campaign, float(dose)):
+            with _dose_context(
+                model,
+                campaign,
+                float(dose),
+                teacher_history=teacher_history,
+            ):
                 with torch.no_grad():
                     prediction = model.generate(
                         o_0,

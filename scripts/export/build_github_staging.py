@@ -52,6 +52,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_selector_ablation.py",
     "test_acwm_selector_cpu_replay.py",
     "test_acwm_selector_projection_compose.py",
+    "test_acwm_selector_probe_admission.py",
     "test_acwm_selector_public_bundle.py",
     "test_acwm_self_rollout_history_probe.py",
     "test_acwm_fingerprint_campaign_runner.py",
