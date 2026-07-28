@@ -10,7 +10,8 @@
     "action_conditioning_attenuation",
     "self_rollout_temporal_mix",
     "motion_region_scale",
-    "action_embedding_temporal_mix"
+    "action_embedding_temporal_mix",
+    "motion_region_event_alignment"
   ],
   "minimum_covered_candidates_per_fold": 2,
   "require_full_candidate_coverage": true,
@@ -18,6 +19,8 @@
   "transfer_certificate": {
     "minimum_nonleaking_source_environments": 2,
     "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
     "failure_policy": "abstain_fold"
   },
   "primitives": {
@@ -35,9 +38,12 @@
     },
     "motion_region_reweight": {
       "coverage_state": "covered",
-      "required_probe_paths": ["motion_region_scale"],
-      "successor_probe_axis": "motion_region_event_alignment",
-      "mechanism_rationale": "The spatial motion-region path selectively doses generated-history increments according to normalized motion magnitude while preserving static regions. It directly probes the transfer precondition for motion-weighted repair."
+      "required_probe_paths": [
+        "motion_region_scale",
+        "motion_region_event_alignment"
+      ],
+      "successor_probe_axis": "motion_region_event_phase_lag",
+      "mechanism_rationale": "Motion-region repair requires both spatially localized generated motion and temporal coupling to action-transition events. The paired paths separate generic motion sensitivity from action-aligned motion sensitivity while preserving static regions, zero-action-transition times, conditioned latents, and actions."
     },
     "next_forcing": {
       "coverage_state": "probe_missing",

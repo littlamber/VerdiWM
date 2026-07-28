@@ -164,6 +164,8 @@ class ACWMSelectorCPUReplayTests(unittest.TestCase):
             affinity_payload["transfer_certificate"] = {
                 "minimum_nonleaking_source_environments": 2,
                 "minimum_selected_positive_probability": 0.75,
+                "require_unanimous_positive_sources": True,
+                "distance_support_policy": "source_effect_leave_one_out_max_nearest",
                 "failure_policy": "abstain_fold",
             }
             affinity = root / "affinity.json"
@@ -187,6 +189,71 @@ class ACWMSelectorCPUReplayTests(unittest.TestCase):
             self.assertEqual(target["selected_primitive_before_certificate"], "single_source")
             self.assertFalse(
                 target["transfer_certificate"]["checks"]["nonleaking_source_environment_count"]["passed"]
+            )
+
+    def test_irg_transfer_certificate_rejects_mixed_source_effect_signs(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            environments = ("a", "b", "target")
+            plan, projections = self._write_two_path_inputs(root, environments)
+            labels = root / "labels.json"
+            labels.write_text(
+                json.dumps(
+                    {
+                        "labels": [
+                            self._label(source, primitive, positive, 1.0 if positive else -1.0)
+                            for source, primitive, positive in (
+                                ("a", "mixed", True),
+                                ("b", "mixed", False),
+                                ("a", "other", False),
+                                ("b", "other", False),
+                                ("target", "mixed", False),
+                                ("target", "other", False),
+                            )
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            affinity_payload = self._affinity(
+                {
+                    primitive: {
+                        "coverage_state": "covered",
+                        "required_probe_paths": ["amplification"],
+                    }
+                    for primitive in ("mixed", "other")
+                }
+            )
+            affinity_payload["transfer_certificate"] = {
+                "minimum_nonleaking_source_environments": 2,
+                "minimum_selected_positive_probability": 0.75,
+                "require_unanimous_positive_sources": True,
+                "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+                "failure_policy": "abstain_fold",
+            }
+            affinity = root / "affinity.json"
+            affinity.write_text(json.dumps(affinity_payload), encoding="utf-8")
+
+            run_selector_replay(
+                plan_path=plan,
+                projection_path=projections,
+                effect_label_index=labels,
+                primitive_probe_affinity=affinity,
+                output_root=root / "output",
+            )
+
+            report = json.loads((root / "output" / "selector-replay.json").read_text())
+            target = next(
+                row
+                for row in report["cells"]
+                if row["target_environment"] == "target" and row["selector"] == "irg"
+            )
+            self.assertEqual(target["abstention_reason"], "transfer_certificate_failed")
+            self.assertFalse(
+                target["transfer_certificate"]["checks"]["source_effect_sign_consistency"]["passed"]
+            )
+            self.assertTrue(
+                any(row["reason"] == "source_effect_sign_consistency" for row in report["transfer_work_orders"])
             )
 
     def test_replays_supported_folds_and_abstains_without_source_support(self) -> None:

@@ -48,6 +48,7 @@ def run_selector_replay(
     cell_rows: list[dict[str, object]] = []
     candidate_rows: list[dict[str, object]] = []
     probe_work_orders: dict[tuple[str, str, str], dict[str, object]] = {}
+    transfer_work_orders: dict[tuple[str, str, str], dict[str, object]] = {}
     fold_dispositions: dict[tuple[str, str], dict[str, object]] = {}
     for trial in trials:
         target = str(trial["target_environment"])
@@ -229,8 +230,38 @@ def run_selector_replay(
                 }
             )
         selected = ranked[0]
-        certificate = _transfer_certificate(selector=selector, affinity=affinity, selected=selected)
+        certificate = _transfer_certificate(
+            selector=selector,
+            affinity=affinity,
+            selected=selected,
+            target=target,
+            projections=projection_map,
+        )
         if not certificate["passed"]:
+            failed_checks = sorted(
+                name
+                for name, check in certificate["checks"].items()
+                if isinstance(check, Mapping) and check.get("passed") is False
+            )
+            for failed_check in failed_checks:
+                key = (target, str(selected["primitive"]), failed_check)
+                transfer_work_orders.setdefault(
+                    key,
+                    {
+                        "target_environment": target,
+                        "primitive": selected["primitive"],
+                        "reason": failed_check,
+                        "source_environments": sorted(
+                            str(row["environment"]) for row in selected["source_effects"]
+                        ),
+                        "required_probe_paths": selected["required_probe_paths"],
+                        "action": (
+                            "collect_additional_nonleaking_settled_effect_labels"
+                            if failed_check == "nonleaking_source_environment_count"
+                            else "materialize_collision_disambiguating_probe_then_replay"
+                        ),
+                    },
+                )
             cell = {
                 "trial_id": trial["trial_id"],
                 "fold_id": trial["fold_id"],
@@ -374,6 +405,8 @@ def run_selector_replay(
         "transfer_certificate_abstention_count": sum(
             row.get("abstention_reason") == "transfer_certificate_failed" for row in cell_rows
         ),
+        "transfer_work_order_count": len(transfer_work_orders),
+        "transfer_work_orders": list(transfer_work_orders.values()),
         "selectors": aggregate_rows,
         "cells": cell_rows,
     }
@@ -385,6 +418,7 @@ def run_selector_replay(
         "tables/candidates.csv": _csv(candidate_rows).encode("utf-8"),
         "tables/selector-metrics.csv": _csv(aggregate_rows).encode("utf-8"),
         "tables/probe-evolution-work-orders.csv": _csv(list(probe_work_orders.values())).encode("utf-8"),
+        "tables/transfer-work-orders.csv": _csv(list(transfer_work_orders.values())).encode("utf-8"),
         "input-plan.json": canonical_json(plan),
         "input-effect-label-index.json": canonical_json(label_index),
     }
@@ -405,6 +439,7 @@ def run_selector_replay(
             "probe_coverage_ready": report["probe_coverage_ready"],
             "probe_evolution_work_order_count": report["probe_evolution_work_order_count"],
             "transfer_certificate_abstention_count": report["transfer_certificate_abstention_count"],
+            "transfer_work_order_count": report["transfer_work_order_count"],
             "multi_candidate_environment_count": len(multi_candidate_environments),
             "report_path": str(destination / "selector-replay.json"),
         },
@@ -483,6 +518,9 @@ def _load_probe_affinity(path: Path) -> Mapping[str, Any]:
             or minimum_sources < 2
             or not isinstance(minimum_probability, (int, float))
             or not 0.5 < float(minimum_probability) <= 1.0
+            or certificate.get("require_unanimous_positive_sources") is not True
+            or certificate.get("distance_support_policy")
+            != "source_effect_leave_one_out_max_nearest"
             or certificate.get("failure_policy") != "abstain_fold"
         ):
             raise SelectorReplayError("SELECTOR_TRANSFER_CERTIFICATE_INVALID")
@@ -494,6 +532,8 @@ def _transfer_certificate(
     selector: str,
     affinity: Mapping[str, Any] | None,
     selected: Mapping[str, Any],
+    target: str,
+    projections: Mapping[tuple[str, str], Mapping[str, object]],
 ) -> dict[str, object]:
     policy = affinity.get("transfer_certificate") if affinity is not None else None
     if selector != "irg" or not isinstance(policy, Mapping):
@@ -502,6 +542,13 @@ def _transfer_certificate(
     probability = float(selected["source_positive_probability"])
     minimum_sources = int(policy["minimum_nonleaking_source_environments"])
     minimum_probability = float(policy["minimum_selected_positive_probability"])
+    source_signs = sorted({str(row["consensus_state"]) for row in selected["source_effects"]})
+    distance_support = _source_only_distance_support(
+        target=target,
+        selected=selected,
+        projections=projections,
+        path_order=tuple(str(value) for value in affinity["projection_path_order"]),
+    )
     checks = {
         "nonleaking_source_environment_count": {
             "observed": source_count,
@@ -513,12 +560,90 @@ def _transfer_certificate(
             "required": minimum_probability,
             "passed": probability >= minimum_probability,
         },
+        "source_effect_sign_consistency": {
+            "observed": source_signs,
+            "required": ["positive"],
+            "passed": source_signs == ["positive"],
+        },
+        "source_only_distance_support": distance_support,
     }
     return {
         "enabled": True,
         "passed": all(bool(check["passed"]) for check in checks.values()),
         "checks": checks,
         "failure_policy": policy["failure_policy"],
+    }
+
+
+def _source_only_distance_support(
+    *,
+    target: str,
+    selected: Mapping[str, Any],
+    projections: Mapping[tuple[str, str], Mapping[str, object]],
+    path_order: Sequence[str],
+) -> dict[str, object]:
+    source_environments = tuple(
+        sorted({str(row["environment"]) for row in selected["source_effects"]})
+    )
+    if len(source_environments) < 2:
+        return {
+            "observed_target_nearest_distance": None,
+            "source_support_radius": None,
+            "source_environment_count": len(source_environments),
+            "constant_axis_violation": None,
+            "policy": "source_effect_leave_one_out_max_nearest",
+            "passed": False,
+        }
+    target_projection = projections[(target, "irg")]
+    required_paths = tuple(str(value) for value in selected["required_probe_paths"])
+    indices = _irg_path_feature_indices(
+        target_projection,
+        required_paths=required_paths,
+        path_order=path_order,
+    )
+    if not indices:
+        raise SelectorReplayError("SELECTOR_TRANSFER_DISTANCE_FEATURES_MISSING")
+    target_vector = tuple(float(target_projection["features"][index]) for index in indices)
+    source_vectors = [
+        tuple(float(projections[(source, "irg")]["features"][index]) for index in indices)
+        for source in source_environments
+    ]
+    means = tuple(fmean(vector[index] for vector in source_vectors) for index in range(len(indices)))
+    scales = tuple(
+        math.sqrt(fmean((vector[index] - means[index]) ** 2 for vector in source_vectors))
+        for index in range(len(indices))
+    )
+    constant_axis_violation = any(
+        scale <= 1e-12 and abs(target_vector[index] - means[index]) > 1e-12
+        for index, scale in enumerate(scales)
+    )
+
+    def distance(left: Sequence[float], right: Sequence[float]) -> float:
+        return math.sqrt(
+            sum(
+                ((left[index] - right[index]) / scale) ** 2
+                for index, scale in enumerate(scales)
+                if scale > 1e-12
+            )
+        )
+
+    target_nearest = min(distance(target_vector, vector) for vector in source_vectors)
+    source_nearest = [
+        min(
+            distance(vector, other)
+            for other_index, other in enumerate(source_vectors)
+            if other_index != source_index
+        )
+        for source_index, vector in enumerate(source_vectors)
+    ]
+    support_radius = max(source_nearest)
+    return {
+        "observed_target_nearest_distance": target_nearest,
+        "source_support_radius": support_radius,
+        "source_environment_count": len(source_environments),
+        "constant_axis_violation": constant_axis_violation,
+        "policy": "source_effect_leave_one_out_max_nearest",
+        "passed": not constant_axis_violation and target_nearest <= support_radius + 1e-12,
     }
 
 

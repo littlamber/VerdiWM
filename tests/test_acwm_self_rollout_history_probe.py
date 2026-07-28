@@ -13,6 +13,7 @@ from scripts.run_acwm_fingerprint_probe import (
     AutoregressiveHistoryDose,
     AutoregressiveHistoryTemporalMixDose,
     AutoregressiveMotionDose,
+    AutoregressiveMotionEventAlignmentDose,
     AutoregressiveMotionRegionDose,
     _dose_context,
 )
@@ -26,6 +27,9 @@ ACTION_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_mix_probe_pilot_v1.json"
 )
 MOTION_REGION_CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_motion_region_probe_pilot_v1.json"
+MOTION_EVENT_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_motion_region_event_alignment_probe_pilot_v1.json"
+)
 SELF_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_temporal_mix_probe_pilot_v1.json"
 )
@@ -126,6 +130,40 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         self.assertTrue(torch.equal(observed[0, 1:3, 0, 1, 0], torch.tensor([0.0, 0.0])))
         campaign = load_campaign(MOTION_REGION_CAMPAIGN)
         self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), AutoregressiveMotionRegionDose)
+
+    def test_motion_event_alignment_requires_spatial_motion_and_action_transition(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor(
+            [[[[[0.0], [0.0]]], [[[1.0], [0.0]]], [[[2.0], [0.0]]], [[[9.0], [9.0]]]]]
+        )
+        t = torch.zeros(1, 4)
+        action = torch.tensor([[[0.0], [1.0], [1.0], [1.0]]])
+
+        with AutoregressiveMotionEventAlignmentDose(dynamics, 0.5):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :1], z[:, :1]))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(observed[0, 1:3, 0, 0, 0], torch.tensor([1.5, 2.5])))
+        self.assertTrue(torch.equal(observed[0, 1:3, 0, 1, 0], torch.tensor([0.0, 0.0])))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(MOTION_EVENT_CAMPAIGN)
+        self.assertIsInstance(
+            _dose_context(dynamics, campaign, 0.0), AutoregressiveMotionEventAlignmentDose
+        )
+
+    def test_motion_event_alignment_is_identity_without_action_transition(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [2.0], [4.0], [9.0]]])
+        t = torch.zeros(1, 4)
+        action = torch.ones(1, 4, 2)
+
+        with AutoregressiveMotionEventAlignmentDose(dynamics, 0.5):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed, z))
 
     def test_self_rollout_temporal_mix_changes_each_history_state_locally(self) -> None:
         dit = _IdentityDiT()
