@@ -32,5 +32,9 @@
     "pilot": {"split": "dev", "required_receipts_per_dose": 3},
     "paper": {"split": "accept", "required_receipts_per_dose": 3}
   },
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "abstain_from_cross_backbone_transfer"
+  },
   "formal_claim_requires": "paper split, complete paired-dose environment receipts, and an independent held-out selector evaluation"
 }

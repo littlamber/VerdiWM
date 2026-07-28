@@ -107,6 +107,9 @@ class CtrlWorldFingerprintTests(unittest.TestCase):
             report = json.loads((root / "output" / "target-local-fingerprint.json").read_text())
             self.assertFalse(report["downstream_task_success_used_for_verdict"])
             self.assertEqual(report["chart"]["repeat_count"], 3)
+            self.assertEqual(report["locality_admission"]["state"], "passed")
+            self.assertTrue(report["locality_admission"]["cross_backbone_transfer_eligible"])
+            self.assertEqual(manifest["locality_admission_state"], "passed")
 
 
 if __name__ == "__main__":

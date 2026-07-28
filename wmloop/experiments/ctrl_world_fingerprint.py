@@ -56,6 +56,14 @@ def load_ctrl_world_campaign(path: Path) -> Mapping[str, Any]:
         raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_DOSES_INVALID")
     if not any(-dose in doses for dose in doses if dose != 0.0):
         raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_SYMMETRIC_DOSE_MISSING")
+    locality = payload.get("locality_admission")
+    if not isinstance(locality, Mapping):
+        raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_LOCALITY_POLICY_MISSING")
+    maximum_residual = float(locality.get("maximum_residual", math.nan))
+    if not math.isfinite(maximum_residual) or maximum_residual < 0.0:
+        raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_LOCALITY_THRESHOLD_INVALID")
+    if locality.get("failure_policy") != "abstain_from_cross_backbone_transfer":
+        raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_LOCALITY_FAILURE_POLICY_INVALID")
     return payload
 
 
@@ -140,6 +148,14 @@ def evaluate_ctrl_world_fingerprint(
             }
         },
     ).to_dict()
+    locality_threshold = float(campaign["locality_admission"]["maximum_residual"])
+    locality_residuals = {
+        str(name): float(value) for name, value in chart["locality_residuals"].items()
+    }
+    supported_paths = sorted(
+        name for name, residual in locality_residuals.items() if residual <= locality_threshold
+    )
+    locality_pass = bool(supported_paths)
     report = {
         "schema_version": 1,
         "artifact_type": "verdiwm-ctrl-world-target-local-fingerprint",
@@ -150,6 +166,14 @@ def evaluate_ctrl_world_fingerprint(
         "measurement_count": len(evidence_rows),
         "repeat_count": len(identities),
         "chart": chart,
+        "locality_admission": {
+            "state": "passed" if locality_pass else "failed",
+            "maximum_residual": locality_threshold,
+            "path_residuals": locality_residuals,
+            "supported_local_paths": supported_paths,
+            "cross_backbone_transfer_eligible": locality_pass,
+            "failure_policy": campaign["locality_admission"]["failure_policy"],
+        },
         "claim_boundary": campaign["claim_scope"],
         "downstream_task_success_used_for_verdict": False,
     }
@@ -170,6 +194,8 @@ def evaluate_ctrl_world_fingerprint(
             "split": split_name,
             "measurement_count": len(evidence_rows),
             "repeat_count": len(identities),
+            "locality_admission_state": "passed" if locality_pass else "failed",
+            "cross_backbone_transfer_eligible": locality_pass,
             "report_path": str(destination / "target-local-fingerprint.json"),
         },
         archive_db=archive_db,

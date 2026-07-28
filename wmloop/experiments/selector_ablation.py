@@ -80,7 +80,7 @@ def build_selector_ablation_plan(
                         "candidate_pool_contract": config["matched_trial_contract"]["candidate_pool"],
                         "screen_budget_contract": config["matched_trial_contract"]["screen_budget"],
                         "confirm_budget_contract": config["matched_trial_contract"]["confirm_budget"],
-                        "formal_evidence_requires": "settled_official_confirm_receipt",
+                        "formal_evidence_requires": "settled_official_gate_receipt",
                     }
                 )
     report = {

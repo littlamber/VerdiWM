@@ -46,6 +46,7 @@ PUBLIC_TEST_FILES = (
     "test_verdiwm_paper_experiment_matrix.py",
     "test_acwm_fingerprint_calibration_audit.py",
     "test_acwm_effect_label_completion_plan.py",
+    "test_acwm_selector_ablation.py",
     "test_ctrl_world_instance_adapters.py",
     "test_ctrl_world_predictive_adapter.py",
     "test_ctrl_world_predictive_instance.py",

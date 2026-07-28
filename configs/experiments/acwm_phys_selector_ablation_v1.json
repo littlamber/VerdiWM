@@ -49,7 +49,7 @@
     "tie_breaking": "candidate_id then primitive_id"
   },
   "label_contract": {
-    "source": "settled official confirm receipts only",
+    "source": "settled official confirmation receipts or explicit retained-checkpoint completion-gate receipts",
     "positive": "all official validity checks pass and the frozen aggregate delta is positive",
     "negative": "settled null or harmful confirm receipt",
     "forbidden": [
@@ -80,6 +80,6 @@
   "launch_policy": {
     "cpu_replay_may_start_when": "fingerprint atlas and projections pass",
     "gpu_confirmation_may_start_when": "every target fold has a non-leaking settled candidate pool",
-    "formal_claim_requires": "all eight held-out folds and all three seeds"
+    "formal_claim_requires": "all eight held-out folds and all three seeds use settled official-gate receipts"
   }
 }

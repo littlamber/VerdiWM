@@ -9,7 +9,7 @@
     "no_oversized_files": true,
     "no_symlinks": true
   },
-  "file_count_before_manifest": 436,
+  "file_count_before_manifest": 437,
   "public_example_validation": {
     "artifact_count": 9,
     "artifact_type": "verdiwm-public-example-validation",
@@ -42,5 +42,5 @@
   "schema_version": 1,
   "source_license": "Apache-2.0",
   "state": "ready",
-  "total_bytes_before_manifest": 6389943
+  "total_bytes_before_manifest": 6395299
 }
