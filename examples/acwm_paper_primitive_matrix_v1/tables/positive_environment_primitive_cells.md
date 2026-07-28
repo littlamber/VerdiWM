@@ -1,0 +1,9 @@
+| environment | primitive | stability | selected_checkpoint_step | selected_eval_seed | delta_psnr | delta_ssim | delta_mse | delta_masked_mse |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| push_rope | self_forcing_finetune | single_checkpoint_pass | 512 | 874 | +0.020000 | +0.000800 | -0.000002 | -0.000151 |
+| cloth_move | motion_region_reweight | all_observed_checkpoints_pass | 1000 | 2814 | +0.430000 | +0.000300 | -0.001419 | -0.000343 |
+| cloth_move | next_forcing | checkpoint_sensitive | 800 | 2802 | +0.940000 | +0.009900 | -0.002012 | -0.009040 |
+| cloth_move | self_forcing_finetune | all_observed_checkpoints_pass | 800 | 2805 | +0.820000 | +0.007300 | -0.002088 | -0.012942 |
+| pour_water | inv_dyn_reward_finetune | single_checkpoint_pass | 512 | 2905 | +1.360000 | +0.006300 | -0.000307 | -0.002532 |
+| pour_water | motion_region_reweight | checkpoint_sensitive | 800 | 3060 | +0.430000 | +0.001800 | -0.000109 | -0.001051 |
+| robot_arm | self_forcing_finetune | all_observed_checkpoints_pass | 800 | 2830 | +1.080000 | +0.009800 | -0.000445 | -0.002230 |

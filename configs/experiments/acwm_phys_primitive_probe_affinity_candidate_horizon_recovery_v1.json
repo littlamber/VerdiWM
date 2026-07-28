@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-primitive-probe-affinity",
+  "contract_id": "acwm_phys_primitive_probe_affinity_candidate_horizon_recovery_v1",
+  "claim_boundary": "Candidate-only affinity for replay admission. It must not replace the active contract unless held-out replay improves transfer safety without reducing calibrated coverage.",
+  "projection_selector": "irg",
+  "projection_source": "acwm_phys_irg_calibration_pilot_v1",
+  "projection_path_order": ["action_conditioning_amplification", "action_conditioning_attenuation", "self_rollout_temporal_mix", "motion_region_scale", "action_embedding_temporal_mix", "motion_region_event_alignment", "action_temporal_alignment", "self_rollout_horizon_recovery"],
+  "minimum_covered_candidates_per_fold": 2,
+  "require_full_candidate_coverage": true,
+  "uncovered_candidate_policy": "abstain_fold_and_emit_probe_work_order",
+  "transfer_certificate": {"minimum_nonleaking_source_environments": 2, "minimum_selected_positive_probability": 0.75, "require_unanimous_positive_sources": true, "distance_support_policy": "source_effect_leave_one_out_max_nearest", "failure_policy": "abstain_fold"},
+  "primitives": {
+    "action_dimension_balancing": {"coverage_state": "covered", "required_probe_paths": ["action_embedding_temporal_mix"], "successor_probe_axis": "action_dimension_anisotropy", "mechanism_rationale": "Differential action sensitivity is represented by mean-preserving temporal action contrast."},
+    "inv_dyn_reward_finetune": {"coverage_state": "covered", "required_probe_paths": ["action_temporal_alignment"], "successor_probe_axis": "action_temporal_alignment_phase", "mechanism_rationale": "Inverse-dynamics supervision requires temporally identifiable action events."},
+    "motion_region_reweight": {"coverage_state": "covered", "required_probe_paths": ["motion_region_scale", "motion_region_event_alignment"], "successor_probe_axis": "motion_region_event_phase_lag", "mechanism_rationale": "Motion-region repair requires localized motion coupled to action transitions."},
+    "next_forcing": {"coverage_state": "probe_missing", "required_probe_paths": ["multi_chunk_exposure_stability"], "successor_probe_axis": "multi_chunk_exposure_stability", "mechanism_rationale": "Cross-chunk exposure bias requires a multi-chunk probe."},
+    "self_forcing_finetune": {"coverage_state": "covered", "required_probe_paths": ["self_rollout_horizon_recovery"], "successor_probe_axis": "self_rollout_horizon_recovery_curvature", "mechanism_rationale": "Self-forcing should help when recoverable model-state exposure error accumulates with rollout history age."}
+  }
+}

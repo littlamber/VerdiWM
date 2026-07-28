@@ -53,6 +53,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_selector_cpu_replay.py",
     "test_acwm_selector_projection_compose.py",
     "test_acwm_selector_probe_admission.py",
+    "test_acwm_paper_primitive_matrix.py",
     "test_acwm_selector_public_bundle.py",
     "test_acwm_self_rollout_history_probe.py",
     "test_acwm_fingerprint_campaign_runner.py",
@@ -89,7 +90,7 @@ PUBLIC_TEST_FILES = (
 )
 CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
-    ".csv", ".json", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".toml", ".txt", ".yaml", ".yml"
+    ".csv", ".json", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
 }
 ALLOWED_SUFFIXES = TEXT_SUFFIXES | {".atom", ".lock", ".mp4", ".pdf", ".png", ".sha256", ""}
 BLOCKED_SUFFIXES = {".bin", ".ckpt", ".db", ".h5", ".hdf5", ".npy", ".npz", ".pt", ".pth", ".safetensors"}
@@ -153,6 +154,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_selector_ablation_v1",
             temporary / "examples" / "acwm_selector_ablation_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_paper_primitive_matrix_v1",
+            temporary / "examples" / "acwm_paper_primitive_matrix_v1",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")

@@ -1,0 +1,19 @@
+\begin{table*}[t]
+\centering
+\small
+\caption{Current ACWM-Phys environment--primitive cells passing the frozen 50-step gate. Lower is better for MSE metrics.}
+\label{tab:acwm_positive_cells}
+\begin{tabular}{lllr rrrrr}
+\toprule
+Environment & Primitive & Stability & Step & Seed & $\Delta$PSNR$\uparrow$ & $\Delta$SSIM$\uparrow$ & $\Delta$MSE$\downarrow$ & $\Delta$mMSE$\downarrow$ \\
+\midrule
+push\_rope & self\_forcing\_finetune & single\_checkpoint\_pass & 512 & 874 & +0.020 & +0.0008 & -0.000002 & -0.000151 \\
+cloth\_move & motion\_region\_reweight & all\_observed\_checkpoints\_pass & 1000 & 2814 & +0.430 & +0.0003 & -0.001419 & -0.000343 \\
+cloth\_move & next\_forcing & checkpoint\_sensitive & 800 & 2802 & +0.940 & +0.0099 & -0.002012 & -0.009040 \\
+cloth\_move & self\_forcing\_finetune & all\_observed\_checkpoints\_pass & 800 & 2805 & +0.820 & +0.0073 & -0.002088 & -0.012942 \\
+pour\_water & inv\_dyn\_reward\_finetune & single\_checkpoint\_pass & 512 & 2905 & +1.360 & +0.0063 & -0.000307 & -0.002532 \\
+pour\_water & motion\_region\_reweight & checkpoint\_sensitive & 800 & 3060 & +0.430 & +0.0018 & -0.000109 & -0.001051 \\
+robot\_arm & self\_forcing\_finetune & all\_observed\_checkpoints\_pass & 800 & 2830 & +1.080 & +0.0098 & -0.000445 & -0.002230 \\
+\bottomrule
+\end{tabular}
+\end{table*}

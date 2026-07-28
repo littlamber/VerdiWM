@@ -190,6 +190,34 @@ class AutoregressiveHistoryTemporalMixDose:
         return False
 
 
+class AutoregressiveLatestFeedbackDose:
+    """Mix only the latest generated history state toward its predecessor."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def mixed_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            latest = history[:, -1:] + dose * (history[:, -2:-1] - history[:, -1:])
+            mixed_history = torch.cat([history[:, :-1], latest], dim=1)
+            return original(torch.cat([mixed_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(mixed_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
 class AutoregressiveTeacherRecoveryDose:
     """Mix generated history toward paired teacher latents at a small dose."""
 
@@ -227,6 +255,42 @@ class AutoregressiveTeacherRecoveryDose:
     def __exit__(self, exc_type, exc, traceback):
         self.dit.forward = self.original
         return False
+
+
+class AutoregressiveTeacherHorizonRecoveryDose(AutoregressiveTeacherRecoveryDose):
+    """Recover later generated-history states more strongly than early states."""
+
+    def __enter__(self):
+        dose = self.dose
+        teacher_history = self.teacher_history
+        original = self.original
+
+        def recovered_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            if (
+                teacher_history.shape[0] != history.shape[0]
+                or teacher_history.shape[1] < history.shape[1]
+                or teacher_history.shape[2:] != history.shape[2:]
+            ):
+                raise RuntimeError("ACWM_TEACHER_HORIZON_RECOVERY_HISTORY_SHAPE_INVALID")
+            teacher = teacher_history[:, : history.shape[1]].to(
+                device=history.device, dtype=history.dtype
+            )
+            shape = (1, history.shape[1]) + (1,) * (history.ndim - 2)
+            horizon_weight = torch.linspace(
+                0.0,
+                1.0,
+                steps=history.shape[1],
+                device=history.device,
+                dtype=history.dtype,
+            ).reshape(shape)
+            recovered_history = history + dose * horizon_weight * (teacher - history)
+            return original(torch.cat([recovered_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(recovered_forward, self.dit)
+        return self
 
 
 class AutoregressiveMotionDose:
@@ -387,6 +451,12 @@ def _dose_context(
         if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
             raise RuntimeError("ACWM_HISTORY_TEMPORAL_MIX_HOOK_MISSING")
         return AutoregressiveHistoryTemporalMixDose(dynamics_model, dose)
+    if probe_id == "self_rollout_latest_feedback":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_LATEST_FEEDBACK_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_LATEST_FEEDBACK_HISTORY_HOOK_MISSING")
+        return AutoregressiveLatestFeedbackDose(dynamics_model, dose)
     if probe_id == "self_rollout_teacher_recovery":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_TEACHER_RECOVERY_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -395,6 +465,14 @@ def _dose_context(
         if teacher_history is None:
             raise RuntimeError("ACWM_TEACHER_RECOVERY_REFERENCE_MISSING")
         return AutoregressiveTeacherRecoveryDose(dynamics_model, dose, teacher_history)
+    if probe_id == "self_rollout_horizon_recovery":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_TEACHER_HORIZON_RECOVERY_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_TEACHER_HORIZON_RECOVERY_HISTORY_HOOK_MISSING")
+        if teacher_history is None:
+            raise RuntimeError("ACWM_TEACHER_HORIZON_RECOVERY_REFERENCE_MISSING")
+        return AutoregressiveTeacherHorizonRecoveryDose(dynamics_model, dose, teacher_history)
     if probe_id == "motion_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_MOTION_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -459,7 +537,10 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     o_0 = obs[:, 0].permute(0, 2, 3, 1).contiguous()
     gt_video = obs.permute(0, 1, 3, 4, 2).contiguous()
     teacher_history = None
-    if campaign["probe"]["probe_id"] == "self_rollout_teacher_recovery":
+    if campaign["probe"]["probe_id"] in {
+        "self_rollout_teacher_recovery",
+        "self_rollout_horizon_recovery",
+    }:
         with torch.no_grad():
             teacher_history = model.encode_obs(gt_video)
     measurements: list[dict[str, object]] = []

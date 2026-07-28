@@ -13,6 +13,8 @@ from scripts.run_acwm_fingerprint_probe import (
     ActionEmbeddingTemporalMixDose,
     AutoregressiveHistoryDose,
     AutoregressiveHistoryTemporalMixDose,
+    AutoregressiveLatestFeedbackDose,
+    AutoregressiveTeacherHorizonRecoveryDose,
     AutoregressiveTeacherRecoveryDose,
     AutoregressiveMotionDose,
     AutoregressiveMotionEventAlignmentDose,
@@ -38,8 +40,14 @@ MOTION_EVENT_CAMPAIGN = (
 SELF_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_temporal_mix_probe_pilot_v1.json"
 )
+SELF_LATEST_FEEDBACK_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_latest_feedback_probe_pilot_v1.json"
+)
 SELF_TEACHER_RECOVERY_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_teacher_recovery_probe_pilot_v1.json"
+)
+SELF_HORIZON_RECOVERY_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_horizon_recovery_probe_pilot_v1.json"
 )
 
 
@@ -213,6 +221,23 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         campaign = load_campaign(SELF_TEMPORAL_MIX_CAMPAIGN)
         self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), AutoregressiveHistoryTemporalMixDose)
 
+    def test_self_rollout_latest_feedback_changes_only_latest_history_state(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [3.0], [7.0], [9.0]]])
+        t = torch.zeros(1, 4)
+        action = torch.zeros(1, 4, 1)
+
+        with AutoregressiveLatestFeedbackDose(dynamics, 0.5):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :2], z[:, :2]))
+        self.assertTrue(torch.equal(observed[:, 2:3], torch.tensor([[[5.0]]])))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(SELF_LATEST_FEEDBACK_CAMPAIGN)
+        self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), AutoregressiveLatestFeedbackDose)
+
     def test_self_rollout_teacher_recovery_preserves_anchor_and_noisy_state(self) -> None:
         dit = _IdentityDiT()
         dynamics = SimpleNamespace(model=dit)
@@ -238,6 +263,24 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "REFERENCE_MISSING"):
             _dose_context(dynamics, campaign, 0.0)
+
+    def test_self_rollout_horizon_recovery_increases_with_history_age(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [3.0], [7.0], [9.0]]])
+        teacher = torch.tensor([[[1.0], [2.0], [5.0], [8.0]]])
+        t = torch.zeros(1, 4)
+        action = torch.zeros(1, 4, 1)
+
+        with AutoregressiveTeacherHorizonRecoveryDose(dynamics, 0.5, teacher):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :1], z[:, :1]))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(observed[:, 1:3], torch.tensor([[[2.75], [6.0]]])))
+        campaign = load_campaign(SELF_HORIZON_RECOVERY_CAMPAIGN)
+        context = _dose_context(dynamics, campaign, 0.0, teacher_history=teacher)
+        self.assertIsInstance(context, AutoregressiveTeacherHorizonRecoveryDose)
 
 
 if __name__ == "__main__":

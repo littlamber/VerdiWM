@@ -1,0 +1,9 @@
+environment,action_dimension_balancing,cfg_guidance_schedule,inv_dyn_reward_finetune,latent_motion_prior,latent_spatial_memory,motion_region_reweight,next_forcing,self_forcing_finetune
+push_cube,untested,untested,fail:-1.650,excluded:-1.630,untested,untested,untested,fail:-1.200
+stack_cube,untested,untested,untested,untested,excluded:-18.480,fail:-18.460,untested,fail:-18.500
+push_rope,fail:-4.730,untested,untested,untested,untested,untested,untested,pass:+0.020
+cloth_move,untested,untested,fail:+0.300,untested,untested,pass:+0.430,pass:+0.940,pass:+0.820
+push_sand,fail:-3.570,untested,fail:-1.110,untested,untested,fail:-1.890,untested,untested
+pour_water,untested,untested,pass:+1.360,untested,untested,pass:+0.430,untested,fail:+0.200
+robot_arm,untested,excluded:-1.590,untested,untested,untested,fail:+0.420,untested,pass:+1.080
+reacher,untested,untested,untested,untested,untested,fail:-5.320,fail:-4.600,fail:-4.450

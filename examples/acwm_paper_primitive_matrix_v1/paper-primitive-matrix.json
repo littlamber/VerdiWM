@@ -1,0 +1,47 @@
+{
+  "artifact_type": "verdiwm-acwm-paper-primitive-matrix",
+  "claim_boundary": "This summarizes current checkpoint-level frozen-gate evidence. It does not imply multi-seed statistical significance, complete 8x8 coverage, or cross-backbone transfer.",
+  "counts": {
+    "attempted_cell_count": 24,
+    "environment_count": 8,
+    "excluded_cell_count": 3,
+    "failed_cell_count": 14,
+    "positive_cell_count": 7,
+    "positive_environment_count": 4,
+    "primitive_count": 8,
+    "receipt_count": 30
+  },
+  "environment_order": [
+    "push_cube",
+    "stack_cube",
+    "push_rope",
+    "cloth_move",
+    "push_sand",
+    "pour_water",
+    "robot_arm",
+    "reacher"
+  ],
+  "files": [
+    "tables/all_gate_receipts.csv",
+    "tables/all_environment_primitive_cells.csv",
+    "tables/positive_environment_primitive_cells.csv",
+    "tables/positive_environment_primitive_cells.md",
+    "tables/positive_environment_primitive_cells.tex",
+    "tables/environment_primitive_matrix.csv",
+    "figures/environment_primitive_gate_heatmap.svg"
+  ],
+  "primitive_order": [
+    "action_dimension_balancing",
+    "cfg_guidance_schedule",
+    "inv_dyn_reward_finetune",
+    "latent_motion_prior",
+    "latent_spatial_memory",
+    "motion_region_reweight",
+    "next_forcing",
+    "self_forcing_finetune"
+  ],
+  "schema_version": 1,
+  "selection_rule": "A cell passes when at least one settled selector-admissible official 50-step gate passes all four metric checks. The displayed representative is the passing checkpoint with largest PSNR delta; failed cells retain the attempt satisfying the most gate checks, then largest PSNR delta.",
+  "source_effect_label_index": "results/reports/acwm-selector-cpu-replay-r20-active-action-temporal-alignment/input-effect-label-index.json",
+  "state": "ready"
+}
