@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "split_id", "source_protocol", "dev", "accept"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-ctrl-world-heldout-split"]},
+    "split_id": {"type": "string", "minLength": 1},
+    "source_protocol": {"type": "string", "minLength": 1},
+    "dev": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["task_id", "episode_id", "seed"], "properties": {"task_id": {"type": "string", "minLength": 1}, "episode_id": {"type": "string", "minLength": 1}, "seed": {"type": "integer"}}}},
+    "accept": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["task_id", "episode_id", "seed"], "properties": {"task_id": {"type": "string", "minLength": 1}, "episode_id": {"type": "string", "minLength": 1}, "seed": {"type": "integer"}}}}
+  }
+}

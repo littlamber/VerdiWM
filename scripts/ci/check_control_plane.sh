@@ -19,6 +19,8 @@ uv run python -m py_compile \
   wmloop/experiments/lobo.py \
   wmloop/experiments/ledger.py \
   wmloop/experiments/report.py \
+  wmloop/evaluate/adapters/ctrl_world.py \
+  wmloop/primitives/adapters/ctrl_world_hooks.py \
   wmloop/control/agent_engineering_policy.py \
   wmloop/control/backbone_capability_matrix.py \
   wmloop/propose/primitive_materialization_prompt.py \
@@ -58,6 +60,7 @@ uv run pytest -q \
   tests/test_backbone_capability_matrix.py \
   tests/test_backbone_instance.py \
   tests/test_cross_backbone_experiments.py \
+  tests/test_ctrl_world_instance_adapters.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \
   tests/test_diagnostic_probe_routing_admission.py \

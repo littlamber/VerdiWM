@@ -43,6 +43,7 @@ PUBLIC_TEST_FILES = (
     "test_backbone_capability_matrix.py",
     "test_backbone_instance.py",
     "test_cross_backbone_experiments.py",
+    "test_ctrl_world_instance_adapters.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",

@@ -18,6 +18,7 @@ still require experiments.
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
 | Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; current Ctrl-World/Cosmos pilot is explicitly blocked until their instances are ready |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
+| Ctrl-World pilot adapters | `wmloop/evaluate/adapters/ctrl_world.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Held-out receipt projection and H1-H5 static hook audit implemented; registry and constitution still pending |
 | Public minimal-loop proof | `examples/acwm_minimal_loop_cloth_next_forcing_v2/` | Integrity checked; not independent-seed replication |
 
 ## Intervention descriptor

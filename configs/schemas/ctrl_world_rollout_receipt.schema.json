@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "evidence_source", "task_id", "episode_id", "seed", "task_success", "task_progress", "safety_events", "action_valid", "rollout_ref", "evaluator_version"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-ctrl-world-rollout-receipt"]},
+    "evidence_source": {"enum": ["environment_task_receipt", "generated_video_score"]},
+    "task_id": {"type": "string", "minLength": 1},
+    "episode_id": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer"},
+    "task_success": {"type": "boolean"},
+    "task_progress": {"type": "number", "minimum": 0, "maximum": 1},
+    "safety_events": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "action_valid": {"type": "boolean"},
+    "rollout_ref": {"type": "string", "minLength": 1},
+    "evaluator_version": {"type": "string", "minLength": 1}
+  }
+}

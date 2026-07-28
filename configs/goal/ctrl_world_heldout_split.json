@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-heldout-split",
+  "split_id": "ctrl_world_g2_pilot_v1",
+  "source_protocol": "Ctrl-World config_eval.py task_type initial-condition IDs; pilot IDs only, frozen before runtime smoke",
+  "dev": [
+    {"task_id": "pickplace", "episode_id": "0000", "seed": 101},
+    {"task_id": "pickplace", "episode_id": "0001", "seed": 202},
+    {"task_id": "pickplace", "episode_id": "0002", "seed": 303}
+  ],
+  "accept": [
+    {"task_id": "stack", "episode_id": "0000", "seed": 101},
+    {"task_id": "stack", "episode_id": "0001", "seed": 202},
+    {"task_id": "stack", "episode_id": "0002", "seed": 303}
+  ]
+}
