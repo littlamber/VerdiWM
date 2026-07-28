@@ -118,6 +118,17 @@ carry separate official-gate and confirmation evidence; experience-atlas
 records remain context-local routing priors unless causal credit is explicitly
 established.
 
+## Method evidence maps
+
+[`examples/acwm_method_evidence_maps_v1`](examples/acwm_method_evidence_maps_v1)
+links the current environment-by-primitive official-gate matrix to the
+active-r20 environment-by-probe Jacobians, the primitive-to-probe mechanism
+contract, and a descriptive IRG projection. Figures are provided as PNG, SVG,
+and PDF; source tables are provided as CSV, Markdown, and LaTeX. Crossed probe
+cells fail the frozen locality threshold and are excluded from routing. Probe
+responses and the PCA are diagnostic pilot evidence, not repair-quality or
+cross-backbone transfer claims.
+
 ## Repository layout
 
 ```text

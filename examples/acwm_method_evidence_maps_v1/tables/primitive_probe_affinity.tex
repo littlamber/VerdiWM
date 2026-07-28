@@ -1,0 +1,24 @@
+\begin{table}[t]
+\centering\small
+\caption{Mechanism contract between repair primitives and diagnostic intervention axes.}
+\label{tab:primitive_probe_affinity}
+\begin{tabular}{lll}
+\toprule
+Primitive & Probe axis & Relation \\
+\midrule
+action\_dimension\_balancing & action\_embedding\_temporal\_mix & required\_active \\
+action\_dimension\_balancing & action\_dimension\_anisotropy & candidate\_successor \\
+cfg\_guidance\_schedule & unmapped & unmapped \\
+inv\_dyn\_reward\_finetune & action\_temporal\_alignment & required\_active \\
+inv\_dyn\_reward\_finetune & action\_temporal\_alignment\_phase & candidate\_successor \\
+latent\_motion\_prior & unmapped & unmapped \\
+latent\_spatial\_memory & unmapped & unmapped \\
+motion\_region\_reweight & motion\_region\_scale & required\_active \\
+motion\_region\_reweight & motion\_region\_event\_alignment & required\_active \\
+motion\_region\_reweight & motion\_region\_event\_phase\_lag & candidate\_successor \\
+next\_forcing & multi\_chunk\_exposure\_stability & required\_missing \\
+self\_forcing\_finetune & self\_rollout\_temporal\_mix & required\_active \\
+self\_forcing\_finetune & self\_rollout\_teacher\_recovery & candidate\_successor \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,28 @@
+{
+  "active_selector": "r20-active-action-temporal-alignment",
+  "artifact_type": "verdiwm-acwm-method-evidence-maps",
+  "claim_boundary": "The primitive map summarizes settled checkpoint-level official-gate evidence. Probe maps summarize pilot paired-dose measurements and selector routing coordinates, not model improvements. The PCA is descriptive and does not establish cross-backbone alignment or causal transfer.",
+  "counts": {
+    "active_probe_count": 7,
+    "affinity_relation_count": 13,
+    "attempted_primitive_cell_count": 24,
+    "environment_count": 8,
+    "local_probe_measurement_count": 40,
+    "positive_primitive_cell_count": 7,
+    "primitive_count": 8,
+    "probe_measurement_count": 56
+  },
+  "schema_version": 1,
+  "source_artifacts": {
+    "affinity": "configs/experiments/acwm_phys_primitive_probe_affinity_v1.json",
+    "primitive_matrix": "results/reports/acwm-paper-primitive-matrix-r1",
+    "projection_stack": "results/reports/acwm-selector-projection-stack-r8-action-temporal-alignment"
+  },
+  "state": "ready",
+  "visual_encodings": {
+    "environment_primitive_gate_heatmap": "strict four-metric official-gate state; text is selected checkpoint delta PSNR",
+    "environment_probe_psnr_response_heatmap": "signed dPSNR/ddose; crossed cells fail the frozen locality threshold",
+    "irg_pca": "PCA of per-feature standardized active-r20 response coordinates with unsupported paths masked; color is best current gate-positive primitive",
+    "primitive_probe_affinity_graph": "solid edges are active required paths; dashed edges are missing required paths; dotted edges are staged successor axes"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "artifact_type": "verdiwm-primitive-probe-affinity",
+  "claim_boundary": "A selector may use IRG distance for a primitive only when the target and non-leaking source environments share local response evidence on every mechanism-relevant probe path. Missing mechanism coverage forces fold-level abstention and a probe-evolution work order.",
+  "contract_id": "acwm_phys_primitive_probe_affinity_v1",
+  "minimum_covered_candidates_per_fold": 2,
+  "primitives": {
+    "action_dimension_balancing": {
+      "coverage_state": "covered",
+      "mechanism_rationale": "The primitive targets differential action sensitivity. Temporal action-embedding contrast preserves mean conditioning while probing whether outcome quality responds to identifiable action variation rather than a global gain.",
+      "required_probe_paths": [
+        "action_embedding_temporal_mix"
+      ],
+      "successor_probe_axis": "action_dimension_anisotropy"
+    },
+    "inv_dyn_reward_finetune": {
+      "coverage_state": "covered",
+      "mechanism_rationale": "The primitive depends on temporally identifiable actions. Mean-preserving action-transition-aligned embedding contrast is the admitted local proxy for that precondition and avoids conflating event identifiability with global conditioning gain.",
+      "required_probe_paths": [
+        "action_temporal_alignment"
+      ],
+      "successor_probe_axis": "action_temporal_alignment_phase"
+    },
+    "motion_region_reweight": {
+      "coverage_state": "covered",
+      "mechanism_rationale": "Motion-region repair requires both spatially localized generated motion and temporal coupling to action-transition events. The paired paths separate generic motion sensitivity from action-aligned motion sensitivity while preserving static regions, zero-action-transition times, conditioned latents, and actions.",
+      "required_probe_paths": [
+        "motion_region_scale",
+        "motion_region_event_alignment"
+      ],
+      "successor_probe_axis": "motion_region_event_phase_lag"
+    },
+    "next_forcing": {
+      "coverage_state": "probe_missing",
+      "mechanism_rationale": "The primitive repairs cross-chunk exposure bias, which is not identified by a single-step action-scale perturbation.",
+      "required_probe_paths": [
+        "multi_chunk_exposure_stability"
+      ],
+      "successor_probe_axis": "multi_chunk_exposure_stability"
+    },
+    "self_forcing_finetune": {
+      "coverage_state": "covered",
+      "mechanism_rationale": "The primitive repairs model-state exposure bias. Immediate-predecessor temporal mixing perturbs generated history locally without conflating exposure sensitivity with global latent magnitude.",
+      "required_probe_paths": [
+        "self_rollout_temporal_mix"
+      ],
+      "successor_probe_axis": "self_rollout_teacher_recovery"
+    }
+  },
+  "projection_path_order": [
+    "action_conditioning_amplification",
+    "action_conditioning_attenuation",
+    "self_rollout_temporal_mix",
+    "motion_region_scale",
+    "action_embedding_temporal_mix",
+    "motion_region_event_alignment",
+    "action_temporal_alignment"
+  ],
+  "projection_selector": "irg",
+  "projection_source": "acwm_phys_irg_calibration_pilot_v1",
+  "require_full_candidate_coverage": true,
+  "schema_version": 1,
+  "transfer_certificate": {
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold",
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true
+  },
+  "uncovered_candidate_policy": "abstain_fold_and_emit_probe_work_order"
+}

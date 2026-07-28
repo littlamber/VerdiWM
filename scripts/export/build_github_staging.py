@@ -54,6 +54,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_selector_projection_compose.py",
     "test_acwm_selector_probe_admission.py",
     "test_acwm_paper_primitive_matrix.py",
+    "test_acwm_method_evidence_maps.py",
     "test_acwm_selector_public_bundle.py",
     "test_acwm_self_rollout_history_probe.py",
     "test_acwm_fingerprint_campaign_runner.py",
@@ -158,6 +159,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_paper_primitive_matrix_v1",
             temporary / "examples" / "acwm_paper_primitive_matrix_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_method_evidence_maps_v1",
+            temporary / "examples" / "acwm_method_evidence_maps_v1",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")
