@@ -27,6 +27,7 @@ def run_selector_replay(
     projection_path: Path,
     effect_label_index: Path,
     output_root: Path,
+    primitive_probe_affinity: Path | None = None,
     archive_db: Path | None = None,
     cas_root: Path | None = None,
 ) -> dict[str, object]:
@@ -41,10 +42,12 @@ def run_selector_replay(
         raise SelectorReplayError("SELECTOR_REPLAY_TRIALS_INVALID")
 
     projection_map = _validate_projections(projections)
+    affinity = _load_probe_affinity(primitive_probe_affinity) if primitive_probe_affinity is not None else None
     effects = _aggregate_effects(labels)
     distances = _fold_distances(trials, projection_map)
     cell_rows: list[dict[str, object]] = []
     candidate_rows: list[dict[str, object]] = []
+    probe_work_orders: dict[tuple[str, str, str], dict[str, object]] = {}
     fold_dispositions: dict[tuple[str, str], dict[str, object]] = {}
     for trial in trials:
         target = str(trial["target_environment"])
@@ -64,6 +67,7 @@ def run_selector_replay(
         )
         supported: dict[str, dict[str, object]] = {}
         unsupported: list[str] = []
+        geometry_gaps: list[dict[str, object]] = []
         for primitive, target_effect in sorted(target_effects.items()):
             source_effects = [
                 effects[(source, primitive)]
@@ -74,15 +78,74 @@ def run_selector_replay(
             if not source_effects:
                 unsupported.append(primitive)
                 continue
+            geometry = _candidate_geometry(
+                target=target,
+                primitive=primitive,
+                sources=sources,
+                selector=selector,
+                projections=projection_map,
+                affinity=affinity,
+            )
+            if selector == "irg" and affinity is not None and geometry["state"] != "covered":
+                gap = {
+                    "primitive": primitive,
+                    "state": geometry["state"],
+                    "required_probe_paths": geometry["required_probe_paths"],
+                    "reason": geometry["reason"],
+                    "successor_probe_axis": geometry.get("successor_probe_axis"),
+                }
+                geometry_gaps.append(gap)
+                key = (target, primitive, str(geometry["reason"]))
+                probe_work_orders.setdefault(
+                    key,
+                    {
+                        "target_environment": target,
+                        "primitive": primitive,
+                        "reason": geometry["reason"],
+                        "required_probe_paths": geometry["required_probe_paths"],
+                        "successor_probe_axis": geometry.get("successor_probe_axis"),
+                        "action": "materialize_counterexample_driven_probe_then_replay",
+                    },
+                )
+                continue
             source_rows = []
             for source_effect in source_effects:
                 source = str(source_effect["environment"])
+                candidate_distance = (
+                    geometry["distances"].get(source)
+                    if selector == "irg" and affinity is not None
+                    else distances[(target, selector, source)]
+                )
+                if candidate_distance is None:
+                    continue
                 source_rows.append(
                     {
                         **source_effect,
-                        "distance": distances[(target, selector, source)],
+                        "distance": candidate_distance,
                     }
                 )
+            if not source_rows:
+                gap = {
+                    "primitive": primitive,
+                    "state": "source_path_support_missing",
+                    "required_probe_paths": geometry["required_probe_paths"],
+                    "reason": "no_nonleaking_source_has_all_required_local_paths",
+                    "successor_probe_axis": geometry.get("successor_probe_axis"),
+                }
+                geometry_gaps.append(gap)
+                key = (target, primitive, str(gap["reason"]))
+                probe_work_orders.setdefault(
+                    key,
+                    {
+                        "target_environment": target,
+                        "primitive": primitive,
+                        "reason": gap["reason"],
+                        "required_probe_paths": gap["required_probe_paths"],
+                        "successor_probe_axis": gap["successor_probe_axis"],
+                        "action": "evolve_nonlocal_probe_path_then_replay",
+                    },
+                )
+                continue
             probability = _distance_weighted_probability(source_rows)
             nearest = min(float(row["distance"]) for row in source_rows)
             supported[primitive] = {
@@ -94,8 +157,46 @@ def run_selector_replay(
                 "target_positive": bool(target_effect["positive_rate"] == 1.0),
                 "target_psnr_delta": target_effect["mean_psnr_delta"],
                 "source_effects": source_rows,
+                "geometry_coverage_state": geometry["state"],
+                "required_probe_paths": geometry["required_probe_paths"],
             }
         disposition_key = (target, selector)
+        minimum_geometry_candidates = int(affinity["minimum_covered_candidates_per_fold"]) if affinity else 0
+        strict_geometry_coverage = bool(affinity["require_full_candidate_coverage"]) if affinity else False
+        if selector == "irg" and affinity is not None and (
+            (strict_geometry_coverage and geometry_gaps)
+            or len(supported) < minimum_geometry_candidates
+        ):
+            reason = "candidate_probe_coverage_incomplete" if geometry_gaps else "insufficient_geometry_supported_candidates"
+            cell = {
+                "trial_id": trial["trial_id"],
+                "fold_id": trial["fold_id"],
+                "target_environment": target,
+                "selector": selector,
+                "seed": int(trial["seed"]),
+                "state": "abstained",
+                "abstention_reason": reason,
+                "supported_candidate_count": len(supported),
+                "unsupported_target_candidates": unsupported,
+                "ambiguous_target_candidates": ambiguous,
+                "geometry_gaps": geometry_gaps,
+            }
+            cell_rows.append(cell)
+            fold_dispositions[disposition_key] = cell
+            if not geometry_gaps:
+                key = (target, "*", reason)
+                probe_work_orders.setdefault(
+                    key,
+                    {
+                        "target_environment": target,
+                        "primitive": None,
+                        "reason": reason,
+                        "required_probe_paths": [],
+                        "successor_probe_axis": None,
+                        "action": "expand_mechanism_distinct_candidate_pool",
+                    },
+                )
+            continue
         if not supported:
             cell = {
                 "trial_id": trial["trial_id"],
@@ -128,6 +229,25 @@ def run_selector_replay(
                 }
             )
         selected = ranked[0]
+        certificate = _transfer_certificate(selector=selector, affinity=affinity, selected=selected)
+        if not certificate["passed"]:
+            cell = {
+                "trial_id": trial["trial_id"],
+                "fold_id": trial["fold_id"],
+                "target_environment": target,
+                "selector": selector,
+                "seed": int(trial["seed"]),
+                "state": "abstained",
+                "abstention_reason": "transfer_certificate_failed",
+                "supported_candidate_count": len(ranked),
+                "unsupported_target_candidates": unsupported,
+                "ambiguous_target_candidates": ambiguous,
+                "selected_primitive_before_certificate": selected["primitive"],
+                "transfer_certificate": certificate,
+            }
+            cell_rows.append(cell)
+            fold_dispositions[disposition_key] = cell
+            continue
         positive_ranks = [rank for rank, row in enumerate(ranked, start=1) if row["target_positive"]]
         sign_pairs = [
             row
@@ -179,6 +299,19 @@ def run_selector_replay(
     evaluated_environments = sorted(
         {str(row["target_environment"]) for row in cell_rows if row["state"] == "evaluated"}
     )
+    fully_evaluated_environments = sorted(
+        environment
+        for environment in environments
+        if all(
+            any(
+                row["target_environment"] == environment
+                and row["selector"] == selector
+                and row["state"] == "evaluated"
+                for row in cell_rows
+            )
+            for selector in SELECTORS
+        )
+    )
     representative_cells = {
         (str(row["target_environment"]), str(row["selector"])): row
         for row in cell_rows
@@ -198,14 +331,14 @@ def run_selector_replay(
         environment for environment, choices in choices_by_environment.items() if len(choices) > 1
     )
     formal_ready = (
-        len(evaluated_environments) == len(environments)
+        len(fully_evaluated_environments) == len(environments)
         and len(multi_candidate_environments) == len(environments)
     )
     selection_discrimination_ready = formal_ready and bool(choice_divergence_environments)
     report = {
         "schema_version": 1,
         "artifact_type": "verdiwm-acwm-selector-cpu-replay",
-        "state": "ready" if len(evaluated_environments) == len(environments) else "partial",
+        "state": "ready" if formal_ready else "partial",
         "claim_boundary": (
             "CPU replay of settled target-local labels under leave-one-environment-out source exclusion. "
             "It measures selector behavior on observed label support and cannot replace new GPU confirmation receipts."
@@ -217,6 +350,8 @@ def run_selector_replay(
         "environment_count": len(environments),
         "evaluated_environment_count": len(evaluated_environments),
         "evaluated_environments": evaluated_environments,
+        "fully_evaluated_environment_count": len(fully_evaluated_environments),
+        "fully_evaluated_environments": fully_evaluated_environments,
         "multi_candidate_environment_count": len(multi_candidate_environments),
         "multi_candidate_environments": multi_candidate_environments,
         "selector_choice_divergence_environment_count": len(choice_divergence_environments),
@@ -224,9 +359,21 @@ def run_selector_replay(
         "formal_comparison_ready": formal_ready,
         "selection_discrimination_ready": selection_discrimination_ready,
         "seed_replicates_identical_by_contract": True,
-        "distance_contract": "source-fold z-score followed by Euclidean distance",
+        "distance_contract": (
+            "primitive-conditioned source-fold z-score on affinity-certified IRG paths followed by Euclidean distance"
+            if affinity is not None
+            else "source-fold z-score followed by Euclidean distance"
+        ),
         "ranking_contract": "source positive rate divided by one plus nearest source distance",
         "target_label_contract": "unanimous settled gate sign; mixed checkpoint outcomes abstain",
+        "primitive_probe_affinity_enabled": affinity is not None,
+        "probe_coverage_ready": not probe_work_orders,
+        "probe_evolution_work_order_count": len(probe_work_orders),
+        "probe_evolution_work_orders": list(probe_work_orders.values()),
+        "transfer_certificate_enabled": bool(affinity and affinity.get("transfer_certificate")),
+        "transfer_certificate_abstention_count": sum(
+            row.get("abstention_reason") == "transfer_certificate_failed" for row in cell_rows
+        ),
         "selectors": aggregate_rows,
         "cells": cell_rows,
     }
@@ -237,9 +384,12 @@ def run_selector_replay(
         "tables/cells.csv": _csv(cell_rows).encode("utf-8"),
         "tables/candidates.csv": _csv(candidate_rows).encode("utf-8"),
         "tables/selector-metrics.csv": _csv(aggregate_rows).encode("utf-8"),
+        "tables/probe-evolution-work-orders.csv": _csv(list(probe_work_orders.values())).encode("utf-8"),
         "input-plan.json": canonical_json(plan),
         "input-effect-label-index.json": canonical_json(label_index),
     }
+    if affinity is not None:
+        files["input-primitive-probe-affinity.json"] = canonical_json(affinity)
     return write_bundle(
         output_root=destination,
         files=files,
@@ -252,6 +402,9 @@ def run_selector_replay(
             "evaluated_environment_count": len(evaluated_environments),
             "formal_comparison_ready": report["formal_comparison_ready"],
             "selection_discrimination_ready": report["selection_discrimination_ready"],
+            "probe_coverage_ready": report["probe_coverage_ready"],
+            "probe_evolution_work_order_count": report["probe_evolution_work_order_count"],
+            "transfer_certificate_abstention_count": report["transfer_certificate_abstention_count"],
             "multi_candidate_environment_count": len(multi_candidate_environments),
             "report_path": str(destination / "selector-replay.json"),
         },
@@ -260,8 +413,8 @@ def run_selector_replay(
     )
 
 
-def _validate_projections(rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, str], tuple[float, ...]]:
-    projections: dict[tuple[str, str], tuple[float, ...]] = {}
+def _validate_projections(rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, str], dict[str, object]]:
+    projections: dict[tuple[str, str], dict[str, object]] = {}
     for row in rows:
         key = (str(row.get("environment")), str(row.get("selector")))
         values = row.get("features")
@@ -270,8 +423,238 @@ def _validate_projections(rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, 
         vector = tuple(float(value) for value in values)
         if any(not math.isfinite(value) for value in vector) or key in projections:
             raise SelectorReplayError("SELECTOR_REPLAY_PROJECTION_ROW_INVALID")
-        projections[key] = vector
+        raw_names = row.get("feature_names")
+        if raw_names is None:
+            names = tuple(f"feature:{index}" for index in range(len(vector)))
+        elif (
+            not isinstance(raw_names, list)
+            or len(raw_names) != len(vector)
+            or any(not isinstance(value, str) or not value for value in raw_names)
+        ):
+            raise SelectorReplayError("SELECTOR_REPLAY_PROJECTION_ROW_INVALID")
+        else:
+            names = tuple(raw_names)
+        projections[key] = {"features": vector, "feature_names": names}
     return projections
+
+
+def _load_probe_affinity(path: Path) -> Mapping[str, Any]:
+    payload = _load_json(Path(path), "SELECTOR_PROBE_AFFINITY_INVALID")
+    if payload.get("artifact_type") != "verdiwm-primitive-probe-affinity":
+        raise SelectorReplayError("SELECTOR_PROBE_AFFINITY_TYPE_INVALID")
+    path_order = payload.get("projection_path_order")
+    primitives = payload.get("primitives")
+    minimum = payload.get("minimum_covered_candidates_per_fold")
+    if (
+        not isinstance(path_order, list)
+        or not path_order
+        or len(set(path_order)) != len(path_order)
+        or any(not isinstance(value, str) or not value for value in path_order)
+        or not isinstance(primitives, Mapping)
+        or not isinstance(minimum, int)
+        or minimum < 2
+        or not isinstance(payload.get("require_full_candidate_coverage"), bool)
+    ):
+        raise SelectorReplayError("SELECTOR_PROBE_AFFINITY_INVALID")
+    for primitive, record in primitives.items():
+        if not isinstance(primitive, str) or not primitive or not isinstance(record, Mapping):
+            raise SelectorReplayError("SELECTOR_PROBE_AFFINITY_INVALID")
+        required = record.get("required_probe_paths")
+        state = record.get("coverage_state")
+        if (
+            not isinstance(required, list)
+            or not required
+            or any(not isinstance(value, str) or not value for value in required)
+            or state not in {"covered", "probe_missing"}
+        ):
+            raise SelectorReplayError("SELECTOR_PROBE_AFFINITY_INVALID")
+        if state == "covered" and any(value not in path_order for value in required):
+            raise SelectorReplayError("SELECTOR_PROBE_AFFINITY_PATH_UNKNOWN")
+        if state == "probe_missing" and not isinstance(record.get("successor_probe_axis"), str):
+            raise SelectorReplayError("SELECTOR_PROBE_AFFINITY_SUCCESSOR_INVALID")
+    certificate = payload.get("transfer_certificate")
+    if certificate is not None:
+        if not isinstance(certificate, Mapping):
+            raise SelectorReplayError("SELECTOR_TRANSFER_CERTIFICATE_INVALID")
+        minimum_sources = certificate.get("minimum_nonleaking_source_environments")
+        minimum_probability = certificate.get("minimum_selected_positive_probability")
+        if (
+            not isinstance(minimum_sources, int)
+            or minimum_sources < 2
+            or not isinstance(minimum_probability, (int, float))
+            or not 0.5 < float(minimum_probability) <= 1.0
+            or certificate.get("failure_policy") != "abstain_fold"
+        ):
+            raise SelectorReplayError("SELECTOR_TRANSFER_CERTIFICATE_INVALID")
+    return payload
+
+
+def _transfer_certificate(
+    *,
+    selector: str,
+    affinity: Mapping[str, Any] | None,
+    selected: Mapping[str, Any],
+) -> dict[str, object]:
+    policy = affinity.get("transfer_certificate") if affinity is not None else None
+    if selector != "irg" or not isinstance(policy, Mapping):
+        return {"enabled": False, "passed": True, "checks": {}}
+    source_count = len(selected["source_effects"])
+    probability = float(selected["source_positive_probability"])
+    minimum_sources = int(policy["minimum_nonleaking_source_environments"])
+    minimum_probability = float(policy["minimum_selected_positive_probability"])
+    checks = {
+        "nonleaking_source_environment_count": {
+            "observed": source_count,
+            "required": minimum_sources,
+            "passed": source_count >= minimum_sources,
+        },
+        "selected_positive_probability": {
+            "observed": probability,
+            "required": minimum_probability,
+            "passed": probability >= minimum_probability,
+        },
+    }
+    return {
+        "enabled": True,
+        "passed": all(bool(check["passed"]) for check in checks.values()),
+        "checks": checks,
+        "failure_policy": policy["failure_policy"],
+    }
+
+
+def _candidate_geometry(
+    *,
+    target: str,
+    primitive: str,
+    sources: Sequence[str],
+    selector: str,
+    projections: Mapping[tuple[str, str], Mapping[str, object]],
+    affinity: Mapping[str, Any] | None,
+) -> dict[str, object]:
+    if selector != "irg" or affinity is None:
+        return {
+            "state": "not_applicable",
+            "reason": None,
+            "required_probe_paths": [],
+            "distances": {},
+        }
+    records = affinity["primitives"]
+    record = records.get(primitive) if isinstance(records, Mapping) else None
+    if not isinstance(record, Mapping):
+        return {
+            "state": "probe_contract_missing",
+            "reason": "primitive_probe_affinity_missing",
+            "required_probe_paths": [],
+            "successor_probe_axis": f"{primitive}_mechanism_response",
+            "distances": {},
+        }
+    required = tuple(str(value) for value in record["required_probe_paths"])
+    if record.get("coverage_state") != "covered":
+        return {
+            "state": "probe_missing",
+            "reason": "required_probe_axis_not_materialized",
+            "required_probe_paths": list(required),
+            "successor_probe_axis": record.get("successor_probe_axis"),
+            "distances": {},
+        }
+    try:
+        distances = _conditioned_irg_distances(
+            target=target,
+            sources=sources,
+            projections=projections,
+            required_paths=required,
+            path_order=tuple(str(value) for value in affinity["projection_path_order"]),
+        )
+    except KeyError as exc:
+        raise SelectorReplayError("SELECTOR_REPLAY_PROJECTION_MISSING") from exc
+    if distances is None:
+        successor = record.get("successor_probe_axis") or f"{required[0]}_locality_successor"
+        return {
+            "state": "target_path_support_missing",
+            "reason": "target_required_probe_path_is_nonlocal_or_missing",
+            "required_probe_paths": list(required),
+            "successor_probe_axis": successor,
+            "distances": {},
+        }
+    return {
+        "state": "covered",
+        "reason": None,
+        "required_probe_paths": list(required),
+        "successor_probe_axis": record.get("successor_probe_axis") or f"{required[0]}_locality_successor",
+        "distances": distances,
+    }
+
+
+def _conditioned_irg_distances(
+    *,
+    target: str,
+    sources: Sequence[str],
+    projections: Mapping[tuple[str, str], Mapping[str, object]],
+    required_paths: Sequence[str],
+    path_order: Sequence[str],
+) -> dict[str, float] | None:
+    target_projection = projections[(target, "irg")]
+    indices = _irg_path_feature_indices(target_projection, required_paths=required_paths, path_order=path_order)
+    if not indices or not _projection_supports_paths(target_projection, required_paths):
+        return None
+    eligible_sources = [
+        source
+        for source in sources
+        if _projection_supports_paths(projections[(source, "irg")], required_paths)
+    ]
+    if not eligible_sources:
+        return {}
+    target_vector = tuple(float(value) for value in target_projection["features"])
+    source_vectors = [tuple(float(value) for value in projections[(source, "irg")]["features"]) for source in eligible_sources]
+    means = tuple(fmean(vector[index] for vector in source_vectors) for index in indices)
+    scales = tuple(
+        math.sqrt(fmean((vector[index] - means[position]) ** 2 for vector in source_vectors))
+        for position, index in enumerate(indices)
+    )
+    distances: dict[str, float] = {}
+    for source, vector in zip(eligible_sources, source_vectors, strict=True):
+        squared = 0.0
+        for position, index in enumerate(indices):
+            scale = scales[position]
+            if scale > 1e-12:
+                squared += ((target_vector[index] - vector[index]) / scale) ** 2
+        distances[source] = math.sqrt(squared)
+    return distances
+
+
+def _projection_supports_paths(projection: Mapping[str, object], required_paths: Sequence[str]) -> bool:
+    names = tuple(str(value) for value in projection["feature_names"])
+    features = tuple(float(value) for value in projection["features"])
+    support = {
+        name.split(":", 1)[1]: features[index] >= 0.5
+        for index, name in enumerate(names)
+        if name.startswith("path_supported:")
+    }
+    return all(support.get(path) is True for path in required_paths)
+
+
+def _irg_path_feature_indices(
+    projection: Mapping[str, object],
+    *,
+    required_paths: Sequence[str],
+    path_order: Sequence[str],
+) -> tuple[int, ...]:
+    selected = set(required_paths)
+    names = tuple(str(value) for value in projection["feature_names"])
+    result: list[int] = []
+    for index, name in enumerate(names):
+        path: str | None = None
+        if name.startswith("response_coordinate:") or name.startswith("covariance_diagonal:"):
+            suffix = name.rsplit(":", 1)[1]
+            if suffix.isdigit():
+                path = path_order[int(suffix) % len(path_order)]
+            elif suffix in path_order:
+                path = suffix
+        elif name.startswith("locality:") or name.startswith("path_supported:"):
+            path = name.split(":", 1)[1]
+        if path in selected:
+            result.append(index)
+    return tuple(result)
 
 
 def _aggregate_effects(labels: Sequence[Mapping[str, Any]]) -> dict[tuple[str, str], dict[str, object]]:
@@ -305,7 +688,7 @@ def _aggregate_effects(labels: Sequence[Mapping[str, Any]]) -> dict[tuple[str, s
 
 def _fold_distances(
     trials: Sequence[Mapping[str, Any]],
-    projections: Mapping[tuple[str, str], tuple[float, ...]],
+    projections: Mapping[tuple[str, str], Mapping[str, object]],
 ) -> dict[tuple[str, str, str], float]:
     distances: dict[tuple[str, str, str], float] = {}
     frames = {
@@ -314,8 +697,11 @@ def _fold_distances(
     }
     for (target, selector), sources in frames.items():
         try:
-            target_vector = projections[(target, selector)]
-            source_vectors = [projections[(source, selector)] for source in sources]
+            target_vector = tuple(float(value) for value in projections[(target, selector)]["features"])
+            source_vectors = [
+                tuple(float(value) for value in projections[(source, selector)]["features"])
+                for source in sources
+            ]
         except KeyError as exc:
             raise SelectorReplayError("SELECTOR_REPLAY_PROJECTION_MISSING") from exc
         dimensions = {len(target_vector), *(len(vector) for vector in source_vectors)}

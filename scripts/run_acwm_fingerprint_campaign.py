@@ -20,6 +20,15 @@ if str(REPO_ROOT) not in sys.path:
 from wmloop.experiments.acwm_fingerprint import load_campaign
 
 
+def build_gpu_assignments(environments: list[str], gpus: list[int]) -> dict[int, list[str]]:
+    if not gpus or len(set(gpus)) != len(gpus):
+        raise ValueError("FINGERPRINT_GPU_SET_INVALID")
+    return {
+        gpu: environments[index::len(gpus)]
+        for index, gpu in enumerate(gpus)
+    }
+
+
 def _atomic_json(path: Path, payload: dict[str, object]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -50,9 +59,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     }
     _atomic_json(status_path, status)
 
-    def execute(index_environment: tuple[int, str]) -> tuple[str, int]:
-        index, environment = index_environment
-        gpu = args.gpu[index % len(args.gpu)]
+    def execute(environment: str, gpu: int) -> tuple[str, int]:
         env_output = output_root / "environments" / environment
         env_output.mkdir(parents=True, exist_ok=True)
         log_path = output_root / "logs" / f"{environment}.log"
@@ -92,11 +99,19 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         return environment, process.returncode
 
     results: dict[str, int] = {}
-    with ThreadPoolExecutor(max_workers=len(args.gpu)) as executor:
-        futures = [executor.submit(execute, item) for item in enumerate(environments)]
+    gpu_assignments = build_gpu_assignments(environments, list(args.gpu))
+
+    def execute_gpu_queue(gpu: int, assigned: list[str]) -> dict[str, int]:
+        return {environment: execute(environment, gpu)[1] for environment in assigned}
+
+    with ThreadPoolExecutor(max_workers=len(gpu_assignments)) as executor:
+        futures = [
+            executor.submit(execute_gpu_queue, gpu, assigned)
+            for gpu, assigned in gpu_assignments.items()
+            if assigned
+        ]
         for future in as_completed(futures):
-            environment, return_code = future.result()
-            results[environment] = return_code
+            results.update(future.result())
     status["state"] = "ready" if all(value == 0 for value in results.values()) else "failed"
     status["completed_at_unix"] = time.time()
     status["return_codes"] = results

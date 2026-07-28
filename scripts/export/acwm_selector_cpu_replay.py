@@ -16,6 +16,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--projections", type=Path, required=True)
     parser.add_argument("--effect-label-index", type=Path, required=True)
+    parser.add_argument("--primitive-probe-affinity", type=Path)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--archive-db", type=Path)
     parser.add_argument("--cas-root", type=Path)
@@ -25,6 +26,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         projection_path=args.projections,
         effect_label_index=args.effect_label_index,
         output_root=args.output_root,
+        primitive_probe_affinity=args.primitive_probe_affinity,
         archive_db=args.archive_db,
         cas_root=args.cas_root,
     )

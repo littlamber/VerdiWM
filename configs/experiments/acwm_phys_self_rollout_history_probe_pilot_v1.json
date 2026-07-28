@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-fingerprint-campaign",
+  "campaign_id": "acwm_phys_self_rollout_history_probe_pilot_v1",
+  "backbone_instance_ref": "configs/backbones/acwm_phys_g1_long_horizon_ladder_v1.json",
+  "goal_spec_ref": "configs/goal/g1_long_horizon_ladder_v1.yaml",
+  "claim_scope": "Inference-only paired-dose diagnostic pilot for self-rollout exposure sensitivity. This campaign calibrates a local response chart; it is not a repair-quality or cross-backbone transfer result.",
+  "probe": {
+    "probe_id": "self_rollout_history_scale",
+    "kind": "probe_path",
+    "hook_type": "H2",
+    "transformation": "during autoregressive rollout, scale generated latent history around the first conditioned latent by 1+d before each DiT call while leaving the current noisy latent and input action tensor unchanged",
+    "scope": "inference_only",
+    "dose_unit": "relative_generated_history_deviation_scale",
+    "doses": [-0.1, -0.05, 0.0, 0.05, 0.1],
+    "schedule": "constant_per_autoregressive_history_step",
+    "generation_mode": "autoregressive",
+    "required_capabilities": ["history_latent_hook", "paired_seed_control"],
+    "preconditions": ["autoregressive latent history is exposed", "paired random seed control is available"],
+    "invariants": ["same_checkpoint", "same_input_action", "same_trajectory", "same_seed", "same_evaluator", "same_generation_mode", "current_noisy_latent_unmodified"],
+    "prediction": "Goal-oriented outcome responses vary locally with the magnitude of generated-history deviation during autoregressive rollout.",
+    "inference_only": true,
+    "reversible": true
+  },
+  "goal_oriented_outcomes": [
+    {"name": "psnr", "source_metric": "psnr", "sign": 1.0, "weight": 1.0},
+    {"name": "ssim", "source_metric": "ssim", "sign": 1.0, "weight": 4.0},
+    {"name": "negative_mse", "source_metric": "mse", "sign": -1.0, "weight": 1.0},
+    {"name": "negative_masked_mse", "source_metric": "masked_mse", "sign": -1.0, "weight": 2.0}
+  ],
+  "seeds": [101, 202, 303],
+  "environments": {
+    "push_cube": {"dataset_name": "push_cube", "config": "configs/envs/push_cube.yaml", "checkpoint_dir": "VideoDiT_S_push_cube_240x240"},
+    "stack_cube": {"dataset_name": "stack_cube", "config": "configs/envs/stack_cube.yaml", "checkpoint_dir": "VideoDiT_S_stack_cube_240x240"},
+    "push_rope": {"dataset_name": "push_rope", "config": "configs/envs/push_rope.yaml", "checkpoint_dir": "VideoDiT_S_push_rope_240x240"},
+    "cloth_move": {"dataset_name": "clothmove", "config": "configs/envs/clothmove.yaml", "checkpoint_dir": "VideoDiT_S_clothmove_240x240_240x240"},
+    "push_sand": {"dataset_name": "push_sand", "config": "configs/envs/push_sand.yaml", "checkpoint_dir": "VideoDiT_S_push_sand_240x400"},
+    "pour_water": {"dataset_name": "pour_water", "config": "configs/envs/pour_water.yaml", "checkpoint_dir": "VideoDiT_S_pour_water_240x240"},
+    "robot_arm": {"dataset_name": "robot_arm", "config": "configs/envs/robot_arm.yaml", "checkpoint_dir": "VideoDiT_S_robot_arm_240x240"},
+    "reacher": {"dataset_name": "reacher", "config": "configs/envs/reacher.yaml", "checkpoint_dir": "VideoDiT_S_reacher_240x240"}
+  },
+  "protocols": {
+    "smoke": {"inference_steps": 2, "max_trajs": 1, "test_cuts": 1, "batch_size": 1, "split": "ind_test"},
+    "pilot": {"inference_steps": 10, "max_trajs": 1, "test_cuts": 1, "batch_size": 1, "split": "ind_test"},
+    "paper": {"inference_steps": 50, "max_trajs": 3, "test_cuts": 1, "batch_size": 1, "split": "ind_test"}
+  },
+  "formal_claim_requires": "paper protocol, all eight environments, complete paired-dose receipts, and independent held-out selector evaluation"
+}

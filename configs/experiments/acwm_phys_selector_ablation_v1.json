@@ -71,6 +71,8 @@
   "required_evidence": [
     "eight_environment_fingerprint_atlas",
     "four_selector_projection_rows_per_environment",
+    "primitive_probe_affinity_contract",
+    "candidate_level_probe_coverage_or_abstention",
     "settled_effect_label_index",
     "frozen_leave_one_environment_out_folds",
     "per_trial_ranked_candidate_predictions",

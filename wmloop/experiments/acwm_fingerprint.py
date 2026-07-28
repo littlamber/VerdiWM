@@ -59,7 +59,10 @@ def descriptor_from_campaign(campaign: Mapping[str, Any]) -> InterventionDescrip
         preconditions=tuple(str(value) for value in probe["preconditions"]),
         invariants=tuple(str(value) for value in probe["invariants"]),
         prediction=str(probe["prediction"]),
-        required_capabilities=frozenset({"action_embedding_hook", "paired_seed_control"}),
+        required_capabilities=frozenset(
+            str(value)
+            for value in probe.get("required_capabilities", ["action_embedding_hook", "paired_seed_control"])
+        ),
         inference_only=bool(probe["inference_only"]),
         reversible=bool(probe["reversible"]),
     )
@@ -82,13 +85,17 @@ def compile_probe_receipt(campaign: Mapping[str, Any], *, dose: float) -> dict[s
             "blockers": [],
             "control_condition": True,
         }
+    required_capabilities = frozenset(
+        str(value)
+        for value in campaign["probe"].get("required_capabilities", ["action_embedding_hook", "paired_seed_control"])
+    )
     receipt = compile_intervention(
         descriptor_from_campaign(campaign),
         CapabilityProfile(
             backbone_family="acwm_phys",
             capability_class="latent_dit_action_conditioned",
-            capabilities=frozenset({"action_embedding_hook", "paired_seed_control"}),
-            hook_types=frozenset({"H2"}),
+            capabilities=required_capabilities,
+            hook_types=frozenset({str(campaign["probe"]["hook_type"])}),
         ),
         invariant_checks={name: True for name in campaign["probe"]["invariants"]},
         dose_direction=dose,

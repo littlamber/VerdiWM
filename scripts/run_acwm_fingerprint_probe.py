@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one ACWM-Phys environment through a paired action-conditioning probe."""
+"""Run one ACWM-Phys environment through a paired inference-only probe."""
 
 from __future__ import annotations
 
@@ -61,6 +61,196 @@ class ActionEmbeddingDose:
         return False
 
 
+class ActionEmbeddingTemporalMixDose:
+    """Scale temporal action contrast while preserving its trajectory mean."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.embedder = dynamics_model.model.action_embedder
+        self.original = self.embedder.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def mixed_forward(_module, action):
+            embedding = original(action)
+            if embedding.ndim < 3:
+                raise RuntimeError("ACWM_ACTION_EMBEDDING_TEMPORAL_SHAPE_INVALID")
+            temporal_mean = embedding.mean(dim=1, keepdim=True)
+            return embedding + dose * (temporal_mean - embedding)
+
+        self.embedder.forward = MethodType(mixed_forward, self.embedder)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.embedder.forward = self.original
+        return False
+
+
+class AutoregressiveHistoryDose:
+    """Scale generated latent history around the first conditioned latent."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        scale = 1.0 + self.dose
+        original = self.original
+
+        def scaled_forward(_module, z, t, action):
+            if z.shape[1] <= 1:
+                return original(z, t, action)
+            anchor = z[:, :1]
+            history = anchor + scale * (z[:, :-1] - anchor)
+            return original(torch.cat([history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(scaled_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
+class AutoregressiveHistoryTemporalMixDose:
+    """Mix each generated history state toward its immediate predecessor."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def mixed_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            mixed_tail = history[:, 1:] + dose * (history[:, :-1] - history[:, 1:])
+            mixed_history = torch.cat([history[:, :1], mixed_tail], dim=1)
+            return original(torch.cat([mixed_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(mixed_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
+class AutoregressiveMotionDose:
+    """Scale temporal increments in generated latent history."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        scale = 1.0 + self.dose
+        original = self.original
+
+        def scaled_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            first = history[:, :1]
+            increments = scale * (history[:, 1:] - history[:, :-1])
+            motion_scaled = torch.cat([first, first + torch.cumsum(increments, dim=1)], dim=1)
+            return original(torch.cat([motion_scaled, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(scaled_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
+class AutoregressiveMotionRegionDose:
+    """Dose generated-history increments in proportion to spatial motion."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def scaled_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            first = history[:, :1]
+            increments = history[:, 1:] - history[:, :-1]
+            motion = increments.abs().mean(dim=-1, keepdim=True)
+            spatial_dims = tuple(range(2, motion.ndim - 1))
+            if spatial_dims:
+                scale = motion.amax(dim=spatial_dims, keepdim=True).clamp_min(1e-12)
+                motion_weight = (motion / scale).clamp(0.0, 1.0)
+            else:
+                motion_weight = (motion > 0).to(motion.dtype)
+            focused_increments = increments * (1.0 + dose * motion_weight)
+            focused_history = torch.cat(
+                [first, first + torch.cumsum(focused_increments, dim=1)], dim=1
+            )
+            return original(torch.cat([focused_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(scaled_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
+def _dose_context(dynamics_model, campaign: dict[str, object], dose: float):
+    probe = campaign["probe"]
+    if not isinstance(probe, dict):
+        raise RuntimeError("ACWM_PROBE_INVALID")
+    probe_id = probe.get("probe_id")
+    if probe_id == "action_conditioning_scale":
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_ACTION_EMBEDDER_HOOK_MISSING")
+        return ActionEmbeddingDose(dynamics_model, dose)
+    if probe_id == "action_embedding_temporal_mix":
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_ACTION_EMBEDDER_HOOK_MISSING")
+        return ActionEmbeddingTemporalMixDose(dynamics_model, dose)
+    if probe_id == "self_rollout_history_scale":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_HISTORY_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_HISTORY_LATENT_HOOK_MISSING")
+        return AutoregressiveHistoryDose(dynamics_model, dose)
+    if probe_id == "self_rollout_temporal_mix":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_HISTORY_TEMPORAL_MIX_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_HISTORY_TEMPORAL_MIX_HOOK_MISSING")
+        return AutoregressiveHistoryTemporalMixDose(dynamics_model, dose)
+    if probe_id == "motion_history_scale":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_MOTION_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_MOTION_LATENT_HOOK_MISSING")
+        return AutoregressiveMotionDose(dynamics_model, dose)
+    if probe_id == "motion_region_scale":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_MOTION_REGION_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_MOTION_REGION_LATENT_HOOK_MISSING")
+        return AutoregressiveMotionRegionDose(dynamics_model, dose)
+    raise RuntimeError(f"ACWM_PROBE_RUNTIME_UNSUPPORTED:{probe_id}")
+
+
 def run(args: argparse.Namespace) -> dict[str, object]:
     campaign_path = args.campaign.resolve(strict=True)
     campaign = load_campaign(campaign_path)
@@ -87,8 +277,6 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     started = time.time()
     model = official_eval.load_model(config, device)
     checkpoint_step = official_eval.load_checkpoint(model, str(checkpoint), device)
-    if not hasattr(model.model, "action_embedder"):
-        raise RuntimeError("ACWM_ACTION_EMBEDDER_HOOK_MISSING")
     dataset_kwargs = dict(config.get("dataset", {}))
     for key in ("name", "test_cuts", "train_size", "ind_test_size", "ood_test_size"):
         dataset_kwargs.pop(key, None)
@@ -106,20 +294,21 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     o_0 = obs[:, 0].permute(0, 2, 3, 1).contiguous()
     gt_video = obs.permute(0, 1, 3, 4, 2).contiguous()
     measurements: list[dict[str, object]] = []
+    generation_mode = str(campaign["probe"].get("generation_mode", "parallel"))
     for seed in campaign["seeds"]:
         for dose in campaign["probe"]["doses"]:
             random.seed(int(seed))
             np.random.seed(int(seed))
             torch.manual_seed(int(seed))
             torch.cuda.manual_seed_all(int(seed))
-            with ActionEmbeddingDose(model, float(dose)):
+            with _dose_context(model, campaign, float(dose)):
                 with torch.no_grad():
                     prediction = model.generate(
                         o_0,
                         action,
                         num_inference_steps=int(protocol["inference_steps"]),
                         noise_level=0.0,
-                        mode="parallel",
+                        mode=generation_mode,
                     )
             metrics = official_eval.compute_metrics(prediction, gt_video)
             measurements.append(
