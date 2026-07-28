@@ -20,7 +20,7 @@
       "backbone_id": "ctrl_world",
       "family": "action_conditioned_video_prediction",
       "instance_ref": "configs/backbones/ctrl_world_g2_action_success_pilot_v1.json",
-      "status": "pilot_draft",
+      "status": "ready",
       "goal_contract": "predictive_world_model_quality_v1"
     },
     {

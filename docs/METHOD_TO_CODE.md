@@ -16,9 +16,9 @@ still require experiments.
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
 | Repair-collision discovery | `wmloop/geometry/evolution.py` | Implemented and unit tested; online atlas evolution pending |
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
-| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; current Ctrl-World/Cosmos pilot is explicitly blocked until their instances are ready |
+| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World is ready and the current pilot remains blocked on Cosmos3 plus settled target receipts |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
-| Ctrl-World pilot adapters | `wmloop/evaluate/adapters/ctrl_world.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Held-out receipt projection and H1-H5 static hook audit implemented; registry and constitution still pending |
+| Ctrl-World pilot adapters | `wmloop/evaluate/adapters/ctrl_world.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Held-out receipt projection, H1-H5 hook audit, primitive registry, frozen constitution, and bounded GPU smoke are complete; no quality or transfer claim yet |
 | Public minimal-loop proof | `examples/acwm_minimal_loop_cloth_next_forcing_v2/` | Integrity checked; not independent-seed replication |
 
 ## Intervention descriptor
@@ -72,6 +72,23 @@ cross-backbone transfer certificate, so those modules remain framework code
 until the corresponding experiments are added.
 
 ## Cross-backbone experiment control plane
+
+The paper-facing evidence inventory is frozen in
+`configs/experiments/verdiwm_iclr_evidence_matrix_v1.json`. Export the
+reviewable Markdown, CSV, and LaTeX tables with:
+
+```bash
+python scripts/export/verdiwm_paper_experiment_matrix.py \
+  --config configs/experiments/verdiwm_iclr_evidence_matrix_v1.json \
+  --output-root results/reports/verdiwm-iclr-evidence-matrix-r1
+```
+
+The full selector ablation belongs on all eight ACWM-Phys environments because
+that is the reference-instance mechanism test. It is not sufficient for a
+cross-backbone claim. The IRG, raw-response, static-probe, and label selectors
+must also be compared on held-out target trials from at least two external
+backbone families. The current minimum targets are Ctrl-World and Cosmos3;
+WAM is the recommended additional stress target.
 
 The checked-in LOBO pilot specification is
 `configs/experiments/three_backbone_lobo_pilot_v1.json`. It is deliberately a

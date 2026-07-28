@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-paper-evidence-matrix",
+  "matrix_id": "verdiwm_iclr_evidence_matrix_v1",
+  "claim_boundary": "ACWM-Phys-only studies establish mechanism behavior inside the reference instance. Cross-backbone generalization requires held-out target evidence on at least two external backbone families.",
+  "reference_instance": {
+    "backbone_id": "acwm_phys",
+    "environments": [
+      "push_cube",
+      "stack_cube",
+      "push_rope",
+      "cloth_move",
+      "push_sand",
+      "pour_water",
+      "robot_arm",
+      "reacher"
+    ],
+    "seeds": [101, 202, 303],
+    "matched_trial_contract": [
+      "same candidate pool",
+      "same target diagnosis",
+      "same seed",
+      "same screen and confirm budget",
+      "same frozen verdict evaluator"
+    ]
+  },
+  "external_backbone_policy": {
+    "minimum_external_targets": 2,
+    "required_targets": ["ctrl_world", "cosmos3"],
+    "recommended_stress_target": "wam",
+    "minimum_claim": "cross_backbone transfer across ACWM-Phys plus two external backbone families",
+    "strong_claim": "leave-one-backbone-out transfer with WAM as an additional held-out stress test"
+  },
+  "studies": [
+    {
+      "study_id": "S1_reference_selector_ablation",
+      "priority": "must_have",
+      "scope": "acwm_phys_all_8_environments",
+      "question": "Does IRG select repairs better than labels, static probes, or unaligned response vectors inside the reference instance?",
+      "conditions": ["environment_label", "static_probe", "raw_response", "irg"],
+      "primary_metrics": [
+        "top1_positive_hit_rate",
+        "benefit_sign_accuracy",
+        "ranking_kendall_tau",
+        "selection_regret",
+        "trials_to_first_positive"
+      ],
+      "secondary_metrics": ["negative_selection_rate", "gpu_hours"],
+      "evidence_level": "mechanism",
+      "cross_backbone_required": false,
+      "paper_role": "Main selector ablation and the reference-instance mechanism table."
+    },
+    {
+      "study_id": "S2_cross_backbone_lobo",
+      "priority": "must_have",
+      "scope": "leave_one_backbone_out",
+      "question": "Does accumulated effect memory reduce search cost on an unseen backbone without increasing harmful transfer?",
+      "conditions": ["warm_start", "cold_start", "random_search"],
+      "selectors_for_warm_start": ["environment_label", "static_probe", "raw_response", "irg"],
+      "primary_metrics": [
+        "trials_to_first_positive",
+        "gpu_hours_to_first_positive",
+        "confirmed_positive_rate",
+        "negative_transfer_rate"
+      ],
+      "secondary_metrics": ["final_confirmed_delta", "coverage", "abstention_rate"],
+      "evidence_level": "generalization",
+      "cross_backbone_required": true,
+      "minimum_targets": ["ctrl_world", "cosmos3"],
+      "paper_role": "Core generalization and efficiency table."
+    },
+    {
+      "study_id": "S3_transfer_certificate_safety",
+      "priority": "must_have",
+      "scope": "cross_backbone_transfer_trials",
+      "question": "Does the transfer certificate reduce harmful transfer while retaining useful coverage?",
+      "conditions": ["certificate_on", "forced_transfer_certificate_off"],
+      "primary_metrics": ["negative_transfer_rate", "coverage_risk_auc"],
+      "secondary_metrics": ["abstention_rate", "positive_transfer_recall"],
+      "evidence_level": "safety",
+      "cross_backbone_required": true,
+      "paper_role": "Safety ablation and coverage-risk figure."
+    },
+    {
+      "study_id": "S4_probe_information_and_collision",
+      "priority": "must_have",
+      "scope": "acwm_phys_all_8_environments_then_external_smoke",
+      "question": "How much probe information is needed, and do collision-triggered probes resolve ambiguous repair regions?",
+      "conditions": [
+        "fixed_minimal_probe_set",
+        "random_probe_expansion",
+        "counterexample_gated_probe_evolution"
+      ],
+      "primary_metrics": [
+        "benefit_sign_accuracy",
+        "selection_regret",
+        "collision_detection_f1",
+        "post_evolution_collision_rate"
+      ],
+      "secondary_metrics": ["probe_gpu_hours", "gram_condition_number"],
+      "evidence_level": "mechanism_plus_portability",
+      "cross_backbone_required": "smoke_on_at_least_one_external_target",
+      "paper_role": "Probe self-evolution ablation and information curve."
+    },
+    {
+      "study_id": "S5_materialization_fidelity",
+      "priority": "must_have",
+      "scope": "portable_primitive_to_runtime_hook",
+      "question": "Does intent-preserving materialization outperform document-only or sidecar-only pseudo implementations?",
+      "conditions": ["admitted_runtime_hook", "sidecar_only", "document_only"],
+      "primary_metrics": [
+        "intent_contract_pass_rate",
+        "runtime_hook_activation_rate",
+        "predicted_effect_sign_agreement"
+      ],
+      "secondary_metrics": ["materialization_failure_rate", "engineering_time"],
+      "evidence_level": "system_validity",
+      "cross_backbone_required": "runtime_admission_on_acwm_phys_and_ctrl_world",
+      "paper_role": "System validity ablation; prevents configuration-intent versus runtime-behavior mismatch."
+    },
+    {
+      "study_id": "S6_progressive_fidelity_efficiency",
+      "priority": "must_have",
+      "scope": "reuse_all_screen_gate_confirm_receipts",
+      "question": "Does progressive-fidelity screening save compute without discarding most eventual positives?",
+      "conditions": ["progressive_fidelity", "confirm_every_candidate"],
+      "primary_metrics": ["gpu_hour_reduction", "positive_recall"],
+      "secondary_metrics": ["false_rejection_rate", "screen_confirm_rank_correlation"],
+      "evidence_level": "efficiency",
+      "cross_backbone_required": false,
+      "paper_role": "Cost table; should reuse existing receipts rather than rerun trials."
+    },
+    {
+      "study_id": "S7_failure_and_abstention_analysis",
+      "priority": "must_have",
+      "scope": "all_settled_trials",
+      "question": "When does VerdiWM abstain, misroute, or fail to materialize a repair?",
+      "conditions": ["licensed_positive", "licensed_negative", "abstained", "void_or_inconclusive"],
+      "primary_metrics": ["failure_mode_frequency", "avoidable_negative_transfer_fraction"],
+      "secondary_metrics": ["evidence_completeness"],
+      "evidence_level": "limitations",
+      "cross_backbone_required": false,
+      "paper_role": "Failure analysis and limitations section."
+    },
+    {
+      "study_id": "S8_visual_showcases",
+      "priority": "supporting",
+      "scope": "four_representative_confirmed_cases",
+      "question": "Are the confirmed metric improvements visible in long-horizon rollouts?",
+      "conditions": ["ground_truth", "baseline", "verdiwm_selected_repair"],
+      "primary_metrics": ["frozen_verdict_delta"],
+      "secondary_metrics": ["human_visible_failure_delay"],
+      "evidence_level": "qualitative",
+      "cross_backbone_required": false,
+      "paper_role": "Project page and qualitative paper figure; never substitutes for quantitative confirmation."
+    }
+  ],
+  "execution_order": [
+    "S1_reference_selector_ablation",
+    "S4_probe_information_and_collision",
+    "S5_materialization_fidelity",
+    "S6_progressive_fidelity_efficiency",
+    "S2_cross_backbone_lobo",
+    "S3_transfer_certificate_safety",
+    "S7_failure_and_abstention_analysis",
+    "S8_visual_showcases"
+  ],
+  "launch_policy": {
+    "do_not_launch_full_lobo_until": [
+      "ACWM-Phys fingerprint calibration is complete",
+      "Ctrl-World target-local fingerprint receipt exists",
+      "Cosmos3 backbone instance is ready",
+      "all target metric contracts are frozen"
+    ],
+    "formal_positive_requires": "settled confirm receipt under the target backbone's frozen verdict evaluator",
+    "screen_positive_is_formal": false
+  }
+}

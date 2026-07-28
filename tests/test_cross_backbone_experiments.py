@@ -50,7 +50,7 @@ class CrossBackboneExperimentTests(unittest.TestCase):
             second = run_experiment_plan(spec_path=BASE_SPEC, output_root=root / "second")
 
             self.assertFalse(first["launch_ready"])
-            self.assertEqual(first["blocker_count"], 2)
+            self.assertEqual(first["blocker_count"], 1)
             self.assertEqual(
                 (root / "first" / "planned-trials.csv").read_bytes(),
                 (root / "second" / "planned-trials.csv").read_bytes(),
