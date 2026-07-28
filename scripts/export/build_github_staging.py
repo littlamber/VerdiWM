@@ -51,6 +51,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_effect_labels.py",
     "test_acwm_selector_ablation.py",
     "test_acwm_selector_cpu_replay.py",
+    "test_acwm_selector_public_bundle.py",
     "test_ctrl_world_instance_adapters.py",
     "test_ctrl_world_predictive_adapter.py",
     "test_ctrl_world_predictive_instance.py",
@@ -144,6 +145,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_experience_atlas_v1",
             temporary / "examples" / "acwm_experience_atlas_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_selector_ablation_v1",
+            temporary / "examples" / "acwm_selector_ablation_v1",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")
