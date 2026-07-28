@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verdiwm.dev/schemas/joint_fingerprint_campaign.schema.json",
+  "title": "VerdiWM ACWM joint fingerprint campaign",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "campaign_id",
+    "claim_scope",
+    "generation_mode",
+    "baseline_contract",
+    "source_campaigns",
+    "semantic_paths",
+    "locality_threshold",
+    "formal_claim_requires"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-acwm-joint-fingerprint-campaign"},
+    "campaign_id": {"type": "string", "minLength": 1},
+    "claim_scope": {"type": "string", "minLength": 1},
+    "generation_mode": {"const": "autoregressive"},
+    "baseline_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hook_policy", "execution_count_per_environment_seed", "shared_identity_fields"],
+      "properties": {
+        "hook_policy": {"const": "no_hook_context"},
+        "execution_count_per_environment_seed": {"const": 1},
+        "shared_identity_fields": {
+          "type": "array",
+          "minItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "checkpoint_sha256",
+              "config_sha256",
+              "dataset_name",
+              "split",
+              "trajectory_batch_digest",
+              "seed",
+              "evaluator_sha256",
+              "generation_mode",
+              "inference_steps"
+            ]
+          }
+        }
+      }
+    },
+    "source_campaigns": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_probe_id", "campaign_ref", "generation_mode_override"],
+        "properties": {
+          "source_probe_id": {"type": "string", "minLength": 1},
+          "campaign_ref": {"type": "string", "minLength": 1},
+          "generation_mode_override": {"const": "autoregressive"}
+        }
+      }
+    },
+    "semantic_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path_name", "source_probe_id", "dose_transform"],
+        "properties": {
+          "path_name": {"type": "string", "minLength": 1},
+          "source_probe_id": {"type": "string", "minLength": 1},
+          "dose_transform": {"enum": ["signed", "positive_magnitude", "negative_magnitude"]}
+        }
+      }
+    },
+    "locality_threshold": {"type": "number", "minimum": 0},
+    "formal_claim_requires": {"type": "string", "minLength": 1}
+  }
+}

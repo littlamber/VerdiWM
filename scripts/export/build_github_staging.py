@@ -38,6 +38,8 @@ PUBLIC_TREES = ("wmloop", "scripts", ".github", "ops")
 PUBLIC_TEST_FILES = (
     "test_verdiwm_geometry.py",
     "test_acwm_unified_irg_assets.py",
+    "test_acwm_joint_fingerprint.py",
+    "test_acwm_joint_fingerprint_campaign_runner.py",
     "test_verdiwm_public_release.py",
     "test_acwm_public_experience_bundle.py",
     "test_agent_engineering_policy.py",
@@ -168,6 +170,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_unified_irg_assets_v1",
             temporary / "examples" / "acwm_unified_irg_assets_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_joint_irg_assets_v2",
+            temporary / "examples" / "acwm_joint_irg_assets_v2",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")

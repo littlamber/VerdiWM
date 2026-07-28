@@ -1,0 +1,9 @@
+environment,checkpoint_step,condition_count,baseline_condition_count,probe_path_count,supported_probe_path_count,baseline_group_count,off_diagonal_nonzero_count,routing_state,covariance_state
+push_cube,100000,75,3,7,6,1,552,ready,ready
+stack_cube,100000,75,3,7,5,1,380,ready,ready
+push_rope,100000,75,3,7,3,1,132,ready,ready
+cloth_move,11000,75,3,7,7,1,756,ready,ready
+push_sand,100000,75,3,7,4,1,240,ready,ready
+pour_water,100000,75,3,7,4,1,240,ready,ready
+robot_arm,100000,75,3,7,5,1,380,ready,ready
+reacher,100000,75,3,7,2,1,56,ready,ready

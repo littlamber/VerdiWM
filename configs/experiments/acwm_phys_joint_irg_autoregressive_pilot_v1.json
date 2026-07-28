@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-joint-fingerprint-campaign",
+  "campaign_id": "acwm_phys_joint_irg_autoregressive_pilot_v1",
+  "claim_scope": "Joint-frame inference-only IRG calibration. All semantic probe paths share one no-hook autoregressive baseline for each environment and seed. This licenses complete within-chart covariance estimation, not a repair-quality or cross-backbone transfer result.",
+  "generation_mode": "autoregressive",
+  "baseline_contract": {
+    "hook_policy": "no_hook_context",
+    "execution_count_per_environment_seed": 1,
+    "shared_identity_fields": [
+      "checkpoint_sha256",
+      "config_sha256",
+      "dataset_name",
+      "split",
+      "trajectory_batch_digest",
+      "seed",
+      "evaluator_sha256",
+      "generation_mode",
+      "inference_steps"
+    ]
+  },
+  "source_campaigns": [
+    {
+      "source_probe_id": "action_conditioning_scale",
+      "campaign_ref": "configs/experiments/acwm_phys_irg_calibration_pilot_v1.json",
+      "generation_mode_override": "autoregressive"
+    },
+    {
+      "source_probe_id": "self_rollout_temporal_mix",
+      "campaign_ref": "configs/experiments/acwm_phys_self_rollout_temporal_mix_probe_pilot_v1.json",
+      "generation_mode_override": "autoregressive"
+    },
+    {
+      "source_probe_id": "motion_region_scale",
+      "campaign_ref": "configs/experiments/acwm_phys_motion_region_probe_pilot_v1.json",
+      "generation_mode_override": "autoregressive"
+    },
+    {
+      "source_probe_id": "action_embedding_temporal_mix",
+      "campaign_ref": "configs/experiments/acwm_phys_action_temporal_mix_probe_pilot_v1.json",
+      "generation_mode_override": "autoregressive"
+    },
+    {
+      "source_probe_id": "motion_region_event_alignment",
+      "campaign_ref": "configs/experiments/acwm_phys_motion_region_event_alignment_probe_pilot_v1.json",
+      "generation_mode_override": "autoregressive"
+    },
+    {
+      "source_probe_id": "action_temporal_alignment",
+      "campaign_ref": "configs/experiments/acwm_phys_action_temporal_alignment_probe_pilot_v1.json",
+      "generation_mode_override": "autoregressive"
+    }
+  ],
+  "semantic_paths": [
+    {
+      "path_name": "action_conditioning_amplification",
+      "source_probe_id": "action_conditioning_scale",
+      "dose_transform": "positive_magnitude"
+    },
+    {
+      "path_name": "action_conditioning_attenuation",
+      "source_probe_id": "action_conditioning_scale",
+      "dose_transform": "negative_magnitude"
+    },
+    {
+      "path_name": "self_rollout_temporal_mix",
+      "source_probe_id": "self_rollout_temporal_mix",
+      "dose_transform": "signed"
+    },
+    {
+      "path_name": "motion_region_scale",
+      "source_probe_id": "motion_region_scale",
+      "dose_transform": "signed"
+    },
+    {
+      "path_name": "action_embedding_temporal_mix",
+      "source_probe_id": "action_embedding_temporal_mix",
+      "dose_transform": "signed"
+    },
+    {
+      "path_name": "motion_region_event_alignment",
+      "source_probe_id": "motion_region_event_alignment",
+      "dose_transform": "signed"
+    },
+    {
+      "path_name": "action_temporal_alignment",
+      "source_probe_id": "action_temporal_alignment",
+      "dose_transform": "signed"
+    }
+  ],
+  "locality_threshold": 0.5,
+  "formal_claim_requires": "all eight environments, complete 75-condition paired frames, one canonical baseline per seed, full source hashes, and held-out transfer calibration on a second backbone"
+}

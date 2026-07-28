@@ -32,6 +32,7 @@ similarity score.
 Primary code:
 
 - `wmloop/diagnose/`
+- `wmloop/experiments/joint_fingerprint.py`
 - `wmloop/geometry/irg.py`
 - `wmloop/geometry/assets.py`
 - `wmloop/geometry/types.py`
@@ -41,6 +42,11 @@ locality-supported effective objects `J_X`, `G_X`, and `r_X`. Response
 covariance is composed only inside source groups with a shared paired baseline
 frame. Missing cross-group covariance remains explicitly unobserved and forces
 transfer abstention without disabling target-local routing.
+
+Joint calibration schedules every semantic probe path against one no-hook
+baseline for each target, seed, trajectory batch, evaluator, and generation
+mode. Condition-level receipts are atomic and resumable; a frame mismatch
+invalidates the chart instead of being normalized away.
 
 ### Proposal and compilation plane
 

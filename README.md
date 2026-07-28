@@ -11,8 +11,8 @@ null, and harmful effects for later transfer.
 The repository is an early research release. It contains a working control
 plane, typed intervention and evidence contracts, ACWM-Phys and Ctrl-World ACWM
 adapters, 17 materialized intervention primitives, an Interventional Repair
-Geometry (IRG) implementation, eight provenance-bearing ACWM-Phys IRG assets,
-and one integrity-checked operational closed-loop example.
+Geometry (IRG) implementation, eight joint-frame ACWM-Phys IRG assets, and one
+integrity-checked operational closed-loop example.
 
 ## What is implemented
 
@@ -22,7 +22,7 @@ and one integrity-checked operational closed-loop example.
 | Fail-closed intervention compilation and runtime receipts | Implemented |
 | Diagnosis, proposal, budgeted execution, independent verification, archive | Implemented |
 | Per-environment horizon ladder and frozen verifier checks | Implemented |
-| IRG local response charts, composed assets, and distances | Implemented, unit tested; eight ACWM-Phys assets included |
+| IRG local response charts, composed assets, and distances | Implemented, unit tested; eight joint-frame ACWM-Phys assets included |
 | Transfer certificate with explicit abstention | Implemented, unit tested |
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
@@ -132,18 +132,22 @@ cross-backbone transfer claims.
 ## Unified IRG assets
 
 [`examples/acwm_unified_irg_assets_v1`](examples/acwm_unified_irg_assets_v1)
-contains one canonical asset for each ACWM-Phys environment. Each asset stores
-the locality-masked Jacobian `J_X`, repair metric `G_X`, response coordinate
-`r_X`, paired-seed response covariance, support mask, checkpoint identity, and
-content hashes for all contributing charts and measurements. The symbol names
-map to stable serialized fields through each asset's `symbol_table`.
+is the immutable audit snapshot that exposed a mixed-mode protocol error: two
+source probes used parallel generation while four used autoregressive
+generation. It retains the resulting covariance gaps and abstention decisions.
 
-All eight assets are routing-ready. They intentionally abstain from licensing
-cross-backbone transfer because the six contributing campaigns use two
-materially different zero-dose baseline frames. Covariance is estimated only
-inside baseline-compatible blocks; unmeasured cross-block entries are explicit
-zero-filled gaps rather than inferred evidence. A jointly paired calibration
-campaign is required before the transfer state can become `ready`.
+[`examples/acwm_joint_irg_assets_v2`](examples/acwm_joint_irg_assets_v2) is the
+corrected joint-frame bundle. Six source probes, expanded into seven semantic
+paths, were rerun in autoregressive mode against one no-hook baseline per
+environment and seed. Its 600 measurements include only 24 canonical baselines.
+Every asset stores the locality-masked Jacobian `J_X`, repair metric `G_X`,
+response coordinate `r_X`, full paired-seed covariance, support mask,
+checkpoint identity, and source hashes.
+
+All eight v2 assets are routing-ready and have one observed covariance block.
+This closes the within-ACWM cross-path covariance gap. It does not establish a
+cross-backbone repair effect: Ctrl-World or another target still needs a
+compatible measured chart and a held-out transfer certificate.
 
 ## Repository layout
 

@@ -11,6 +11,7 @@ still require experiments.
 | Intent-to-code materialization gate | `wmloop/propose/primitive_materialization_prompt.py`, `wmloop/verify/primitive_materialization_gate.py` | Implemented; 17 ACWM primitives materialized |
 | Local response chart | `wmloop/geometry/irg.py` | Central/one-sided secants implemented and unit tested |
 | IRG metric and response coordinates | `wmloop/geometry/irg.py`, `wmloop/geometry/assets.py` | Implemented and unit tested; eight ACWM-Phys assets included |
+| Joint-frame probe calibration | `wmloop/experiments/joint_fingerprint.py`, `scripts/run_acwm_joint_fingerprint_*.py` | 600-condition ACWM-Phys pilot complete; eight full-covariance assets included |
 | Progressive-fidelity validation | `scripts/export/acwm_screen_summary.py`, `wmloop/verify/` | Operational on ACWM-Phys |
 | Transfer certificate | `wmloop/geometry/transfer.py` | Six fail-closed terms implemented; calibration across backbones pending |
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
@@ -40,13 +41,17 @@ coordinates, paired-seed covariance, locality residuals, support masks, and
 source hashes. Canonical per-environment assets serialize these as `J_X`,
 `G_X`, `r_X`, and `Sigma_X` through a stable symbol table.
 
-IRG is intended to support mechanism-aware routing. The checked-in
-`examples/acwm_unified_irg_assets_v1` bundle composes seven semantic probe
-directions across all eight ACWM-Phys environments. It does not establish that
-charts are aligned across arbitrary backbones. The contributing campaigns have
-two incompatible zero-dose baseline frames, so cross-group covariance is
-marked unobserved and every current asset abstains from transfer licensing.
-Jointly paired chart data and held-out calibration are still required.
+IRG is intended to support mechanism-aware routing. The immutable
+`examples/acwm_unified_irg_assets_v1` snapshot records the discovery that the
+original atlas mixed parallel and autoregressive baseline frames. The corrected
+`examples/acwm_joint_irg_assets_v2` campaign reruns all seven semantic
+directions in autoregressive mode, with one no-hook baseline for each
+environment and seed. All eight resulting assets contain observed cross-path
+covariance in one baseline-compatible block.
+
+This makes the ACWM reference geometry complete, but it does not establish
+alignment across arbitrary backbones. A target-backbone chart, semantic hook
+compilation, held-out calibration, and effect confirmation remain necessary.
 
 ## Transfer certificate
 
@@ -74,9 +79,10 @@ calibration and frozen regression checks.
 
 The public examples project ACWM runs into diagnosis, typed materialized
 interventions, progressive-fidelity gates, long-horizon effect profiles,
-routing memory, and measured IRG assets. The eight-environment asset bundle is
-valid for within-instance routing. It carries an explicit transfer abstention,
-so a cross-backbone certificate remains an unestablished empirical claim.
+routing memory, and measured IRG assets. The corrected eight-environment bundle
+is valid for within-instance routing and full cross-path covariance analysis.
+A cross-backbone certificate remains an unestablished empirical claim until a
+compatible target chart and held-out effect receipts exist.
 
 ## Cross-backbone experiment control plane
 
