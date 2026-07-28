@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import tempfile
@@ -15,6 +16,7 @@ from scripts.export.verdiwm_minimal_loop_bundle import MinimalLoopBundleError, e
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_ROOT = REPO_ROOT / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2"
 EXPERIENCE_ROOT = REPO_ROOT / "examples" / "acwm_experience_atlas_v1"
+SELECTOR_ROOT = REPO_ROOT / "examples" / "acwm_selector_ablation_v1"
 
 
 class PublicExampleValidatorTests(unittest.TestCase):
@@ -80,6 +82,23 @@ class MinimalLoopExporterTests(unittest.TestCase):
 
 
 class GithubStagingTests(unittest.TestCase):
+    def test_selector_showcase_preserves_official_gate_and_media_integrity(self) -> None:
+        showcase = SELECTOR_ROOT / "showcase" / "pour_water_inv_dyn_reward_finetune"
+        case = json.loads((showcase / "case.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(case["state"], "ready")
+        self.assertEqual(case["environment"], "pour_water")
+        self.assertEqual(case["primitive"], "inv_dyn_reward_finetune")
+        self.assertTrue(case["official_quality_gate"]["pass"])
+        self.assertTrue(all(case["official_quality_gate"]["checks"].values()))
+        self.assertEqual(case["visual_evidence"]["selection_rule"], "descending baseline-only RGB video MSE against GT")
+        self.assertTrue((showcase / "paired_gt_baseline_ours.mp4").is_file())
+        self.assertTrue((showcase / "poster.png").is_file())
+
+        for row in (showcase / "MANIFEST.sha256").read_text(encoding="utf-8").splitlines():
+            digest, relative = row.split("  ", 1)
+            self.assertEqual(hashlib.sha256((showcase / relative).read_bytes()).hexdigest(), digest)
+
     def test_audit_rejects_local_paths_and_weights(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

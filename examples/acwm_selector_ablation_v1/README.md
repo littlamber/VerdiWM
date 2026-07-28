@@ -13,3 +13,11 @@ The 8-environment evidence matrix is complete. Ranking and sign metrics are publ
 | static_probe | 0.3750 | 0.6250 | 0.4167 | 0.4167 | 0.1250 |
 | raw_response | 0.3750 | 0.6250 | 0.4792 | 0.4167 | 0.1250 |
 | irg | 0.3750 | 0.6250 | 0.5417 | 0.4167 | 0.1250 |
+
+## Positive-case showcase
+
+`showcase/pour_water_inv_dyn_reward_finetune/` contains the baseline-blind hardest
+held-out video for the official 50-step `pour_water + inv_dyn_reward_finetune`
+gate. The aggregate gate passes all four frozen pixel-metric constraints. The
+video is supplementary qualitative evidence; the visible difference is subtle,
+and it is not evidence of cross-seed or cross-backbone robustness.

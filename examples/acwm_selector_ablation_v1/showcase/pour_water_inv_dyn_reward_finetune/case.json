@@ -1,0 +1,52 @@
+{
+  "artifact_type": "verdiwm-public-official-gate-showcase-case",
+  "schema_version": 1,
+  "state": "ready",
+  "environment": "pour_water",
+  "primitive": "inv_dyn_reward_finetune",
+  "candidate_training_steps": 512,
+  "evaluation_protocol": "official_acwm_eval_py",
+  "evaluation_steps": 50,
+  "official_quality_gate": {
+    "baseline": {
+      "masked_mse": 0.008598,
+      "mse": 0.001221,
+      "psnr": 29.19,
+      "ssim": 0.9618
+    },
+    "candidate": {
+      "masked_mse": 0.006066,
+      "mse": 0.000914,
+      "psnr": 30.55,
+      "ssim": 0.9681
+    },
+    "delta_candidate_minus_baseline": {
+      "masked_mse": -0.002532,
+      "mse": -0.000307,
+      "psnr": 1.36,
+      "ssim": 0.0063
+    },
+    "checks": {
+      "masked_mse_does_not_regress": true,
+      "mse_does_not_regress": true,
+      "psnr_strictly_improves": true,
+      "ssim_does_not_regress": true
+    },
+    "pass": true
+  },
+  "visual_evidence": {
+    "layout": "GT|Baseline|Ours",
+    "sample_index": 2,
+    "split": "ind_test",
+    "frame_count": 37,
+    "fps": 10,
+    "duration_seconds": 3.7,
+    "selection_pool_size": 3,
+    "selection_rule": "descending baseline-only RGB video MSE against GT",
+    "baseline_video_mse": 0.0013822530120189578,
+    "candidate_video_mse": 0.0011868477095786885,
+    "candidate_minus_baseline_video_mse": -0.00019540530244026928,
+    "human_visual_assessment": "real_but_subtle"
+  },
+  "claim_boundary": "Aggregate official metrics govern the positive claim. The selected video is supplementary qualitative evidence and does not establish cross-seed, long-training, or cross-backbone robustness."
+}
