@@ -72,10 +72,17 @@ def run_autoloop_worker(
     token = now_token or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     launched_count = 0
     reserved_gpus: set[int] = set()
+    active_gpu_pids: dict[int, int] = {}
+    released_gpu_launch_count = 0
     reserved_output_roots: set[str] = set()
     records: list[dict[str, object]] = []
     for iteration in range(1, iterations + 1):
-        idle_gpus = _idle_gpu_indices() - reserved_gpus
+        for gpu, pid in list(active_gpu_pids.items()):
+            if _pid_is_running(pid):
+                continue
+            del active_gpu_pids[gpu]
+            released_gpu_launch_count += 1
+        idle_gpus = _idle_gpu_indices() - reserved_gpus - set(active_gpu_pids)
         if allowed_gpu_indices is not None:
             idle_gpus &= allowed_gpu_indices
         launched_this_iteration = False
@@ -155,7 +162,10 @@ def run_autoloop_worker(
                 reserved_output_roots.add(output_root)
                 selected_gpu = launch.get("selected_gpu")
                 if isinstance(selected_gpu, int):
-                    reserved_gpus.add(selected_gpu)
+                    launch_payload = launch.get("launch")
+                    pid = launch_payload.get("pid") if isinstance(launch_payload, Mapping) else None
+                    if isinstance(pid, int) and pid > 0:
+                        active_gpu_pids[selected_gpu] = pid
                 launched_this_iteration = True
                 break
         if launched_count >= max_launches:
@@ -195,6 +205,7 @@ def run_autoloop_worker(
         "launched_count": launched_count,
         "launched_gpu_indices": launched_gpu_indices,
         "launched_cpu_count": launched_cpu_count,
+        "released_gpu_launch_count": released_gpu_launch_count,
         "records": records,
         "limitations": [
             "This worker starts queued training/eval jobs only; it does not mutate the primitive registry.",
@@ -204,6 +215,17 @@ def run_autoloop_worker(
         ],
     }
     return _write_bundle(destination, report)
+
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    stat_path = Path("/proc") / str(pid) / "stat"
+    try:
+        fields = stat_path.read_text(encoding="ascii").split()
+    except (OSError, PermissionError):
+        return False
+    return len(fields) >= 3 and fields[2] != "Z"
 
 
 def _row_preflight(row: Mapping[str, object]) -> str | None:
@@ -567,6 +589,7 @@ def _write_bundle(destination: Path, report: Mapping[str, object]) -> dict[str, 
             "launched_count": report["launched_count"],
             "launched_gpu_indices": report["launched_gpu_indices"],
             "launched_cpu_count": report["launched_cpu_count"],
+            "released_gpu_launch_count": report["released_gpu_launch_count"],
             "report_path": str(destination / "autoloop-worker.json"),
             "markdown_path": str(destination / "autoloop-worker.md"),
             "csv_path": str(destination / "autoloop-worker.csv"),

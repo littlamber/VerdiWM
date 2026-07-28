@@ -60,6 +60,30 @@ def build_selector_ablation_plan(
         labels_ready,
         f"settled target coverage {len(label_environments & set(environments))}/{len(environments)}",
     )
+    settled_candidates, ambiguous_candidates = _settled_consensus_candidates(
+        labels=labels,
+        environments=environments,
+    )
+    fold_candidate_support = {
+        target: sorted(
+            settled_candidates[target]
+            & set().union(*(settled_candidates[source] for source in environments if source != target))
+        )
+        for target in environments
+    }
+    supported_fold_count = sum(bool(values) for values in fold_candidate_support.values())
+    identifiable_fold_count = sum(len(values) >= 2 for values in fold_candidate_support.values())
+    candidate_support_ready = identifiable_fold_count == len(environments)
+    _check(
+        checklist,
+        blockers,
+        "nonleaking_candidate_pool_support",
+        candidate_support_ready,
+        (
+            f"held-out folds with any source-supported target candidate {supported_fold_count}/{len(environments)}; "
+            f"folds with at least two candidates for selector identification {identifiable_fold_count}/{len(environments)}"
+        ),
+    )
 
     trials: list[dict[str, object]] = []
     sequence = 0
@@ -77,6 +101,7 @@ def build_selector_ablation_plan(
                         "source_environments": sources,
                         "selector": selector,
                         "seed": seed,
+                        "source_supported_target_candidates": fold_candidate_support[target],
                         "candidate_pool_contract": config["matched_trial_contract"]["candidate_pool"],
                         "screen_budget_contract": config["matched_trial_contract"]["screen_budget"],
                         "confirm_budget_contract": config["matched_trial_contract"]["confirm_budget"],
@@ -97,6 +122,10 @@ def build_selector_ablation_plan(
         "planned_trial_count": len(trials),
         "effect_label_count": len(labels),
         "settled_label_environment_count": len(label_environments & set(environments)),
+        "candidate_supported_fold_count": supported_fold_count,
+        "selector_identifiable_fold_count": identifiable_fold_count,
+        "fold_candidate_support": fold_candidate_support,
+        "ambiguous_candidates_by_environment": ambiguous_candidates,
         "evidence_checklist": checklist,
         "blockers": blockers,
         "trials": trials,
@@ -122,6 +151,8 @@ def build_selector_ablation_plan(
             "fold_count": len(environments),
             "planned_trial_count": len(trials),
             "blocker_count": len(blockers),
+            "candidate_supported_fold_count": supported_fold_count,
+            "selector_identifiable_fold_count": identifiable_fold_count,
             "cpu_replay_ready": report["cpu_replay_ready"],
             "gpu_confirmation_ready": report["gpu_confirmation_ready"],
             "report_path": str(destination / "selector-ablation-plan.json"),
@@ -129,6 +160,39 @@ def build_selector_ablation_plan(
         archive_db=archive_db,
         cas_root=cas_root,
     )
+
+
+def _settled_consensus_candidates(
+    *,
+    labels: list[Mapping[str, Any]],
+    environments: tuple[str, ...],
+) -> tuple[dict[str, set[str]], dict[str, list[str]]]:
+    signs_by_candidate: dict[tuple[str, str], list[bool]] = {}
+    for row in labels:
+        environment = row.get("environment")
+        primitive = row.get("primitive")
+        positive = row.get("positive")
+        if (
+            row.get("settled") is not True
+            or environment not in environments
+            or not isinstance(primitive, str)
+            or not primitive
+            or not isinstance(positive, bool)
+        ):
+            continue
+        signs_by_candidate.setdefault((str(environment), primitive), []).append(positive)
+
+    settled_candidates = {environment: set() for environment in environments}
+    ambiguous_candidates = {environment: [] for environment in environments}
+    for (environment, primitive), signs in signs_by_candidate.items():
+        if len(set(signs)) == 1:
+            settled_candidates[environment].add(primitive)
+        else:
+            ambiguous_candidates[environment].append(primitive)
+    return settled_candidates, {
+        environment: sorted(primitives)
+        for environment, primitives in ambiguous_candidates.items()
+    }
 
 
 def _validate_config(config: Mapping[str, Any]) -> None:

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+  "campaign_id": "ctrl_world_irg_temporal_mix_pilot_v1",
+  "backbone_instance_ref": "configs/backbones/ctrl_world_predictive_quality_pilot_v1.json",
+  "heldout_split_ref": "configs/goal/ctrl_world_heldout_split.json",
+  "claim_scope": "Counterexample-driven diagnostic probe evolution for Ctrl-World ACWM after two failed action-scale locality admissions. This pilot only tests whether temporal action-embedding mixing supplies a local target fingerprint; it is not model-improvement or cross-backbone transfer evidence.",
+  "probe": {
+    "probe_id": "action_embedding_temporal_mix",
+    "hook_type": "H2",
+    "transformation": "replace action-encoder output e by e + d*(mean_time(e)-e), preserving the temporal mean and input action trajectory",
+    "dose_unit": "temporal_action_embedding_mix",
+    "doses": [-0.05, -0.025, 0.0, 0.025, 0.05],
+    "scope": "inference_only",
+    "reversible": true,
+    "invariants": [
+      "same_checkpoint",
+      "same_task_episode",
+      "same_input_action",
+      "same_seed",
+      "same_environment_evaluator",
+      "per_trajectory_action_embedding_temporal_mean_preserved"
+    ]
+  },
+  "outcomes": [
+    {"name": "rollout_video_psnr", "source_metric": "rollout_video_psnr", "sign": 1.0, "weight": 1.0},
+    {"name": "negative_rollout_video_l1", "source_metric": "rollout_video_l1", "sign": -1.0, "weight": 2.0},
+    {"name": "negative_segment_final_mae", "source_metric": "segment_final_mae", "sign": -1.0, "weight": 2.0},
+    {"name": "negative_segment_view_pair_mae", "source_metric": "segment_view_pair_mae", "sign": -1.0, "weight": 1.0},
+    {"name": "negative_segment_view_fused_mae", "source_metric": "segment_view_fused_mae", "sign": -1.0, "weight": 1.0}
+  ],
+  "protocols": {
+    "pilot": {"split": "dev", "required_receipts_per_dose": 3},
+    "paper": {"split": "accept", "required_receipts_per_dose": 3}
+  },
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "abstain_from_cross_backbone_transfer"
+  },
+  "formal_claim_requires": "a separately frozen campaign version, paper split, complete paired-dose receipts, locality admission, and independent held-out selector evaluation"
+}

@@ -47,10 +47,56 @@ class CtrlWorldActionEmbeddingDose:
         return False
 
 
+class CtrlWorldActionEmbeddingTemporalMixDose:
+    """Reversibly mix action embeddings toward their per-trajectory temporal mean."""
+
+    def __init__(self, model: object, dose: float) -> None:
+        if not math.isfinite(float(dose)) or not -1.0 < float(dose) < 1.0:
+            raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_DOSE_INVALID")
+        encoder = getattr(model, "action_encoder", None)
+        forward = getattr(encoder, "forward", None)
+        if encoder is None or not callable(forward):
+            raise CtrlWorldFingerprintError("CTRL_WORLD_ACTION_ENCODER_HOOK_MISSING")
+        self.encoder = encoder
+        self.original = forward
+        self.dose = float(dose)
+
+    def __enter__(self) -> "CtrlWorldActionEmbeddingTemporalMixDose":
+        original = self.original
+        dose = self.dose
+
+        def mixed_forward(_module: object, *args: object, **kwargs: object) -> object:
+            embedding = original(*args, **kwargs)
+            ndim = getattr(embedding, "ndim", None)
+            mean = getattr(embedding, "mean", None)
+            if not isinstance(ndim, int) or ndim < 3 or not callable(mean):
+                raise CtrlWorldFingerprintError("CTRL_WORLD_ACTION_EMBEDDING_TEMPORAL_SHAPE_INVALID")
+            temporal_mean = mean(dim=1, keepdim=True)
+            return embedding + dose * (temporal_mean - embedding)  # type: ignore[operator]
+
+        self.encoder.forward = MethodType(mixed_forward, self.encoder)
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        self.encoder.forward = self.original
+        return False
+
+
+def ctrl_world_probe_context(*, model: object, probe_id: str, dose: float) -> object:
+    if probe_id == "action_conditioning_scale":
+        return CtrlWorldActionEmbeddingDose(model, dose)
+    if probe_id == "action_embedding_temporal_mix":
+        return CtrlWorldActionEmbeddingTemporalMixDose(model, dose)
+    raise CtrlWorldFingerprintError(f"CTRL_WORLD_FINGERPRINT_PROBE_UNKNOWN:{probe_id}")
+
+
 def load_ctrl_world_campaign(path: Path) -> Mapping[str, Any]:
     payload = _load_json(path, "CTRL_WORLD_FINGERPRINT_CAMPAIGN_INVALID")
     if payload.get("artifact_type") != "verdiwm-ctrl-world-fingerprint-campaign":
         raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_CAMPAIGN_TYPE_INVALID")
+    probe_id = payload.get("probe", {}).get("probe_id")
+    if probe_id not in {"action_conditioning_scale", "action_embedding_temporal_mix"}:
+        raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_PROBE_UNKNOWN")
     doses = tuple(float(value) for value in payload.get("probe", {}).get("doses", ()))
     if 0.0 not in doses or len(doses) < 3 or len(set(doses)) != len(doses):
         raise CtrlWorldFingerprintError("CTRL_WORLD_FINGERPRINT_DOSES_INVALID")

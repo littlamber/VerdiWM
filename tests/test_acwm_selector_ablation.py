@@ -27,6 +27,7 @@ class ACWMSelectorAblationTests(unittest.TestCase):
             self.assertFalse(manifest["gpu_confirmation_ready"])
             report = json.loads((root / "plan" / "selector-ablation-plan.json").read_text())
             self.assertEqual(report["settled_label_environment_count"], 0)
+            self.assertEqual(report["candidate_supported_fold_count"], 0)
             first = report["trials"][0]
             self.assertNotIn(first["target_environment"], first["source_environments"])
             self.assertEqual(first["formal_evidence_requires"], "settled_official_gate_receipt")
@@ -38,7 +39,20 @@ class ACWMSelectorAblationTests(unittest.TestCase):
             environments = json.loads(CONFIG.read_text())["environments"]
             labels = root / "labels.json"
             labels.write_text(
-                json.dumps({"labels": [{"environment": environment, "settled": True} for environment in environments]}),
+                json.dumps(
+                    {
+                        "labels": [
+                            {
+                                "environment": environment,
+                                "primitive": primitive,
+                                "settled": True,
+                                "positive": True,
+                            }
+                            for environment in environments
+                            for primitive in ("shared_a", "shared_b")
+                        ]
+                    }
+                ),
                 encoding="utf-8",
             )
             manifest = build_selector_ablation_plan(
@@ -49,6 +63,79 @@ class ACWMSelectorAblationTests(unittest.TestCase):
             )
             self.assertEqual(manifest["state"], "ready")
             self.assertTrue(manifest["gpu_confirmation_ready"])
+            self.assertEqual(manifest["selector_identifiable_fold_count"], 8)
+
+    def test_blocks_gpu_confirmation_when_a_fold_has_no_source_supported_candidate(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            atlas = self._write_atlas(root)
+            environments = json.loads(CONFIG.read_text())["environments"]
+            labels = root / "labels.json"
+            labels.write_text(
+                json.dumps(
+                    {
+                        "labels": [
+                            {
+                                "environment": environment,
+                                "primitive": "target_only" if environment == environments[0] else "shared",
+                                "settled": True,
+                                "positive": False,
+                            }
+                            for environment in environments
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            manifest = build_selector_ablation_plan(
+                config_path=CONFIG,
+                fingerprint_atlas_root=atlas,
+                effect_label_index=labels,
+                output_root=root / "plan",
+            )
+            self.assertEqual(manifest["state"], "blocked")
+            self.assertFalse(manifest["gpu_confirmation_ready"])
+            self.assertEqual(manifest["candidate_supported_fold_count"], 7)
+            self.assertEqual(manifest["selector_identifiable_fold_count"], 0)
+
+    def test_ambiguous_checkpoint_signs_do_not_count_as_identifiable_candidates(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            atlas = self._write_atlas(root)
+            environments = json.loads(CONFIG.read_text())["environments"]
+            rows = [
+                {
+                    "environment": environment,
+                    "primitive": primitive,
+                    "settled": True,
+                    "positive": True,
+                }
+                for environment in environments
+                for primitive in ("shared_a", "shared_b")
+            ]
+            rows.append(
+                {
+                    "environment": environments[0],
+                    "primitive": "shared_b",
+                    "settled": True,
+                    "positive": False,
+                }
+            )
+            labels = root / "labels.json"
+            labels.write_text(json.dumps({"labels": rows}), encoding="utf-8")
+
+            manifest = build_selector_ablation_plan(
+                config_path=CONFIG,
+                fingerprint_atlas_root=atlas,
+                effect_label_index=labels,
+                output_root=root / "plan",
+            )
+
+            self.assertEqual(manifest["state"], "blocked")
+            self.assertEqual(manifest["selector_identifiable_fold_count"], 7)
+            report = json.loads((root / "plan" / "selector-ablation-plan.json").read_text())
+            self.assertEqual(report["ambiguous_candidates_by_environment"][environments[0]], ["shared_b"])
+            self.assertEqual(report["fold_candidate_support"][environments[0]], ["shared_a"])
 
     def _write_atlas(self, root: Path) -> Path:
         atlas = root / "atlas"

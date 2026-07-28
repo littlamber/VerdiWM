@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 
 from wmloop.evaluate.adapters.ctrl_world_predictive import evaluate_ctrl_world_prediction_receipt
 from wmloop.experiments.ctrl_world_fingerprint import (
-    CtrlWorldActionEmbeddingDose,
+    ctrl_world_probe_context,
     evaluate_ctrl_world_fingerprint,
     load_ctrl_world_campaign,
 )
@@ -191,6 +191,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
         data_stat=assets["data_stat"],
         interact_num=int(args.interact_num),
         num_inference_steps=int(args.num_inference_steps),
+        probe_id=str(campaign["probe"]["probe_id"]),
         seed_by_episode={str(row["episode_id"]): int(row["seed"]) for row in rows},
     )
     episode_list = output_root / "episode-list.jsonl"
@@ -345,6 +346,7 @@ def _install_runtime_adapters(
     data_stat: Path,
     interact_num: int,
     num_inference_steps: int,
+    probe_id: str,
     seed_by_episode: Mapping[str, int],
 ) -> dict[str, Any]:
     original_wm_args = module.wm_args
@@ -381,7 +383,11 @@ def _install_runtime_adapters(
             rollout_agent.get_traj_info = seeded_get_traj_info
             state["agent"] = rollout_agent
         close_dose()
-        context = CtrlWorldActionEmbeddingDose(state["agent"].model, float(state["dose"]))
+        context = ctrl_world_probe_context(
+            model=state["agent"].model,
+            probe_id=probe_id,
+            dose=float(state["dose"]),
+        )
         context.__enter__()
         state["dose_context"] = context
         return state["agent"]
