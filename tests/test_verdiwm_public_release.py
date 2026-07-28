@@ -108,12 +108,47 @@ class GithubStagingTests(unittest.TestCase):
             )
             self.assertTrue((output / "tests" / "test_cross_backbone_experiments.py").is_file())
             self.assertTrue(
+                (output / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v1.json").is_file()
+            )
+            self.assertTrue((output / "configs" / "eval_ctrl_world_predictive_v1.sha256").is_file())
+            self.assertTrue((output / "tests" / "test_ctrl_world_predictive_adapter.py").is_file())
+            self.assertTrue((output / "tests" / "test_ctrl_world_predictive_instance.py").is_file())
+            self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint.py").is_file())
+            self.assertTrue(
+                (output / "configs" / "constitution" / "ctrl_world_predictive_quality_pilot_v1.freeze.json").is_file()
+            )
+            self.assertTrue(
                 (output / "configs" / "backbones" / "ctrl_world_g2_action_success_pilot_v1.json").is_file()
             )
             self.assertTrue((output / "configs" / "registry_ctrl_world_g2.sha256").is_file())
             self.assertTrue(
                 (output / "configs" / "constitution" / "ctrl_world_g2_action_success_pilot_v1.freeze.json").is_file()
             )
+
+            predictive = json.loads(
+                (output / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v1.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(predictive["backbone_family"], "ctrl_world")
+            self.assertEqual(predictive["campaign_state"], "pilot_draft")
+            local_mount_prefix = "/" + "mnt" + "/"
+            self.assertFalse(
+                any(local_mount_prefix in surface["artifact_ref"] for surface in predictive["surfaces"])
+            )
+            self.assertTrue(any("Downstream task success" in value for value in predictive["invariants"]))
+
+            lobo = json.loads(
+                (output / "configs" / "experiments" / "three_backbone_lobo_pilot_v1.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            ctrl_world = next(item for item in lobo["backbones"] if item["backbone_id"] == "ctrl_world")
+            self.assertEqual(
+                ctrl_world["instance_ref"],
+                "configs/backbones/ctrl_world_predictive_quality_pilot_v1.json",
+            )
+            self.assertNotIn("action_success", ctrl_world["goal_contract"])
 
     def test_release_contract_selects_a_license_and_build_backend(self) -> None:
         license_text = (REPO_ROOT / "LICENSE").read_text(encoding="utf-8")

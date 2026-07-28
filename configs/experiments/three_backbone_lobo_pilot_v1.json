@@ -2,9 +2,9 @@
   "schema_version": 1,
   "artifact_type": "verdiwm-cross-backbone-experiment",
   "experiment_id": "three_backbone_lobo_pilot_v1",
-  "claim_scope": "Protocol-only ACWM-Phys, Ctrl-World, and Cosmos3 leave-one-backbone-out pilot; no transfer claim until every backbone instance and every confirm receipt is settled.",
+  "claim_scope": "Protocol-only ACWM-Phys, Ctrl-World, and Cosmos3 leave-one-backbone-out ACWM pilot. Each target keeps its own predictive-quality verdict schema; only target-normalized repair benefit and search cost are compared across backbones. No transfer claim is allowed until every instance and confirm receipt is settled.",
   "metric_contract": {
-    "metric_name": "normalized_goal_progress",
+    "metric_name": "target_normalized_repair_benefit",
     "direction": "higher_is_better",
     "positive_delta_threshold": 0.0
   },
@@ -19,9 +19,9 @@
     {
       "backbone_id": "ctrl_world",
       "family": "action_conditioned_video_prediction",
-      "instance_ref": "configs/backbones/ctrl_world_g2_action_success_pilot_v1.json",
+      "instance_ref": "configs/backbones/ctrl_world_predictive_quality_pilot_v1.json",
       "status": "ready",
-      "goal_contract": "predictive_world_model_quality_v1"
+      "goal_contract": "ctrl_world_acwm_predictive_quality_v1"
     },
     {
       "backbone_id": "cosmos3",

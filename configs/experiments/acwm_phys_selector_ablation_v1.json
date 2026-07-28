@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-reference-selector-ablation",
+  "experiment_id": "acwm_phys_selector_ablation_v1",
+  "study_id": "S1_reference_selector_ablation",
+  "claim_scope": "ACWM-Phys reference-instance mechanism ablation only. This study does not establish cross-backbone transfer.",
+  "environments": [
+    "push_cube",
+    "stack_cube",
+    "push_rope",
+    "cloth_move",
+    "push_sand",
+    "pour_water",
+    "robot_arm",
+    "reacher"
+  ],
+  "selectors": [
+    {
+      "selector": "environment_label",
+      "projection_contract": "one-hot environment identity only"
+    },
+    {
+      "selector": "static_probe",
+      "projection_contract": "paired baseline outcome mean and variance; no intervention response"
+    },
+    {
+      "selector": "raw_response",
+      "projection_contract": "unaligned finite-dose outcome deltas; no uncertainty or path mask"
+    },
+    {
+      "selector": "irg",
+      "projection_contract": "one-sided local response coordinates, covariance, locality residual, and supported-path mask"
+    }
+  ],
+  "split_contract": {
+    "kind": "leave_one_environment_out",
+    "selection_unit": "environment",
+    "source_effects_exclude_target_environment": true,
+    "group_calibration_is_disjoint_from_target": true
+  },
+  "seeds": [101, 202, 303],
+  "matched_trial_contract": {
+    "candidate_pool": "identical settled-confirm primitive candidates within each target fold",
+    "target_diagnosis": "identical frozen target diagnosis",
+    "candidate_budget": "identical ranked candidate count",
+    "screen_budget": "identical",
+    "confirm_budget": "identical",
+    "verdict_evaluator": "identical frozen official ACWM gate",
+    "tie_breaking": "candidate_id then primitive_id"
+  },
+  "label_contract": {
+    "source": "settled official confirm receipts only",
+    "positive": "all official validity checks pass and the frozen aggregate delta is positive",
+    "negative": "settled null or harmful confirm receipt",
+    "forbidden": [
+      "screen-only verdict",
+      "hard-case-only visual uplift",
+      "human-picked showcase",
+      "unsettled or partial receipt"
+    ]
+  },
+  "metrics": [
+    "top1_positive_hit_rate",
+    "benefit_sign_accuracy",
+    "ranking_kendall_tau",
+    "selection_regret",
+    "trials_to_first_positive",
+    "negative_selection_rate",
+    "gpu_hours"
+  ],
+  "required_evidence": [
+    "eight_environment_fingerprint_atlas",
+    "four_selector_projection_rows_per_environment",
+    "settled_effect_label_index",
+    "frozen_leave_one_environment_out_folds",
+    "per_trial_ranked_candidate_predictions",
+    "per_trial_budget_receipts",
+    "aggregate_selector_metrics_with_bootstrap_intervals"
+  ],
+  "launch_policy": {
+    "cpu_replay_may_start_when": "fingerprint atlas and projections pass",
+    "gpu_confirmation_may_start_when": "every target fold has a non-leaking settled candidate pool",
+    "formal_claim_requires": "all eight held-out folds and all three seeds"
+  }
+}

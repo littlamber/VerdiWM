@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "evidence_source",
+    "task_id",
+    "episode_id",
+    "seed",
+    "horizon_frames",
+    "metrics",
+    "action_conditioned",
+    "rollout_ref",
+    "evaluator_version"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-ctrl-world-prediction-receipt"]},
+    "evidence_source": {"enum": ["paired_ground_truth_rollout", "downstream_task_success"]},
+    "task_id": {"type": "string", "minLength": 1},
+    "episode_id": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer"},
+    "horizon_frames": {"type": "integer", "minimum": 1},
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rollout_video_psnr",
+        "rollout_video_l1",
+        "segment_final_mae",
+        "segment_view_pair_mae",
+        "segment_view_fused_mae"
+      ],
+      "properties": {
+        "rollout_video_psnr": {"type": "number"},
+        "rollout_video_l1": {"type": "number", "minimum": 0},
+        "segment_final_mae": {"type": "number", "minimum": 0},
+        "segment_view_pair_mae": {"type": "number", "minimum": 0},
+        "segment_view_fused_mae": {"type": "number", "minimum": 0}
+      }
+    },
+    "action_conditioned": {"type": "boolean"},
+    "rollout_ref": {"type": "string", "minLength": 1},
+    "evaluator_version": {"type": "string", "minLength": 1}
+  }
+}

@@ -16,6 +16,16 @@ BASE_SPEC = ROOT / "configs" / "experiments" / "three_backbone_lobo_pilot_v1.jso
 
 
 class CrossBackboneExperimentTests(unittest.TestCase):
+    def test_ctrl_world_lobo_target_uses_acwm_predictive_contract(self) -> None:
+        spec = load_experiment_spec(BASE_SPEC)
+        ctrl_world = next(item for item in spec["backbones"] if item["backbone_id"] == "ctrl_world")
+        self.assertEqual(
+            ctrl_world["instance_ref"],
+            "configs/backbones/ctrl_world_predictive_quality_pilot_v1.json",
+        )
+        self.assertEqual(ctrl_world["goal_contract"], "ctrl_world_acwm_predictive_quality_v1")
+        self.assertNotIn("success", ctrl_world["goal_contract"])
+
     def test_lobo_plan_has_no_target_leak_and_distinct_random_search(self) -> None:
         spec = load_experiment_spec(BASE_SPEC)
         plan = build_lobo_plan(spec)
@@ -191,7 +201,7 @@ def _write_receipt(
         "settlement_state": "settled",
         "outcome": outcome,
         "certificate_status": certificate,
-        "metric_name": "normalized_goal_progress",
+        "metric_name": "target_normalized_repair_benefit",
         "baseline_value": 0.0,
         "candidate_value": delta,
         "delta": delta,

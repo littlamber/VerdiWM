@@ -45,7 +45,12 @@ PUBLIC_TEST_FILES = (
     "test_cross_backbone_experiments.py",
     "test_verdiwm_paper_experiment_matrix.py",
     "test_acwm_fingerprint_calibration_audit.py",
+    "test_acwm_effect_label_completion_plan.py",
     "test_ctrl_world_instance_adapters.py",
+    "test_ctrl_world_predictive_adapter.py",
+    "test_ctrl_world_predictive_instance.py",
+    "test_ctrl_world_fingerprint.py",
+    "test_ctrl_world_predictive_campaign_runner.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -103,6 +108,7 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         for name in (
             "eval_frozen.sha256",
             "eval_ctrl_world_g2_frozen.sha256",
+            "eval_ctrl_world_predictive_v1.sha256",
             "registry_frozen.sha256",
             "registry_ctrl_world_g2.sha256",
         ):
@@ -110,6 +116,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_file(
             source / "configs" / "backbones" / "acwm_phys_g1_long_horizon_ladder_public_v1.json",
             temporary / "configs" / "backbones" / "acwm_phys_g1_long_horizon_ladder_v1.json",
+        )
+        _copy_file(
+            source / "configs" / "backbones" / "ctrl_world_predictive_quality_public_v1.json",
+            temporary / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v1.json",
         )
         _copy_file(
             source / "configs" / "backbones" / "ctrl_world_g2_action_success_public_v1.json",

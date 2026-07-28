@@ -18,7 +18,8 @@ still require experiments.
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
 | Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World is ready and the current pilot remains blocked on Cosmos3 plus settled target receipts |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
-| Ctrl-World pilot adapters | `wmloop/evaluate/adapters/ctrl_world.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Held-out receipt projection, H1-H5 hook audit, primitive registry, frozen constitution, and bounded GPU smoke are complete; no quality or transfer claim yet |
+| Ctrl-World ACWM pilot adapters | `wmloop/evaluate/adapters/ctrl_world_predictive.py`, `wmloop/experiments/ctrl_world_fingerprint.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Paired predictive receipt projection, reversible action-embedding dose, frozen ACWM constitution, and fail-closed downstream-success exclusion are complete; measured chart and transfer receipts are pending |
+| Optional Ctrl-World downstream/WAM packet | `wmloop/evaluate/adapters/ctrl_world.py`, `configs/goal/ctrl_world_g2_action_success_pilot_v1.yaml` | Retained as a separate stress protocol and excluded from ACWM LOBO verdicts |
 | Public minimal-loop proof | `examples/acwm_minimal_loop_cloth_next_forcing_v2/` | Integrity checked; not independent-seed replication |
 
 ## Intervention descriptor

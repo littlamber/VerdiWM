@@ -359,7 +359,7 @@ def build_report(
             "p1_sequence": [
                 "Exhaust existing untested frozen-registry primitives against the diagnosed gaps.",
                 "Use literature or Zone B only to create staging candidates, then require admission gates and a new version boundary.",
-                "Continue Ctrl-World/WAM as a pilot instance after held-out split, evaluator adapter, hook adapter, and primitive mapping are ready.",
+                "Continue Ctrl-World as an ACWM predictive-quality pilot after paired GT, evaluator adapter, hook adapter, and primitive mapping are ready.",
             ],
         },
     }
@@ -422,7 +422,7 @@ def render_markdown(report: dict[str, Any]) -> str:
             "2. Put any literature/Zone B discovery into staging only.",
             "3. Promote only through schema, clean diff, smoke/canary, and human-approved version boundary.",
             "",
-            "P2 should be the Ctrl-World/WAM pilot instance:",
+            "P2 should be the Ctrl-World ACWM predictive-quality pilot instance:",
             "",
             "1. Freeze held-out split.",
             "2. Add independent evaluator adapter.",

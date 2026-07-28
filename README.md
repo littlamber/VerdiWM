@@ -9,9 +9,10 @@ null, and harmful effects for later transfer.
 ![VerdiWM overview](figures/verdiwm_overview.png)
 
 The repository is an early research release. It contains a working control
-plane, typed intervention and evidence contracts, an ACWM-Phys adapter, 17
-materialized intervention primitives, an initial Interventional Repair Geometry
-(IRG) implementation, and one integrity-checked operational closed-loop example.
+plane, typed intervention and evidence contracts, ACWM-Phys and Ctrl-World ACWM
+adapters, 17 materialized intervention primitives, an initial Interventional
+Repair Geometry (IRG) implementation, and one integrity-checked operational
+closed-loop example.
 
 ## What is implemented
 
@@ -25,6 +26,7 @@ materialized intervention primitives, an initial Interventional Repair Geometry
 | Transfer certificate with explicit abstention | Implemented, unit tested |
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
+| Ctrl-World ACWM predictive-quality protocol | Frozen public packet; runtime receipts pending |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -137,6 +139,12 @@ must declare capabilities and provide goal, data/split, evaluator, hook,
 receipt, and archive adapters. Agent-generated code is staged behind an
 intent-to-code contract and frozen regression harness; implementation
 convenience is not allowed to silently weaken the requested intervention.
+
+Ctrl-World is instantiated here as an action-conditioned world model. Its
+paper-facing verdict uses paired predictive quality, action-conditioning
+consistency, and long-horizon stability. The separately retained action-success
+packet is an optional downstream/WAM extension and is not used by the ACWM LOBO
+experiment.
 
 ## Citation
 

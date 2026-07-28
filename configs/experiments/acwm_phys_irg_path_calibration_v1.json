@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-irg-path-calibration-policy",
+  "policy_id": "acwm_phys_irg_path_calibration_v1",
+  "source_campaign_id": "acwm_phys_irg_calibration_pilot_v1",
+  "source_probe_id": "action_conditioning_scale",
+  "claim_boundary": "The raw signed dose sweep is immutable. When the baseline-centered response is cusp-like, amplification and attenuation are calibrated as distinct one-sided semantic paths, as permitted by the frozen IRG method. A failed path remains finite-dose evidence and is masked from local geometry.",
+  "maximum_locality_residual": 0.5,
+  "minimum_nonzero_doses_per_path": 2,
+  "paths": [
+    {
+      "path_name": "action_conditioning_amplification",
+      "source_dose_sign": "positive",
+      "semantic_dose_transform": "absolute_value"
+    },
+    {
+      "path_name": "action_conditioning_attenuation",
+      "source_dose_sign": "negative",
+      "semantic_dose_transform": "absolute_value"
+    }
+  ],
+  "environment_calibrated_requires": "at_least_one_local_path_passes",
+  "invalid_path_policy": "retain_as_finite_dose_evidence_and_mask_from_irg_coordinates"
+}

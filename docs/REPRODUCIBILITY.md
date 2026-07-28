@@ -59,6 +59,46 @@ freeze, held-out protocol, evaluator hashes, environment package lock, CUDA
 runtime, and physical GPU assignment. Import success alone is not a CUDA
 runtime test.
 
+## Ctrl-World ACWM predictive fingerprint
+
+Ctrl-World is evaluated as an action-conditioned world model. The public runner
+uses paired ground-truth rollout quality and explicitly excludes downstream task
+success from the verdict. It imports the external checkout read-only, applies a
+reversible action-embedding dose, preserves frozen episode/seed pairs, and emits
+schema-validated receipts.
+
+Run the asset and dataset preflight first:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python scripts/run_ctrl_world_predictive_campaign.py \
+  --ctrl-world-root /path/to/Ctrl-World \
+  --ctrl-world-model-root /path/to/checkpoint-matched-Ctrl-World-source \
+  --campaign configs/experiments/ctrl_world_irg_calibration_pilot_v1.json \
+  --heldout-split configs/goal/ctrl_world_heldout_split.json \
+  --dataset-freeze configs/backbones/ctrl_world_g2_dataset_freeze.json \
+  --dataset-root /path/to/droid_new_setup_full \
+  --data-stat /path/to/stat.json \
+  --svd-model-path /path/to/stable-video-diffusion-img2vid \
+  --clip-model-path /path/to/clip-vit-base-patch32 \
+  --ckpt-path /path/to/checkpoint-10000.pt \
+  --reward-ckpt /path/to/checkpoint_best.pt \
+  --protocol pilot \
+  --output-root outputs/ctrl-world-preflight \
+  --dry-run
+```
+
+Remove `--dry-run` to execute all five configured doses. The runner loads the
+world model and reward scorer once, reseeds each frozen episode independently,
+and writes the receipt index plus target-local fingerprint under the output
+root.
+
+Large checkpoint hashing can be deferred for a bounded pilot because a cold
+network-filesystem scan may dominate runtime. Such a receipt remains marked
+`pilot_ready_hash_deferred` and cannot support a formal claim. Set
+`--hash-large-assets --asset-hash-cache outputs/ctrl-world-asset-hashes.json`
+once to compute the digests; later runs may reuse the cache after size and
+mtime verification.
+
 ## Claim levels
 
 Use these labels consistently:

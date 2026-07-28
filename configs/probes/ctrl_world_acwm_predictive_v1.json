@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-probe-registry",
+  "library_version": "ctrl-world-acwm-predictive-v1",
+  "probes": [
+    {
+      "id": "rollout_video_psnr",
+      "role": "verdict",
+      "report_field": "rollout_video_psnr",
+      "description": "Paired GT rollout PSNR under the frozen Ctrl-World replay protocol."
+    },
+    {
+      "id": "rollout_video_l1",
+      "role": "verdict",
+      "report_field": "rollout_video_l1",
+      "description": "Paired GT rollout RGB L1 error; lower is better."
+    },
+    {
+      "id": "segment_final_mae",
+      "role": "verdict",
+      "report_field": "segment_final_mae",
+      "description": "Action-conditioned predicted final-state error over replay segments."
+    },
+    {
+      "id": "segment_view_pair_mae",
+      "role": "verdict",
+      "report_field": "segment_view_pair_mae",
+      "description": "Cross-view pair consistency error under the frozen state projection."
+    },
+    {
+      "id": "segment_view_fused_mae",
+      "role": "verdict",
+      "report_field": "segment_view_fused_mae",
+      "description": "Fused multi-view state consistency error under the frozen state projection."
+    },
+    {
+      "id": "action_conditioning_sensitivity",
+      "role": "diagnostic",
+      "report_field": "action_conditioning_sensitivity",
+      "description": "Paired response to reversible action-embedding doses; never a downstream task-success signal."
+    },
+    {
+      "id": "autoregressive_drift",
+      "role": "diagnostic",
+      "report_field": "autoregressive_drift",
+      "description": "Growth of predictive error across replay interaction segments."
+    }
+  ]
+}
