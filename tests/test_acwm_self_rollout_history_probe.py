@@ -9,6 +9,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from scripts.run_acwm_fingerprint_probe import (
+    ActionDimensionAnisotropyDose,
     ActionEmbeddingEventAlignmentDose,
     ActionEmbeddingTemporalMixDose,
     AutoregressiveHistoryDose,
@@ -30,6 +31,9 @@ CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_history_pr
 MOTION_CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_motion_history_probe_pilot_v1.json"
 ACTION_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_mix_probe_pilot_v1.json"
+)
+ACTION_DIMENSION_ANISOTROPY_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_action_dimension_anisotropy_probe_pilot_v1.json"
 )
 ACTION_EVENT_ALIGNMENT_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_alignment_probe_pilot_v1.json"
@@ -131,6 +135,22 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         self.assertTrue(torch.equal(embedder(action), action))
         campaign = load_campaign(ACTION_TEMPORAL_MIX_CAMPAIGN)
         self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), ActionEmbeddingTemporalMixDose)
+
+    def test_action_dimension_anisotropy_preserves_per_dimension_temporal_mean(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.tensor([[[0.0, 2.0], [1.0, 2.0], [2.0, 2.0]]])
+
+        with ActionDimensionAnisotropyDose(dynamics, 0.5):
+            observed = embedder(action)
+
+        self.assertTrue(
+            torch.allclose(observed, torch.tensor([[[-0.25, 2.0], [1.0, 2.0], [2.25, 2.0]]]))
+        )
+        self.assertTrue(torch.allclose(observed.mean(dim=1), action.mean(dim=1)))
+        self.assertTrue(torch.equal(embedder(action), action))
+        campaign = load_campaign(ACTION_DIMENSION_ANISOTROPY_CAMPAIGN)
+        self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), ActionDimensionAnisotropyDose)
 
     def test_action_event_alignment_preserves_embedding_mean(self) -> None:
         embedder = _IdentityActionEmbedder()

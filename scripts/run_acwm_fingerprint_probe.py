@@ -88,6 +88,44 @@ class ActionEmbeddingTemporalMixDose:
         return False
 
 
+class ActionDimensionAnisotropyDose:
+    """Redistribute temporal action contrast across action dimensions."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.embedder = dynamics_model.model.action_embedder
+        self.original = self.embedder.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def anisotropic_forward(_module, action):
+            if action.ndim != 3:
+                raise RuntimeError("ACWM_ACTION_DIMENSION_ANISOTROPY_SHAPE_INVALID")
+            temporal_mean = action.mean(dim=1, keepdim=True)
+            temporal_contrast = action - temporal_mean
+            dimension_energy = temporal_contrast.square().mean(dim=1).sqrt()
+            energy_scale = dimension_energy.amax(dim=-1, keepdim=True)
+            normalized_energy = torch.where(
+                energy_scale > 1e-12,
+                dimension_energy / energy_scale.clamp_min(1e-12),
+                torch.zeros_like(dimension_energy),
+            )
+            dimension_contrast = normalized_energy - normalized_energy.mean(
+                dim=-1, keepdim=True
+            )
+            perturbed_action = action + dose * temporal_contrast * dimension_contrast.unsqueeze(1)
+            return original(perturbed_action)
+
+        self.embedder.forward = MethodType(anisotropic_forward, self.embedder)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.embedder.forward = self.original
+        return False
+
+
 class ActionEmbeddingEventAlignmentDose:
     """Dose mean-preserving action-embedding contrast at action transitions."""
 
@@ -494,6 +532,10 @@ def _dose_context(
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_EMBEDDER_HOOK_MISSING")
         return ActionEmbeddingTemporalMixDose(dynamics_model, dose)
+    if probe_id == "action_dimension_anisotropy":
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_ACTION_DIMENSION_ANISOTROPY_HOOK_MISSING")
+        return ActionDimensionAnisotropyDose(dynamics_model, dose)
     if probe_id == "action_temporal_alignment":
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_EVENT_ALIGNMENT_HOOK_MISSING")
