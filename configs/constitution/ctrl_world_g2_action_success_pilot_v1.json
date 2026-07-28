@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-constitutional-config",
+  "constitution_id": "ctrl_world_g2_action_success_pilot_v1",
+  "goal_spec": "configs/goal/ctrl_world_g2_action_success_pilot_v1.yaml",
+  "dataset_freeze": "configs/backbones/ctrl_world_g2_dataset_freeze.json",
+  "heldout_protocol": "configs/goal/ctrl_world_heldout_split.json",
+  "evaluator_freeze": "configs/eval_ctrl_world_g2_frozen.sha256",
+  "probe_registry": "configs/probes/ctrl_world_wam_v1.json",
+  "verdict_probe_ids": ["task_success", "task_progress", "safety_events"],
+  "frozen_code": {
+    "verdict_policy": [
+      "wmloop/evaluate/adapters/ctrl_world.py",
+      "configs/schemas/ctrl_world_rollout_receipt.schema.json"
+    ],
+    "verdict_evidence_projection": ["wmloop/diagnose/probe_registry.py"],
+    "attribution_policy": ["wmloop/diagnose/diagnoser.py"],
+    "hook_contracts": [
+      "wmloop/primitives/hooks.py",
+      "wmloop/primitives/adapters/ctrl_world_hooks.py",
+      "wmloop/primitives/adapters/backbone_registry.py",
+      "configs/registry_ctrl_world_g2.sha256"
+    ],
+    "schema_contracts": [
+      "configs/schemas/goal_spec.schema.json",
+      "configs/schemas/probe_registry.schema.json",
+      "configs/schemas/ctrl_world_heldout_split.schema.json",
+      "configs/schemas/backbone_primitive_registry.schema.json",
+      "configs/schemas/constitutional_config.schema.json",
+      "configs/schemas/constitutional_manifest.schema.json"
+    ]
+  }
+}

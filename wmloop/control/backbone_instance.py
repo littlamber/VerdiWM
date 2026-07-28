@@ -16,6 +16,10 @@ from wmloop.archive.store import ArchiveStore, ContentAddressedStore
 from wmloop.constitution import ConstitutionalFreezeError, verify_constitutional_freeze
 from wmloop.contracts import ContractValidationError, load_yaml_document, validate_document
 from wmloop.diagnose.probe_registry import ProbeRegistryError, load_probe_registry
+from wmloop.primitives.adapters.backbone_registry import (
+    BackbonePrimitiveRegistryError,
+    load_backbone_primitive_registry,
+)
 
 
 class BackboneInstantiationError(RuntimeError):
@@ -145,6 +149,8 @@ def _contract_checks(
         checks.append(_check_goal(by_id["goal_spec"], root=root, expected_goal_id=str(config["goal_id"])))
     if "probe_registry" in by_id:
         checks.append(_check_probe_registry(by_id["probe_registry"], root=root))
+    if "primitive_registry" in by_id:
+        checks.append(_check_primitive_registry(by_id["primitive_registry"], root=root))
     if "constitution_config" in by_id:
         checks.append(_check_constitution_config(by_id["constitution_config"], root=root))
     if "constitution_freeze" in by_id:
@@ -181,6 +187,25 @@ def _check_probe_registry(surface: Mapping[str, object], *, root: Path) -> dict[
         True,
         "formal_verdict",
         f"verdict_probes={','.join(registry.verdict_probe_ids)}",
+    )
+
+
+def _check_primitive_registry(surface: Mapping[str, object], *, root: Path) -> dict[str, object]:
+    path = Path(str(surface["resolved_path"]))
+    if not path.exists():
+        return _check_row(surface, "primitive_registry", "missing", False, "closed_loop", "primitive registry is absent")
+    try:
+        registry = load_backbone_primitive_registry(path, root=root)
+    except (OSError, BackbonePrimitiveRegistryError) as exc:
+        return _check_row(surface, "primitive_registry", "invalid", False, "closed_loop", str(exc))
+    return _check_row(
+        surface,
+        "primitive_registry",
+        "ready",
+        True,
+        "closed_loop",
+        "runtime_ready=" + ",".join(registry.runtime_ready_primitives)
+        + ";materializable=" + ",".join(registry.materializable_primitives),
     )
 
 

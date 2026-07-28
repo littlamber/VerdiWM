@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-evaluator-freeze",
+  "evaluator_id": "ctrl_world_g2_environment_receipt_v1",
+  "verdict_source": "environment_task_receipt",
+  "files": [
+    {"path": "wmloop/evaluate/adapters/ctrl_world.py", "sha256": "e0c0ebbfba25f4da90f7ba7ac5fd178a7573bcc3f276f86a852d8819b5c31f2d", "size": 2625},
+    {"path": "configs/schemas/ctrl_world_rollout_receipt.schema.json", "sha256": "ce8c2997d9ddb5ecdc570681194d06fe511c3d0974bd1d6dab2f37827cc9249a", "size": 1050},
+    {"path": "configs/schemas/ctrl_world_heldout_split.schema.json", "sha256": "7826d1a04cfbe38392442e6efdb9805f127ead968b2e81f918ee91faafdb3c95", "size": 1066}
+  ],
+  "upstream_protocol": {
+    "path": "config_eval.py",
+    "sha256": "de2222b16cb2ceae751d4aa6f767be4fb7bafb6c5ff0b3603cc98f87dd7fe216",
+    "size": 8686
+  },
+  "forbidden_verdict_sources": [
+    "generated_video_score",
+    "hard-coded success fields",
+    "VLM-only task-success judgments"
+  ]
+}

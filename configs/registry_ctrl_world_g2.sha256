@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-backbone-primitive-registry",
+  "registry_id": "ctrl_world_g2_v1",
+  "backbone_family": "ctrl_world",
+  "goal_family": "action_success",
+  "source_registry_digest": "309606c8183e98b72f89f2dc9a8a440e74e84950405cce260f3395d045b61234",
+  "hook_adapter": "wmloop/primitives/adapters/ctrl_world_hooks.py",
+  "bindings": [
+    {
+      "primitive": "cfg_guidance_schedule",
+      "source_hooks": ["H4"],
+      "target_hooks": ["H4"],
+      "runtime_state": "runtime_ready_external",
+      "mechanism_preserved": true,
+      "implementation_refs": ["models/pipeline_ctrl_world.py", "scripts/train_wm.py"],
+      "config_mapping": {
+        "guidance_start": "min_guidance_scale",
+        "guidance_end": "max_guidance_scale"
+      },
+      "intent_contract": {
+        "method_intent": "Schedule classifier-free guidance during Ctrl-World denoising without changing the training objective.",
+        "target_behavior": "Bind the portable guidance endpoints to the pipeline's existing minimum and maximum guidance scale arguments.",
+        "forbidden_substitutions": ["Do not replace guidance scheduling with checkpoint selection or output post-processing."],
+        "verification_requirements": ["Receipt records both endpoint values and the pipeline call uses them during sampling."]
+      }
+    },
+    {
+      "primitive": "latent_motion_prior",
+      "source_hooks": ["H3"],
+      "target_hooks": ["H3"],
+      "runtime_state": "runtime_ready_external",
+      "mechanism_preserved": true,
+      "implementation_refs": [
+        "models/lamo_motion_prior.py",
+        "models/ctrl_world.py",
+        "models/pipeline_ctrl_world.py",
+        "scripts/train_wm.py"
+      ],
+      "config_mapping": {
+        "weight": ["lambda_drift", "lambda_phi"],
+        "enabled_train": "use_lamo_train",
+        "enabled_infer": "use_lamo_infer"
+      },
+      "intent_contract": {
+        "method_intent": "Regularize latent dynamics with an action-conditioned multi-tau motion prior.",
+        "target_behavior": "Add the motion-prior losses to the Ctrl-World training loss and expose the same prior to inference guidance.",
+        "forbidden_substitutions": ["Do not claim a sidecar, generic smoothness loss, or CFG-only change as a latent motion prior."],
+        "verification_requirements": ["Training logs expose motion-prior loss terms and checkpoints contain motion_prior parameters."]
+      }
+    },
+    {
+      "primitive": "action_dimension_balancing",
+      "source_hooks": ["H2"],
+      "target_hooks": ["H2"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["models/ctrl_world.py", "models/action_adapter"],
+      "config_mapping": {"blend": "action_balance_blend", "max_gain": "action_balance_max_gain"},
+      "intent_contract": {
+        "method_intent": "Rebalance unequal action dimensions before they enter the world-model conditioning stream.",
+        "target_behavior": "Estimate bounded per-dimension gains and blend the balanced action embedding at H2.",
+        "forbidden_substitutions": ["Do not implement this as loss weighting, data resampling, or global action scaling."],
+        "verification_requirements": ["A hook test verifies per-dimension gains, bounds, shape preservation, and disabled-mode identity."]
+      }
+    },
+    {
+      "primitive": "history_noise_schedule",
+      "source_hooks": ["H2"],
+      "target_hooks": ["H2"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["models/ctrl_world.py"],
+      "config_mapping": {"history_noise": "history_condition_noise"},
+      "intent_contract": {
+        "method_intent": "Reduce train-inference mismatch by perturbing history conditioning during training.",
+        "target_behavior": "Inject bounded noise into history latents before context assembly while leaving future targets untouched.",
+        "forbidden_substitutions": ["Do not perturb target latents or reinterpret the parameter as optimizer noise."],
+        "verification_requirements": ["A deterministic seed test proves history-only perturbation and disabled-mode identity."]
+      }
+    },
+    {
+      "primitive": "mixture_reweight",
+      "source_hooks": ["H1"],
+      "target_hooks": ["H1"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["dataset/dataset_droid_exp33.py"],
+      "config_mapping": {"frontier_weight": "failure_frontier_sample_weight"},
+      "intent_contract": {
+        "method_intent": "Increase exposure to diagnosed failure-frontier trajectories without changing labels.",
+        "target_behavior": "Apply an auditable sampling weight at the dataset/sampler boundary.",
+        "forbidden_substitutions": ["Do not duplicate files, alter evaluator splits, or convert the weight into a loss coefficient."],
+        "verification_requirements": ["Sampler receipts report realized mixture proportions and held-out IDs remain untouched."]
+      }
+    },
+    {
+      "primitive": "event_window_reweight",
+      "source_hooks": ["H1"],
+      "target_hooks": ["H1"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["dataset/dataset_droid_exp33.py"],
+      "config_mapping": {
+        "event_weight": "event_window_weight",
+        "event_quantile": "event_motion_quantile",
+        "visual_motion_blend": "event_visual_motion_blend"
+      },
+      "intent_contract": {
+        "method_intent": "Oversample temporally sparse interaction windows identified by action and visual motion.",
+        "target_behavior": "Score windows before sampling and apply the declared event weight only to training examples.",
+        "forbidden_substitutions": ["Do not use evaluator outcomes, accept-split examples, or hand-picked episode IDs as event scores."],
+        "verification_requirements": ["Materialization test checks score construction, split isolation, and realized sampling ratios."]
+      }
+    },
+    {
+      "primitive": "action_contrastive_finetune",
+      "source_hooks": ["H3"],
+      "target_hooks": ["H3"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["models/ctrl_world.py", "scripts/train_wm.py"],
+      "config_mapping": {"weight": "action_contrastive_weight"},
+      "intent_contract": {
+        "method_intent": "Improve action binding by separating matched actions from counterfactual negatives.",
+        "target_behavior": "Add a weighted counterfactual-action contrastive term to H3 while retaining the base denoising loss.",
+        "forbidden_substitutions": ["Do not substitute ordinary reconstruction loss, random data augmentation, or reward-model reranking."],
+        "verification_requirements": ["Tests prove negatives differ only in action, gradients reach the action path, and weight zero is identity."]
+      }
+    },
+    {
+      "primitive": "inv_dyn_reward_finetune",
+      "source_hooks": ["H3"],
+      "target_hooks": ["H3"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["reward_models/state_reward.py", "scripts/train_wm_grpo_formal.py"],
+      "config_mapping": {
+        "reward_weight": "state_reward_weight",
+        "steps": "max_train_steps",
+        "lr": "learning_rate"
+      },
+      "intent_contract": {
+        "method_intent": "Finetune world-model rollouts using an action-sensitive inverse-dynamics or state-progress reward.",
+        "target_behavior": "Route the frozen reward signal into the declared H3 optimization objective with explicit budget and provenance.",
+        "forbidden_substitutions": ["Do not use generated-video aesthetics or uncalibrated VLM scores as task-success reward."],
+        "verification_requirements": ["Reward checkpoint, normalization, loss coefficient, and rollout source are recorded in every trial receipt."]
+      }
+    }
+  ],
+  "registry_digest": "063dca1700bcccfc8d972bcc15faf9e0b2b637a5dfb7a0eaa6f1ce4c1bf27f03"
+}

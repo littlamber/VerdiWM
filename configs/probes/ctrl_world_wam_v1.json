@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "artifact_type": "wmloop-probe-registry",
-  "library_version": "ctrl-world-wam-v1-draft",
+  "library_version": "ctrl-world-wam-v1",
   "probes": [
     {
       "id": "task_success",

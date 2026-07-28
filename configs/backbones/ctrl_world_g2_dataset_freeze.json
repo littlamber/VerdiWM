@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-external-dataset-freeze",
+  "freeze_id": "ctrl_world_g2_pilot_task_data_v1",
+  "logical_root": "dataset_example/droid_new_setup_full",
+  "heldout_split": "configs/goal/ctrl_world_heldout_split.json",
+  "source_protocol": "Ctrl-World config_eval.py task IDs, frozen before the bounded pilot",
+  "selected_file_count": 24,
+  "selected_files": [
+    {"path": "pickplace/annotation/val/0000.json", "sha256": "a488e035ce3434de6702c3938bcce89c1a558e6f601e80e3d9f731df848a2a95", "size": 36798},
+    {"path": "pickplace/videos/val/0000/0.mp4", "sha256": "132d9f7a467c5422bbebf7735671756e64b58f02f01304b54c95f797734d7261", "size": 138447},
+    {"path": "pickplace/videos/val/0000/1.mp4", "sha256": "94da639a2bd6e3af87b95fa812d2ce3d732a519faf230f556b6db7ca3baf42be", "size": 152405},
+    {"path": "pickplace/videos/val/0000/2.mp4", "sha256": "6525c87da30655f231a2bcacdf95f85b29e3fbe861882b72a1fb12ae38567751", "size": 228347},
+    {"path": "pickplace/annotation/val/0001.json", "sha256": "3e9ab134ab72e7cc1f6fbe2ce6d1620810fa11b2d0179a021353844728decd5c", "size": 39331},
+    {"path": "pickplace/videos/val/0001/0.mp4", "sha256": "d3dd303163652384eafa08569482936aa0246ff51aadc178ea99db6f34b1234f", "size": 137819},
+    {"path": "pickplace/videos/val/0001/1.mp4", "sha256": "c934a82f042c4b07fdba107958c987cd185c102b0147438035d3721c30caa3df", "size": 155098},
+    {"path": "pickplace/videos/val/0001/2.mp4", "sha256": "0e2acc712e6b1534568985889132272d2f5ffe1889837bc0f3edc7871f2f1203", "size": 229766},
+    {"path": "pickplace/annotation/val/0002.json", "sha256": "59ede2782874671cf6fe8ee3d16f635dac7377f7a9b1c7af7278d7591a99709a", "size": 45156},
+    {"path": "pickplace/videos/val/0002/0.mp4", "sha256": "ac3d469c7a1cc067c492d6424f1a94bfa2feb7d2f016fe6ca205bb798106f107", "size": 147163},
+    {"path": "pickplace/videos/val/0002/1.mp4", "sha256": "f9cb3246e6a9dab428f75c6483fbacd3adb37e9b924d008be3d8094d06874d8b", "size": 199324},
+    {"path": "pickplace/videos/val/0002/2.mp4", "sha256": "fb61833e38b08370bcc91163b981823539b642d08743ce18390c90c450abc722", "size": 258576},
+    {"path": "stack/annotation/val/0000.json", "sha256": "8da81ea1c1199205dceb77201a434394695365799c45880ab8105aa6ba11cea7", "size": 81186},
+    {"path": "stack/videos/val/0000/0.mp4", "sha256": "8d2aa25b9f216680d38d287bfd1dcf86d218fe6bf92a3c3b1b659e9c375d4a61", "size": 194389},
+    {"path": "stack/videos/val/0000/1.mp4", "sha256": "0f92840b519744ca7b1d5cf29107e63273738622b4181a63fcab45c6ae1aec7a", "size": 262280},
+    {"path": "stack/videos/val/0000/2.mp4", "sha256": "6531eb2e3ed09bfc251af7845270e85211f0c4f7df18cfb6d0d88d97fda57097", "size": 220723},
+    {"path": "stack/annotation/val/0001.json", "sha256": "d985d0ab1c111a73872eba2944baea1efab7bb8d9b7036a4d11534b2f05379ac", "size": 72892},
+    {"path": "stack/videos/val/0001/0.mp4", "sha256": "4309356c27a094862b567dc880385e69c762bffd3d9883d5603f6b191fd7d7d3", "size": 179213},
+    {"path": "stack/videos/val/0001/1.mp4", "sha256": "75bd10b7c39de99cd38735faf7908f4b60abb8ca4ffa8674fbb9452cae275f86", "size": 242231},
+    {"path": "stack/videos/val/0001/2.mp4", "sha256": "f85e42daa2cdbe8696fe435b39920a7842ebc312d35c2b9bf9b16691834beac3", "size": 196507},
+    {"path": "stack/annotation/val/0002.json", "sha256": "3913ef3640ff4f651bbbffec71921c03945936df438081986fbf9cc857638c0a", "size": 87327},
+    {"path": "stack/videos/val/0002/0.mp4", "sha256": "fd17bf7b12dea2c9a1665fbf52b93fb322ce55573643d492f0cbe5b66ffaa428", "size": 192031},
+    {"path": "stack/videos/val/0002/1.mp4", "sha256": "a4cbc8ddc8fe5151a9d9c6342b1fd6500d5c7440ae1d0d839f183b4fb799437b", "size": 264101},
+    {"path": "stack/videos/val/0002/2.mp4", "sha256": "a4dab0de2c61d48370995601178fc0cbb93aa9ff9abaf85db66ce13382855d43", "size": 241869}
+  ],
+  "limitations": [
+    "This freeze covers the six pilot episodes only, not the complete Ctrl-World dataset.",
+    "Runtime preflight must resolve the logical root and verify every listed digest before launch."
+  ]
+}

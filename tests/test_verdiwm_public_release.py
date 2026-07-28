@@ -107,6 +107,13 @@ class GithubStagingTests(unittest.TestCase):
                 (output / "configs" / "experiments" / "three_backbone_lobo_pilot_v1.json").is_file()
             )
             self.assertTrue((output / "tests" / "test_cross_backbone_experiments.py").is_file())
+            self.assertTrue(
+                (output / "configs" / "backbones" / "ctrl_world_g2_action_success_pilot_v1.json").is_file()
+            )
+            self.assertTrue((output / "configs" / "registry_ctrl_world_g2.sha256").is_file())
+            self.assertTrue(
+                (output / "configs" / "constitution" / "ctrl_world_g2_action_success_pilot_v1.freeze.json").is_file()
+            )
 
     def test_release_contract_selects_a_license_and_build_backend(self) -> None:
         license_text = (REPO_ROOT / "LICENSE").read_text(encoding="utf-8")

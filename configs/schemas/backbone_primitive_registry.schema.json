@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "registry_id",
+    "backbone_family",
+    "goal_family",
+    "source_registry_digest",
+    "hook_adapter",
+    "bindings",
+    "registry_digest"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-backbone-primitive-registry"]},
+    "registry_id": {"type": "string", "minLength": 1},
+    "backbone_family": {"type": "string", "minLength": 1},
+    "goal_family": {"type": "string", "minLength": 1},
+    "source_registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "hook_adapter": {"type": "string", "minLength": 1},
+    "bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primitive",
+          "source_hooks",
+          "target_hooks",
+          "runtime_state",
+          "mechanism_preserved",
+          "implementation_refs",
+          "config_mapping",
+          "intent_contract"
+        ],
+        "properties": {
+          "primitive": {"type": "string", "minLength": 1},
+          "source_hooks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"enum": ["H1", "H2", "H3", "H4", "H5"]}
+          },
+          "target_hooks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"enum": ["H1", "H2", "H3", "H4", "H5"]}
+          },
+          "runtime_state": {
+            "enum": ["runtime_ready_external", "mapped_for_materialization", "quarantined"]
+          },
+          "mechanism_preserved": {"type": "boolean"},
+          "implementation_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "config_mapping": {"type": "object"},
+          "intent_contract": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method_intent", "target_behavior", "forbidden_substitutions", "verification_requirements"],
+            "properties": {
+              "method_intent": {"type": "string", "minLength": 1},
+              "target_behavior": {"type": "string", "minLength": 1},
+              "forbidden_substitutions": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "minLength": 1}
+              },
+              "verification_requirements": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    },
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

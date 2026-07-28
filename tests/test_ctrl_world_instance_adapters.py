@@ -2,15 +2,23 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from tempfile import TemporaryDirectory
 import unittest
 
 from wmloop.evaluate.adapters.ctrl_world import CtrlWorldEvaluationError, evaluate_ctrl_world_receipt
 from wmloop.primitives.adapters.ctrl_world_hooks import audit_ctrl_world_hooks
+from wmloop.primitives.adapters.backbone_registry import (
+    BackbonePrimitiveRegistryError,
+    load_backbone_primitive_registry,
+    registry_digest,
+)
+from scripts.run_ctrl_world_bounded_smoke import build_receipt
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SPLIT = ROOT / "configs" / "goal" / "ctrl_world_heldout_split.json"
+PRIMITIVES = ROOT / "configs" / "registry_ctrl_world_g2.sha256"
 
 
 class CtrlWorldInstanceAdapterTests(unittest.TestCase):
@@ -50,6 +58,42 @@ class CtrlWorldInstanceAdapterTests(unittest.TestCase):
             report = audit_ctrl_world_hooks(root)
             self.assertEqual(report["state"], "ready")
             self.assertEqual(report["available_hooks"], ["H1", "H2", "H3", "H4", "H5"])
+
+    def test_ctrl_world_primitive_mapping_preserves_portable_hook_intent(self) -> None:
+        registry = load_backbone_primitive_registry(PRIMITIVES, root=ROOT)
+        self.assertEqual(registry.backbone_family, "ctrl_world")
+        self.assertEqual(registry.runtime_ready_primitives, ("cfg_guidance_schedule", "latent_motion_prior"))
+        self.assertIn("action_dimension_balancing", registry.materializable_primitives)
+
+    def test_ctrl_world_primitive_mapping_rejects_hook_substitution(self) -> None:
+        with TemporaryDirectory(dir=ROOT) as temporary:
+            payload = json.loads(PRIMITIVES.read_text(encoding="utf-8"))
+            payload["bindings"][0]["target_hooks"] = ["H3"]
+            payload["registry_digest"] = registry_digest(payload)
+            path = Path(temporary) / "registry.json"
+            path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+            with self.assertRaisesRegex(BackbonePrimitiveRegistryError, "TARGET_HOOK_MISMATCH"):
+                load_backbone_primitive_registry(path, root=ROOT)
+
+    def test_bounded_smoke_receipt_parses_tqdm_prefixed_loss_line(self) -> None:
+        with TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "trainer-output").mkdir()
+            (output / "train.log").write_text(
+                "use_lamo_train=True\n"
+                "use_lamo_infer=True\n"
+                "\rSteps: 100%|##########| 1/1 loss_window step=1 train_loss=0.5 loss_phi=0.4\n",
+                encoding="utf-8",
+            )
+            receipt = build_receipt(
+                output=output,
+                args=SimpleNamespace(max_train_steps=1, physical_gpu=2),
+                launch={"worker_pid": 123},
+                return_code=0,
+                timed_out=False,
+            )
+            self.assertTrue(receipt["runtime_smoke_passed"])
+            self.assertEqual(receipt["loss_window_lines"], ["loss_window step=1 train_loss=0.5 loss_phi=0.4"])
 
 
 def _write_receipt(path: Path, *, source: str = "environment_task_receipt", episode: str = "0000") -> Path:

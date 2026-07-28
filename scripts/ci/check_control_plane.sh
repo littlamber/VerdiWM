@@ -7,7 +7,7 @@ trap 'rm -rf "$build_dir"' EXIT
 uv build --wheel --out-dir "$build_dir"
 wheel_path="$(find "$build_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
 test -n "$wheel_path"
-python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/__init__.py" in names; assert "configs/schemas/goal_spec.schema.json" in names; assert "configs/schemas/cross_backbone_experiment.schema.json" in names; assert "configs/schemas/experiment_stage_receipt.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/__init__.py" in names; assert "configs/schemas/goal_spec.schema.json" in names; assert "configs/schemas/cross_backbone_experiment.schema.json" in names; assert "configs/schemas/experiment_stage_receipt.schema.json" in names; assert "configs/schemas/backbone_primitive_registry.schema.json" in names' "$wheel_path"
 
 uv run python -m py_compile \
   wmloop/geometry/types.py \
@@ -20,6 +20,7 @@ uv run python -m py_compile \
   wmloop/experiments/ledger.py \
   wmloop/experiments/report.py \
   wmloop/evaluate/adapters/ctrl_world.py \
+  wmloop/primitives/adapters/backbone_registry.py \
   wmloop/primitives/adapters/ctrl_world_hooks.py \
   wmloop/control/agent_engineering_policy.py \
   wmloop/control/backbone_capability_matrix.py \
@@ -50,7 +51,8 @@ uv run python -m py_compile \
   scripts/export/verdiwm_minimal_loop_bundle.py \
   scripts/export/acwm_public_experience_bundle.py \
   scripts/export/validate_public_example.py \
-  scripts/export/build_github_staging.py
+  scripts/export/build_github_staging.py \
+  scripts/run_ctrl_world_bounded_smoke.py
 
 uv run pytest -q \
   tests/test_verdiwm_geometry.py \

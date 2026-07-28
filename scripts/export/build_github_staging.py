@@ -98,11 +98,24 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             _copy_file(source / "tests" / name, temporary / "tests" / name)
         for tree in CONFIG_TREES:
             _copy_tree(source / "configs" / tree, temporary / "configs" / tree)
-        for name in ("eval_frozen.sha256", "registry_frozen.sha256"):
+        for name in (
+            "eval_frozen.sha256",
+            "eval_ctrl_world_g2_frozen.sha256",
+            "registry_frozen.sha256",
+            "registry_ctrl_world_g2.sha256",
+        ):
             _copy_file(source / "configs" / name, temporary / "configs" / name)
         _copy_file(
             source / "configs" / "backbones" / "acwm_phys_g1_long_horizon_ladder_public_v1.json",
             temporary / "configs" / "backbones" / "acwm_phys_g1_long_horizon_ladder_v1.json",
+        )
+        _copy_file(
+            source / "configs" / "backbones" / "ctrl_world_g2_action_success_public_v1.json",
+            temporary / "configs" / "backbones" / "ctrl_world_g2_action_success_pilot_v1.json",
+        )
+        _copy_file(
+            source / "configs" / "backbones" / "ctrl_world_g2_dataset_freeze.json",
+            temporary / "configs" / "backbones" / "ctrl_world_g2_dataset_freeze.json",
         )
         _copy_tree(source / "docs" / "public", temporary / "docs")
         _copy_tree(source / "figures", temporary / "figures")
