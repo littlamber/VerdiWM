@@ -180,8 +180,10 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
     if args.dry_run:
         return {**preflight, "dry_run": True, "output_root": str(output_root)}
 
-    module = _load_upstream_module(
-        eval_root=assets["ctrl_world_root"], model_root=assets["ctrl_world_model_root"]
+    module = _load_upstream_module_with_local_model_base(
+        eval_root=assets["ctrl_world_root"],
+        model_root=assets["ctrl_world_model_root"],
+        local_model_base=assets["svd_model"].parent,
     )
     run_state = _install_runtime_adapters(
         module=module,
@@ -320,6 +322,20 @@ def _load_upstream_module(*, eval_root: Path, model_root: Path) -> Any:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _load_upstream_module_with_local_model_base(
+    *, eval_root: Path, model_root: Path, local_model_base: Path
+) -> Any:
+    previous_model_root = os.environ.get("CTRL_WORLD_MODEL_ROOT")
+    os.environ["CTRL_WORLD_MODEL_ROOT"] = str(Path(local_model_base).resolve())
+    try:
+        return _load_upstream_module(eval_root=eval_root, model_root=model_root)
+    finally:
+        if previous_model_root is None:
+            os.environ.pop("CTRL_WORLD_MODEL_ROOT", None)
+        else:
+            os.environ["CTRL_WORLD_MODEL_ROOT"] = previous_model_root
 
 
 def _install_runtime_adapters(

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from scripts.run_ctrl_world_predictive_campaign import (
     CtrlWorldPredictiveCampaignError,
     _asset_identity,
+    _load_upstream_module_with_local_model_base,
     prediction_receipts_from_summary,
     protocol_rows,
 )
@@ -92,6 +95,30 @@ class CtrlWorldPredictiveCampaignRunnerTests(unittest.TestCase):
             reused = _asset_identity(path, cache=cache, hash_large_assets=False)
             self.assertEqual(reused["sha256_state"], "cached")
             self.assertEqual(reused["sha256"], computed["sha256"])
+
+    def test_upstream_import_prefers_and_then_restores_local_model_base(self) -> None:
+        original = os.environ.get("CTRL_WORLD_MODEL_ROOT")
+        os.environ["CTRL_WORLD_MODEL_ROOT"] = "/previous/model/base"
+        observed: list[str | None] = []
+
+        def fake_loader(*, eval_root: Path, model_root: Path) -> object:
+            observed.append(os.environ.get("CTRL_WORLD_MODEL_ROOT"))
+            return object()
+
+        try:
+            with patch("scripts.run_ctrl_world_predictive_campaign._load_upstream_module", fake_loader):
+                _load_upstream_module_with_local_model_base(
+                    eval_root=ROOT,
+                    model_root=ROOT,
+                    local_model_base=ROOT / "models",
+                )
+            self.assertEqual(observed, [str((ROOT / "models").resolve())])
+            self.assertEqual(os.environ.get("CTRL_WORLD_MODEL_ROOT"), "/previous/model/base")
+        finally:
+            if original is None:
+                os.environ.pop("CTRL_WORLD_MODEL_ROOT", None)
+            else:
+                os.environ["CTRL_WORLD_MODEL_ROOT"] = original
 
 
 if __name__ == "__main__":
