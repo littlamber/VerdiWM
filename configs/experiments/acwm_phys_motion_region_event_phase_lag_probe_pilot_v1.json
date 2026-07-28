@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-fingerprint-campaign",
+  "campaign_id": "acwm_phys_motion_region_event_phase_lag_probe_pilot_v1",
+  "backbone_instance_ref": "configs/backbones/acwm_phys_g1_long_horizon_ladder_v1.json",
+  "goal_spec_ref": "configs/goal/g1_long_horizon_ladder_v1.yaml",
+  "claim_scope": "Counterexample-driven inference-only successor for nonlocal motion-region paths. It measures whether generated spatial motion follows rather than anticipates action events; it is not repair-quality, target-label, or transfer evidence.",
+  "probe": {
+    "probe_id": "motion_region_event_phase_lag",
+    "kind": "probe_path",
+    "hook_type": "H2",
+    "transformation": "during autoregressive rollout, apply a signed dose to generated-history increments proportional to normalized spatial motion times previous-minus-next action-transition salience, favoring motion that follows events for positive dose and motion that anticipates events for negative dose",
+    "scope": "inference_only",
+    "dose_unit": "relative_post_event_vs_pre_event_motion_increment_contrast",
+    "doses": [-0.1, -0.05, 0.0, 0.05, 0.1],
+    "schedule": "spatial_motion_mask_times_previous_minus_next_action_event_salience",
+    "generation_mode": "autoregressive",
+    "required_capabilities": ["history_latent_hook", "spatial_motion_mask", "action_sequence_hook", "paired_seed_control"],
+    "preconditions": ["autoregressive latent history is exposed", "latent spatial axes are preserved", "time-aligned action sequences are exposed", "paired random seed control is available"],
+    "invariants": ["same_checkpoint", "same_input_action", "same_trajectory", "same_seed", "same_evaluator", "same_generation_mode", "first_conditioned_latent_unmodified", "current_noisy_latent_unmodified", "zero_motion_regions_unmodified", "temporally_balanced_event_context_unmodified", "actions_unmodified"],
+    "prediction": "The signed local response separates environments where motion-region reweighting benefits causal post-action motion from environments dominated by anticipatory, weakly controlled, or phase-ambiguous motion.",
+    "inference_only": true,
+    "reversible": true
+  },
+  "goal_oriented_outcomes": [
+    {"name": "psnr", "source_metric": "psnr", "sign": 1.0, "weight": 1.0},
+    {"name": "ssim", "source_metric": "ssim", "sign": 1.0, "weight": 4.0},
+    {"name": "negative_mse", "source_metric": "mse", "sign": -1.0, "weight": 1.0},
+    {"name": "negative_masked_mse", "source_metric": "masked_mse", "sign": -1.0, "weight": 2.0}
+  ],
+  "seeds": [101, 202, 303],
+  "environments": {
+    "push_cube": {"dataset_name": "push_cube", "config": "configs/envs/push_cube.yaml", "checkpoint_dir": "VideoDiT_S_push_cube_240x240"},
+    "stack_cube": {"dataset_name": "stack_cube", "config": "configs/envs/stack_cube.yaml", "checkpoint_dir": "VideoDiT_S_stack_cube_240x240"},
+    "push_rope": {"dataset_name": "push_rope", "config": "configs/envs/push_rope.yaml", "checkpoint_dir": "VideoDiT_S_push_rope_240x240"},
+    "cloth_move": {"dataset_name": "clothmove", "config": "configs/envs/clothmove.yaml", "checkpoint_dir": "VideoDiT_S_clothmove_240x240_240x240"},
+    "push_sand": {"dataset_name": "push_sand", "config": "configs/envs/push_sand.yaml", "checkpoint_dir": "VideoDiT_S_push_sand_240x400"},
+    "pour_water": {"dataset_name": "pour_water", "config": "configs/envs/pour_water.yaml", "checkpoint_dir": "VideoDiT_S_pour_water_240x240"},
+    "robot_arm": {"dataset_name": "robot_arm", "config": "configs/envs/robot_arm.yaml", "checkpoint_dir": "VideoDiT_S_robot_arm_240x240"},
+    "reacher": {"dataset_name": "reacher", "config": "configs/envs/reacher.yaml", "checkpoint_dir": "VideoDiT_S_reacher_240x240"}
+  },
+  "protocols": {
+    "smoke": {"inference_steps": 2, "max_trajs": 1, "test_cuts": 1, "batch_size": 1, "split": "ind_test"},
+    "pilot": {"inference_steps": 10, "max_trajs": 1, "test_cuts": 1, "batch_size": 1, "split": "ind_test"},
+    "paper": {"inference_steps": 50, "max_trajs": 3, "test_cuts": 1, "batch_size": 1, "split": "ind_test"}
+  },
+  "formal_claim_requires": "paper protocol, all eight environments, complete paired-dose receipts, locality admission, collision-separation audit, redundancy admission, and independent held-out selector evaluation"
+}

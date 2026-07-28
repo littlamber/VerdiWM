@@ -18,6 +18,7 @@ from scripts.run_acwm_fingerprint_probe import (
     AutoregressiveTeacherRecoveryDose,
     AutoregressiveMotionDose,
     AutoregressiveMotionEventAlignmentDose,
+    AutoregressiveMotionEventPhaseLagDose,
     AutoregressiveMotionRegionDose,
     _dose_context,
 )
@@ -36,6 +37,9 @@ ACTION_EVENT_ALIGNMENT_CAMPAIGN = (
 MOTION_REGION_CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_motion_region_probe_pilot_v1.json"
 MOTION_EVENT_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_motion_region_event_alignment_probe_pilot_v1.json"
+)
+MOTION_EVENT_PHASE_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_motion_region_event_phase_lag_probe_pilot_v1.json"
 )
 SELF_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_temporal_mix_probe_pilot_v1.json"
@@ -204,6 +208,28 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
             observed = dit(z, t, action)
 
         self.assertTrue(torch.equal(observed, z))
+
+    def test_motion_event_phase_lag_changes_following_motion_only(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor(
+            [[[[[0.0], [0.0]]], [[[1.0], [0.0]]], [[[2.0], [0.0]]], [[[9.0], [9.0]]]]]
+        )
+        t = torch.zeros(1, 4)
+        action = torch.tensor([[[0.0], [1.0], [1.0], [1.0]]])
+
+        with AutoregressiveMotionEventPhaseLagDose(dynamics, 0.5):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :1], z[:, :1]))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(observed[0, 1:3, 0, 0, 0], torch.tensor([1.0, 2.5])))
+        self.assertTrue(torch.equal(observed[0, 1:3, 0, 1, 0], torch.tensor([0.0, 0.0])))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(MOTION_EVENT_PHASE_CAMPAIGN)
+        self.assertIsInstance(
+            _dose_context(dynamics, campaign, 0.0), AutoregressiveMotionEventPhaseLagDose
+        )
 
     def test_self_rollout_temporal_mix_changes_each_history_state_locally(self) -> None:
         dit = _IdentityDiT()
