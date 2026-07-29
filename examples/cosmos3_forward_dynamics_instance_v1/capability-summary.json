@@ -1,0 +1,25 @@
+{
+  "artifact_type": "verdiwm-cosmos3-forward-dynamics-public-capability-summary",
+  "available_hooks": [
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5"
+  ],
+  "blocked_primitive_count": 13,
+  "campaign_state": "pilot_draft",
+  "closed_loop_instance_ready": true,
+  "eligible_primitive_count": 4,
+  "eligible_primitives": [
+    "action_dimension_balancing",
+    "cfg_guidance_schedule",
+    "first_frame_anchor",
+    "mixture_reweight"
+  ],
+  "formal_verdict_instance_ready": true,
+  "instance_formal_launch_allowed": false,
+  "primitive_count": 17,
+  "schema_version": 1,
+  "state": "pilot_draft"
+}

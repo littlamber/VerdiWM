@@ -1,0 +1,20 @@
+goal_id: cosmos3_forward_dynamics_predictive_pilot_v1
+metric_family:
+  - rollout_video_psnr
+  - rollout_video_l1
+  - final_frame_mae
+  - temporal_difference_mae
+horizons: [16]
+primary_objective: predictive_quality_ladder
+action_following_gate:
+  tau_af: 0.0
+eval_protocol:
+  dev_split: configs/goal/cosmos3_forward_dynamics_split_v1.json#dev
+  accept_split: configs/goal/cosmos3_forward_dynamics_split_v1.json#accept
+  accept_horizon_extra: 16
+  seeds_accept: [101, 202, 303]
+budget:
+  total_gpu_hours: 96
+  per_trial_max_gpu_hours: 24
+envs:
+  - droid_lerobot_forward_dynamics

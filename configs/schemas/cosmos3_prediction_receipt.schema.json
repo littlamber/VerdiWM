@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "evidence_source",
+    "model_mode",
+    "sample_index",
+    "seed",
+    "horizon_frames",
+    "metrics",
+    "action_conditioned",
+    "conditioning_ref",
+    "ground_truth_ref",
+    "rollout_ref",
+    "evaluator_version"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-cosmos3-prediction-receipt"]},
+    "evidence_source": {"enum": ["paired_ground_truth_rollout", "downstream_task_success"]},
+    "model_mode": {"enum": ["forward_dynamics", "policy"]},
+    "sample_index": {"type": "integer", "minimum": 0},
+    "seed": {"type": "integer"},
+    "horizon_frames": {"type": "integer", "minimum": 1},
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rollout_video_psnr", "rollout_video_l1", "final_frame_mae", "temporal_difference_mae"],
+      "properties": {
+        "rollout_video_psnr": {"type": "number"},
+        "rollout_video_l1": {"type": "number", "minimum": 0},
+        "final_frame_mae": {"type": "number", "minimum": 0},
+        "temporal_difference_mae": {"type": "number", "minimum": 0}
+      }
+    },
+    "action_conditioned": {"type": "boolean"},
+    "conditioning_ref": {"type": "string", "minLength": 1},
+    "ground_truth_ref": {"type": "string", "minLength": 1},
+    "rollout_ref": {"type": "string", "minLength": 1},
+    "evaluator_version": {"type": "string", "minLength": 1}
+  }
+}

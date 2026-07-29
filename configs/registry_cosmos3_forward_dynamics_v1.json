@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-backbone-primitive-registry",
+  "registry_id": "cosmos3_forward_dynamics_v1",
+  "backbone_family": "cosmos3",
+  "goal_family": "predictive_quality",
+  "source_registry_digest": "309606c8183e98b72f89f2dc9a8a440e74e84950405cce260f3395d045b61234",
+  "hook_adapter": "wmloop/primitives/adapters/cosmos3_hooks.py",
+  "bindings": [
+    {
+      "primitive": "action_dimension_balancing",
+      "source_hooks": ["H2"],
+      "target_hooks": ["H2"],
+      "runtime_state": "runtime_ready_external",
+      "mechanism_preserved": true,
+      "implementation_refs": [
+        "wmloop/primitives/adapters/cosmos3_hooks.py",
+        "cosmos_framework/inference/action.py"
+      ],
+      "config_mapping": {"blend": "action_balance_blend", "max_gain": "action_balance_max_gain"},
+      "intent_contract": {
+        "method_intent": "Rebalance unequal DROID action dimensions before they enter Cosmos3 forward-dynamics conditioning.",
+        "target_behavior": "Compute bounded inverse-RMS gains from the declared training-side action frame and apply them only to the H2 action JSON consumed by inference.",
+        "forbidden_substitutions": [
+          "Do not replace per-dimension gains with global action scaling.",
+          "Do not alter GT future frames, evaluator outputs, or held-out split membership."
+        ],
+        "verification_requirements": [
+          "Disabled or zero-blend behavior preserves action values.",
+          "The hook receipt records shape, gains, source hash, and transformed hash."
+        ]
+      }
+    },
+    {
+      "primitive": "first_frame_anchor",
+      "source_hooks": ["H2"],
+      "target_hooks": ["H2"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["cosmos_framework/inference/action.py", "cosmos_framework/inference/inference.py"],
+      "config_mapping": {"anchor_every": "autoregressive_anchor_interval", "anchor_weight": "anchor_latent_blend"},
+      "intent_contract": {
+        "method_intent": "Reinject a stable first-frame visual anchor during long autoregressive forward-dynamics rollout.",
+        "target_behavior": "Blend the original conditioning latent at declared chunk boundaries while leaving action chunks and GT targets unchanged.",
+        "forbidden_substitutions": ["Do not substitute ordinary last-frame chaining or video post-processing for a first-frame latent anchor."],
+        "verification_requirements": ["A runtime test must show original-frame latent use at the configured interval and exact identity when disabled."]
+      }
+    },
+    {
+      "primitive": "cfg_guidance_schedule",
+      "source_hooks": ["H4"],
+      "target_hooks": ["H4"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["cosmos_framework/inference/inference.py"],
+      "config_mapping": {"guidance_start": "guidance_schedule_start", "guidance_end": "guidance_schedule_end"},
+      "intent_contract": {
+        "method_intent": "Schedule classifier-free guidance over Cosmos3 denoising steps.",
+        "target_behavior": "Expose step-indexed guidance at the H4 sampler callback instead of replacing it with one constant scalar.",
+        "forbidden_substitutions": ["Do not claim the existing constant guidance argument as a guidance schedule."],
+        "verification_requirements": ["Sampler traces must record both endpoints and at least two distinct applied guidance values."]
+      }
+    },
+    {
+      "primitive": "mixture_reweight",
+      "source_hooks": ["H1"],
+      "target_hooks": ["H1"],
+      "runtime_state": "mapped_for_materialization",
+      "mechanism_preserved": true,
+      "implementation_refs": ["cosmos_framework/data/vfm/action/datasets/droid_lerobot_dataset.py"],
+      "config_mapping": {"frontier_weight": "failure_frontier_sample_weight"},
+      "intent_contract": {
+        "method_intent": "Increase exposure to diagnosed DROID failure-frontier windows without changing labels.",
+        "target_behavior": "Apply auditable sampler weights only on the training split at H1.",
+        "forbidden_substitutions": ["Do not duplicate accept windows, alter evaluator identities, or convert sampling weight into loss weight."],
+        "verification_requirements": ["Sampler receipts report intended and realized mixture proportions with split isolation."]
+      }
+    }
+  ],
+  "registry_digest": "47b7b46fa7246343515c38f663a5b06d83d62ce96a0e9b5d4a046bec2e6f4326"
+}

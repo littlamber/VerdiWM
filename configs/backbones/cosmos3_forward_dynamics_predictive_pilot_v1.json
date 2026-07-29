@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-backbone-instance",
+  "instance_id": "cosmos3_forward_dynamics_predictive_pilot_v1",
+  "backbone_family": "cosmos3",
+  "goal_id": "cosmos3_forward_dynamics_predictive_pilot_v1",
+  "campaign_state": "pilot_draft",
+  "claim_scope": "Portable Cosmos3-Nano ACWM forward-dynamics pilot template. External source, runtime, checkpoint, local asset config, and dataset paths must be bound and re-audited before execution.",
+  "surfaces": [
+    {"surface_id": "source_repo", "role": "runtime", "status": "missing", "artifact_ref": "external/Cosmos3", "required_for_closed_loop": true, "required_for_formal_verdict": false, "notes": "Bind a Cosmos3 framework checkout with the official action forward-dynamics runner."},
+    {"surface_id": "runtime_python", "role": "runtime", "status": "missing", "artifact_ref": "external/Cosmos3-python", "required_for_closed_loop": true, "required_for_formal_verdict": false, "notes": "Bind the CUDA-capable Cosmos3 uv environment."},
+    {"surface_id": "checkpoint", "role": "runtime", "status": "missing", "artifact_ref": "external/Cosmos3-Nano", "required_for_closed_loop": true, "required_for_formal_verdict": false, "notes": "Bind an ACWM-capable Cosmos3-Nano checkpoint, not a policy-only checkpoint."},
+    {"surface_id": "goal_spec", "role": "constitutional", "status": "ready", "artifact_ref": "configs/goal/cosmos3_forward_dynamics_predictive_pilot_v1.yaml", "required_for_closed_loop": true, "required_for_formal_verdict": true, "notes": "Predictive ACWM metrics only."},
+    {"surface_id": "heldout_split", "role": "constitutional", "status": "ready", "artifact_ref": "configs/goal/cosmos3_forward_dynamics_split_v1.json", "required_for_closed_loop": true, "required_for_formal_verdict": true, "notes": "Frozen sample-index and seed identities."},
+    {"surface_id": "dataset_freeze", "role": "constitutional", "status": "ready", "artifact_ref": "configs/backbones/cosmos3_droid_lerobot_dataset_freeze_v1.json", "required_for_closed_loop": true, "required_for_formal_verdict": true, "notes": "Official cookbook sample identity template."},
+    {"surface_id": "probe_registry", "role": "constitutional", "status": "ready", "artifact_ref": "configs/probes/cosmos3_acwm_forward_dynamics_v1.json", "required_for_closed_loop": true, "required_for_formal_verdict": true, "notes": "Verdict and diagnostic probes remain role-separated."},
+    {"surface_id": "evaluator_adapter", "role": "constitutional", "status": "ready", "artifact_ref": "wmloop/evaluate/adapters/cosmos3_predictive.py", "required_for_closed_loop": true, "required_for_formal_verdict": true, "notes": "Rejects policy mode, task success, and out-of-split receipts."},
+    {"surface_id": "hook_adapter", "role": "adapter", "status": "ready", "artifact_ref": "wmloop/primitives/adapters/cosmos3_hooks.py", "required_for_closed_loop": true, "required_for_formal_verdict": false, "notes": "Action probes and dimension balancing retain explicit intent contracts."},
+    {"surface_id": "primitive_registry", "role": "adapter", "status": "ready", "artifact_ref": "configs/registry_cosmos3_forward_dynamics_v1.json", "required_for_closed_loop": true, "required_for_formal_verdict": false, "notes": "Only four explicit bindings are eligible; unbound primitives remain blocked."},
+    {"surface_id": "runtime_smoke", "role": "runtime", "status": "ready", "artifact_ref": "wmloop/control/cosmos3_forward_dynamics_smoke.py", "required_for_closed_loop": true, "required_for_formal_verdict": false, "notes": "CPU-only staging harness; this is not a model-quality test."}
+  ],
+  "invariants": [
+    "Cosmos3 policy/WAM assets and action accuracy cannot enter this ACWM forward-dynamics instance.",
+    "Prediction receipts require paired GT futures and fixed sample-index/seed identities.",
+    "Agent-authored code cannot substitute an easier intervention for the declared primitive intent.",
+    "A CPU smoke or capability audit is not model-improvement or transfer evidence."
+  ],
+  "next_actions": [
+    "Bind external assets and run the CPU smoke.",
+    "Freeze local source and evaluator identities before GPU execution.",
+    "Measure dev and accept target-local charts before transfer experiments."
+  ]
+}

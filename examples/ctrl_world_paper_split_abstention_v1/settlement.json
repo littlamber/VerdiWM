@@ -1,0 +1,32 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-fingerprint-settlement",
+  "candidates": [
+    {
+      "campaign_id": "ctrl_world_irg_calibration_narrow_paper_v1",
+      "dose_radius": 0.025,
+      "doses": [
+        -0.025,
+        -0.0125,
+        0.0,
+        0.0125,
+        0.025
+      ],
+      "locality_state": "failed",
+      "locality_threshold": 0.5,
+      "manifest_sha256": "d818cbf85af2c0237f25c2ed40005a6d92bd345996d31ba16616b17399f837ed",
+      "maximum_residual": 1.1063256062305857,
+      "measurement_count": 15,
+      "probe_id": "action_conditioning_scale",
+      "report_sha256": "b5b8e10fcf8ad1eb5e3c953e5a17f360f45be76d130278a44c887bad317b23e1",
+      "supported_local_paths": []
+    }
+  ],
+  "claim_boundary": "This settles a target-local Ctrl-World ACWM response chart only. Admission permits later selector experiments; it is not model-improvement or cross-backbone transfer evidence.",
+  "cross_backbone_transfer_eligible": false,
+  "protocol": "paper",
+  "schema_version": 1,
+  "selected_campaign_id": null,
+  "selected_dose_radius": null,
+  "selection_policy": "widest_locality_admitted_radius_then_lowest_residual",
+  "state": "settled_abstained"
+}

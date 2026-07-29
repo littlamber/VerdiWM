@@ -1,0 +1,10 @@
+{
+  "absolute_tolerance": 0.001,
+  "artifact_type": "verdiwm-ctrl-world-baseline-reproducibility",
+  "campaign_ids": [
+    "ctrl_world_irg_calibration_narrow_paper_v1"
+  ],
+  "max_absolute_difference": null,
+  "schema_version": 1,
+  "state": "not_applicable"
+}

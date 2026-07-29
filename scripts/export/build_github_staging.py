@@ -70,6 +70,8 @@ PUBLIC_TEST_FILES = (
     "test_ctrl_world_fingerprint_public_bundle.py",
     "test_ctrl_world_probe_evolution.py",
     "test_ctrl_world_predictive_campaign_runner.py",
+    "test_cosmos3_forward_dynamics_public_bundle.py",
+    "test_cosmos3_gpu_runtime_receipt.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -125,11 +127,19 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         for tree in CONFIG_TREES:
             _copy_tree(source / "configs" / tree, temporary / "configs" / tree)
         for name in (
+            "cosmos3_forward_dynamics_predictive_pilot_v1.json",
+            "cosmos3_forward_dynamics_predictive_pilot_v1.freeze.json",
+        ):
+            path = temporary / "configs" / "constitution" / name
+            if path.exists():
+                path.unlink()
+        for name in (
             "eval_frozen.sha256",
             "eval_ctrl_world_g2_frozen.sha256",
             "eval_ctrl_world_predictive_v1.sha256",
             "registry_frozen.sha256",
             "registry_ctrl_world_g2.sha256",
+            "registry_cosmos3_forward_dynamics_v1.json",
         ):
             _copy_file(source / "configs" / name, temporary / "configs" / name)
         _copy_file(
@@ -147,6 +157,14 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_file(
             source / "configs" / "backbones" / "ctrl_world_g2_dataset_freeze.json",
             temporary / "configs" / "backbones" / "ctrl_world_g2_dataset_freeze.json",
+        )
+        _copy_file(
+            source / "configs" / "backbones" / "cosmos3_forward_dynamics_predictive_public_v1.json",
+            temporary / "configs" / "backbones" / "cosmos3_forward_dynamics_predictive_pilot_v1.json",
+        )
+        _copy_file(
+            source / "configs" / "backbones" / "cosmos3_droid_lerobot_dataset_freeze_v1.json",
+            temporary / "configs" / "backbones" / "cosmos3_droid_lerobot_dataset_freeze_v1.json",
         )
         _copy_tree(source / "docs" / "public", temporary / "docs")
         _copy_tree(source / "figures", temporary / "figures")
@@ -181,6 +199,14 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "ctrl_world_target_local_irg_v1",
             temporary / "examples" / "ctrl_world_target_local_irg_v1",
+        )
+        _copy_tree(
+            source / "examples" / "ctrl_world_paper_split_abstention_v1",
+            temporary / "examples" / "ctrl_world_paper_split_abstention_v1",
+        )
+        _copy_tree(
+            source / "examples" / "cosmos3_forward_dynamics_instance_v1",
+            temporary / "examples" / "cosmos3_forward_dynamics_instance_v1",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")

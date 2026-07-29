@@ -12,6 +12,10 @@ from pathlib import Path
 from typing import Any
 
 from wmloop.contracts import ContractValidationError, load_yaml_document, validate_document
+from wmloop.primitives.adapters.backbone_registry import (
+    BackbonePrimitiveRegistryError,
+    load_backbone_primitive_registry,
+)
 from wmloop.primitives.registry import PrimitiveRegistry, PrimitiveValidationError
 
 
@@ -24,6 +28,7 @@ HOOKS = ("H1", "H2", "H3", "H4", "H5")
 DEFAULT_FAMILY_HOOKS = {
     "acwm_phys": HOOKS,
     "ctrl_world": HOOKS,
+    "cosmos3": HOOKS,
     "wam": HOOKS,
     "generic": (),
 }
@@ -49,6 +54,7 @@ def run_backbone_capability_matrix(
     surfaces = [_surface_row(surface, root=root) for surface in _mappings(config, "surfaces")]
     registry = _load_primitive_registry(root)
     primitive_registry_ready = _surface_ready(surfaces, "primitive_registry")
+    bound_primitives, registry_error = _bound_primitive_states(config=config, surfaces=surfaces, root=root)
     hook_adapter_ready = _hook_adapter_ready(config=config, surfaces=surfaces)
     available_hooks = _available_hooks(config=config, hook_adapter_ready=hook_adapter_ready)
     hook_rows = _hook_rows(available_hooks=available_hooks, hook_adapter_ready=hook_adapter_ready)
@@ -56,6 +62,7 @@ def run_backbone_capability_matrix(
         _primitive_row(
             manifest=registry.manifest(name),
             primitive_registry_ready=primitive_registry_ready,
+            bound_primitives=bound_primitives,
             hook_adapter_ready=hook_adapter_ready,
             available_hooks=available_hooks,
         )
@@ -67,6 +74,7 @@ def run_backbone_capability_matrix(
         surfaces=surfaces,
         primitive_rows=primitive_rows,
         primitive_registry_ready=primitive_registry_ready,
+        registry_error=registry_error,
         hook_adapter_ready=hook_adapter_ready,
     )
     eligible_count = sum(row["status"] == "eligible_for_instance_canary" for row in primitive_rows)
@@ -138,6 +146,25 @@ def _load_primitive_registry(root: Path) -> PrimitiveRegistry:
         raise BackboneCapabilityMatrixError("BACKBONE_CAPABILITY_MATRIX_PRIMITIVE_REGISTRY_INVALID") from exc
 
 
+def _bound_primitive_states(
+    *,
+    config: Mapping[str, Any],
+    surfaces: list[Mapping[str, object]],
+    root: Path,
+) -> tuple[dict[str, str] | None, str | None]:
+    """Return explicit backbone bindings, or None for the native ACWM registry."""
+    if str(config["backbone_family"]) == "acwm_phys":
+        return None, None
+    surface = next((row for row in surfaces if row["surface_id"] == "primitive_registry"), None)
+    if surface is None or not bool(surface["ready_for_declared_status"]):
+        return {}, "primitive_registry_missing_or_not_ready"
+    try:
+        registry = load_backbone_primitive_registry(Path(str(surface["artifact_ref"])), root=root)
+    except BackbonePrimitiveRegistryError as exc:
+        return {}, str(exc)
+    return {binding.primitive: binding.runtime_state for binding in registry.bindings}, None
+
+
 def _surface_row(surface: Mapping[str, Any], *, root: Path) -> dict[str, object]:
     artifact_ref = str(surface["artifact_ref"])
     path = Path(artifact_ref)
@@ -199,12 +226,19 @@ def _primitive_row(
     *,
     manifest: Any,
     primitive_registry_ready: bool,
+    bound_primitives: Mapping[str, str] | None,
     hook_adapter_ready: bool,
     available_hooks: tuple[str, ...],
 ) -> dict[str, object]:
     blockers: list[str] = []
     if not primitive_registry_ready:
         blockers.append("primitive_registry_missing_or_not_ready")
+    if bound_primitives is not None:
+        state = bound_primitives.get(manifest.name)
+        if state is None:
+            blockers.append("primitive_not_bound_for_backbone")
+        elif state == "quarantined":
+            blockers.append("primitive_quarantined_for_backbone")
     if not hook_adapter_ready:
         blockers.append("hook_adapter_missing_or_not_ready")
     missing_hooks = sorted(set(manifest.hooks) - set(available_hooks))
@@ -234,6 +268,7 @@ def _blockers(
     surfaces: list[Mapping[str, object]],
     primitive_rows: list[Mapping[str, object]],
     primitive_registry_ready: bool,
+    registry_error: str | None,
     hook_adapter_ready: bool,
 ) -> list[dict[str, object]]:
     blockers: list[dict[str, object]] = []
@@ -248,17 +283,18 @@ def _blockers(
             )
     if not primitive_registry_ready:
         blockers.append({"code": "primitive_registry_missing_or_not_ready"})
+    if registry_error is not None:
+        blockers.append({"code": "primitive_registry_invalid", "detail": registry_error})
     if not hook_adapter_ready:
         blockers.append({"code": "hook_adapter_missing_or_not_ready"})
-    for row in primitive_rows:
-        if row["status"] != "eligible_for_instance_canary":
-            blockers.append({"code": "primitive_blocked", "primitive": row["primitive"], "blockers": row["blockers"]})
     return blockers
 
 
 def _state(*, campaign_state: str, blockers: list[Mapping[str, object]], closed_loop_surface_ready: bool, eligible_count: int) -> str:
+    if campaign_state == "pilot_draft":
+        return "pilot_draft"
     if blockers or not closed_loop_surface_ready or eligible_count == 0:
-        return "pilot_draft" if campaign_state == "pilot_draft" else "blocked"
+        return "blocked"
     return "ready"
 
 

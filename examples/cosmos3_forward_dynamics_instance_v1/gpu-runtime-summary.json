@@ -1,0 +1,38 @@
+{
+  "action_shape": [
+    16,
+    10
+  ],
+  "artifact_sha256": {
+    "action_input": "4043665b2941d78ea0b3631335fe922657ca15ed3ba11d4642a02788780ed6c6",
+    "sample_outputs": "bbb753dc4e1ad8c250c1c9374616c3d328076b5e6c532ee3d0434e5896cf7664",
+    "vision_video": "ca026af0d9716dfdd429b17c54c5a9b60b0eb7e73658d15aa20934a774dcfcf1"
+  },
+  "artifact_type": "verdiwm-cosmos3-forward-dynamics-public-gpu-runtime-summary",
+  "claim_boundary": "This receipt proves one official Cosmos3-Nano ACWM forward-dynamics GPU execution. It does not establish predictive quality, primitive benefit, or cross-backbone transfer.",
+  "identity": {
+    "sample_index": 0,
+    "seed": 101
+  },
+  "model_mode": "forward_dynamics",
+  "physical_gpu": {
+    "active_sample_count": 95,
+    "observed_gpu_uuids": [
+      "GPU-6ea0c721-af7e-4359-f9ee-703b6a1206ec"
+    ],
+    "peak_used_memory_mib": 36722,
+    "sample_count": 95
+  },
+  "runtime_seconds": 25.090212106704712,
+  "schema_version": 1,
+  "state": "ready",
+  "video": {
+    "codec": "h264",
+    "duration_seconds": 1.134,
+    "fps": "15/1",
+    "frame_count": 17,
+    "height": 528,
+    "size_bytes": 147675,
+    "width": 640
+  }
+}

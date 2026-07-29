@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-constitutional-config",
+  "constitution_id": "ctrl_world_predictive_quality_paper_v1",
+  "goal_spec": "configs/goal/ctrl_world_predictive_quality_paper_v1.yaml",
+  "dataset_freeze": "configs/backbones/ctrl_world_g2_dataset_freeze.json",
+  "heldout_protocol": "configs/goal/ctrl_world_heldout_split.json",
+  "evaluator_freeze": "configs/eval_ctrl_world_predictive_v1.sha256",
+  "probe_registry": "configs/probes/ctrl_world_acwm_predictive_v1.json",
+  "verdict_probe_ids": [
+    "rollout_video_psnr",
+    "rollout_video_l1",
+    "segment_final_mae",
+    "segment_view_pair_mae",
+    "segment_view_fused_mae"
+  ],
+  "frozen_code": {
+    "verdict_policy": [
+      "wmloop/evaluate/adapters/ctrl_world_predictive.py",
+      "configs/schemas/ctrl_world_prediction_receipt.schema.json"
+    ],
+    "verdict_evidence_projection": ["wmloop/diagnose/probe_registry.py"],
+    "attribution_policy": ["wmloop/diagnose/diagnoser.py"],
+    "fingerprint_policy": [
+      "wmloop/experiments/ctrl_world_fingerprint.py",
+      "configs/experiments/ctrl_world_irg_calibration_narrow_paper_v1.json"
+    ],
+    "campaign_runtime": [
+      "scripts/run_ctrl_world_predictive_campaign.py",
+      "wmloop/experiments/ctrl_world_receipt_merge.py",
+      "wmloop/experiments/ctrl_world_fingerprint_settlement.py"
+    ],
+    "hook_contracts": [
+      "wmloop/primitives/hooks.py",
+      "wmloop/primitives/adapters/ctrl_world_hooks.py"
+    ],
+    "schema_contracts": [
+      "configs/schemas/goal_spec.schema.json",
+      "configs/schemas/probe_registry.schema.json",
+      "configs/schemas/ctrl_world_heldout_split.schema.json",
+      "configs/schemas/constitutional_config.schema.json",
+      "configs/schemas/constitutional_manifest.schema.json"
+    ]
+  }
+}

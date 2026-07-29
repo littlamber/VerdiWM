@@ -71,6 +71,24 @@ class BackboneCapabilityMatrixTests(unittest.TestCase):
                     repo_root=ROOT,
                 )
 
+    def test_cosmos3_matrix_only_exposes_explicit_backbone_bindings(self) -> None:
+        smoke = ROOT / "results/reports/cosmos3-forward-dynamics-instance-smoke-r1/manifest.json"
+        if not smoke.is_file():
+            self.skipTest("live Cosmos3 CPU smoke has not been materialized")
+        with TemporaryDirectory() as temporary:
+            manifest = run_backbone_capability_matrix(
+                instance_config=ROOT / "configs/backbones/cosmos3_forward_dynamics_predictive_pilot_v1.json",
+                output_root=Path(temporary) / "capability",
+                repo_root=ROOT,
+            )
+            self.assertEqual(manifest["state"], "pilot_draft")
+            self.assertEqual(manifest["eligible_primitive_count"], 4)
+            self.assertEqual(manifest["blocked_primitive_count"], 13)
+            report = json.loads(Path(manifest["report_path"]).read_text())
+            by_name = {row["primitive"]: row for row in report["primitive_matrix"]}
+            self.assertEqual(by_name["action_dimension_balancing"]["status"], "eligible_for_instance_canary")
+            self.assertIn("primitive_not_bound_for_backbone", by_name["next_forcing"]["blockers"])
+
     def test_cli_prints_manifest(self) -> None:
         with TemporaryDirectory() as temporary:
             output = io.StringIO()

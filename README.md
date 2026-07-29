@@ -9,11 +9,12 @@ null, and harmful effects for later transfer.
 ![VerdiWM overview](figures/verdiwm_overview.png)
 
 The repository is an early research release. It contains a working control
-plane, typed intervention and evidence contracts, ACWM-Phys and Ctrl-World ACWM
-adapters, 17 materialized intervention primitives, an Interventional Repair
-Geometry (IRG) implementation, eight joint-frame ACWM-Phys IRG assets, one
-settled Ctrl-World target-local chart, and one integrity-checked operational
-closed-loop example.
+plane, typed intervention and evidence contracts, ACWM-Phys, Ctrl-World, and
+Cosmos3 ACWM adapters, 17 materialized intervention primitives, an
+Interventional Repair Geometry (IRG) implementation, eight joint-frame
+ACWM-Phys IRG assets, development and paper-split Ctrl-World charts, one
+Cosmos3 forward-dynamics instantiation bundle, and one integrity-checked
+operational closed-loop example.
 
 ## What is implemented
 
@@ -27,7 +28,8 @@ closed-loop example.
 | Transfer certificate with explicit abstention | Implemented, unit tested |
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
-| Ctrl-World ACWM predictive-quality protocol | Pilot receipts complete; narrow target-local chart settled, paper split pending |
+| Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
+| Cosmos3-Nano ACWM forward-dynamics instance | CPU staging and hook smoke complete; GPU quality chart pending |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -167,6 +169,32 @@ This is locality calibration, not evidence that an intervention improves
 Ctrl-World or transfers from ACWM-Phys; those claims still require paper-split
 selector and effect receipts.
 
+[`examples/ctrl_world_paper_split_abstention_v1`](examples/ctrl_world_paper_split_abstention_v1)
+contains the independent `stack` paper-split result. All 15 paired receipts are
+complete, but the radius-`0.025` chart has locality residual `1.1063`, above the
+frozen `0.5` threshold. The certificate therefore returns
+`settled_abstained`. This retained negative-transfer case is evidence that the
+admission gate changes behavior; it is not a failed result to hide or relabel.
+
+## Cosmos3 forward-dynamics instance
+
+[`examples/cosmos3_forward_dynamics_instance_v1`](examples/cosmos3_forward_dynamics_instance_v1)
+records a path-safe CPU bring-up and one official GPU execution of
+Cosmos3-Nano as an ACWM `forward_dynamics` backbone. It validates the official
+`16 x 10` DROID action
+contract, frozen cookbook-sample identity, first-frame conditioning, H1-H5
+anchors, zero-dose byte identity, and one runtime-ready
+`action_dimension_balancing` binding. Three more primitives are explicitly
+mapped for materialization; the other 13 remain blocked rather than being
+declared available by convention.
+The GPU runtime summary records the frozen `16 x 10` action window, 95 physical
+GPU samples with peak memory of 36,722 MiB, and a decodable 17-frame output.
+
+The instance remains `pilot_draft` and formal launch is false. The bundle does
+not claim generated-video quality or transfer evidence. See
+[Cosmos3 forward dynamics](docs/COSMOS3_FORWARD_DYNAMICS.md) for the binding
+and promotion sequence.
+
 ## Repository layout
 
 ```text
@@ -189,9 +217,9 @@ receipt, and archive adapters. Agent-generated code is staged behind an
 intent-to-code contract and frozen regression harness; implementation
 convenience is not allowed to silently weaken the requested intervention.
 
-Ctrl-World is instantiated here as an action-conditioned world model. Its
-paper-facing verdict uses paired predictive quality, action-conditioning
-consistency, and long-horizon stability. The separately retained action-success
+Ctrl-World and Cosmos3 are instantiated here as action-conditioned world
+models. Their paper-facing verdict uses paired predictive quality,
+action-conditioning consistency, and long-horizon stability. The separately retained action-success
 packet is an optional downstream/WAM extension and is not used by the ACWM LOBO
 experiment.
 

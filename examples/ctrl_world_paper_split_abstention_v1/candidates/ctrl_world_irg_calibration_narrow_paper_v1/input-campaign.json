@@ -1,0 +1,78 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+  "backbone_instance_ref": "configs/backbones/ctrl_world_predictive_quality_paper_v1.json",
+  "campaign_id": "ctrl_world_irg_calibration_narrow_paper_v1",
+  "claim_scope": "Independent paper-split validation of the radius-0.025 Ctrl-World ACWM target-local response chart selected on the development split. This campaign measures locality and reproducibility only; it is not a model-improvement result or completed cross-backbone transfer evidence.",
+  "formal_claim_requires": "complete paired paper-split receipts, verified constitutional freeze, independent locality settlement, and a later held-out selector/effect-confirmation experiment",
+  "heldout_split_ref": "configs/goal/ctrl_world_heldout_split.json",
+  "locality_admission": {
+    "failure_policy": "abstain_from_cross_backbone_transfer",
+    "maximum_residual": 0.5
+  },
+  "outcomes": [
+    {
+      "name": "rollout_video_psnr",
+      "sign": 1.0,
+      "source_metric": "rollout_video_psnr",
+      "weight": 1.0
+    },
+    {
+      "name": "negative_rollout_video_l1",
+      "sign": -1.0,
+      "source_metric": "rollout_video_l1",
+      "weight": 2.0
+    },
+    {
+      "name": "negative_segment_final_mae",
+      "sign": -1.0,
+      "source_metric": "segment_final_mae",
+      "weight": 2.0
+    },
+    {
+      "name": "negative_segment_view_pair_mae",
+      "sign": -1.0,
+      "source_metric": "segment_view_pair_mae",
+      "weight": 1.0
+    },
+    {
+      "name": "negative_segment_view_fused_mae",
+      "sign": -1.0,
+      "source_metric": "segment_view_fused_mae",
+      "weight": 1.0
+    }
+  ],
+  "probe": {
+    "dose_unit": "relative_action_embedding_scale",
+    "doses": [
+      -0.025,
+      -0.0125,
+      0.0,
+      0.0125,
+      0.025
+    ],
+    "hook_type": "H2",
+    "invariants": [
+      "same_checkpoint",
+      "same_task_episode",
+      "same_input_action",
+      "same_seed",
+      "same_environment_evaluator",
+      "no_dev_split_receipts"
+    ],
+    "probe_id": "action_conditioning_scale",
+    "reversible": true,
+    "scope": "inference_only",
+    "transformation": "multiply Ctrl-World action_encoder output by 1+d without changing the input action trajectory"
+  },
+  "protocols": {
+    "paper": {
+      "required_receipts_per_dose": 3,
+      "split": "accept"
+    },
+    "pilot": {
+      "required_receipts_per_dose": 3,
+      "split": "dev"
+    }
+  },
+  "schema_version": 1
+}

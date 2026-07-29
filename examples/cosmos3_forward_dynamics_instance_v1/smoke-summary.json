@@ -1,0 +1,40 @@
+{
+  "action_dimension_balancing_shape": [
+    16,
+    10
+  ],
+  "action_shape": [
+    16,
+    10
+  ],
+  "artifact_type": "verdiwm-cosmos3-forward-dynamics-public-smoke-summary",
+  "available_hooks": [
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5"
+  ],
+  "claim_boundary": "This smoke validates ACWM forward-dynamics wiring, frozen data identity, and runtime hook materialization only. It is not a model-quality or transfer result.",
+  "dataset_audit": {
+    "file_count": 7,
+    "freeze_id": "cosmos3_droid_lerobot_cookbook_sample_v1",
+    "state": "verified"
+  },
+  "identity": {
+    "sample_index": 0,
+    "seed": 101
+  },
+  "model_family": "cosmos3",
+  "model_mode": "forward_dynamics",
+  "schema_version": 1,
+  "side_effects": {
+    "gpu_execution_started": false,
+    "prediction_generated": false,
+    "source_repo_mutated": false,
+    "training_started": false
+  },
+  "split": "dev",
+  "state": "ready",
+  "zero_dose_byte_identity": true
+}

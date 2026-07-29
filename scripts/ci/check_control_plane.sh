@@ -26,6 +26,7 @@ uv run python -m py_compile \
   wmloop/primitives/adapters/ctrl_world_hooks.py \
   wmloop/control/agent_engineering_policy.py \
   wmloop/control/backbone_capability_matrix.py \
+  wmloop/control/cosmos3_gpu_runtime_receipt.py \
   wmloop/propose/primitive_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_routing_admission.py \
@@ -57,6 +58,7 @@ uv run python -m py_compile \
   scripts/export/merge_ctrl_world_receipt_indexes.py \
   scripts/export/ctrl_world_fingerprint_settlement.py \
   scripts/export/ctrl_world_fingerprint_public_bundle.py \
+  scripts/export/cosmos3_forward_dynamics_public_bundle.py \
   scripts/run_ctrl_world_bounded_smoke.py
 
 uv run pytest -q \
@@ -73,6 +75,8 @@ uv run pytest -q \
   tests/test_ctrl_world_receipt_merge.py \
   tests/test_ctrl_world_fingerprint_settlement.py \
   tests/test_ctrl_world_fingerprint_public_bundle.py \
+  tests/test_cosmos3_gpu_runtime_receipt.py \
+  tests/test_cosmos3_forward_dynamics_public_bundle.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \
   tests/test_diagnostic_probe_routing_admission.py \

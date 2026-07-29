@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-external-dataset-freeze",
+  "freeze_id": "cosmos3_droid_lerobot_cookbook_sample_v1",
+  "logical_root": "cookbooks/cosmos3/generator/action/assets/droid_lerobot_example",
+  "heldout_split": "configs/goal/cosmos3_forward_dynamics_split_v1.json",
+  "source_protocol": "Official Cosmos3 DROID LeRobot cookbook sample; non-overlapping 16-frame start windows frozen before target-chart execution.",
+  "selected_file_count": 7,
+  "selected_files": [
+    {"path": "data/chunk-000/file-000.parquet", "sha256": "56e3defd9e75a101a7b812ad7ae263dde8ec5699b6b47db51ba6954f81be2593", "size": 49045},
+    {"path": "meta/episodes/chunk-000/file-000.parquet", "sha256": "23f8e342bec24cf1af5fc4c5f58d8b51097ce09c2aaaafe6d467328af6dc016e", "size": 1834},
+    {"path": "meta/info.json", "sha256": "64e39f3dbedbd5ffade567007093d92d1827fcdb68c5d9d573ff3e80eef23cf6", "size": 21154},
+    {"path": "meta/tasks.parquet", "sha256": "ee2c7ec4f086cf2025b9a1d169bf6ba1857fed2579604c8859b49741f5eb29d6", "size": 757},
+    {"path": "videos/observation.image.exterior_image_1_left/chunk-000/file-000.mp4", "sha256": "6aac49551ff9b9fc7b8e9899df4fc050f5cd31164ed4ee3c014f332bcef3b9f1", "size": 4694851},
+    {"path": "videos/observation.image.exterior_image_2_left/chunk-000/file-000.mp4", "sha256": "34f6e5dae8591809324f1df9bf166c6e304bd2cbdad643595a991f641cbb4fd7", "size": 3982548},
+    {"path": "videos/observation.image.wrist_image_left/chunk-000/file-000.mp4", "sha256": "e9d641240f9efc344924c31715a44be1f66207f667dd63c292bbd943dfa816d0", "size": 5337025}
+  ],
+  "limitations": [
+    "This freeze covers the official cookbook sample only, not the full DROID distribution.",
+    "The pilot can establish runtime portability and a target-local chart, not broad DROID generalization."
+  ]
+}

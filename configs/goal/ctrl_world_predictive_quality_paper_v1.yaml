@@ -1,0 +1,21 @@
+goal_id: ctrl_world_predictive_quality_paper_v1
+metric_family:
+  - rollout_video_psnr
+  - rollout_video_l1
+  - segment_final_mae
+  - segment_view_pair_mae
+  - segment_view_fused_mae
+horizons: [32]
+primary_objective: target_local_fingerprint_reproducibility
+action_following_gate:
+  tau_af: 0.0
+eval_protocol:
+  dev_split: configs/goal/ctrl_world_heldout_split.json#dev
+  accept_split: configs/goal/ctrl_world_heldout_split.json#accept
+  accept_horizon_extra: 1
+  seeds_accept: [101, 202, 303]
+budget:
+  total_gpu_hours: 48
+  per_trial_max_gpu_hours: 16
+envs:
+  - stack_replay

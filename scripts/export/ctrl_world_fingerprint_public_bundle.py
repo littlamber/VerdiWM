@@ -152,7 +152,7 @@ def _readme(settlement: Mapping[str, Any]) -> str:
     rows = [
         "# Ctrl-World Target-Local IRG Calibration",
         "",
-        "This example records a paired-dose ACWM predictive-quality calibration on the frozen Ctrl-World pilot split.",
+        f"This example records a paired-dose ACWM predictive-quality calibration on the frozen Ctrl-World `{settlement['protocol']}` split.",
         "It is a target-local response-chart asset, not evidence of model improvement or completed cross-backbone transfer.",
         "",
         f"- Settlement: `{settlement['state']}`",

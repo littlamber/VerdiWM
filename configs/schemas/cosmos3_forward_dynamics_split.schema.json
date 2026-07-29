@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "split_id", "dataset_ref", "dev", "accept"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-cosmos3-forward-dynamics-split"]},
+    "split_id": {"type": "string", "minLength": 1},
+    "dataset_ref": {"type": "string", "minLength": 1},
+    "dev": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sample_index", "seed"],
+        "properties": {
+          "sample_index": {"type": "integer", "minimum": 0},
+          "seed": {"type": "integer"}
+        }
+      }
+    },
+    "accept": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sample_index", "seed"],
+        "properties": {
+          "sample_index": {"type": "integer", "minimum": 0},
+          "seed": {"type": "integer"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "artifact_type": "verdiwm-cosmos3-forward-dynamics-public-instance-bundle",
+  "claim_boundary": "This receipt proves one official Cosmos3-Nano ACWM forward-dynamics GPU execution. It does not establish predictive quality, primitive benefit, or cross-backbone transfer.",
+  "cpu_smoke_state": "ready",
+  "eligible_primitive_count": 4,
+  "formal_launch_allowed": false,
+  "gpu_runtime_state": "ready",
+  "model_mode": "forward_dynamics",
+  "model_quality_evidence_included": false,
+  "schema_version": 1,
+  "state": "pilot_draft",
+  "transfer_evidence_included": false
+}

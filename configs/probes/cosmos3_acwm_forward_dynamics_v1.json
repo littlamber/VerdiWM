@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-probe-registry",
+  "library_version": "cosmos3-acwm-forward-dynamics-v1",
+  "probes": [
+    {"id": "rollout_video_psnr", "role": "verdict", "report_field": "rollout_video_psnr", "description": "Paired GT rollout PSNR on the frozen DROID LeRobot window."},
+    {"id": "rollout_video_l1", "role": "verdict", "report_field": "rollout_video_l1", "description": "Paired GT RGB L1 error on generated future frames; lower is better."},
+    {"id": "final_frame_mae", "role": "verdict", "report_field": "final_frame_mae", "description": "Final predicted-frame MAE against the aligned frozen target."},
+    {"id": "temporal_difference_mae", "role": "verdict", "report_field": "temporal_difference_mae", "description": "MAE between predicted and GT temporal frame differences."},
+    {"id": "action_conditioning_sensitivity", "role": "diagnostic", "report_field": "action_conditioning_sensitivity", "description": "Response to reversible H2 action-conditioning doses."},
+    {"id": "autoregressive_drift", "role": "diagnostic", "report_field": "autoregressive_drift", "description": "Error growth across chained 16-frame forward-dynamics chunks."}
+  ]
+}

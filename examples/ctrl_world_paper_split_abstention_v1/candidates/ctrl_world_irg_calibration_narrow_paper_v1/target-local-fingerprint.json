@@ -1,0 +1,108 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-target-local-fingerprint",
+  "campaign_id": "ctrl_world_irg_calibration_narrow_paper_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "ctrl_world_irg_calibration_narrow_paper_v1:paper",
+    "covariance": [
+      [
+        106.46393445801473,
+        0.43957358928897483,
+        -14.397680421443376,
+        2.7152770544492366,
+        -0.7951369868060936
+      ],
+      [
+        0.43957358928897483,
+        0.0018811814166001342,
+        -0.05502852574115203,
+        0.010480136795622494,
+        -0.004260077373017818
+      ],
+      [
+        -14.397680421443376,
+        -0.05502852574115203,
+        2.241616156508287,
+        -0.4159322882884463,
+        0.04238047022563355
+      ],
+      [
+        2.7152770544492366,
+        0.010480136795622494,
+        -0.4159322882884463,
+        0.07731335590301,
+        -0.009500445557171963
+      ],
+      [
+        -0.7951369868060936,
+        -0.004260077373017818,
+        0.04238047022563355,
+        -0.009500445557171963,
+        0.02034920727314223
+      ]
+    ],
+    "goal_schema": "ctrl_world_acwm_predictive_quality_v1",
+    "intervention_names": [
+      "action_conditioning_scale"
+    ],
+    "jacobian": [
+      [
+        4.627793411302245
+      ],
+      [
+        0.020189831654230755
+      ],
+      [
+        -0.38219496607780457
+      ],
+      [
+        0.19978498419125876
+      ],
+      [
+        0.2811038742462794
+      ]
+    ],
+    "locality_residuals": {
+      "action_conditioning_scale": 1.1063256062305857
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_segment_final_mae",
+      "negative_segment_view_pair_mae",
+      "negative_segment_view_fused_mae"
+    ],
+    "repair_metric": [
+      [
+        21.828367528511922
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      4.627793411302245,
+      0.028552733747442754,
+      -0.5405053044979563,
+      0.19978498419125876,
+      0.2811038742462794
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Independent paper-split validation of the radius-0.025 Ctrl-World ACWM target-local response chart selected on the development split. This campaign measures locality and reproducibility only; it is not a model-improvement result or completed cross-backbone transfer evidence.",
+  "downstream_task_success_used_for_verdict": false,
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain_from_cross_backbone_transfer",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_conditioning_scale": 1.1063256062305857
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 15,
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready"
+}
