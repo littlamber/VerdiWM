@@ -1,0 +1,98 @@
+{
+  "artifact_type": "verdiwm-cosmos3-directional-probe-evolution",
+  "claim_boundary": "A directional probe was selected using dev receipts only. Transfer remains prohibited until the frozen direction passes independent accept locality and dev/accept alignment.",
+  "decision": "freeze_direction_then_validate_on_accept",
+  "dev_chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_translation_positive_v1:dev_selection",
+    "covariance": [
+      [
+        0.819935331205842,
+        0.002821454234756861,
+        0.011320381825090714,
+        -0.00030520370789940943
+      ],
+      [
+        0.002821454234756861,
+        3.366509793944383e-05,
+        0.00013951092383008483,
+        4.7157357999400375e-06
+      ],
+      [
+        0.011320381825090714,
+        0.00013951092383008483,
+        0.0005783818149269692,
+        1.9988909424591818e-05
+      ],
+      [
+        -0.00030520370789940943,
+        4.7157357999400375e-06,
+        1.9988909424591818e-05,
+        1.5013975128162734e-06
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_translation_scale"
+    ],
+    "jacobian": [
+      [
+        1.452802051211582
+      ],
+      [
+        0.006286929755061251
+      ],
+      [
+        0.006647046444840932
+      ],
+      [
+        0.00043801216825095635
+      ]
+    ],
+    "locality_residuals": {
+      "action_translation_scale": 0.07310130849390709
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        2.11080240928361
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      1.452802051211582,
+      0.008891061325294583,
+      0.00940034323201791,
+      0.00043801216825095635
+    ],
+    "schema_version": 1
+  },
+  "dev_locality_admitted": true,
+  "dose_domain": "positive_one_sided_local",
+  "maximum_residual": 0.5,
+  "probe_id": "action_translation_scale",
+  "schema_version": 1,
+  "selected_directional_residual": 0.07310130849390709,
+  "selected_doses": [
+    0.0,
+    0.0125,
+    0.025
+  ],
+  "selection_policy": {
+    "accept_data_used_for_selection": false,
+    "reason": "split the nonlocal translation-only symmetric path by dose polarity using dev receipts only",
+    "selection_split": "dev",
+    "validation_split": "accept"
+  },
+  "source_campaign_id": "cosmos3_irg_calibration_translation_scale_v1",
+  "source_fingerprint_sha256": "b6c25f0b8e3bbac8b243297c3aaccf55d692350ae8d26dbf75ee2e5c78274e39",
+  "source_measurements_sha256": "4eea79b80478c6c3d8bc132bebcafcfec4c7ae456bf3b40994586e159ee06ed8",
+  "source_symmetric_residual": 1.1386135494339227,
+  "state": "dev_selected",
+  "successor_campaign_id": "cosmos3_irg_calibration_translation_positive_v1"
+}

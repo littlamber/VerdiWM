@@ -216,6 +216,18 @@ class GithubStagingTests(unittest.TestCase):
                     / "bundle.json"
                 ).is_file()
             )
+            translation = audit["cosmos3_translation_settlement_validation"]
+            self.assertEqual(translation["settlement_state"], "settled_abstained")
+            self.assertFalse(translation["cross_backbone_transfer_eligible"])
+            self.assertEqual(translation["accept_validation"]["locality_admission_state"], "failed")
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "cosmos3_translation_locality_counterexample_v1"
+                    / "bundle.json"
+                ).is_file()
+            )
             self.assertTrue(
                 (output / "configs" / "constitution" / "ctrl_world_predictive_quality_pilot_v1.freeze.json").is_file()
             )

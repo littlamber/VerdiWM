@@ -121,6 +121,7 @@ COSMOS3_PUBLIC_EXAMPLES = (
     "cosmos3_target_local_irg_temporal_mix_v1",
 )
 COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE = "cosmos3_directional_probe_split_reversal_v1"
+COSMOS3_TRANSLATION_PUBLIC_EXAMPLE = "cosmos3_translation_locality_counterexample_v1"
 CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
     ".csv", ".json", ".jsonl", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
@@ -258,6 +259,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             source / "examples" / COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE,
             temporary / "examples" / COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE,
         )
+        _copy_tree(
+            source / "examples" / COSMOS3_TRANSLATION_PUBLIC_EXAMPLE,
+            temporary / "examples" / COSMOS3_TRANSLATION_PUBLIC_EXAMPLE,
+        )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")
         experience_validation = validate_public_experience_bundle(
@@ -273,6 +278,11 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         cosmos3_directional_settlement_validation = (
             _validate_cosmos3_directional_settlement_bundle(
                 temporary / "examples" / COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE
+            )
+        )
+        cosmos3_translation_settlement_validation = (
+            _validate_cosmos3_directional_settlement_bundle(
+                temporary / "examples" / COSMOS3_TRANSLATION_PUBLIC_EXAMPLE
             )
         )
         findings = audit_release_tree(temporary)
@@ -291,6 +301,9 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             "cosmos3_fingerprint_validations": cosmos3_fingerprint_validations,
             "cosmos3_directional_settlement_validation": (
                 cosmos3_directional_settlement_validation
+            ),
+            "cosmos3_translation_settlement_validation": (
+                cosmos3_translation_settlement_validation
             ),
             "checks": {
                 "allowlist_copy": True,

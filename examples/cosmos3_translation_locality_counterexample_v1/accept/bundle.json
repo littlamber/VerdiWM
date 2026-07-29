@@ -1,0 +1,35 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+  "campaign_id": "cosmos3_irg_calibration_translation_positive_v1",
+  "claim_boundary": "Dev-selected translation-only directional probe validated independently on accept; not model-improvement evidence.",
+  "cross_backbone_transfer_eligible": false,
+  "dose_unit": "relative_translation_action_scale",
+  "locality_admission_state": "failed",
+  "measurement_count": 9,
+  "probe_id": "action_translation_scale",
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|translation action scale +0.0000|translation action scale +0.0125|translation action scale +0.0250",
+      "path": "videos/sample-48-seed-101-dose-response.mp4",
+      "sample_index": 48,
+      "seed": 101
+    },
+    {
+      "layout": "GT|translation action scale +0.0000|translation action scale +0.0125|translation action scale +0.0250",
+      "path": "videos/sample-64-seed-202-dose-response.mp4",
+      "sample_index": 64,
+      "seed": 202
+    },
+    {
+      "layout": "GT|translation action scale +0.0000|translation action scale +0.0125|translation action scale +0.0250",
+      "path": "videos/sample-80-seed-303-dose-response.mp4",
+      "sample_index": 80,
+      "seed": 303
+    }
+  ]
+}

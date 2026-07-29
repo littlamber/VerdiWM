@@ -1,0 +1,91 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_translation_positive_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_translation_positive_v1:paper",
+    "covariance": [
+      [
+        1.1747142184054036,
+        0.011119639392894749,
+        0.016050314249917222,
+        0.004565186863264009
+      ],
+      [
+        0.011119639392894749,
+        0.0002249114931496517,
+        0.00027268811180289874,
+        6.645949557456096e-05
+      ],
+      [
+        0.016050314249917222,
+        0.00027268811180289874,
+        0.0003411706295427737,
+        8.58355628177994e-05
+      ],
+      [
+        0.004565186863264009,
+        6.645949557456096e-05,
+        8.58355628177994e-05,
+        2.2257493019858995e-05
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_translation_scale"
+    ],
+    "jacobian": [
+      [
+        0.14952168197472324
+      ],
+      [
+        -0.0016007063073577206
+      ],
+      [
+        -0.0032609592658650044
+      ],
+      [
+        0.0024969298272823257
+      ]
+    ],
+    "locality_residuals": {
+      "action_translation_scale": 4.233836116958137
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        0.02239036027114474
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      0.14952168197472324,
+      -0.0022637405692414445,
+      -0.004611692820132501,
+      0.0024969298272823257
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Dev-selected translation-only directional probe validated independently on accept; not model-improvement evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_translation_scale": 4.233836116958137
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 9,
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready"
+}

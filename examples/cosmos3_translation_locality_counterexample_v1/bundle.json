@@ -1,0 +1,39 @@
+{
+  "abstention_reasons": [
+    "accept_locality_admitted"
+  ],
+  "accept_locality_residual": 4.233836116958137,
+  "accept_target_local_path_admitted": false,
+  "accept_videos": [
+    {
+      "layout": "GT|translation action scale +0.0000|translation action scale +0.0125|translation action scale +0.0250",
+      "path": "videos/sample-48-seed-101-dose-response.mp4",
+      "sample_index": 48,
+      "seed": 101
+    },
+    {
+      "layout": "GT|translation action scale +0.0000|translation action scale +0.0125|translation action scale +0.0250",
+      "path": "videos/sample-64-seed-202-dose-response.mp4",
+      "sample_index": 64,
+      "seed": 202
+    },
+    {
+      "layout": "GT|translation action scale +0.0000|translation action scale +0.0125|translation action scale +0.0250",
+      "path": "videos/sample-80-seed-303-dose-response.mp4",
+      "sample_index": 80,
+      "seed": 303
+    }
+  ],
+  "artifact_type": "verdiwm-cosmos3-directional-settlement-public-bundle",
+  "campaign_id": "cosmos3_irg_calibration_translation_positive_v1",
+  "claim_boundary": "This settlement tests whether one dev-selected diagnostic direction is stable on the independent accept split. It is not evidence of model improvement. A licensed result would permit, but not prove, a later cross-backbone transfer experiment.",
+  "cross_backbone_transfer_eligible": false,
+  "dev_accept_alignment_error": 0.03450097750405715,
+  "dev_locality_residual": 0.07310130849390709,
+  "locality_threshold": 0.5,
+  "maximum_alignment_error": 0.5,
+  "probe_id": "action_translation_scale",
+  "schema_version": 1,
+  "settlement_state": "settled_abstained",
+  "state": "ready"
+}

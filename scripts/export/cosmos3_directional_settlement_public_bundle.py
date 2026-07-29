@@ -200,14 +200,15 @@ def _copy_json(source: Path, destination: Path) -> None:
 
 def _readme(bundle: Mapping[str, Any]) -> str:
     return (
-        "# Cosmos3 Directional Probe Split Reversal\n\n"
-        "The same frozen positive action-scale probe is locally linear on both dev and accept, "
-        f"with residuals `{float(bundle['dev_locality_residual']):.4f}` and "
-        f"`{float(bundle['accept_locality_residual']):.4f}`. However, its normalized Jacobian "
-        f"alignment error is `{float(bundle['dev_accept_alignment_error']):.4f}`, above the "
+        "# Cosmos3 Directional Probe Held-Out Settlement\n\n"
+        "This bundle compares the same frozen directional probe on dev and accept. "
+        f"The locality residuals are `{float(bundle['dev_locality_residual']):.4f}` and "
+        f"`{float(bundle['accept_locality_residual']):.4f}`. The normalized Jacobian "
+        f"alignment error is `{float(bundle['dev_accept_alignment_error']):.4f}` against the "
         f"frozen `{float(bundle['maximum_alignment_error']):.4f}` threshold. The final "
         f"settlement is therefore `{bundle['settlement_state']}`.\n\n"
-        "This is a certificate counterexample, not model-improvement evidence. The `accept/` "
+        f"Abstention reasons: `{', '.join(bundle['abstention_reasons'])}`. This is a certificate "
+        "counterexample, not model-improvement evidence. The `accept/` "
         "subdirectory contains the paired dose-response tables and videos.\n"
     )
 
