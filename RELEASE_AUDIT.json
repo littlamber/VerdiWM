@@ -69,6 +69,28 @@
       "video_count": 3
     }
   },
+  "cosmos3_translation_narrow_settlement_validation": {
+    "accept_validation": {
+      "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+      "campaign_id": "cosmos3_irg_calibration_translation_positive_narrow_v2",
+      "cross_backbone_transfer_eligible": false,
+      "locality_admission_state": "failed",
+      "manifest_file_count": 11,
+      "measurement_count": 9,
+      "probe_id": "action_translation_scale",
+      "repeat_count": 3,
+      "state": "ready",
+      "video_count": 3
+    },
+    "artifact_type": "verdiwm-cosmos3-directional-settlement-public-bundle",
+    "campaign_id": "cosmos3_irg_calibration_translation_positive_narrow_v2",
+    "cross_backbone_transfer_eligible": false,
+    "dev_accept_alignment_error": 1.9998156227234105,
+    "manifest_file_count": 17,
+    "maximum_alignment_error": 0.5,
+    "settlement_state": "settled_abstained",
+    "state": "ready"
+  },
   "cosmos3_translation_settlement_validation": {
     "accept_validation": {
       "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
@@ -91,7 +113,7 @@
     "settlement_state": "settled_abstained",
     "state": "ready"
   },
-  "file_count_before_manifest": 815,
+  "file_count_before_manifest": 837,
   "public_example_validation": {
     "artifact_count": 9,
     "artifact_type": "verdiwm-public-example-validation",
@@ -124,7 +146,7 @@
   "schema_version": 1,
   "source_license": "Apache-2.0",
   "state": "ready",
-  "total_bytes_before_manifest": 17909643,
+  "total_bytes_before_manifest": 19469014,
   "training_seed_horizon_validation": {
     "artifact_type": "verdiwm-public-training-seed-horizon-bundle-validation",
     "manifest_entry_count": 16,

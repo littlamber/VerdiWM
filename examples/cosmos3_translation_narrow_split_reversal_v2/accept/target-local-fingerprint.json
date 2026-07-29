@@ -1,0 +1,91 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_translation_positive_narrow_v2",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_translation_positive_narrow_v2:paper",
+    "covariance": [
+      [
+        0.02742987870106926,
+        0.00169556595158197,
+        -0.002044414797130749,
+        0.00183113071634249
+      ],
+      [
+        0.00169556595158197,
+        0.00017325345421728954,
+        8.461891265986658e-05,
+        -3.422297526179828e-05
+      ],
+      [
+        -0.002044414797130749,
+        8.461891265986658e-05,
+        0.0008028201000197891,
+        -0.0005909208708653169
+      ],
+      [
+        0.00183113071634249,
+        -3.422297526179828e-05,
+        -0.0005909208708653169,
+        0.0004397427640900317
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_translation_scale"
+    ],
+    "jacobian": [
+      [
+        0.1674026063619749
+      ],
+      [
+        -0.0004272323933577719
+      ],
+      [
+        0.0019281870997630197
+      ],
+      [
+        -0.003426201867533877
+      ]
+    ],
+    "locality_residuals": {
+      "action_translation_scale": 2.446800670881418
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        0.028044172342038664
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      0.1674026063619749,
+      -0.0006041978449716779,
+      0.0027268683472777082,
+      -0.003426201867533877
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Pre-registered narrower translation-only probe on a fresh dev2/accept2 split; not model-improvement evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_translation_scale": 2.446800670881418
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 9,
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready"
+}

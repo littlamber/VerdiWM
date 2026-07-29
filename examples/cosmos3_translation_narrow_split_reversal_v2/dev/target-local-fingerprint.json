@@ -1,0 +1,93 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_translation_positive_narrow_v2",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_translation_positive_narrow_v2:pilot",
+    "covariance": [
+      [
+        4.103174408340612,
+        0.023482376115216048,
+        0.1493415578553639,
+        0.018688760993382195
+      ],
+      [
+        0.023482376115216048,
+        0.0001704652346933478,
+        0.0009511403830242247,
+        0.00018616124023144388
+      ],
+      [
+        0.1493415578553639,
+        0.0009511403830242247,
+        0.005693447866061121,
+        0.0008919914445639388
+      ],
+      [
+        0.018688760993382195,
+        0.00018616124023144388,
+        0.0008919914445639388,
+        0.0002590200175555373
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_translation_scale"
+    ],
+    "jacobian": [
+      [
+        -3.386586272684061
+      ],
+      [
+        -0.024568847688474227
+      ],
+      [
+        -0.02779634581105676
+      ],
+      [
+        -0.015733249055089698
+      ]
+    ],
+    "locality_residuals": {
+      "action_translation_scale": 0.10320167909737506
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        11.471967647692324
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      -3.386586272684061,
+      -0.03474559761291912,
+      -0.039309969230409046,
+      -0.015733249055089698
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Pre-registered narrower translation-only probe on a fresh dev2/accept2 split; not model-improvement evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": true,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_translation_scale": 0.10320167909737506
+    },
+    "state": "passed",
+    "supported_local_paths": [
+      "action_translation_scale"
+    ]
+  },
+  "measurement_count": 9,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}

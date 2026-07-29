@@ -7,6 +7,7 @@ import unittest
 
 from wmloop.experiments.cosmos3_directional_settlement import (
     Cosmos3DirectionalSettlementError,
+    settle_cosmos3_fingerprint_pair,
     settle_cosmos3_directional_probe,
 )
 
@@ -60,6 +61,65 @@ class Cosmos3DirectionalSettlementTests(unittest.TestCase):
                     output_root=root / "out",
                 )
 
+    def test_settles_direct_fingerprint_pair_without_dev_subset_adapter(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            dev, accept = self._direct_inputs(
+                root,
+                dev_jacobian=[[-1.0], [-0.1]],
+                accept_jacobian=[[2.0], [0.2]],
+            )
+            manifest = settle_cosmos3_fingerprint_pair(
+                dev_fingerprint_root=dev,
+                accept_fingerprint_root=accept,
+                output_root=root / "out",
+            )
+            self.assertEqual(manifest["state"], "settled_abstained")
+            self.assertAlmostEqual(manifest["alignment_error"], 2.0)
+            report = json.loads((root / "out/directional-probe-settlement.json").read_text())
+            self.assertEqual(report["abstention_reasons"], ["dev_accept_jacobian_aligned"])
+            self.assertIn("dev_manifest_sha256", report["inputs"])
+
+    def _direct_inputs(
+        self,
+        root: Path,
+        *,
+        dev_jacobian: list[list[float]],
+        accept_jacobian: list[list[float]],
+    ) -> tuple[Path, Path]:
+        dev = root / "direct-dev"
+        accept = root / "direct-accept"
+        dev.mkdir()
+        accept.mkdir()
+        campaign = {
+            "artifact_type": "verdiwm-cosmos3-fingerprint-campaign",
+            "campaign_id": "direct-positive",
+            "probe": {"probe_id": "scale"},
+            "locality_admission": {"maximum_residual": 0.5},
+            "acceptance": {
+                "maximum_dev_accept_alignment_error": 0.5,
+                "require_accept_locality_admission": True,
+            },
+        }
+        campaign_bytes = json.dumps(campaign, sort_keys=True)
+        for destination in (dev, accept):
+            (destination / "input-campaign.json").write_text(campaign_bytes)
+            (destination / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-manifest",
+                        "state": "ready",
+                    }
+                )
+            )
+        (dev / "target-local-fingerprint.json").write_text(
+            json.dumps(self._fingerprint("pilot", "dev", dev_jacobian, "direct-positive"))
+        )
+        (accept / "target-local-fingerprint.json").write_text(
+            json.dumps(self._fingerprint("paper", "accept", accept_jacobian, "direct-positive"))
+        )
+        return dev, accept
+
     def _inputs(
         self,
         root: Path,
@@ -108,10 +168,15 @@ class Cosmos3DirectionalSettlementTests(unittest.TestCase):
         return dev, accept
 
     @staticmethod
-    def _fingerprint(protocol: str, split: str, jacobian: list[list[float]]) -> dict[str, object]:
+    def _fingerprint(
+        protocol: str,
+        split: str,
+        jacobian: list[list[float]],
+        campaign_id: str = "positive",
+    ) -> dict[str, object]:
         return {
             "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
-            "campaign_id": "positive",
+            "campaign_id": campaign_id,
             "protocol": protocol,
             "split": split,
             "chart": {

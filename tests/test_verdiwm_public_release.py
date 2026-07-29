@@ -185,6 +185,9 @@ class GithubStagingTests(unittest.TestCase):
             self.assertTrue(
                 (output / "tests" / "test_cosmos3_directional_settlement.py").is_file()
             )
+            self.assertTrue(
+                (output / "tests" / "test_cosmos3_split_v2_protocol.py").is_file()
+            )
             self.assertTrue((output / "examples" / "ctrl_world_target_local_irg_v1" / "bundle.json").is_file())
             self.assertTrue(
                 (output / "examples" / "cosmos3_target_local_irg_narrow_v1" / "bundle.json").is_file()
@@ -194,6 +197,27 @@ class GithubStagingTests(unittest.TestCase):
                     output
                     / "examples"
                     / "cosmos3_target_local_irg_temporal_mix_v1"
+                    / "bundle.json"
+                ).is_file()
+            )
+            translation_narrow = audit[
+                "cosmos3_translation_narrow_settlement_validation"
+            ]
+            self.assertEqual(
+                translation_narrow["settlement_state"], "settled_abstained"
+            )
+            self.assertFalse(
+                translation_narrow["cross_backbone_transfer_eligible"]
+            )
+            self.assertEqual(
+                translation_narrow["accept_validation"]["locality_admission_state"],
+                "failed",
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "cosmos3_translation_narrow_split_reversal_v2"
                     / "bundle.json"
                 ).is_file()
             )

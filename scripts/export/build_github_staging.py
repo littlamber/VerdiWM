@@ -90,6 +90,7 @@ PUBLIC_TEST_FILES = (
     "test_cosmos3_directional_probe.py",
     "test_cosmos3_directional_settlement.py",
     "test_cosmos3_directional_settlement_public_bundle.py",
+    "test_cosmos3_split_v2_protocol.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -122,6 +123,7 @@ COSMOS3_PUBLIC_EXAMPLES = (
 )
 COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE = "cosmos3_directional_probe_split_reversal_v1"
 COSMOS3_TRANSLATION_PUBLIC_EXAMPLE = "cosmos3_translation_locality_counterexample_v1"
+COSMOS3_TRANSLATION_NARROW_PUBLIC_EXAMPLE = "cosmos3_translation_narrow_split_reversal_v2"
 CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
     ".csv", ".json", ".jsonl", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
@@ -263,6 +265,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             source / "examples" / COSMOS3_TRANSLATION_PUBLIC_EXAMPLE,
             temporary / "examples" / COSMOS3_TRANSLATION_PUBLIC_EXAMPLE,
         )
+        _copy_tree(
+            source / "examples" / COSMOS3_TRANSLATION_NARROW_PUBLIC_EXAMPLE,
+            temporary / "examples" / COSMOS3_TRANSLATION_NARROW_PUBLIC_EXAMPLE,
+        )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")
         experience_validation = validate_public_experience_bundle(
@@ -285,6 +291,11 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
                 temporary / "examples" / COSMOS3_TRANSLATION_PUBLIC_EXAMPLE
             )
         )
+        cosmos3_translation_narrow_settlement_validation = (
+            _validate_cosmos3_directional_settlement_bundle(
+                temporary / "examples" / COSMOS3_TRANSLATION_NARROW_PUBLIC_EXAMPLE
+            )
+        )
         findings = audit_release_tree(temporary)
         if findings:
             raise GithubStagingError("GITHUB_STAGING_AUDIT_FAILED:" + ";".join(findings[:20]))
@@ -304,6 +315,9 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             ),
             "cosmos3_translation_settlement_validation": (
                 cosmos3_translation_settlement_validation
+            ),
+            "cosmos3_translation_narrow_settlement_validation": (
+                cosmos3_translation_narrow_settlement_validation
             ),
             "checks": {
                 "allowlist_copy": True,

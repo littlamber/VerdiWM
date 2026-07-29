@@ -1,0 +1,50 @@
+{
+  "abstention_reasons": [
+    "accept_locality_admitted",
+    "dev_accept_jacobian_aligned"
+  ],
+  "alignment": {
+    "accept_jacobian": [
+      0.1674026063619749,
+      -0.0004272323933577719,
+      0.0019281870997630197,
+      -0.003426201867533877
+    ],
+    "dev_jacobian": [
+      -3.386586272684061,
+      -0.024568847688474227,
+      -0.02779634581105676,
+      -0.015733249055089698
+    ],
+    "error": 1.9998156227234105,
+    "maximum_error": 0.5,
+    "metric": "l2_distance_between_unit_frobenius_jacobians"
+  },
+  "artifact_type": "verdiwm-cosmos3-directional-probe-settlement",
+  "campaign_id": "cosmos3_irg_calibration_translation_positive_narrow_v2",
+  "claim_boundary": "This settlement tests whether one dev-selected diagnostic direction is stable on the independent accept split. It is not evidence of model improvement. A licensed result would permit, but not prove, a later cross-backbone transfer experiment.",
+  "cross_backbone_transfer_eligible": false,
+  "decision": "retain_counterexample_and_abstain_from_transfer",
+  "inputs": {
+    "accept_fingerprint_sha256": "1dd87fd6e73345c52f2650c7e8ccd64401874f4cf737d90ca5a234945fb40b89",
+    "accept_manifest_sha256": "56509c180c13f258baa26d68ca5c27978a3a844f4d7625a241d0f570f9bae927",
+    "campaign_sha256": "3ab6757b08387537e77d0d6b2ac05a6adc616f22a757b5025e4293070d57f200",
+    "dev_fingerprint_sha256": "1e8cb57863570b8830f09ef4bbe1297ac90beb5c51216f1d6ebea631a05f0a9b",
+    "dev_manifest_sha256": "7a8cd4e37713de46e38cf5a838856c0bfa241c7b00eaeb207abb518f7f8f2748"
+  },
+  "locality": {
+    "accept_residual": 2.446800670881418,
+    "accept_state": "failed",
+    "dev_residual": 0.10320167909737506,
+    "dev_state": "passed",
+    "maximum_residual": 0.5
+  },
+  "probe_id": "action_translation_scale",
+  "schema_version": 1,
+  "state": "settled_abstained",
+  "terms": {
+    "accept_locality_admitted": false,
+    "dev_accept_jacobian_aligned": false,
+    "dev_locality_admitted": true
+  }
+}

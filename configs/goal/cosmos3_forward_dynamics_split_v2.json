@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cosmos3-forward-dynamics-split",
+  "split_id": "cosmos3_droid_lerobot_independent_sample_v2",
+  "dataset_ref": "configs/backbones/cosmos3_droid_lerobot_dataset_freeze_v1.json",
+  "dev": [
+    {"sample_index": 192, "seed": 404},
+    {"sample_index": 256, "seed": 505},
+    {"sample_index": 320, "seed": 606}
+  ],
+  "accept": [
+    {"sample_index": 448, "seed": 404},
+    {"sample_index": 512, "seed": 505},
+    {"sample_index": 576, "seed": 606}
+  ]
+}

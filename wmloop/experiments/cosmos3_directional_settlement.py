@@ -66,6 +66,92 @@ def settle_cosmos3_directional_probe(
     ):
         raise Cosmos3DirectionalSettlementError("COSMOS3_DIRECTIONAL_SETTLEMENT_INPUT_INVALID")
 
+    return _settle_fingerprint_pair(
+        dev_fingerprint=dev_fingerprint,
+        accept_fingerprint=accept_fingerprint,
+        campaign=dev_campaign,
+        output_root=output_root,
+        inputs={
+            "dev_selection_manifest_sha256": _sha256(dev_manifest_path),
+            "dev_fingerprint_sha256": _sha256(dev_fingerprint_path),
+            "accept_manifest_sha256": _sha256(accept_manifest_path),
+            "accept_fingerprint_sha256": _sha256(accept_fingerprint_path),
+            "campaign_sha256": _sha256(dev_campaign_path),
+        },
+    )
+
+
+def settle_cosmos3_fingerprint_pair(
+    *,
+    dev_fingerprint_root: Path,
+    accept_fingerprint_root: Path,
+    output_root: Path,
+) -> dict[str, object]:
+    """Settle a directly frozen one-sided probe on independent fingerprints."""
+
+    dev_root = Path(dev_fingerprint_root).resolve(strict=True)
+    accept_root = Path(accept_fingerprint_root).resolve(strict=True)
+    dev_manifest_path = dev_root / "manifest.json"
+    dev_fingerprint_path = dev_root / "target-local-fingerprint.json"
+    dev_campaign_path = dev_root / "input-campaign.json"
+    accept_manifest_path = accept_root / "manifest.json"
+    accept_fingerprint_path = accept_root / "target-local-fingerprint.json"
+    accept_campaign_path = accept_root / "input-campaign.json"
+
+    dev_manifest = _load_mapping(dev_manifest_path)
+    dev_fingerprint = _load_mapping(dev_fingerprint_path)
+    dev_campaign = _load_mapping(dev_campaign_path)
+    accept_manifest = _load_mapping(accept_manifest_path)
+    accept_fingerprint = _load_mapping(accept_fingerprint_path)
+    accept_campaign = _load_mapping(accept_campaign_path)
+
+    if _sha256(dev_campaign_path) != _sha256(accept_campaign_path):
+        raise Cosmos3DirectionalSettlementError("COSMOS3_DIRECTIONAL_CAMPAIGN_SHA_MISMATCH")
+    campaign_id = str(dev_campaign.get("campaign_id", ""))
+    fingerprint_manifest_type = "verdiwm-cosmos3-target-local-fingerprint-manifest"
+    if (
+        dev_campaign.get("artifact_type") != "verdiwm-cosmos3-fingerprint-campaign"
+        or campaign_id != accept_campaign.get("campaign_id")
+        or dev_manifest.get("artifact_type") != fingerprint_manifest_type
+        or dev_manifest.get("state") != "ready"
+        or accept_manifest.get("artifact_type") != fingerprint_manifest_type
+        or accept_manifest.get("state") != "ready"
+        or dev_fingerprint.get("artifact_type")
+        != "verdiwm-cosmos3-target-local-fingerprint"
+        or dev_fingerprint.get("campaign_id") != campaign_id
+        or dev_fingerprint.get("protocol") != "pilot"
+        or dev_fingerprint.get("split") != "dev"
+        or accept_fingerprint.get("artifact_type")
+        != "verdiwm-cosmos3-target-local-fingerprint"
+        or accept_fingerprint.get("campaign_id") != campaign_id
+        or accept_fingerprint.get("protocol") != "paper"
+        or accept_fingerprint.get("split") != "accept"
+    ):
+        raise Cosmos3DirectionalSettlementError("COSMOS3_DIRECTIONAL_SETTLEMENT_INPUT_INVALID")
+
+    return _settle_fingerprint_pair(
+        dev_fingerprint=dev_fingerprint,
+        accept_fingerprint=accept_fingerprint,
+        campaign=dev_campaign,
+        output_root=output_root,
+        inputs={
+            "dev_manifest_sha256": _sha256(dev_manifest_path),
+            "dev_fingerprint_sha256": _sha256(dev_fingerprint_path),
+            "accept_manifest_sha256": _sha256(accept_manifest_path),
+            "accept_fingerprint_sha256": _sha256(accept_fingerprint_path),
+            "campaign_sha256": _sha256(dev_campaign_path),
+        },
+    )
+
+
+def _settle_fingerprint_pair(
+    *,
+    dev_fingerprint: Mapping[str, Any],
+    accept_fingerprint: Mapping[str, Any],
+    campaign: Mapping[str, Any],
+    output_root: Path,
+    inputs: Mapping[str, str],
+) -> dict[str, object]:
     dev_chart = _mapping(dev_fingerprint.get("chart"), "COSMOS3_DIRECTIONAL_DEV_CHART_INVALID")
     accept_chart = _mapping(
         accept_fingerprint.get("chart"), "COSMOS3_DIRECTIONAL_ACCEPT_CHART_INVALID"
@@ -75,7 +161,7 @@ def settle_cosmos3_directional_probe(
             raise Cosmos3DirectionalSettlementError(
                 f"COSMOS3_DIRECTIONAL_CHART_COORDINATE_MISMATCH:{field}"
             )
-    probe_id = str(dev_campaign.get("probe", {}).get("probe_id", ""))
+    probe_id = str(campaign.get("probe", {}).get("probe_id", ""))
     if dev_chart.get("intervention_names") != [probe_id]:
         raise Cosmos3DirectionalSettlementError("COSMOS3_DIRECTIONAL_PROBE_MISMATCH")
 
@@ -86,7 +172,7 @@ def settle_cosmos3_directional_probe(
     alignment_error = _normalized_alignment_error(dev_jacobian, accept_jacobian)
 
     acceptance = _mapping(
-        dev_campaign.get("acceptance"), "COSMOS3_DIRECTIONAL_ACCEPTANCE_POLICY_INVALID"
+        campaign.get("acceptance"), "COSMOS3_DIRECTIONAL_ACCEPTANCE_POLICY_INVALID"
     )
     maximum_alignment_error = _finite_nonnegative(
         acceptance.get("maximum_dev_accept_alignment_error"),
@@ -113,7 +199,7 @@ def settle_cosmos3_directional_probe(
         "schema_version": 1,
         "artifact_type": "verdiwm-cosmos3-directional-probe-settlement",
         "state": state,
-        "campaign_id": campaign_id,
+        "campaign_id": str(campaign.get("campaign_id", "")),
         "probe_id": probe_id,
         "decision": (
             "license_directional_probe_for_later_transfer_experiments"
@@ -131,19 +217,13 @@ def settle_cosmos3_directional_probe(
             "accept_jacobian": accept_jacobian,
         },
         "locality": {
-            "maximum_residual": float(dev_campaign["locality_admission"]["maximum_residual"]),
+            "maximum_residual": float(campaign["locality_admission"]["maximum_residual"]),
             "dev_state": dev_locality.get("state"),
             "dev_residual": float(dev_locality["path_residuals"][probe_id]),
             "accept_state": accept_locality.get("state"),
             "accept_residual": float(accept_locality["path_residuals"][probe_id]),
         },
-        "inputs": {
-            "dev_selection_manifest_sha256": _sha256(dev_manifest_path),
-            "dev_fingerprint_sha256": _sha256(dev_fingerprint_path),
-            "accept_manifest_sha256": _sha256(accept_manifest_path),
-            "accept_fingerprint_sha256": _sha256(accept_fingerprint_path),
-            "campaign_sha256": _sha256(dev_campaign_path),
-        },
+        "inputs": dict(inputs),
         "claim_boundary": (
             "This settlement tests whether one dev-selected diagnostic direction is stable on the "
             "independent accept split. It is not evidence of model improvement. A licensed result "
@@ -157,7 +237,7 @@ def settle_cosmos3_directional_probe(
         manifest_fields={
             "artifact_type": "verdiwm-cosmos3-directional-probe-settlement-manifest",
             "state": state,
-            "campaign_id": campaign_id,
+            "campaign_id": str(campaign.get("campaign_id", "")),
             "probe_id": probe_id,
             "alignment_error": alignment_error,
             "maximum_alignment_error": maximum_alignment_error,

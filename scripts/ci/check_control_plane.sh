@@ -22,6 +22,7 @@ uv run python -m py_compile \
   wmloop/experiments/ctrl_world_receipt_merge.py \
   wmloop/experiments/ctrl_world_fingerprint_settlement.py \
   wmloop/experiments/cosmos3_fingerprint.py \
+  wmloop/experiments/cosmos3_directional_settlement.py \
   wmloop/experiments/probe_evolution.py \
   wmloop/evaluate/adapters/ctrl_world.py \
   wmloop/primitives/adapters/backbone_registry.py \
@@ -63,6 +64,8 @@ uv run python -m py_compile \
   scripts/export/ctrl_world_fingerprint_public_bundle.py \
   scripts/export/cosmos3_forward_dynamics_public_bundle.py \
   scripts/export/cosmos3_fingerprint_public_bundle.py \
+  scripts/export/cosmos3_directional_settlement.py \
+  scripts/export/cosmos3_directional_settlement_public_bundle.py \
   scripts/export/probe_evolution.py \
   scripts/export/probe_evolution_settlement.py \
   scripts/export/acwm_formal_visualization.py \
@@ -94,6 +97,9 @@ uv run pytest -q \
   tests/test_cosmos3_fingerprint_campaign_runner.py \
   tests/test_cosmos3_fingerprint_public_bundle.py \
   tests/test_cosmos3_probe_evolution.py \
+  tests/test_cosmos3_directional_settlement.py \
+  tests/test_cosmos3_directional_settlement_public_bundle.py \
+  tests/test_cosmos3_split_v2_protocol.py \
   tests/test_ctrl_world_probe_evolution.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \

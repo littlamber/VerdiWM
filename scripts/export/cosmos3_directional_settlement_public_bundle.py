@@ -21,16 +21,27 @@ class Cosmos3DirectionalSettlementPublicBundleError(ValueError):
 
 def export_cosmos3_directional_settlement_public_bundle(
     *,
-    dev_selection_root: Path,
+    dev_selection_root: Path | None = None,
+    dev_fingerprint_root: Path | None = None,
     accept_public_root: Path,
     settlement_root: Path,
     output_root: Path,
 ) -> dict[str, object]:
-    dev_root = Path(dev_selection_root).resolve(strict=True)
+    if (dev_selection_root is None) == (dev_fingerprint_root is None):
+        raise Cosmos3DirectionalSettlementPublicBundleError(
+            "COSMOS3_DIRECTIONAL_PUBLIC_DEV_SOURCE_INVALID"
+        )
+    direct_fingerprint = dev_fingerprint_root is not None
+    dev_root = Path(dev_fingerprint_root or dev_selection_root).resolve(strict=True)
     accept_root = Path(accept_public_root).resolve(strict=True)
     settled_root = Path(settlement_root).resolve(strict=True)
-    dev_report = _load_mapping(dev_root / "directional-probe-evolution.json")
-    dev_fingerprint = _load_mapping(dev_root / "selected-dev-fingerprint.json")
+    if direct_fingerprint:
+        dev_report = {"state": "dev_selected"}
+        dev_fingerprint_name = "target-local-fingerprint.json"
+    else:
+        dev_report = _load_mapping(dev_root / "directional-probe-evolution.json")
+        dev_fingerprint_name = "selected-dev-fingerprint.json"
+    dev_fingerprint = _load_mapping(dev_root / dev_fingerprint_name)
     accept_bundle = _load_mapping(accept_root / "bundle.json")
     accept_fingerprint = _load_mapping(accept_root / "target-local-fingerprint.json")
     settlement = _load_mapping(settled_root / "directional-probe-settlement.json")
@@ -59,14 +70,20 @@ def export_cosmos3_directional_settlement_public_bundle(
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
     try:
         _copy_public_tree(accept_root, temporary / "accept")
-        _copy_json(
-            dev_root / "directional-probe-evolution.json",
-            temporary / "dev/directional-probe-evolution.json",
-        )
-        _copy_json(
-            dev_root / "selected-dev-fingerprint.json",
-            temporary / "dev/selected-dev-fingerprint.json",
-        )
+        if direct_fingerprint:
+            _copy_json(
+                dev_root / "target-local-fingerprint.json",
+                temporary / "dev/target-local-fingerprint.json",
+            )
+        else:
+            _copy_json(
+                dev_root / "directional-probe-evolution.json",
+                temporary / "dev/directional-probe-evolution.json",
+            )
+            _copy_json(
+                dev_root / "selected-dev-fingerprint.json",
+                temporary / "dev/selected-dev-fingerprint.json",
+            )
         _copy_json(
             settled_root / "directional-probe-settlement.json",
             temporary / "settlement/directional-probe-settlement.json",
@@ -78,6 +95,9 @@ def export_cosmos3_directional_settlement_public_bundle(
             "artifact_type": "verdiwm-cosmos3-directional-settlement-public-bundle",
             "state": "ready",
             "campaign_id": campaign_id,
+            "dev_source_type": (
+                "direct_frozen_fingerprint" if direct_fingerprint else "dev_selected_subset"
+            ),
             "probe_id": settlement["probe_id"],
             "settlement_state": settlement["state"],
             "dev_locality_residual": settlement["locality"]["dev_residual"],
@@ -90,6 +110,7 @@ def export_cosmos3_directional_settlement_public_bundle(
             "cross_backbone_transfer_eligible": settlement[
                 "cross_backbone_transfer_eligible"
             ],
+            "certificate_terms": settlement["terms"],
             "abstention_reasons": settlement["abstention_reasons"],
             "accept_videos": accept_bundle["videos"],
             "claim_boundary": settlement["claim_boundary"],
@@ -207,7 +228,8 @@ def _readme(bundle: Mapping[str, Any]) -> str:
         f"alignment error is `{float(bundle['dev_accept_alignment_error']):.4f}` against the "
         f"frozen `{float(bundle['maximum_alignment_error']):.4f}` threshold. The final "
         f"settlement is therefore `{bundle['settlement_state']}`.\n\n"
-        f"Abstention reasons: `{', '.join(bundle['abstention_reasons'])}`. This is a certificate "
+        f"Failed certificate terms: `{', '.join(bundle['abstention_reasons'])}`. "
+        "Each name denotes a required term whose value is `false`. This is a certificate "
         "counterexample, not model-improvement evidence. The `accept/` "
         "subdirectory contains the paired dose-response tables and videos.\n"
     )
@@ -251,13 +273,16 @@ def _sha256(path: Path) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dev-selection-root", type=Path, required=True)
+    dev = parser.add_mutually_exclusive_group(required=True)
+    dev.add_argument("--dev-selection-root", type=Path)
+    dev.add_argument("--dev-fingerprint-root", type=Path)
     parser.add_argument("--accept-public-root", type=Path, required=True)
     parser.add_argument("--settlement-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     args = parser.parse_args(argv)
     bundle = export_cosmos3_directional_settlement_public_bundle(
         dev_selection_root=args.dev_selection_root,
+        dev_fingerprint_root=args.dev_fingerprint_root,
         accept_public_root=args.accept_public_root,
         settlement_root=args.settlement_root,
         output_root=args.output_root,

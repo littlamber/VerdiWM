@@ -14,8 +14,8 @@ Cosmos3 ACWM adapters, 17 materialized intervention primitives, an
 Interventional Repair Geometry (IRG) implementation, eight joint-frame
 ACWM-Phys IRG assets, development and paper-split Ctrl-World charts, one
 Cosmos3 forward-dynamics instantiation bundle, three settled Cosmos3
-target-local charts, one held-out directional split settlement, one
-counterexample-driven probe-evolution settlement, and one integrity-checked
+target-local charts, two held-out directional split settlements, two
+counterexample-driven probe-evolution settlements, and one integrity-checked
 operational closed-loop example.
 The release also includes a receipt-derived progressive-fidelity cost audit;
 its modest savings are retained as a system limitation rather than hidden.
@@ -33,8 +33,8 @@ its modest savings are retained as a system limitation rather than hidden.
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
-| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and paired-GT evidence are complete; a positive one-sided action-scale path passed locality on dev and accept but abstained because its normalized Jacobian reversed across splits |
-| Counterexample-driven diagnostic-probe evolution | Wide and narrow action-scale failures produced two tested branches: temporal mix failed locality, while positive one-sided scale failed held-out alignment; both counterexamples are retained |
+| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and paired-GT evidence are complete; held-out directional probes have correctly abstained, so transfer and LOBO remain prohibited |
+| Counterexample-driven diagnostic-probe evolution | Global scale, temporal mix, directional scale, and translation-only scale produced retained counterexamples; the latest translation-only path is linear on frozen dev2 but nonlocal and nearly reversed on independent accept2 |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
@@ -225,6 +225,16 @@ It contains 15 paired cells, three response videos, and residual `2.0649` under
 the unchanged `0.5` threshold. The settlement is therefore
 `settled_abstained`: probe evolution executed end to end, but Cosmos3 transfer
 and LOBO remain prohibited. None of these charts is model-improvement evidence.
+
+[`examples/cosmos3_translation_narrow_split_reversal_v2`](examples/cosmos3_translation_narrow_split_reversal_v2)
+records the subsequent translation-only probe on a second split frozen before
+outcomes were inspected. The dose path changes action columns `0:3` only and
+preserves rotation and gripper values exactly. It is locally linear on dev2
+with residual `0.1032`, but fails locality on independent accept2 with residual
+`2.4468`; its normalized Jacobian alignment error is `1.9998` against the
+frozen `0.5` limit. The result is `settled_abstained` and is retained as a
+certificate counterexample. It does not license LOBO, cross-backbone transfer,
+or a model-improvement claim.
 
 [`examples/acwm_eval_seed_replication_v1`](examples/acwm_eval_seed_replication_v1)
 adds 12 official 50-step gate receipts over four fixed checkpoint cells.
