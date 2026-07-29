@@ -9,6 +9,9 @@ from pathlib import Path
 
 from scripts.export.build_github_staging import GithubStagingError, audit_release_tree, build_github_staging
 from scripts.export.acwm_public_experience_bundle import validate_public_experience_bundle
+from scripts.export.acwm_training_seed_horizon_public_bundle import (
+    validate_training_seed_horizon_public_bundle,
+)
 from scripts.export.validate_public_example import PublicExampleValidationError, validate_public_example
 from scripts.export.verdiwm_minimal_loop_bundle import MinimalLoopBundleError, export_minimal_loop_bundle
 
@@ -17,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_ROOT = REPO_ROOT / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2"
 EXPERIENCE_ROOT = REPO_ROOT / "examples" / "acwm_experience_atlas_v1"
 SELECTOR_ROOT = REPO_ROOT / "examples" / "acwm_selector_ablation_v1"
+TRAINING_SEED_HORIZON_ROOT = REPO_ROOT / "examples" / "acwm_training_seed_horizon_stability_v1"
 
 
 class PublicExampleValidatorTests(unittest.TestCase):
@@ -42,6 +46,16 @@ class PublicExampleValidatorTests(unittest.TestCase):
         self.assertEqual(report["state"], "ready")
         self.assertEqual(report["screen_trial_count"], 284)
         self.assertEqual(report["showcase_case_count"], 4)
+
+    def test_checked_in_training_seed_horizon_bundle_is_integral(self) -> None:
+        report = validate_training_seed_horizon_public_bundle(TRAINING_SEED_HORIZON_ROOT)
+        self.assertEqual(report["state"], "ready")
+        self.assertEqual(report["training_seed_count"], 3)
+        self.assertEqual(report["video_count"], 9)
+        self.assertEqual(
+            report["stability_verdict"],
+            "training_seed_sensitive_long_horizon_effect",
+        )
 
 
 class MinimalLoopExporterTests(unittest.TestCase):
@@ -131,6 +145,14 @@ class GithubStagingTests(unittest.TestCase):
             self.assertTrue((output / "tests" / "test_stage_progressive_fidelity_sources.py").is_file())
             self.assertTrue(
                 (output / "examples" / "acwm_eval_seed_replication_v1" / "MANIFEST.sha256").is_file()
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "acwm_training_seed_horizon_stability_v1"
+                    / "MANIFEST.sha256"
+                ).is_file()
             )
             self.assertTrue(
                 (

@@ -20,6 +20,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.export.validate_public_example import validate_public_example
 from scripts.export.acwm_public_experience_bundle import validate_public_experience_bundle
+from scripts.export.acwm_training_seed_horizon_public_bundle import (
+    validate_training_seed_horizon_public_bundle,
+)
 
 
 class GithubStagingError(RuntimeError):
@@ -43,6 +46,8 @@ PUBLIC_TEST_FILES = (
     "test_verdiwm_public_release.py",
     "test_acwm_public_experience_bundle.py",
     "test_acwm_multiseed_eval_summary.py",
+    "test_acwm_horizon_effect_profile.py",
+    "test_acwm_training_seed_horizon.py",
     "test_agent_engineering_policy.py",
     "test_backbone_capability_matrix.py",
     "test_backbone_instance.py",
@@ -194,6 +199,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             temporary / "examples" / "acwm_eval_seed_replication_v1",
         )
         _copy_tree(
+            source / "examples" / "acwm_training_seed_horizon_stability_v1",
+            temporary / "examples" / "acwm_training_seed_horizon_stability_v1",
+        )
+        _copy_tree(
             source / "examples" / "acwm_progressive_fidelity_efficiency_v1",
             temporary / "examples" / "acwm_progressive_fidelity_efficiency_v1",
         )
@@ -240,6 +249,9 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         experience_validation = validate_public_experience_bundle(
             temporary / "examples" / "acwm_experience_atlas_v1"
         )
+        training_seed_horizon_validation = validate_training_seed_horizon_public_bundle(
+            temporary / "examples" / "acwm_training_seed_horizon_stability_v1"
+        )
         cosmos3_fingerprint_validations = {
             name: _validate_cosmos3_fingerprint_bundle(temporary / "examples" / name)
             for name in COSMOS3_PUBLIC_EXAMPLES
@@ -256,6 +268,7 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             "total_bytes_before_manifest": sum(path.stat().st_size for path in files),
             "public_example_validation": validation,
             "public_experience_validation": experience_validation,
+            "training_seed_horizon_validation": training_seed_horizon_validation,
             "cosmos3_fingerprint_validations": cosmos3_fingerprint_validations,
             "checks": {
                 "allowlist_copy": True,

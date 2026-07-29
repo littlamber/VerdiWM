@@ -1,0 +1,146 @@
+{
+  "artifact_type": "verdiwm-acwm-training-seed-horizon-stability-summary",
+  "claim_boundary": "Paired autoregressive long-horizon evidence across independent repair-training seeds. It updates scoped routing priors but does not establish cross-backbone transfer or causal credit.",
+  "environment": "cloth_move",
+  "horizon_summary": [
+    {
+      "horizon": 16,
+      "maximum_delta_psnr": 3.770775087980155,
+      "mean_delta_psnr": 2.3084557724549484,
+      "minimum_delta_psnr": -0.11830159097307913,
+      "strict_pass_count": 2,
+      "strict_pass_rate": 0.6666666666666666,
+      "training_seed_count": 3
+    },
+    {
+      "horizon": 32,
+      "maximum_delta_psnr": 2.956265669149577,
+      "mean_delta_psnr": 1.5442113198453444,
+      "minimum_delta_psnr": -0.5987202359597674,
+      "strict_pass_count": 2,
+      "strict_pass_rate": 0.6666666666666666,
+      "training_seed_count": 3
+    },
+    {
+      "horizon": 48,
+      "maximum_delta_psnr": 1.9464567968879898,
+      "mean_delta_psnr": 0.7154035985116257,
+      "minimum_delta_psnr": -0.6182979907543782,
+      "strict_pass_count": 2,
+      "strict_pass_rate": 0.6666666666666666,
+      "training_seed_count": 3
+    }
+  ],
+  "horizons": [
+    16,
+    32,
+    48
+  ],
+  "max_horizon_cell_count": 3,
+  "max_horizon_pass_count": 2,
+  "primitive": "self_forcing_finetune",
+  "schema_version": 1,
+  "selected_checkpoint_policy": "all_factorial_cells_pass_then_max_mean_psnr_tie_earlier_step",
+  "stability_verdict": "training_seed_sensitive_long_horizon_effect",
+  "state": "ready",
+  "training_seed_records": [
+    {
+      "aggregate_max_horizon_pass": true,
+      "checkpoint_sha256": "e1b81f9851b5cca81c91f226268958fa8577f87304756cd6877d22d153b21f14",
+      "checkpoint_step": 800,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "horizon_effects": {
+        "16": {
+          "delta_masked_mse": -0.032404012978076935,
+          "delta_mse": -0.005235126785313089,
+          "delta_psnr": 3.272893820357769,
+          "delta_ssim": 0.02159191047151887,
+          "strict_quality_pass": true
+        },
+        "32": {
+          "delta_masked_mse": -0.031358422090609864,
+          "delta_mse": -0.007642890016237895,
+          "delta_psnr": 2.956265669149577,
+          "delta_ssim": 0.02356572262942791,
+          "strict_quality_pass": true
+        },
+        "48": {
+          "delta_masked_mse": -0.029597068826357528,
+          "delta_mse": -0.0058888016889492665,
+          "delta_psnr": 1.9464567968879898,
+          "delta_ssim": 0.019179710497458813,
+          "strict_quality_pass": true
+        }
+      },
+      "positive_trajectory_rate_at_max_horizon": 1.0,
+      "training_seed": 4101
+    },
+    {
+      "aggregate_max_horizon_pass": false,
+      "checkpoint_sha256": "5ee6207a2b4c925c12b168f63fc5567df92e47384aea995071ce9e50a277d9da",
+      "checkpoint_step": 512,
+      "effect_scope": "hard_case_only_positive",
+      "horizon_effects": {
+        "16": {
+          "delta_masked_mse": -0.0036180155972639766,
+          "delta_mse": -7.409524793426138e-05,
+          "delta_psnr": -0.11830159097307913,
+          "delta_ssim": 0.0020372718572616577,
+          "strict_quality_pass": false
+        },
+        "32": {
+          "delta_masked_mse": 0.004443748543659851,
+          "delta_mse": 0.0019272345428665467,
+          "delta_psnr": -0.5987202359597674,
+          "delta_ssim": -0.003484658896923065,
+          "strict_quality_pass": false
+        },
+        "48": {
+          "delta_masked_mse": -0.00022788097461064194,
+          "delta_mse": 0.0032280590385198593,
+          "delta_psnr": -0.6182979907543782,
+          "delta_ssim": -0.006293995512856365,
+          "strict_quality_pass": false
+        }
+      },
+      "positive_trajectory_rate_at_max_horizon": 0.3333333333333333,
+      "training_seed": 4202
+    },
+    {
+      "aggregate_max_horizon_pass": true,
+      "checkpoint_sha256": "e793a536b19ae06971d04541c25fcc0e15a3fc34267f7017fb2a3ee024890d88",
+      "checkpoint_step": 512,
+      "effect_scope": "aggregate_long_horizon_positive",
+      "horizon_effects": {
+        "16": {
+          "delta_masked_mse": -0.03981860478719076,
+          "delta_mse": -0.005721367274721463,
+          "delta_psnr": 3.770775087980155,
+          "delta_ssim": 0.019853564600149864,
+          "strict_quality_pass": true
+        },
+        "32": {
+          "delta_masked_mse": -0.029941090693076447,
+          "delta_mse": -0.006470319038877884,
+          "delta_psnr": 2.2750885263462237,
+          "delta_ssim": 0.017114704474806786,
+          "strict_quality_pass": true
+        },
+        "48": {
+          "delta_masked_mse": -0.0185318539539973,
+          "delta_mse": -0.0030091075847546254,
+          "delta_psnr": 0.8180519894012654,
+          "delta_ssim": 0.008184866772757537,
+          "strict_quality_pass": true
+        }
+      },
+      "positive_trajectory_rate_at_max_horizon": 0.6666666666666666,
+      "training_seed": 4303
+    }
+  ],
+  "training_seeds": [
+    4101,
+    4202,
+    4303
+  ]
+}

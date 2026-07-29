@@ -1,0 +1,201 @@
+{
+  "artifact_type": "verdiwm-public-training-seed-horizon-profile",
+  "claim_boundary": "This artifact estimates a paired horizon response. It can update routing priors and anti-conditions, but cannot enter the failure-to-fix causal map until a factorized held-out replication receives a settled verifier verdict. A hard-case-only improvement is qualitative evidence, not aggregate uplift. When an event gate is present, pixel-metric gains cannot override a failed physical event.",
+  "effect_classification": {
+    "aggregate_max_horizon_pass": false,
+    "aggregate_passing_horizons": [],
+    "claim_license": "routing_prior_only_pending_factorized_heldout_replication",
+    "effect_scope": "hard_case_only_positive",
+    "first_aggregate_failure_horizon": 16,
+    "late_half_mean_delta_psnr": -0.792664038509351,
+    "positive_trajectory_indices_at_max_horizon": [
+      7
+    ],
+    "positive_trajectory_rate_at_max_horizon": 0.3333333333333333
+  },
+  "effective_training_window": {
+    "extension_allowed": false,
+    "first_later_regression_step": 800,
+    "later_regression_observed": true,
+    "selected_step": 512,
+    "selection_rule": "all_factorial_cells_pass_then_max_mean_psnr_tie_earlier_step",
+    "stop_requested": true
+  },
+  "environment": "cloth_move",
+  "horizon_effects": [
+    {
+      "aligned_gain": {
+        "masked_mse": 0.0036180155972639766,
+        "mse": 7.409524793426138e-05,
+        "psnr": -0.11830159097307913,
+        "ssim": 0.0020372718572616577
+      },
+      "baseline": {
+        "masked_mse": 0.08262196555733681,
+        "mse": 0.009717033710330725,
+        "psnr": 20.3071924072394,
+        "ssim": 0.9203442993263403
+      },
+      "candidate": {
+        "masked_mse": 0.07900394996007283,
+        "mse": 0.009642938462396463,
+        "psnr": 20.18889081626632,
+        "ssim": 0.922381571183602
+      },
+      "checks": {
+        "masked_mse_does_not_regress": true,
+        "mse_does_not_regress": true,
+        "psnr_strictly_improves": false,
+        "ssim_does_not_regress": true
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.0036180155972639766,
+        "mse": -7.409524793426138e-05,
+        "psnr": -0.11830159097307913,
+        "ssim": 0.0020372718572616577
+      },
+      "horizon": 16,
+      "sample_count": 3,
+      "seconds": 1.6,
+      "strict_quality_pass": false
+    },
+    {
+      "aligned_gain": {
+        "masked_mse": -0.004443748543659851,
+        "mse": -0.0019272345428665467,
+        "psnr": -0.5987202359597674,
+        "ssim": -0.003484658896923065
+      },
+      "baseline": {
+        "masked_mse": 0.09422897671659787,
+        "mse": 0.014687491580843925,
+        "psnr": 18.59181233606432,
+        "ssim": 0.9053606937328974
+      },
+      "candidate": {
+        "masked_mse": 0.09867272526025772,
+        "mse": 0.016614726123710472,
+        "psnr": 17.99309210010455,
+        "ssim": 0.9018760348359743
+      },
+      "checks": {
+        "masked_mse_does_not_regress": false,
+        "mse_does_not_regress": false,
+        "psnr_strictly_improves": false,
+        "ssim_does_not_regress": false
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": 0.004443748543659851,
+        "mse": 0.0019272345428665467,
+        "psnr": -0.5987202359597674,
+        "ssim": -0.003484658896923065
+      },
+      "horizon": 32,
+      "sample_count": 3,
+      "seconds": 3.2,
+      "strict_quality_pass": false
+    },
+    {
+      "aligned_gain": {
+        "masked_mse": 0.00022788097461064194,
+        "mse": -0.0032280590385198593,
+        "psnr": -0.6182979907543782,
+        "ssim": -0.006293995512856365
+      },
+      "baseline": {
+        "masked_mse": 0.09929271787405014,
+        "mse": 0.016227304314573605,
+        "psnr": 17.972887120295194,
+        "ssim": 0.9009419456124306
+      },
+      "candidate": {
+        "masked_mse": 0.0990648368994395,
+        "mse": 0.019455363353093464,
+        "psnr": 17.354589129540816,
+        "ssim": 0.8946479500995742
+      },
+      "checks": {
+        "masked_mse_does_not_regress": true,
+        "mse_does_not_regress": false,
+        "psnr_strictly_improves": false,
+        "ssim_does_not_regress": false
+      },
+      "delta_candidate_minus_baseline": {
+        "masked_mse": -0.00022788097461064194,
+        "mse": 0.0032280590385198593,
+        "psnr": -0.6182979907543782,
+        "ssim": -0.006293995512856365
+      },
+      "horizon": 48,
+      "sample_count": 3,
+      "seconds": 4.8,
+      "strict_quality_pass": false
+    }
+  ],
+  "horizons": [
+    16,
+    32,
+    48
+  ],
+  "per_frame_effect": {
+    "delta_psnr_by_frame": {
+      "0": 0.0,
+      "1": 3.9588172931686607,
+      "10": -0.5245833744527282,
+      "11": -0.6725878185891325,
+      "12": -0.8257908575324251,
+      "13": -0.7477665512582128,
+      "14": -0.4279764991226678,
+      "15": -0.3839661635005456,
+      "16": -0.4709000938784733,
+      "17": -0.5172191697770145,
+      "18": -0.601176868801673,
+      "19": -0.7047378361723347,
+      "2": 4.425029873268588,
+      "20": -1.0717432472220594,
+      "21": -1.6003168742372047,
+      "22": -1.4123281830080359,
+      "23": -1.1384944352466029,
+      "24": -0.9342074724452125,
+      "25": -0.793175113441599,
+      "26": -0.8488072495673258,
+      "27": -0.8160472833437105,
+      "28": -0.7281847135508563,
+      "29": -0.47954734822668144,
+      "3": 3.0525355454599,
+      "30": -0.17371833488277844,
+      "31": -0.07640113284478645,
+      "32": -0.21296432523430298,
+      "33": -0.5069352099550031,
+      "34": -0.8253725853030573,
+      "35": -1.13154539924464,
+      "36": -1.369324308636834,
+      "37": -1.8245841213461347,
+      "38": -1.6512747429618067,
+      "39": -1.3489623293769526,
+      "4": 2.804652629564991,
+      "40": -1.215081944259424,
+      "41": -0.7675633697965729,
+      "42": -0.5880106139522248,
+      "43": -0.49169770089930154,
+      "44": -0.6228892003153526,
+      "45": -0.6660210323907734,
+      "46": -0.5482632351699905,
+      "47": -0.4033581570791007,
+      "5": 0.7574380626759165,
+      "6": 0.16314774069726923,
+      "7": 0.4447828931087514,
+      "8": -0.6789267404769639,
+      "9": -0.5878810874861777
+    },
+    "duration_seconds": 4.8,
+    "early_half_mean_delta_psnr": 0.1350003432159094,
+    "frame_count": 48,
+    "late_half_mean_delta_psnr": -0.792664038509351,
+    "tail_frame_delta_psnr": -0.4033581570791007
+  },
+  "primitive": "self_forcing_finetune",
+  "schema_version": 1,
+  "state": "ready",
+  "training_seed": 4202
+}

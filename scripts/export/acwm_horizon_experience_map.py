@@ -115,6 +115,7 @@ def _edge(profile: Mapping[str, Any]) -> dict[str, object]:
     return {
         "environment": str(profile.get("environment") or ""),
         "primitive": str(profile.get("primitive") or ""),
+        "training_seed": profile.get("training_seed"),
         "failure_signatures": list(transfer.get("failure_signatures") or []),
         "mechanism_family": transfer.get("mechanism_family"),
         "layer": transfer.get("layer"),

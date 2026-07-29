@@ -44,6 +44,7 @@ def build_horizon_effect_profile(
     mechanism_cards: Path | None = None,
     event_gate: Path | None = None,
     checkpoint_ladder_manifest: Path | None = None,
+    training_seed: int | None = None,
     fps: float = 10.0,
 ) -> dict[str, object]:
     """Build an auditable primitive effect profile from paired rollouts."""
@@ -104,6 +105,7 @@ def build_horizon_effect_profile(
         checkpoint_ladder_manifest,
         environment=environment,
         primitive=primitive,
+        training_seed=training_seed,
     )
 
     report: dict[str, object] = {
@@ -114,6 +116,7 @@ def build_horizon_effect_profile(
         "split": split,
         "primitive": primitive,
         "mechanism_primitive": resolved_mechanism_primitive,
+        "training_seed": training_seed,
         "fps": fps,
         "horizons": horizons,
         "horizon_seconds": {str(horizon): horizon / fps for horizon in horizons},
@@ -142,6 +145,7 @@ def build_horizon_effect_profile(
             "failure_signatures": failure_signatures,
             "primitive": primitive,
             "mechanism_primitive": resolved_mechanism_primitive,
+            "training_seed": training_seed,
             "intervention_chain": list(
                 dict.fromkeys((resolved_mechanism_primitive, primitive))
             ),
@@ -458,13 +462,23 @@ def _checkpoint_ladder_evidence(
     *,
     environment: str,
     primitive: str,
+    training_seed: int | None,
 ) -> dict[str, object] | None:
     if path is None:
         return None
     manifest_path = Path(path).resolve(strict=True)
     manifest = _load_json_object(manifest_path, "HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+    artifact_type = manifest.get("artifact_type")
+    if artifact_type == "verdiwm-acwm-training-seed-checkpoint-stability-summary-manifest":
+        return _training_seed_stability_evidence(
+            manifest_path=manifest_path,
+            manifest=manifest,
+            environment=environment,
+            primitive=primitive,
+            training_seed=training_seed,
+        )
     if (
-        manifest.get("artifact_type") != "wmloop-acwm-checkpoint-ladder-finalization-manifest"
+        artifact_type != "wmloop-acwm-checkpoint-ladder-finalization-manifest"
         or manifest.get("state") != "ready"
         or manifest.get("environment") != environment
         or manifest.get("primitive") != primitive
@@ -526,6 +540,91 @@ def _checkpoint_ladder_evidence(
             ),
             "extension_allowed": selection.get("extension_allowed") is True,
             "stop_requested": selection.get("stop_requested") is True,
+        },
+    }
+
+
+def _training_seed_stability_evidence(
+    *,
+    manifest_path: Path,
+    manifest: Mapping[str, Any],
+    environment: str,
+    primitive: str,
+    training_seed: int | None,
+) -> dict[str, object]:
+    if training_seed is None or isinstance(training_seed, bool) or training_seed < 0:
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_TRAINING_SEED_REQUIRED")
+    if manifest.get("state") != "ready":
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+    report_path = Path(str(manifest.get("summary_path") or "")).resolve(strict=True)
+    report = _load_json_object(report_path, "HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+    if (
+        report.get("artifact_type")
+        != "verdiwm-acwm-training-seed-checkpoint-stability-summary"
+        or report.get("state") != "ready"
+        or report.get("environment") != environment
+        or report.get("primitive") != primitive
+    ):
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+    seed_rows = report.get("per_training_seed")
+    selected_rows = report.get("selected_checkpoints")
+    if not isinstance(seed_rows, list) or not isinstance(selected_rows, list):
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+    seed_row = next(
+        (row for row in seed_rows if isinstance(row, Mapping) and row.get("training_seed") == training_seed),
+        None,
+    )
+    selected = next(
+        (row for row in selected_rows if isinstance(row, Mapping) and row.get("training_seed") == training_seed),
+        None,
+    )
+    if not isinstance(seed_row, Mapping) or not isinstance(selected, Mapping):
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_TRAINING_SEED_UNKNOWN")
+    try:
+        selected_step = int(selected["checkpoint_step"])
+        selected_mean = float(selected["mean_delta_psnr"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID") from exc
+    raw_candidates = seed_row.get("checkpoint_candidates")
+    if not isinstance(raw_candidates, list) or not raw_candidates:
+        raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+    records: list[dict[str, object]] = []
+    regression_steps: list[int] = []
+    for raw in raw_candidates:
+        if not isinstance(raw, Mapping):
+            raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID")
+        try:
+            step = int(raw["checkpoint_step"])
+            mean_psnr = float(raw["mean_delta_psnr"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AcwmHorizonEffectProfileError("HORIZON_EFFECT_CHECKPOINT_LADDER_INVALID") from exc
+        passed = raw.get("all_eval_seeds_pass") is True
+        regressed = step > selected_step and (not passed or mean_psnr < selected_mean)
+        if regressed:
+            regression_steps.append(step)
+        records.append(
+            {
+                "checkpoint_step": step,
+                "official_gate_passed": passed,
+                "regressed_from_running_best": regressed,
+                "delta_candidate_minus_baseline": {"psnr": mean_psnr},
+            }
+        )
+    return {
+        "manifest_path": str(manifest_path),
+        "report_path": str(report_path),
+        "training_seed": training_seed,
+        "best_checkpoint_step": selected_step,
+        "evaluated_steps": [int(value) for value in report.get("checkpoint_steps", [])],
+        "records": records,
+        "regression_steps": regression_steps,
+        "effective_training_window": {
+            "selected_step": selected_step,
+            "later_regression_observed": bool(regression_steps),
+            "first_later_regression_step": min(regression_steps, default=None),
+            "selection_rule": report.get("global_selection_reason"),
+            "extension_allowed": False,
+            "stop_requested": True,
         },
     }
 
@@ -668,6 +767,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mechanism-cards", type=Path)
     parser.add_argument("--event-gate", type=Path)
     parser.add_argument("--checkpoint-ladder-manifest", type=Path)
+    parser.add_argument("--training-seed", type=int)
     parser.add_argument("--fps", type=float, default=10.0)
     return parser
 
@@ -684,6 +784,7 @@ def main(argv: list[str] | None = None) -> int:
         mechanism_cards=args.mechanism_cards,
         event_gate=args.event_gate,
         checkpoint_ladder_manifest=args.checkpoint_ladder_manifest,
+        training_seed=args.training_seed,
         fps=args.fps,
     )
     print(json.dumps(report["manifest"], sort_keys=True, separators=(",", ":")))

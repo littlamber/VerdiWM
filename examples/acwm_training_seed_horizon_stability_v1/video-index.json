@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4101_trajectory_00007_gt_baseline_ours.mp4",
+      "sha256": "23a455cd4697423fbac690b04af8765a0f0855f83948942e3e2e4c06e3fdb517",
+      "training_seed": 4101,
+      "trajectory_index": 7
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4101_trajectory_00031_gt_baseline_ours.mp4",
+      "sha256": "2d6fb75fb14d741d4f3ad9a4ff3623c5f73c2a8560c8359771d7ba6d9ca1d70f",
+      "training_seed": 4101,
+      "trajectory_index": 31
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4101_trajectory_00040_gt_baseline_ours.mp4",
+      "sha256": "b3fe3a18da14f8f03f8321ff17ef6a3c61b3ef36faf3ab1af9a5e1f286830ec0",
+      "training_seed": 4101,
+      "trajectory_index": 40
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4202_trajectory_00007_gt_baseline_ours.mp4",
+      "sha256": "a7d1d368df89ea430102673ca985eb4c0e2bb25f82646353ee98b76e34086cd9",
+      "training_seed": 4202,
+      "trajectory_index": 7
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4202_trajectory_00031_gt_baseline_ours.mp4",
+      "sha256": "14c41a30227cb153191a09e5666cf1e07cbca530a49fc2d2c785f14cc01f3c0e",
+      "training_seed": 4202,
+      "trajectory_index": 31
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4202_trajectory_00040_gt_baseline_ours.mp4",
+      "sha256": "71866d3f43b38f9a3340893ea915efbf90f52e14a99b82f54d3d074873656dfb",
+      "training_seed": 4202,
+      "trajectory_index": 40
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4303_trajectory_00007_gt_baseline_ours.mp4",
+      "sha256": "bf5895ac6069eddc79c248e42b5d539e1513d5cca7726cfde7fb2906cdf419e2",
+      "training_seed": 4303,
+      "trajectory_index": 7
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4303_trajectory_00031_gt_baseline_ours.mp4",
+      "sha256": "6c70c6c40c76096d682e883c405049be5611e04122a87501d8b91b4cb87dd6b1",
+      "training_seed": 4303,
+      "trajectory_index": 31
+    },
+    {
+      "layout": "GT|Baseline|Ours",
+      "path": "videos/training_seed_4303_trajectory_00040_gt_baseline_ours.mp4",
+      "sha256": "c4081e28e08978e9989bc6cd2d44cfdd9c5b751742c97909697818c7cd4c6754",
+      "training_seed": 4303,
+      "trajectory_index": 40
+    }
+  ]
+}
