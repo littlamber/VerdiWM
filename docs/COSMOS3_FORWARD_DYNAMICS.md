@@ -21,8 +21,9 @@ action accuracy are forbidden verdict sources for this instance.
   the conditioning frame from verdict metrics, and checks the official
   top-left content crop before measuring future-frame error.
 - `wmloop/primitives/adapters/cosmos3_hooks.py` audits H1-H5, implements a
-  reversible action-conditioning dose, and materializes bounded per-dimension
-  action balancing with a receipt.
+  reversible action-conditioning dose, a mean-preserving temporal-action-mix
+  diagnostic, and bounded per-dimension action balancing with receipts. Both
+  diagnostic paths copy the source bytes exactly at zero dose.
 
 The public instance remains `pilot_draft`. A local instance may be
 closed-loop wired while still being ineligible for a formal launch.
@@ -35,7 +36,7 @@ After binding the external paths, run:
 python -m wmloop.control.cosmos3_forward_dynamics_smoke \
   --cosmos3-root /path/to/cosmos/packages/cosmos3 \
   --runtime-python /path/to/cosmos/packages/cosmos3/.venv/bin/python \
-  --runner-path /path/to/cosmos/packages/cosmos3/tools/run_official_droid_lerobot_fd.py \
+  --runner-path scripts/integrations/run_cosmos3_droid_lerobot_fd.py \
   --dataset-root /path/to/droid_lerobot_example \
   --dataset-freeze configs/backbones/cosmos3_droid_lerobot_dataset_freeze_v1.json \
   --split configs/goal/cosmos3_forward_dynamics_split_v1.json \
@@ -71,3 +72,19 @@ The next evidence levels are separate:
 
 Failure at any level yields rejection or abstention. It must not be relabeled
 as transfer success.
+
+## Counterexample-driven probe evolution
+
+The wide and narrow `action_conditioning_scale` charts failed the same frozen
+locality threshold. The successor campaign at
+`configs/experiments/cosmos3_irg_calibration_temporal_mix_dev_v1.json` changes
+only the diagnostic direction: for every action dimension it applies
+`a_t + d * (mean_time(a) - a_t)`. This transformation preserves the temporal
+mean, is reversible over the admitted dose range, and leaves the checkpoint,
+split, seeds, evaluator, verdict outcomes, and zero-dose input unchanged.
+
+`scripts/run_cosmos3_fingerprint_campaign.py` passes the campaign probe ID to
+both the upstream runner and paired-GT evaluator. A mismatch between the
+configured probe and the receipt fails closed. This successor remains
+ineligible for transfer until a complete chart passes the pre-registered
+locality gate.
