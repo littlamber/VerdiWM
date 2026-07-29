@@ -55,7 +55,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--action-probe",
-        choices=("action_conditioning_scale", "action_embedding_temporal_mix"),
+        choices=(
+            "action_conditioning_scale",
+            "action_embedding_temporal_mix",
+            "action_translation_scale",
+        ),
         default="action_conditioning_scale",
         help="VerdiWM inference-only action probe materialized before forward dynamics.",
     )

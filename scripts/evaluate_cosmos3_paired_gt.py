@@ -38,7 +38,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--action-hook-receipt", type=Path)
     parser.add_argument(
         "--action-probe",
-        choices=("action_conditioning_scale", "action_embedding_temporal_mix"),
+        choices=(
+            "action_conditioning_scale",
+            "action_embedding_temporal_mix",
+            "action_translation_scale",
+        ),
         default="action_conditioning_scale",
     )
     parser.add_argument("--action-dose", type=float, default=0.0)

@@ -84,9 +84,21 @@
       "additionalProperties": false,
       "required": ["probe_id", "dose", "dose_unit", "hook_receipt_sha256"],
       "properties": {
-        "probe_id": {"enum": ["action_conditioning_scale", "action_embedding_temporal_mix"]},
+        "probe_id": {
+          "enum": [
+            "action_conditioning_scale",
+            "action_embedding_temporal_mix",
+            "action_translation_scale"
+          ]
+        },
         "dose": {"type": "number", "minimum": -0.1, "maximum": 0.1},
-        "dose_unit": {"enum": ["relative_action_input_scale", "temporal_action_input_mix"]},
+        "dose_unit": {
+          "enum": [
+            "relative_action_input_scale",
+            "temporal_action_input_mix",
+            "relative_translation_action_scale"
+          ]
+        },
         "hook_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
     },

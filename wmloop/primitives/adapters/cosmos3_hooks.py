@@ -42,6 +42,7 @@ HOOK_ANCHORS = {
 COSMOS3_ACTION_PROBE_DOSE_UNITS = {
     "action_conditioning_scale": "relative_action_input_scale",
     "action_embedding_temporal_mix": "temporal_action_input_mix",
+    "action_translation_scale": "relative_translation_action_scale",
 }
 
 
@@ -92,6 +93,22 @@ def apply_action_temporal_mix(actions: Sequence[Sequence[float]], *, dose: float
     ]
 
 
+def apply_action_translation_scale(
+    actions: Sequence[Sequence[float]], *, dose: float
+) -> list[list[float]]:
+    """Scale only the DROID position-delta coordinates in its frozen 10D layout."""
+    value = float(dose)
+    if not math.isfinite(value) or abs(value) > 0.1:
+        raise Cosmos3HookError("COSMOS3_ACTION_DOSE_OUT_OF_RANGE")
+    matrix = _action_matrix(actions)
+    if len(matrix[0]) != 10:
+        raise Cosmos3HookError("COSMOS3_DROID_ACTION_LAYOUT_INVALID")
+    return [
+        [entry * (1.0 + value) if index < 3 else entry for index, entry in enumerate(row)]
+        for row in matrix
+    ]
+
+
 def apply_action_probe(
     actions: Sequence[Sequence[float]], *, probe_id: str, dose: float
 ) -> list[list[float]]:
@@ -99,6 +116,8 @@ def apply_action_probe(
         return apply_action_conditioning_scale(actions, dose=dose)
     if probe_id == "action_embedding_temporal_mix":
         return apply_action_temporal_mix(actions, dose=dose)
+    if probe_id == "action_translation_scale":
+        return apply_action_translation_scale(actions, dose=dose)
     raise Cosmos3HookError("COSMOS3_ACTION_MODE_UNKNOWN")
 
 
@@ -176,6 +195,13 @@ def materialize_action_json(
             if mode == "action_embedding_temporal_mix"
             else None
         ),
+        "unchanged_nontranslation_max_abs_error": (
+            _unchanged_columns_max_abs_error(
+                matrix=_action_matrix(payload), transformed=transformed, start_index=3
+            )
+            if mode == "action_translation_scale"
+            else None
+        ),
         "zero_dose_byte_identity": zero_dose,
     }
 
@@ -199,6 +225,19 @@ def _temporal_mean_max_abs_error(
             - sum(row[index] for row in transformed) / len(transformed)
         )
         for index in range(width)
+    )
+
+
+def _unchanged_columns_max_abs_error(
+    *,
+    matrix: Sequence[Sequence[float]],
+    transformed: Sequence[Sequence[float]],
+    start_index: int,
+) -> float:
+    return max(
+        abs(row[index] - transformed_row[index])
+        for row, transformed_row in zip(matrix, transformed, strict=True)
+        for index in range(start_index, len(row))
     )
 
 

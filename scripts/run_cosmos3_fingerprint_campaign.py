@@ -25,7 +25,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
     protocol = campaign["protocols"][args.protocol]
     split_name = str(protocol["split"])
     probe_id = str(campaign["probe"]["probe_id"])
-    if probe_id not in {"action_conditioning_scale", "action_embedding_temporal_mix"}:
+    if probe_id not in {
+        "action_conditioning_scale",
+        "action_embedding_temporal_mix",
+        "action_translation_scale",
+    }:
         raise ValueError("COSMOS3_CAMPAIGN_PROBE_UNSUPPORTED")
     configured_doses = tuple(float(value) for value in campaign["probe"]["doses"])
     selected_doses = tuple(float(value) for value in (args.doses or configured_doses))
