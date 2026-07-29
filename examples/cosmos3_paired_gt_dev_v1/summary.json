@@ -1,0 +1,61 @@
+{
+  "aggregates": {
+    "final_frame_mae": {
+      "mean": 0.0627248511462666,
+      "population_std": 0.008712051264022969
+    },
+    "rollout_video_l1": {
+      "mean": 0.043347125014054945,
+      "population_std": 0.013362736702096839
+    },
+    "rollout_video_psnr": {
+      "mean": 21.275905828312496,
+      "population_std": 1.4802440702056434
+    },
+    "temporal_difference_mae": {
+      "mean": 0.02310056885233049,
+      "population_std": 0.004748456709247451
+    }
+  },
+  "artifact_type": "verdiwm-cosmos3-paired-gt-split-summary",
+  "claim_boundary": "Baseline predictive quality on the complete frozen dev split; no primitive benefit or transfer claim.",
+  "identities": [
+    {
+      "sample_index": 0,
+      "seed": 101
+    },
+    {
+      "sample_index": 16,
+      "seed": 202
+    },
+    {
+      "sample_index": 32,
+      "seed": 303
+    }
+  ],
+  "receipt_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "split_id": "cosmos3_droid_lerobot_sample_v1",
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|Cosmos3-Nano prediction",
+      "path": "videos/sample-0-seed-101-gt-prediction.mp4",
+      "sample_index": 0,
+      "seed": 101
+    },
+    {
+      "layout": "GT|Cosmos3-Nano prediction",
+      "path": "videos/sample-16-seed-202-gt-prediction.mp4",
+      "sample_index": 16,
+      "seed": 202
+    },
+    {
+      "layout": "GT|Cosmos3-Nano prediction",
+      "path": "videos/sample-32-seed-303-gt-prediction.mp4",
+      "sample_index": 32,
+      "seed": 303
+    }
+  ]
+}

@@ -17,6 +17,9 @@ action accuracy are forbidden verdict sources for this instance.
   probes from action-sensitivity and autoregressive-drift diagnostics.
 - `wmloop/evaluate/adapters/cosmos3_predictive.py` rejects policy-mode,
   downstream-success, non-finite, or out-of-split receipts.
+- `wmloop/evaluate/cosmos3_paired_gt.py` enforces 17-frame alignment, excludes
+  the conditioning frame from verdict metrics, and checks the official
+  top-left content crop before measuring future-frame error.
 - `wmloop/primitives/adapters/cosmos3_hooks.py` audits H1-H5, implements a
   reversible action-conditioning dose, and materializes bounded per-dimension
   action balancing with a receipt.
@@ -38,7 +41,7 @@ python -m wmloop.control.cosmos3_forward_dynamics_smoke \
   --split configs/goal/cosmos3_forward_dynamics_split_v1.json \
   --split-name dev \
   --checkpoint-path /path/to/Cosmos3-Nano \
-  --config-file /path/to/Cosmos3-Nano/config.local_assets.json \
+  --config-file /path/to/Cosmos3-Nano/config.local_all.json \
   --output-root outputs/cosmos3-forward-dynamics-smoke
 ```
 
@@ -47,28 +50,24 @@ forward-dynamics mode, first-frame conditioning, H1-H5 anchors, zero-dose byte
 identity, and action-dimension-balancing materialization. It deliberately uses
 `--skip-run`: no prediction is generated and no model-quality claim follows.
 
-## GPU runtime receipt
+## Paired-GT dev baseline
 
-The reference instance has also completed one official GPU execution on the
-frozen dev window. `wmloop.control.cosmos3_gpu_runtime_receipt` fails closed
-unless the official runner reports success, the output video is decodable, the
-action tensor has a consistent shape, and a physical GPU UUID has nonzero
-memory samples during the run. The path-safe public summary records 95 active
-samples, peak memory of 36,722 MiB, a 25.09-second generation call, and a
-17-frame H.264 output. Raw checkpoints and machine-local paths are excluded.
-
-This advances runtime readiness only. The generated video has not yet been
-scored against paired ground truth and is not evidence of predictive quality,
-primitive benefit, or transfer.
+[`examples/cosmos3_paired_gt_dev_v1`](../examples/cosmos3_paired_gt_dev_v1)
+contains complete self-contained receipts for the three frozen dev windows,
+plus CSV, SVG, and aligned `GT | prediction` videos. Mean future-frame metrics
+are PSNR `21.2759` dB, L1 `0.04335`, final-frame MAE `0.06272`, and temporal
+difference MAE `0.02310`. These are baseline quality measurements, not a
+primitive benefit or transfer result.
 
 ## Promotion boundary
 
 The next evidence levels are separate:
 
-1. paired GT predictive receipts on dev windows;
-2. a target-local dose chart and locality check;
-3. independent accept-window settlement;
-4. held-out selector and effect confirmation.
+1. real GPU inference smoke with the frozen checkpoint and physical GPU receipt;
+2. paired GT predictive receipts on dev windows (complete);
+3. a target-local dose chart and locality check;
+4. independent accept-window settlement;
+5. held-out selector and effect confirmation.
 
 Failure at any level yields rejection or abstention. It must not be relabeled
 as transfer success.

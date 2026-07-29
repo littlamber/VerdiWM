@@ -29,7 +29,7 @@ operational closed-loop example.
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
-| Cosmos3-Nano ACWM forward-dynamics instance | CPU staging and hook smoke complete; GPU quality chart pending |
+| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and complete three-window paired-GT dev baseline available; probe chart pending |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -190,8 +190,13 @@ declared available by convention.
 The GPU runtime summary records the frozen `16 x 10` action window, 95 physical
 GPU samples with peak memory of 36,722 MiB, and a decodable 17-frame output.
 
-The instance remains `pilot_draft` and formal launch is false. The bundle does
-not claim generated-video quality or transfer evidence. See
+[`examples/cosmos3_paired_gt_dev_v1`](examples/cosmos3_paired_gt_dev_v1)
+adds three self-contained paired-GT dev receipts, an SVG/CSV summary, and
+aligned `GT | prediction` videos. Mean future-frame PSNR is `21.2759` dB.
+This is baseline predictive-quality evidence only; it does not establish a
+primitive benefit or transfer result.
+
+The instance remains `pilot_draft` and formal launch is false. See
 [Cosmos3 forward dynamics](docs/COSMOS3_FORWARD_DYNAMICS.md) for the binding
 and promotion sequence.
 

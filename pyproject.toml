@@ -19,7 +19,10 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
+  "imageio[ffmpeg]>=2.34,<3",
   "jsonschema>=4.23,<5",
+  "numpy>=1.26,<3",
+  "Pillow>=10,<13",
   "pydantic>=2.8,<3",
   "PyYAML>=6,<7",
   "tenacity>=9,<10",

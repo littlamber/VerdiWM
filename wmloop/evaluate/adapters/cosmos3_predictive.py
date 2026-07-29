@@ -34,12 +34,30 @@ def evaluate_cosmos3_prediction_receipt(
     allowed = {(int(item["sample_index"]), int(item["seed"])) for item in split[split_name]}
     if identity not in allowed:
         raise Cosmos3PredictiveEvaluationError("COSMOS3_PREDICTION_RECEIPT_OUTSIDE_FROZEN_SPLIT")
+    if receipt["split_id"] != split["split_id"] or receipt["split_name"] != split_name:
+        raise Cosmos3PredictiveEvaluationError("COSMOS3_PREDICTION_SPLIT_IDENTITY_MISMATCH")
+    if receipt["dataset_freeze_id"] != "cosmos3_droid_lerobot_cookbook_sample_v1":
+        raise Cosmos3PredictiveEvaluationError("COSMOS3_DATASET_FREEZE_IDENTITY_MISMATCH")
     if receipt["model_mode"] != "forward_dynamics":
         raise Cosmos3PredictiveEvaluationError("COSMOS3_POLICY_MODE_FORBIDDEN")
     if receipt["evidence_source"] != "paired_ground_truth_rollout":
         raise Cosmos3PredictiveEvaluationError("COSMOS3_DOWNSTREAM_SUCCESS_FORBIDDEN")
     if receipt["action_conditioned"] is not True:
         raise Cosmos3PredictiveEvaluationError("COSMOS3_ACTION_CONDITIONING_MISSING")
+    if receipt["viewpoint"] != "concat_view" or receipt["action_shape"] != [16, 10]:
+        raise Cosmos3PredictiveEvaluationError("COSMOS3_FORWARD_DYNAMICS_SHAPE_OR_VIEWPOINT_INVALID")
+    alignment = receipt["frame_alignment"]
+    if (
+        receipt["horizon_frames"] != 16
+        or len(alignment["ground_truth_shape"]) != 4
+        or len(alignment["rollout_shape"]) != 4
+        or alignment["condition_frame_index"] != 0
+        or alignment["future_start_index"] != 1
+        or alignment["future_frame_count"] != 16
+        or alignment["spatial_policy"] != "top_left_content_crop_to_rollout"
+        or alignment["conditioning_frame_mae"] > alignment["max_conditioning_frame_mae"]
+    ):
+        raise Cosmos3PredictiveEvaluationError("COSMOS3_FRAME_ALIGNMENT_INVALID")
     metrics = {str(key): float(value) for key, value in receipt["metrics"].items()}
     if any(not math.isfinite(value) for value in metrics.values()):
         raise Cosmos3PredictiveEvaluationError("COSMOS3_PREDICTION_METRIC_NONFINITE")

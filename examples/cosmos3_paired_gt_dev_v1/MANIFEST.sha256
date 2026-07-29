@@ -1,0 +1,7 @@
+ece7562a59ee5453238a4d6cd8765aece5df7a7bf14f2fd14b7b98aba2976156  README.md
+71a61233f0b1b39b193b067d3d127f8ee6500910826fee3ce3e1004aca73aa44  figures/dev-paired-gt-metrics.svg
+7130aa54035a2feff8671628911047323dd6e156afbda7634176efca440ff0ab  summary.json
+9f8dc1c9c6b9aa65394090e009766a6b5c9a9670d042712326cf14eaf264955d  tables/dev-metrics.csv
+5375db0f25899f1231cdc36fa27482c8fae6ced8ef076539d877dabfc1c53ea4  videos/sample-0-seed-101-gt-prediction.mp4
+8b6c5a53fe25af8b73a908046a5a231ac8134e794a5c3d6af98aaf0d33233454  videos/sample-16-seed-202-gt-prediction.mp4
+e0d490b5ed94dae9a836bdc75fce7ca20a55d2fdc39e838617e11bc6452cc4d0  videos/sample-32-seed-303-gt-prediction.mp4

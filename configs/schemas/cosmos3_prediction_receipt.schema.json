@@ -7,14 +7,22 @@
     "artifact_type",
     "evidence_source",
     "model_mode",
+    "split_id",
+    "split_name",
+    "dataset_freeze_id",
     "sample_index",
     "seed",
+    "viewpoint",
+    "action_shape",
     "horizon_frames",
     "metrics",
+    "frame_alignment",
     "action_conditioned",
     "conditioning_ref",
+    "action_ref",
     "ground_truth_ref",
     "rollout_ref",
+    "sha256",
     "evaluator_version"
   ],
   "properties": {
@@ -22,8 +30,17 @@
     "artifact_type": {"enum": ["verdiwm-cosmos3-prediction-receipt"]},
     "evidence_source": {"enum": ["paired_ground_truth_rollout", "downstream_task_success"]},
     "model_mode": {"enum": ["forward_dynamics", "policy"]},
+    "split_id": {"type": "string", "minLength": 1},
+    "split_name": {"enum": ["dev", "accept"]},
+    "dataset_freeze_id": {"type": "string", "minLength": 1},
     "sample_index": {"type": "integer", "minimum": 0},
     "seed": {"type": "integer"},
+    "viewpoint": {"enum": ["concat_view"]},
+    "action_shape": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"type": "integer", "minimum": 1}
+    },
     "horizon_frames": {"type": "integer", "minimum": 1},
     "metrics": {
       "type": "object",
@@ -36,10 +53,46 @@
         "temporal_difference_mae": {"type": "number", "minimum": 0}
       }
     },
+    "frame_alignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ground_truth_shape",
+        "rollout_shape",
+        "condition_frame_index",
+        "future_start_index",
+        "future_frame_count",
+        "spatial_policy",
+        "conditioning_frame_mae",
+        "max_conditioning_frame_mae"
+      ],
+      "properties": {
+        "ground_truth_shape": {"type": "array", "minItems": 4, "items": {"type": "integer", "minimum": 1}},
+        "rollout_shape": {"type": "array", "minItems": 4, "items": {"type": "integer", "minimum": 1}},
+        "condition_frame_index": {"enum": [0]},
+        "future_start_index": {"enum": [1]},
+        "future_frame_count": {"type": "integer", "minimum": 1},
+        "spatial_policy": {"enum": ["top_left_content_crop_to_rollout"]},
+        "conditioning_frame_mae": {"type": "number", "minimum": 0},
+        "max_conditioning_frame_mae": {"type": "number", "minimum": 0}
+      }
+    },
     "action_conditioned": {"type": "boolean"},
     "conditioning_ref": {"type": "string", "minLength": 1},
+    "action_ref": {"type": "string", "minLength": 1},
     "ground_truth_ref": {"type": "string", "minLength": 1},
     "rollout_ref": {"type": "string", "minLength": 1},
+    "sha256": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_input", "conditioning", "ground_truth", "rollout"],
+      "properties": {
+        "action_input": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "conditioning": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ground_truth": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "rollout": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
     "evaluator_version": {"type": "string", "minLength": 1}
   }
 }
