@@ -42,6 +42,21 @@ The validator checks:
 - paper-level replication remains false for the shared-seed bundle;
 - public JSON and Markdown contain no local host paths.
 
+The three checked-in Cosmos3 target-local bundles each carry an independent
+`MANIFEST.sha256`. Validate them without model assets:
+
+```bash
+for example in \
+  cosmos3_target_local_irg_wide_v1 \
+  cosmos3_target_local_irg_narrow_v1 \
+  cosmos3_target_local_irg_temporal_mix_v1; do
+  (cd "examples/${example}" && sha256sum -c MANIFEST.sha256)
+done
+```
+
+The release builder repeats this coverage check, validates each indexed video,
+and records all three verdicts in `RELEASE_AUDIT.json`.
+
 ## ACWM-Phys runtime
 
 ACWM-Phys is an external dependency. This repository does not redistribute its
@@ -125,6 +140,6 @@ python scripts/export/build_github_staging.py \
   --output-root ../VerdiWM-github-v0.1
 ```
 
-The builder uses an allowlist, performs path/secret/size/symlink audits, and
-writes `MANIFEST.sha256` plus `RELEASE_AUDIT.json`. It refuses to overwrite an
-existing destination.
+The builder uses an allowlist, performs path/secret/size/symlink audits,
+validates every Cosmos3 fingerprint bundle, and writes `MANIFEST.sha256` plus
+`RELEASE_AUDIT.json`. It refuses to overwrite an existing destination.

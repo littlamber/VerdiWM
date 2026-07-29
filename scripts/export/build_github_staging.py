@@ -42,6 +42,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_joint_fingerprint_campaign_runner.py",
     "test_verdiwm_public_release.py",
     "test_acwm_public_experience_bundle.py",
+    "test_acwm_multiseed_eval_summary.py",
     "test_agent_engineering_policy.py",
     "test_backbone_capability_matrix.py",
     "test_backbone_instance.py",
@@ -61,6 +62,8 @@ PUBLIC_TEST_FILES = (
     "test_acwm_selector_public_bundle.py",
     "test_acwm_self_rollout_history_probe.py",
     "test_acwm_fingerprint_campaign_runner.py",
+    "test_progressive_fidelity.py",
+    "test_stage_progressive_fidelity_sources.py",
     "test_ctrl_world_instance_adapters.py",
     "test_ctrl_world_predictive_adapter.py",
     "test_ctrl_world_predictive_instance.py",
@@ -76,6 +79,7 @@ PUBLIC_TEST_FILES = (
     "test_cosmos3_fingerprint.py",
     "test_cosmos3_fingerprint_campaign_runner.py",
     "test_cosmos3_fingerprint_public_bundle.py",
+    "test_cosmos3_probe_evolution.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -100,6 +104,11 @@ PUBLIC_TEST_FILES = (
     "test_acwm_cloth_move_surface_fold_diagnostic_v1.py",
     "test_acwm_cloth_move_cloth_identity_drift_diagnostic_v1.py",
     "test_acwm_cloth_move_deformable_memory_diagnostic_v1.py",
+)
+COSMOS3_PUBLIC_EXAMPLES = (
+    "cosmos3_target_local_irg_wide_v1",
+    "cosmos3_target_local_irg_narrow_v1",
+    "cosmos3_target_local_irg_temporal_mix_v1",
 )
 CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
@@ -181,6 +190,14 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             temporary / "examples" / "acwm_experience_atlas_v1",
         )
         _copy_tree(
+            source / "examples" / "acwm_eval_seed_replication_v1",
+            temporary / "examples" / "acwm_eval_seed_replication_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_progressive_fidelity_efficiency_v1",
+            temporary / "examples" / "acwm_progressive_fidelity_efficiency_v1",
+        )
+        _copy_tree(
             source / "examples" / "acwm_selector_ablation_v1",
             temporary / "examples" / "acwm_selector_ablation_v1",
         )
@@ -216,15 +233,17 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             source / "examples" / "cosmos3_paired_gt_dev_v1",
             temporary / "examples" / "cosmos3_paired_gt_dev_v1",
         )
-        _copy_tree(
-            source / "examples" / "cosmos3_target_local_irg_wide_v1",
-            temporary / "examples" / "cosmos3_target_local_irg_wide_v1",
-        )
+        for name in COSMOS3_PUBLIC_EXAMPLES:
+            _copy_tree(source / "examples" / name, temporary / "examples" / name)
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")
         experience_validation = validate_public_experience_bundle(
             temporary / "examples" / "acwm_experience_atlas_v1"
         )
+        cosmos3_fingerprint_validations = {
+            name: _validate_cosmos3_fingerprint_bundle(temporary / "examples" / name)
+            for name in COSMOS3_PUBLIC_EXAMPLES
+        }
         findings = audit_release_tree(temporary)
         if findings:
             raise GithubStagingError("GITHUB_STAGING_AUDIT_FAILED:" + ";".join(findings[:20]))
@@ -237,6 +256,7 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             "total_bytes_before_manifest": sum(path.stat().st_size for path in files),
             "public_example_validation": validation,
             "public_experience_validation": experience_validation,
+            "cosmos3_fingerprint_validations": cosmos3_fingerprint_validations,
             "checks": {
                 "allowlist_copy": True,
                 "no_symlinks": True,
@@ -300,6 +320,66 @@ def audit_release_tree(root: Path) -> list[str]:
             if any(pattern.search(text) for pattern in secret_patterns):
                 findings.append(f"secret:{relative}")
     return findings
+
+
+def _validate_cosmos3_fingerprint_bundle(root: Path) -> dict[str, object]:
+    bundle_root = Path(root).resolve(strict=True)
+    bundle = json.loads((bundle_root / "bundle.json").read_text(encoding="utf-8"))
+    if (
+        not isinstance(bundle, dict)
+        or bundle.get("artifact_type")
+        != "verdiwm-cosmos3-target-local-fingerprint-public-bundle"
+        or bundle.get("state") != "ready"
+        or int(bundle.get("measurement_count", 0)) < 1
+        or int(bundle.get("repeat_count", 0)) < 1
+    ):
+        raise GithubStagingError(f"GITHUB_STAGING_COSMOS3_BUNDLE_INVALID:{bundle_root.name}")
+
+    manifest_path = bundle_root / "MANIFEST.sha256"
+    declared: set[str] = set()
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        try:
+            digest, relative = line.split("  ", 1)
+        except ValueError as exc:
+            raise GithubStagingError(
+                f"GITHUB_STAGING_COSMOS3_MANIFEST_INVALID:{bundle_root.name}"
+            ) from exc
+        target = (bundle_root / relative).resolve(strict=True)
+        if bundle_root not in target.parents or target.is_symlink() or relative in declared:
+            raise GithubStagingError(
+                f"GITHUB_STAGING_COSMOS3_MANIFEST_PATH_INVALID:{bundle_root.name}"
+            )
+        if _sha256(target) != digest:
+            raise GithubStagingError(
+                f"GITHUB_STAGING_COSMOS3_MANIFEST_SHA_MISMATCH:{bundle_root.name}:{relative}"
+            )
+        declared.add(relative)
+    actual = {
+        path.relative_to(bundle_root).as_posix()
+        for path in bundle_root.rglob("*")
+        if path.is_file() and path.name != "MANIFEST.sha256"
+    }
+    if declared != actual:
+        raise GithubStagingError(
+            f"GITHUB_STAGING_COSMOS3_MANIFEST_COVERAGE_INVALID:{bundle_root.name}"
+        )
+    videos = bundle.get("videos")
+    if not isinstance(videos, list) or any(
+        not isinstance(row, dict) or row.get("path") not in actual for row in videos
+    ):
+        raise GithubStagingError(f"GITHUB_STAGING_COSMOS3_VIDEO_INDEX_INVALID:{bundle_root.name}")
+    return {
+        "artifact_type": bundle["artifact_type"],
+        "state": bundle["state"],
+        "campaign_id": bundle["campaign_id"],
+        "probe_id": bundle.get("probe_id"),
+        "measurement_count": bundle["measurement_count"],
+        "repeat_count": bundle["repeat_count"],
+        "locality_admission_state": bundle["locality_admission_state"],
+        "cross_backbone_transfer_eligible": bundle["cross_backbone_transfer_eligible"],
+        "video_count": len(videos),
+        "manifest_file_count": len(declared),
+    }
 
 
 def _copy_tree(source: Path, destination: Path) -> None:

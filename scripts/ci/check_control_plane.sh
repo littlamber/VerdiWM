@@ -21,9 +21,12 @@ uv run python -m py_compile \
   wmloop/experiments/report.py \
   wmloop/experiments/ctrl_world_receipt_merge.py \
   wmloop/experiments/ctrl_world_fingerprint_settlement.py \
+  wmloop/experiments/cosmos3_fingerprint.py \
+  wmloop/experiments/probe_evolution.py \
   wmloop/evaluate/adapters/ctrl_world.py \
   wmloop/primitives/adapters/backbone_registry.py \
   wmloop/primitives/adapters/ctrl_world_hooks.py \
+  wmloop/primitives/adapters/cosmos3_hooks.py \
   wmloop/control/agent_engineering_policy.py \
   wmloop/control/backbone_capability_matrix.py \
   wmloop/control/cosmos3_gpu_runtime_receipt.py \
@@ -59,6 +62,12 @@ uv run python -m py_compile \
   scripts/export/ctrl_world_fingerprint_settlement.py \
   scripts/export/ctrl_world_fingerprint_public_bundle.py \
   scripts/export/cosmos3_forward_dynamics_public_bundle.py \
+  scripts/export/cosmos3_fingerprint_public_bundle.py \
+  scripts/export/probe_evolution.py \
+  scripts/export/probe_evolution_settlement.py \
+  scripts/evaluate_cosmos3_paired_gt.py \
+  scripts/run_cosmos3_fingerprint_campaign.py \
+  scripts/integrations/run_cosmos3_droid_lerobot_fd.py \
   scripts/run_ctrl_world_bounded_smoke.py
 
 uv run pytest -q \
@@ -77,6 +86,12 @@ uv run pytest -q \
   tests/test_ctrl_world_fingerprint_public_bundle.py \
   tests/test_cosmos3_gpu_runtime_receipt.py \
   tests/test_cosmos3_forward_dynamics_public_bundle.py \
+  tests/test_cosmos3_paired_gt.py \
+  tests/test_cosmos3_fingerprint.py \
+  tests/test_cosmos3_fingerprint_campaign_runner.py \
+  tests/test_cosmos3_fingerprint_public_bundle.py \
+  tests/test_cosmos3_probe_evolution.py \
+  tests/test_ctrl_world_probe_evolution.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \
   tests/test_diagnostic_probe_routing_admission.py \

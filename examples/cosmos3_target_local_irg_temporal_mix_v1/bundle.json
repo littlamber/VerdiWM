@@ -1,0 +1,35 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+  "campaign_id": "cosmos3_irg_calibration_temporal_mix_dev_v1",
+  "claim_boundary": "Counterexample-driven target-local Cosmos3-Nano diagnostic probe evolution after wide and narrow action-scale locality failures. This pilot tests a mean-preserving temporal-action contrast axis; it is not model-improvement or transfer evidence.",
+  "cross_backbone_transfer_eligible": false,
+  "dose_unit": "temporal_action_input_mix",
+  "locality_admission_state": "failed",
+  "measurement_count": 15,
+  "probe_id": "action_embedding_temporal_mix",
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|temporal action mix -0.10|temporal action mix 0.00|temporal action mix +0.10",
+      "path": "videos/sample-0-seed-101-dose-response.mp4",
+      "sample_index": 0,
+      "seed": 101
+    },
+    {
+      "layout": "GT|temporal action mix -0.10|temporal action mix 0.00|temporal action mix +0.10",
+      "path": "videos/sample-16-seed-202-dose-response.mp4",
+      "sample_index": 16,
+      "seed": 202
+    },
+    {
+      "layout": "GT|temporal action mix -0.10|temporal action mix 0.00|temporal action mix +0.10",
+      "path": "videos/sample-32-seed-303-dose-response.mp4",
+      "sample_index": 32,
+      "seed": 303
+    }
+  ]
+}

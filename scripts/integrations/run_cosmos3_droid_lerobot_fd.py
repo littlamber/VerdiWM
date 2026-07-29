@@ -28,20 +28,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--repo-root",
         type=Path,
-        default=Path("/mnt/cfs/e71s16/wjy/cosmos/packages/cosmos3"),
+        required=True,
     )
     parser.add_argument(
         "--dataset-root",
         type=Path,
-        default=Path(
-            "/mnt/cfs/e71s16/wjy/cosmos/cookbooks/cosmos3/generator/action/assets/droid_lerobot_example"
-        ),
+        required=True,
     )
-    parser.add_argument("--checkpoint-path", default="/mnt/cfs/e71s16/wjy/models/Cosmos3-Nano")
+    parser.add_argument("--checkpoint-path", required=True)
     parser.add_argument(
         "--config-file",
-        default="/mnt/cfs/e71s16/wjy/models/Cosmos3-Nano/config.local_all.json",
+        required=True,
         help="Local config that uses the bundled tokenizer and local Wan2.2 VAE.",
+    )
+    parser.add_argument(
+        "--cache-root",
+        type=Path,
+        default=Path.home() / ".cache" / "verdiwm",
+        help="Fallback root for Hugging Face, XDG, and uv caches when their environment variables are unset.",
     )
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--num-chunks", type=int, default=5)
@@ -61,7 +65,7 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="VerdiWM relative action-conditioning dose in [-0.1, 0.1].",
     )
-    parser.add_argument("--cuda-visible-devices", default=os.environ.get("CUDA_VISIBLE_DEVICES", "1"))
+    parser.add_argument("--cuda-visible-devices", default=os.environ.get("CUDA_VISIBLE_DEVICES", "0"))
     parser.add_argument("--master-port", default=os.environ.get("MASTER_PORT", "29631"))
     parser.add_argument("--skip-run", action="store_true", help="Only build input specs and initial frame.")
     return parser.parse_args()
@@ -137,6 +141,7 @@ def write_chunk_specs(args: argparse.Namespace, input_dir: Path) -> list[dict]:
 
 def run_chunks(args: argparse.Namespace, records: list[dict], input_dir: Path, output_dir: Path) -> None:
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+    cache_root = args.cache_root.expanduser().resolve()
     current_vision_path = Path(records[0]["vision_path"])
     actual_records: list[dict] = []
 
@@ -157,10 +162,10 @@ def run_chunks(args: argparse.Namespace, records: list[dict], input_dir: Path, o
         env["WORLD_SIZE"] = "1"
         env["LOCAL_RANK"] = "0"
         env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-        env.setdefault("HF_HOME", "/mnt/cfs/e71s16/wjy/models/.hf_home")
-        env.setdefault("HF_XET_CACHE", "/mnt/cfs/e71s16/wjy/models/.hf_xet")
-        env.setdefault("XDG_CACHE_HOME", "/mnt/cfs/e71s16/wjy/models/.cache")
-        env.setdefault("UV_CACHE_DIR", "/mnt/cfs/e71s16/wjy/models/.uv_cache")
+        env.setdefault("HF_HOME", str(cache_root / "huggingface"))
+        env.setdefault("HF_XET_CACHE", str(cache_root / "hf-xet"))
+        env.setdefault("XDG_CACHE_HOME", str(cache_root / "xdg"))
+        env.setdefault("UV_CACHE_DIR", str(cache_root / "uv"))
 
         print(f"running chunk {chunk_idx}: {record['name']}", flush=True)
         print(f"conditioning image: {current_vision_path}", flush=True)

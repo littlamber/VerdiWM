@@ -13,9 +13,9 @@ plane, typed intervention and evidence contracts, ACWM-Phys, Ctrl-World, and
 Cosmos3 ACWM adapters, 17 materialized intervention primitives, an
 Interventional Repair Geometry (IRG) implementation, eight joint-frame
 ACWM-Phys IRG assets, development and paper-split Ctrl-World charts, one
-Cosmos3 forward-dynamics instantiation bundle, settled wide- and narrow-dose
-Cosmos3 target-local charts, and one integrity-checked operational closed-loop
-example.
+Cosmos3 forward-dynamics instantiation bundle, three settled Cosmos3
+target-local charts, one counterexample-driven probe-evolution settlement, and
+one integrity-checked operational closed-loop example.
 The release also includes a receipt-derived progressive-fidelity cost audit;
 its modest savings are retained as a system limitation rather than hidden.
 
@@ -32,7 +32,9 @@ its modest savings are retained as a system limitation rather than hidden.
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
-| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime, complete three-window paired-GT dev baseline, and settled wide/narrow target-local charts available; both locality gates abstained |
+| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime, complete three-window paired-GT dev baseline, and three settled 15-cell charts available; all frozen locality gates abstained |
+| Counterexample-driven diagnostic-probe evolution | Wide and narrow action-scale failures produced a mean-preserving temporal-mix successor; its complete 15-cell settlement also abstained |
+| Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -207,13 +209,21 @@ locality residual is `0.9510`, above the `0.5` admission threshold, so the chart
 correctly abstains from cross-backbone transfer.
 
 [`examples/cosmos3_target_local_irg_narrow_v1`](examples/cosmos3_target_local_irg_narrow_v1)
-contains the completed pre-registered narrow follow-up at doses
-`[-0.025, -0.0125, 0, 0.0125, 0.025]`. All 15 paired cells and GPU audits are
-complete. Its locality residual is `45.6476`, far above the same frozen `0.5`
-threshold: at this radius the response is nearly flat relative to repeat
-variance, so the direction is not locally identifiable. The system therefore
-abstains again rather than shrinking the radius or changing the threshold
-after seeing the result.
+contains the completed pre-registered scale follow-up at doses
+`[-0.025, -0.0125, 0, 0.0125, 0.025]`. Its residual is `45.6476`, so shrinking
+the radius did not produce an identifiable local direction relative to repeat
+variation.
+
+Those two counterexamples retire global action scale as the next diagnostic
+direction and trigger the mean-preserving `action_embedding_temporal_mix`
+successor. The concrete hook replaces each action input by
+`a_t + d * (mean_time(a) - a_t)`, preserving every action dimension's temporal
+mean and exact zero-dose bytes. The complete successor bundle is
+[`examples/cosmos3_target_local_irg_temporal_mix_v1`](examples/cosmos3_target_local_irg_temporal_mix_v1).
+It contains 15 paired cells, three response videos, and residual `2.0649` under
+the unchanged `0.5` threshold. The settlement is therefore
+`settled_abstained`: probe evolution executed end to end, but Cosmos3 transfer
+and LOBO remain prohibited. None of these charts is model-improvement evidence.
 
 [`examples/acwm_eval_seed_replication_v1`](examples/acwm_eval_seed_replication_v1)
 adds 12 official 50-step gate receipts over four fixed checkpoint cells.

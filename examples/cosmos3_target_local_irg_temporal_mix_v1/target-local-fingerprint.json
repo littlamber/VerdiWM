@@ -1,0 +1,91 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_temporal_mix_dev_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_temporal_mix_dev_v1:pilot",
+    "covariance": [
+      [
+        1.7170654167732442,
+        0.0147232781881917,
+        -0.012350314713456751,
+        0.009161697841122293
+      ],
+      [
+        0.0147232781881917,
+        0.00015795525948440582,
+        -9.410390946658614e-05,
+        9.724175856698467e-05
+      ],
+      [
+        -0.012350314713456751,
+        -9.410390946658614e-05,
+        9.322032647884115e-05,
+        -5.894668809049829e-05
+      ],
+      [
+        0.009161697841122293,
+        9.724175856698467e-05,
+        -5.894668809049829e-05,
+        5.989244965873038e-05
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_embedding_temporal_mix"
+    ],
+    "jacobian": [
+      [
+        1.074472608619767
+      ],
+      [
+        0.009408548180951081
+      ],
+      [
+        -0.006638213734567767
+      ],
+      [
+        0.01392264418722562
+      ]
+    ],
+    "locality_residuals": {
+      "action_embedding_temporal_mix": 2.064913979467405
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        1.1549514000162489
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      1.074472608619767,
+      0.013305696439741733,
+      -0.00938785189335709,
+      0.01392264418722562
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Counterexample-driven target-local Cosmos3-Nano diagnostic probe evolution after wide and narrow action-scale locality failures. This pilot tests a mean-preserving temporal-action contrast axis; it is not model-improvement or transfer evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_embedding_temporal_mix": 2.064913979467405
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 15,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}

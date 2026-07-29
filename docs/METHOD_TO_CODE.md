@@ -17,8 +17,9 @@ still require experiments.
 | Transfer certificate | `wmloop/geometry/transfer.py` | Six fail-closed terms implemented; calibration across backbones pending |
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
 | Repair-collision discovery | `wmloop/geometry/evolution.py` | Implemented and unit tested; online atlas evolution pending |
+| Counterexample-driven probe evolution | `wmloop/experiments/probe_evolution.py`, `scripts/export/probe_evolution.py`, `scripts/export/probe_evolution_settlement.py` | Cosmos3 scale counterexamples produced and evaluated a novel temporal-mix probe; the 15-cell successor correctly settled as abstained |
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
-| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World target chart is settled, while Cosmos3 instantiation and held-out transfer-effect receipts remain pending |
+| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World chart is settled, while Cosmos3 LOBO is blocked by three frozen locality abstentions |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
 | Ctrl-World ACWM pilot adapters | `wmloop/evaluate/adapters/ctrl_world_predictive.py`, `wmloop/experiments/ctrl_world_fingerprint.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Paired predictive receipt projection, reversible action-embedding dose, frozen ACWM constitution, and fail-closed downstream-success exclusion are complete; the pilot chart is measured and settled, while paper-split transfer receipts are pending |
 | Optional Ctrl-World downstream/WAM packet | `wmloop/evaluate/adapters/ctrl_world.py`, `configs/goal/ctrl_world_g2_action_success_pilot_v1.yaml` | Retained as a separate stress protocol and excluded from ACWM LOBO verdicts |
@@ -83,6 +84,16 @@ records a repair collision. Candidate probes are then ranked by a lower
 confidence bound on nested regret reduction per unit cost, subject to
 calibration and frozen regression checks.
 
+The Cosmos3 instance exercises this path without granting itself a positive
+result. Wide and narrow `action_conditioning_scale` charts failed locality at
+`0.9510` and `45.6476`. Their counterexample record proposed a novel reversible
+`action_embedding_temporal_mix` direction that preserves each action
+dimension's temporal mean. The successor was materialized and evaluated over
+15 paired cells, then failed the unchanged `0.5` gate with residual `2.0649`.
+`probe_evolution_settlement` retains all three failures and returns
+`settled_abstained`. This is evidence for an executable self-evolution loop and
+its safety boundary, not evidence for model repair or cross-backbone transfer.
+
 ## ACWM reference instance
 
 The public examples project ACWM runs into diagnosis, typed materialized
@@ -110,6 +121,13 @@ cross-backbone claim. The IRG, raw-response, static-probe, and label selectors
 must also be compared on held-out target trials from at least two external
 backbone families. The current minimum targets are Ctrl-World and Cosmos3;
 WAM is the recommended additional stress target.
+
+Target charts are a hard prerequisite, not a box-checking step. The current
+Cosmos3 temporal-mix successor remains unsupported under the frozen locality
+gate, so the planner must not manufacture a warm-start LOBO arm from it. The
+next executable paper experiment is either a new pre-registered diagnostic
+axis with a new campaign version or an independent external backbone whose
+target chart passes admission.
 
 The checked-in LOBO pilot specification is
 `configs/experiments/three_backbone_lobo_pilot_v1.json`. It is deliberately a

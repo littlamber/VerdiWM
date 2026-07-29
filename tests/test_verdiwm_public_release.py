@@ -126,6 +126,20 @@ class GithubStagingTests(unittest.TestCase):
                 (output / "configs" / "experiments" / "three_backbone_lobo_pilot_v1.json").is_file()
             )
             self.assertTrue((output / "tests" / "test_cross_backbone_experiments.py").is_file())
+            self.assertTrue((output / "tests" / "test_acwm_multiseed_eval_summary.py").is_file())
+            self.assertTrue((output / "tests" / "test_progressive_fidelity.py").is_file())
+            self.assertTrue((output / "tests" / "test_stage_progressive_fidelity_sources.py").is_file())
+            self.assertTrue(
+                (output / "examples" / "acwm_eval_seed_replication_v1" / "MANIFEST.sha256").is_file()
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "acwm_progressive_fidelity_efficiency_v1"
+                    / "MANIFEST.sha256"
+                ).is_file()
+            )
             self.assertTrue(
                 (output / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v1.json").is_file()
             )
@@ -136,7 +150,27 @@ class GithubStagingTests(unittest.TestCase):
             self.assertTrue((output / "tests" / "test_ctrl_world_receipt_merge.py").is_file())
             self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint_settlement.py").is_file())
             self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint_public_bundle.py").is_file())
+            self.assertTrue((output / "tests" / "test_cosmos3_probe_evolution.py").is_file())
             self.assertTrue((output / "examples" / "ctrl_world_target_local_irg_v1" / "bundle.json").is_file())
+            self.assertTrue(
+                (output / "examples" / "cosmos3_target_local_irg_narrow_v1" / "bundle.json").is_file()
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "cosmos3_target_local_irg_temporal_mix_v1"
+                    / "bundle.json"
+                ).is_file()
+            )
+            self.assertEqual(
+                set(audit["cosmos3_fingerprint_validations"]),
+                {
+                    "cosmos3_target_local_irg_wide_v1",
+                    "cosmos3_target_local_irg_narrow_v1",
+                    "cosmos3_target_local_irg_temporal_mix_v1",
+                },
+            )
             self.assertTrue(
                 (output / "configs" / "constitution" / "ctrl_world_predictive_quality_pilot_v1.freeze.json").is_file()
             )

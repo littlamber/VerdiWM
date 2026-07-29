@@ -86,6 +86,12 @@ effect-sign agreement, and a calibrated lower bound. Failed terms produce
 abstention. Confident opposing effects in nearby IRG regions are repair
 collisions; they trigger counterexample-driven probe proposals.
 
+A probe proposal is not an evolved asset until its successor campaign settles.
+The settlement binds the counterexample lineage, successor campaign, complete
+paired measurement count, unchanged locality threshold, and final admission
+state. A failed successor remains in memory and cannot be routed into transfer
+or LOBO merely because its code executed successfully.
+
 Primary code:
 
 - `wmloop/archive/`
