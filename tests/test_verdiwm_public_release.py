@@ -133,6 +133,10 @@ class GithubStagingTests(unittest.TestCase):
             self.assertTrue((output / "tests" / "test_ctrl_world_predictive_adapter.py").is_file())
             self.assertTrue((output / "tests" / "test_ctrl_world_predictive_instance.py").is_file())
             self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint.py").is_file())
+            self.assertTrue((output / "tests" / "test_ctrl_world_receipt_merge.py").is_file())
+            self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint_settlement.py").is_file())
+            self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint_public_bundle.py").is_file())
+            self.assertTrue((output / "examples" / "ctrl_world_target_local_irg_v1" / "bundle.json").is_file())
             self.assertTrue(
                 (output / "configs" / "constitution" / "ctrl_world_predictive_quality_pilot_v1.freeze.json").is_file()
             )

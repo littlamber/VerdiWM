@@ -12,14 +12,15 @@ still require experiments.
 | Local response chart | `wmloop/geometry/irg.py` | Central/one-sided secants implemented and unit tested |
 | IRG metric and response coordinates | `wmloop/geometry/irg.py`, `wmloop/geometry/assets.py` | Implemented and unit tested; eight ACWM-Phys assets included |
 | Joint-frame probe calibration | `wmloop/experiments/joint_fingerprint.py`, `scripts/run_acwm_joint_fingerprint_*.py` | 600-condition ACWM-Phys pilot complete; eight full-covariance assets included |
+| Adaptive locality-radius settlement | `wmloop/experiments/ctrl_world_fingerprint_settlement.py`, `scripts/export/ctrl_world_fingerprint_settlement.py` | Wide Ctrl-World radius rejected; radius 0.025 admitted on the frozen pilot split |
 | Progressive-fidelity validation | `scripts/export/acwm_screen_summary.py`, `wmloop/verify/` | Operational on ACWM-Phys |
 | Transfer certificate | `wmloop/geometry/transfer.py` | Six fail-closed terms implemented; calibration across backbones pending |
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
 | Repair-collision discovery | `wmloop/geometry/evolution.py` | Implemented and unit tested; online atlas evolution pending |
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
-| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World is ready and the current pilot remains blocked on Cosmos3 plus settled target receipts |
+| Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World target chart is settled, while Cosmos3 instantiation and held-out transfer-effect receipts remain pending |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
-| Ctrl-World ACWM pilot adapters | `wmloop/evaluate/adapters/ctrl_world_predictive.py`, `wmloop/experiments/ctrl_world_fingerprint.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Paired predictive receipt projection, reversible action-embedding dose, frozen ACWM constitution, and fail-closed downstream-success exclusion are complete; measured chart and transfer receipts are pending |
+| Ctrl-World ACWM pilot adapters | `wmloop/evaluate/adapters/ctrl_world_predictive.py`, `wmloop/experiments/ctrl_world_fingerprint.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Paired predictive receipt projection, reversible action-embedding dose, frozen ACWM constitution, and fail-closed downstream-success exclusion are complete; the pilot chart is measured and settled, while paper-split transfer receipts are pending |
 | Optional Ctrl-World downstream/WAM packet | `wmloop/evaluate/adapters/ctrl_world.py`, `configs/goal/ctrl_world_g2_action_success_pilot_v1.yaml` | Retained as a separate stress protocol and excluded from ACWM LOBO verdicts |
 | Public minimal-loop proof | `examples/acwm_minimal_loop_cloth_next_forcing_v2/` | Integrity checked; not independent-seed replication |
 
@@ -52,6 +53,13 @@ covariance in one baseline-compatible block.
 This makes the ACWM reference geometry complete, but it does not establish
 alignment across arbitrary backbones. A target-backbone chart, semantic hook
 compilation, held-out calibration, and effect confirmation remain necessary.
+
+The checked-in `examples/ctrl_world_target_local_irg_v1` bundle demonstrates
+the target-chart step. A radius-0.1 campaign violated the locality threshold,
+so `ctrl_world_fingerprint_settlement` retained the failed chart and selected
+the widest passing recalibration, radius 0.025. This converts nonlinearity into
+an explicit abstention-and-remeasure path instead of silently fitting one global
+Jacobian. It still does not provide a transferred repair effect.
 
 ## Transfer certificate
 

@@ -19,6 +19,8 @@ uv run python -m py_compile \
   wmloop/experiments/lobo.py \
   wmloop/experiments/ledger.py \
   wmloop/experiments/report.py \
+  wmloop/experiments/ctrl_world_receipt_merge.py \
+  wmloop/experiments/ctrl_world_fingerprint_settlement.py \
   wmloop/evaluate/adapters/ctrl_world.py \
   wmloop/primitives/adapters/backbone_registry.py \
   wmloop/primitives/adapters/ctrl_world_hooks.py \
@@ -52,6 +54,9 @@ uv run python -m py_compile \
   scripts/export/acwm_public_experience_bundle.py \
   scripts/export/validate_public_example.py \
   scripts/export/build_github_staging.py \
+  scripts/export/merge_ctrl_world_receipt_indexes.py \
+  scripts/export/ctrl_world_fingerprint_settlement.py \
+  scripts/export/ctrl_world_fingerprint_public_bundle.py \
   scripts/run_ctrl_world_bounded_smoke.py
 
 uv run pytest -q \
@@ -63,6 +68,11 @@ uv run pytest -q \
   tests/test_backbone_instance.py \
   tests/test_cross_backbone_experiments.py \
   tests/test_ctrl_world_instance_adapters.py \
+  tests/test_ctrl_world_fingerprint.py \
+  tests/test_ctrl_world_predictive_campaign_runner.py \
+  tests/test_ctrl_world_receipt_merge.py \
+  tests/test_ctrl_world_fingerprint_settlement.py \
+  tests/test_ctrl_world_fingerprint_public_bundle.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \
   tests/test_diagnostic_probe_routing_admission.py \

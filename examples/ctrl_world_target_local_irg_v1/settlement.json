@@ -1,0 +1,53 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-fingerprint-settlement",
+  "candidates": [
+    {
+      "campaign_id": "ctrl_world_irg_calibration_pilot_v1",
+      "dose_radius": 0.1,
+      "doses": [
+        -0.1,
+        -0.05,
+        0.0,
+        0.05,
+        0.1
+      ],
+      "locality_state": "failed",
+      "locality_threshold": 0.5,
+      "manifest_sha256": "0c10206bfbb95ebabd8015afd52a013210821909e784faf4f40456945cb76fd2",
+      "maximum_residual": 1.2572685086058268,
+      "measurement_count": 15,
+      "probe_id": "action_conditioning_scale",
+      "report_sha256": "658b8cbe57648499b81f71ca531bdd6664961a45f0b4c2be3f9205e59d0b3079",
+      "supported_local_paths": []
+    },
+    {
+      "campaign_id": "ctrl_world_irg_calibration_narrow_pilot_v1",
+      "dose_radius": 0.025,
+      "doses": [
+        -0.025,
+        -0.0125,
+        0.0,
+        0.0125,
+        0.025
+      ],
+      "locality_state": "passed",
+      "locality_threshold": 0.5,
+      "manifest_sha256": "851edca8fab2cd2df7f7f00e7b82baadb9d0c448e81e0c4f1abc0ad54023de10",
+      "maximum_residual": 0.3566448329322512,
+      "measurement_count": 15,
+      "probe_id": "action_conditioning_scale",
+      "report_sha256": "57ec956312183df3c40112b717f0fd8d7cd5e693859f026a0b0cdd85e67c5e28",
+      "supported_local_paths": [
+        "action_conditioning_scale"
+      ]
+    }
+  ],
+  "claim_boundary": "This settles a target-local Ctrl-World ACWM response chart only. Admission permits later selector experiments; it is not model-improvement or cross-backbone transfer evidence.",
+  "cross_backbone_transfer_eligible": true,
+  "protocol": "pilot",
+  "schema_version": 1,
+  "selected_campaign_id": "ctrl_world_irg_calibration_narrow_pilot_v1",
+  "selected_dose_radius": 0.025,
+  "selection_policy": "widest_locality_admitted_radius_then_lowest_residual",
+  "state": "settled_admitted"
+}

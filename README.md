@@ -11,8 +11,9 @@ null, and harmful effects for later transfer.
 The repository is an early research release. It contains a working control
 plane, typed intervention and evidence contracts, ACWM-Phys and Ctrl-World ACWM
 adapters, 17 materialized intervention primitives, an Interventional Repair
-Geometry (IRG) implementation, eight joint-frame ACWM-Phys IRG assets, and one
-integrity-checked operational closed-loop example.
+Geometry (IRG) implementation, eight joint-frame ACWM-Phys IRG assets, one
+settled Ctrl-World target-local chart, and one integrity-checked operational
+closed-loop example.
 
 ## What is implemented
 
@@ -26,7 +27,7 @@ integrity-checked operational closed-loop example.
 | Transfer certificate with explicit abstention | Implemented, unit tested |
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
-| Ctrl-World ACWM predictive-quality protocol | Frozen public packet; runtime receipts pending |
+| Ctrl-World ACWM predictive-quality protocol | Pilot receipts complete; narrow target-local chart settled, paper split pending |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -146,8 +147,25 @@ checkpoint identity, and source hashes.
 
 All eight v2 assets are routing-ready and have one observed covariance block.
 This closes the within-ACWM cross-path covariance gap. It does not establish a
-cross-backbone repair effect: Ctrl-World or another target still needs a
-compatible measured chart and a held-out transfer certificate.
+cross-backbone repair effect: a target still needs a compatible measured chart,
+a held-out transfer certificate, and confirmed target effects.
+
+## Ctrl-World target-local chart
+
+[`examples/ctrl_world_target_local_irg_v1`](examples/ctrl_world_target_local_irg_v1)
+contains 30 paired predictive-quality measurements over two locality radii on
+the frozen three-episode pilot split. The wide action-embedding scale campaign
+failed transfer admission with residual `1.2573`. The automatically narrowed
+campaign passed with residual `0.3566` at radius `0.025`, so the settlement
+selected that chart and preserved the wide failure as negative evidence.
+
+The bundle exports both response curves and the resulting `J_X`, `G_X`, `r_X`,
+and covariance diagonal in CSV and JSON form. The independent zero-dose rerun
+reproduced PSNR and pixel L1 exactly; the three reward-derived diagnostics had a
+maximum absolute drift of `4.68e-4`, within the declared `1e-3` audit tolerance.
+This is locality calibration, not evidence that an intervention improves
+Ctrl-World or transfers from ACWM-Phys; those claims still require paper-split
+selector and effect receipts.
 
 ## Repository layout
 

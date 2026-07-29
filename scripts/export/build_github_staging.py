@@ -65,6 +65,9 @@ PUBLIC_TEST_FILES = (
     "test_ctrl_world_predictive_adapter.py",
     "test_ctrl_world_predictive_instance.py",
     "test_ctrl_world_fingerprint.py",
+    "test_ctrl_world_receipt_merge.py",
+    "test_ctrl_world_fingerprint_settlement.py",
+    "test_ctrl_world_fingerprint_public_bundle.py",
     "test_ctrl_world_probe_evolution.py",
     "test_ctrl_world_predictive_campaign_runner.py",
     "test_primitive_materialization_prompt.py",
@@ -94,7 +97,7 @@ PUBLIC_TEST_FILES = (
 )
 CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
-    ".csv", ".json", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
+    ".csv", ".json", ".jsonl", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
 }
 ALLOWED_SUFFIXES = TEXT_SUFFIXES | {".atom", ".lock", ".mp4", ".pdf", ".png", ".sha256", ""}
 BLOCKED_SUFFIXES = {".bin", ".ckpt", ".db", ".h5", ".hdf5", ".npy", ".npz", ".pt", ".pth", ".safetensors"}
@@ -174,6 +177,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_joint_irg_assets_v2",
             temporary / "examples" / "acwm_joint_irg_assets_v2",
+        )
+        _copy_tree(
+            source / "examples" / "ctrl_world_target_local_irg_v1",
+            temporary / "examples" / "ctrl_world_target_local_irg_v1",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")

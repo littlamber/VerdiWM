@@ -1,0 +1,108 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-target-local-fingerprint",
+  "campaign_id": "ctrl_world_irg_calibration_pilot_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "ctrl_world_irg_calibration_pilot_v1:pilot",
+    "covariance": [
+      [
+        11.128946538568842,
+        0.03531999667212309,
+        -0.2048665083191376,
+        0.2990240779084491,
+        0.16660538798111058
+      ],
+      [
+        0.03531999667212309,
+        0.000184717010857464,
+        -0.0004294066968113519,
+        0.0004864071923413776,
+        -0.00023400350421343982
+      ],
+      [
+        -0.2048665083191376,
+        -0.0004294066968113519,
+        0.004442468697554022,
+        -0.00691094945129234,
+        -0.005385830521981836
+      ],
+      [
+        0.2990240779084491,
+        0.0004864071923413776,
+        -0.00691094945129234,
+        0.010981338150734363,
+        0.009335375897767716
+      ],
+      [
+        0.16660538798111058,
+        -0.00023400350421343982,
+        -0.005385830521981836,
+        0.009335375897767716,
+        0.010505569246745897
+      ]
+    ],
+    "goal_schema": "ctrl_world_acwm_predictive_quality_v1",
+    "intervention_names": [
+      "action_conditioning_scale"
+    ],
+    "jacobian": [
+      [
+        4.699363150880238
+      ],
+      [
+        0.01277743528286616
+      ],
+      [
+        -0.13261482119560242
+      ],
+      [
+        -0.06709086087842782
+      ],
+      [
+        0.05463277921080589
+      ]
+    ],
+    "locality_residuals": {
+      "action_conditioning_scale": 1.2572685086058268
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_segment_final_mae",
+      "negative_segment_view_pair_mae",
+      "negative_segment_view_fused_mae"
+    ],
+    "repair_metric": [
+      [
+        22.127000855335044
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      4.699363150880238,
+      0.01807002226937383,
+      -0.18754567870650396,
+      -0.06709086087842782,
+      0.05463277921080589
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Target-local Ctrl-World ACWM paired-dose predictive-quality fingerprint calibration. This is not a downstream task-success, transfer, or model-improvement claim.",
+  "downstream_task_success_used_for_verdict": false,
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain_from_cross_backbone_transfer",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_conditioning_scale": 1.2572685086058268
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 15,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}

@@ -1,0 +1,19 @@
+{
+  "absolute_tolerance": 0.001,
+  "artifact_type": "verdiwm-ctrl-world-baseline-reproducibility",
+  "campaign_ids": [
+    "ctrl_world_irg_calibration_narrow_pilot_v1",
+    "ctrl_world_irg_calibration_pilot_v1"
+  ],
+  "identity_count": 3,
+  "max_absolute_difference": 0.0004680231213569641,
+  "max_absolute_difference_by_outcome": {
+    "negative_rollout_video_l1": 0.0,
+    "negative_segment_final_mae": 0.0004680231213569641,
+    "negative_segment_view_fused_mae": 0.00025342218577861786,
+    "negative_segment_view_pair_mae": 0.00013883039355278015,
+    "rollout_video_psnr": 0.0
+  },
+  "schema_version": 1,
+  "state": "within_tolerance"
+}

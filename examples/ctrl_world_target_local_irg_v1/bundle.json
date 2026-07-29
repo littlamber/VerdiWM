@@ -1,0 +1,12 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-target-local-irg-public-bundle",
+  "baseline_reproducibility_state": "within_tolerance",
+  "candidate_count": 2,
+  "claim_boundary": "This settles a target-local Ctrl-World ACWM response chart only. Admission permits later selector experiments; it is not model-improvement or cross-backbone transfer evidence.",
+  "cross_backbone_transfer_eligible": true,
+  "measurement_count": 30,
+  "protocol": "pilot",
+  "schema_version": 1,
+  "selected_campaign_id": "ctrl_world_irg_calibration_narrow_pilot_v1",
+  "state": "settled_admitted"
+}

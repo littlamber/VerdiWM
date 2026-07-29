@@ -1,0 +1,110 @@
+{
+  "artifact_type": "verdiwm-ctrl-world-target-local-fingerprint",
+  "campaign_id": "ctrl_world_irg_calibration_narrow_pilot_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "ctrl_world_irg_calibration_narrow_pilot_v1:pilot",
+    "covariance": [
+      [
+        6.688564601449788,
+        0.020052461723031337,
+        -0.7330198735714819,
+        0.7280514046914937,
+        0.5986500039651008
+      ],
+      [
+        0.020052461723031337,
+        0.0003814593772855091,
+        -0.018820075048020524,
+        0.0017432749094100043,
+        0.0007574590174367092
+      ],
+      [
+        -0.7330198735714819,
+        -0.018820075048020524,
+        0.9401861308349858,
+        -0.05705789662297516,
+        -0.011949715350569262
+      ],
+      [
+        0.7280514046914937,
+        0.0017432749094100043,
+        -0.05705789662297516,
+        0.07984945899636581,
+        0.06658168632137432
+      ],
+      [
+        0.5986500039651008,
+        0.0007574590174367092,
+        -0.011949715350569262,
+        0.06658168632137432,
+        0.05692975312072274
+      ]
+    ],
+    "goal_schema": "ctrl_world_acwm_predictive_quality_v1",
+    "intervention_names": [
+      "action_conditioning_scale"
+    ],
+    "jacobian": [
+      [
+        4.2709840258828535
+      ],
+      [
+        0.0090867280960083
+      ],
+      [
+        -0.35374604165554047
+      ],
+      [
+        -0.27948860079050064
+      ],
+      [
+        -0.21123498678207397
+      ]
+    ],
+    "locality_residuals": {
+      "action_conditioning_scale": 0.3566448329322512
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_segment_final_mae",
+      "negative_segment_view_pair_mae",
+      "negative_segment_view_fused_mae"
+    ],
+    "repair_metric": [
+      [
+        18.614477308188068
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      4.2709840258828535,
+      0.01285057411097159,
+      -0.5002724497450631,
+      -0.27948860079050064,
+      -0.21123498678207397
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Target-local Ctrl-World ACWM narrow-dose locality recalibration after the wide-dose pilot failed transfer admission. This is exploratory fingerprint repair, not model improvement or cross-backbone transfer evidence.",
+  "downstream_task_success_used_for_verdict": false,
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": true,
+    "failure_policy": "abstain_from_cross_backbone_transfer",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_conditioning_scale": 0.3566448329322512
+    },
+    "state": "passed",
+    "supported_local_paths": [
+      "action_conditioning_scale"
+    ]
+  },
+  "measurement_count": 15,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}
