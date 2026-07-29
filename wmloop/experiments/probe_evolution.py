@@ -14,6 +14,29 @@ class ProbeEvolutionError(ValueError):
     """Probe-evolution inputs do not provide an admissible counterexample."""
 
 
+_SUCCESSOR_CONTRACTS = {
+    "verdiwm-ctrl-world-fingerprint-campaign": {
+        "backbone_family": "Ctrl-World ACWM predictive",
+        "outcomes": {
+            "rollout_video_psnr",
+            "negative_rollout_video_l1",
+            "negative_segment_final_mae",
+            "negative_segment_view_pair_mae",
+            "negative_segment_view_fused_mae",
+        },
+    },
+    "verdiwm-cosmos3-fingerprint-campaign": {
+        "backbone_family": "Cosmos3 ACWM forward dynamics",
+        "outcomes": {
+            "rollout_video_psnr",
+            "negative_rollout_video_l1",
+            "negative_final_frame_mae",
+            "negative_temporal_difference_mae",
+        },
+    },
+}
+
+
 def build_probe_evolution_proposal(
     *,
     failed_fingerprints: Sequence[Path],
@@ -68,14 +91,15 @@ def build_probe_evolution_proposal(
 
     campaign = _load_json(Path(successor_campaign))
     probe = campaign.get("probe")
-    if campaign.get("artifact_type") != "verdiwm-ctrl-world-fingerprint-campaign" or not isinstance(probe, Mapping):
+    contract = _SUCCESSOR_CONTRACTS.get(str(campaign.get("artifact_type")))
+    if contract is None or not isinstance(probe, Mapping):
         raise ProbeEvolutionError("PROBE_EVOLUTION_SUCCESSOR_CAMPAIGN_INVALID")
     successor_id = probe.get("probe_id")
     if not isinstance(successor_id, str) or not successor_id or successor_id in retired_ids:
         raise ProbeEvolutionError("PROBE_EVOLUTION_SUCCESSOR_NOT_NOVEL")
     if probe.get("scope") != "inference_only" or probe.get("reversible") is not True:
         raise ProbeEvolutionError("PROBE_EVOLUTION_SUCCESSOR_SCOPE_INVALID")
-    expected_outcomes = {"rollout_video_psnr", "negative_rollout_video_l1", "negative_segment_final_mae", "negative_segment_view_pair_mae", "negative_segment_view_fused_mae"}
+    expected_outcomes = contract["outcomes"]
     outcomes = campaign.get("outcomes")
     outcome_names = {
         str(row.get("name")) for row in outcomes if isinstance(row, Mapping) and isinstance(row.get("name"), str)
@@ -87,7 +111,7 @@ def build_probe_evolution_proposal(
         "schema_version": 1,
         "artifact_type": "verdiwm-diagnostic-probe-evolution-proposal",
         "state": "ready",
-        "backbone_family": "Ctrl-World ACWM predictive",
+        "backbone_family": contract["backbone_family"],
         "retired_probe_ids": sorted(retired_ids),
         "counterexample_count": len(failures),
         "counterexamples": failures,

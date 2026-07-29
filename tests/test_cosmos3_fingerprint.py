@@ -69,11 +69,54 @@ class Cosmos3FingerprintTests(unittest.TestCase):
                         "state": "ready",
                         "campaign_id": "test-cosmos3",
                         "protocol": "pilot",
-                    "records": [],
+                        "records": [],
                     }
                 )
             )
             with self.assertRaisesRegex(Cosmos3FingerprintError, "INCOMPLETE"):
+                fit_cosmos3_fingerprint(
+                    campaign_path=campaign,
+                    shard_manifests=[shard],
+                    split_path=split,
+                    protocol="pilot",
+                    output_root=root / "output",
+                )
+
+    def test_rejects_receipt_from_different_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            campaign = self._campaign(root)
+            payload = json.loads(campaign.read_text())
+            payload["probe"]["probe_id"] = "action_embedding_temporal_mix"
+            campaign.write_text(json.dumps(payload))
+            split = self._split(root)
+            records = []
+            for dose in (-0.1, 0.0, 0.1):
+                for sample, seed in ((0, 101), (16, 202), (32, 303)):
+                    receipt = self._receipt(root, dose, sample, seed)
+                    records.append(
+                        {
+                            "dose": dose,
+                            "sample_index": sample,
+                            "seed": seed,
+                            "receipt_ref": str(receipt),
+                            "receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(),
+                            "gpu_exclusivity_audit": _gpu_audit(),
+                        }
+                    )
+            shard = root / "shard.json"
+            shard.write_text(
+                json.dumps(
+                    {
+                        "artifact_type": "verdiwm-cosmos3-fingerprint-campaign-shard",
+                        "state": "ready",
+                        "campaign_id": "test-cosmos3",
+                        "protocol": "pilot",
+                        "records": records,
+                    }
+                )
+            )
+            with self.assertRaisesRegex(Cosmos3FingerprintError, "INTERVENTION_MISMATCH"):
                 fit_cosmos3_fingerprint(
                     campaign_path=campaign,
                     shard_manifests=[shard],

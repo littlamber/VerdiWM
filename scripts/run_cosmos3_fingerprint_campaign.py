@@ -24,6 +24,9 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
     split = json.loads(args.split_path.read_text(encoding="utf-8"))
     protocol = campaign["protocols"][args.protocol]
     split_name = str(protocol["split"])
+    probe_id = str(campaign["probe"]["probe_id"])
+    if probe_id not in {"action_conditioning_scale", "action_embedding_temporal_mix"}:
+        raise ValueError("COSMOS3_CAMPAIGN_PROBE_UNSUPPORTED")
     configured_doses = tuple(float(value) for value in campaign["probe"]["doses"])
     selected_doses = tuple(float(value) for value in (args.doses or configured_doses))
     if any(value not in configured_doses for value in selected_doses):
@@ -83,6 +86,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
                     "--start-index", str(sample_index),
                     "--seed", str(seed),
                     "--action-dose", str(dose),
+                    "--action-probe", probe_id,
                     "--cuda-visible-devices", str(args.gpu_index),
                     "--master-port", str(args.master_port + len(records)),
                 ]
@@ -113,6 +117,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
                     "--action-input", str(action),
                     "--action-hook-receipt", str(hook),
                     "--action-dose", str(dose),
+                    "--action-probe", probe_id,
                     "--output-root", str(eval_root),
                 ]
                 _run(
@@ -127,6 +132,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
                 records.append(
                     {
                         "dose": dose,
+                        "probe_id": probe_id,
                         "sample_index": sample_index,
                         "seed": seed,
                         "receipt_ref": str(receipt_path),
@@ -365,6 +371,7 @@ def _write_state(
         "artifact_type": "verdiwm-cosmos3-fingerprint-campaign-shard",
         "state": settled_state,
         "campaign_id": json.loads(args.campaign.read_text(encoding="utf-8"))["campaign_id"],
+        "probe_id": json.loads(args.campaign.read_text(encoding="utf-8"))["probe"]["probe_id"],
         "protocol": args.protocol,
         "split": split_name,
         "gpu_index": args.gpu_index,

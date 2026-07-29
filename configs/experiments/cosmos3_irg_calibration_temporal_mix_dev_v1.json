@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cosmos3-fingerprint-campaign",
+  "campaign_id": "cosmos3_irg_calibration_temporal_mix_dev_v1",
+  "heldout_split_ref": "configs/goal/cosmos3_forward_dynamics_split_v1.json",
+  "claim_scope": "Counterexample-driven target-local Cosmos3-Nano diagnostic probe evolution after wide and narrow action-scale locality failures. This pilot tests a mean-preserving temporal-action contrast axis; it is not model-improvement or transfer evidence.",
+  "probe": {
+    "probe_id": "action_embedding_temporal_mix",
+    "hook_type": "H2",
+    "transformation": "replace the exact action input a_t by a_t+d*(mean_time(a)-a_t), preserving each action dimension's temporal mean",
+    "dose_unit": "temporal_action_input_mix",
+    "doses": [-0.1, -0.05, 0.0, 0.05, 0.1],
+    "scope": "inference_only",
+    "reversible": true,
+    "invariants": [
+      "same_checkpoint",
+      "same_sample_window",
+      "same_seed",
+      "same_evaluator",
+      "same_action_shape",
+      "per_dimension_temporal_mean_preserved",
+      "zero_dose_byte_identity"
+    ]
+  },
+  "outcomes": [
+    {"name": "rollout_video_psnr", "source_metric": "rollout_video_psnr", "sign": 1.0, "weight": 1.0},
+    {"name": "negative_rollout_video_l1", "source_metric": "rollout_video_l1", "sign": -1.0, "weight": 2.0},
+    {"name": "negative_final_frame_mae", "source_metric": "final_frame_mae", "sign": -1.0, "weight": 2.0},
+    {"name": "negative_temporal_difference_mae", "source_metric": "temporal_difference_mae", "sign": -1.0, "weight": 1.0}
+  ],
+  "protocols": {
+    "pilot": {"split": "dev", "required_receipts_per_dose": 3},
+    "paper": {"split": "accept", "required_receipts_per_dose": 3}
+  },
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "abstain"
+  },
+  "predecessor_campaigns": [
+    {
+      "campaign_id": "cosmos3_irg_calibration_dev_v1",
+      "fingerprint_ref": "results/reports/cosmos3-irg-dev-fingerprint-r1/target-local-fingerprint.json",
+      "observed_locality_residual": 0.9510001507610469
+    },
+    {
+      "campaign_id": "cosmos3_irg_calibration_dev_narrow_v1",
+      "fingerprint_ref": "results/reports/cosmos3-irg-dev-narrow-fingerprint-r1/target-local-fingerprint.json",
+      "observed_locality_residual": 45.647629841426685
+    }
+  ],
+  "formal_claim_requires": "complete paired-dose dev and accept receipts, locality admission, and held-out selector evaluation"
+}

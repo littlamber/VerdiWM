@@ -11,9 +11,24 @@ from scripts.run_cosmos3_fingerprint_campaign import (
     _pid_is_descendant,
     _preflight_runtime,
 )
+from wmloop.primitives.adapters.cosmos3_hooks import apply_action_probe
 
 
 class Cosmos3FingerprintCampaignRunnerTests(unittest.TestCase):
+    def test_temporal_mix_dispatch_preserves_per_dimension_mean(self) -> None:
+        actions = [[1.0, 4.0], [3.0, 0.0], [2.0, 2.0]]
+        mixed = apply_action_probe(
+            actions,
+            probe_id="action_embedding_temporal_mix",
+            dose=0.1,
+        )
+        self.assertNotEqual(mixed, actions)
+        for index in range(2):
+            self.assertAlmostEqual(
+                sum(row[index] for row in mixed),
+                sum(row[index] for row in actions),
+            )
+
     def test_gpu_exclusivity_accepts_only_descendant_compute_pids(self) -> None:
         parents = {31: 20, 20: 10, 77: 1}
         reader = parents.get

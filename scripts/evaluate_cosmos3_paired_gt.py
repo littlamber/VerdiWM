@@ -18,7 +18,10 @@ from PIL import Image
 from wmloop.contracts import validate_document
 from wmloop.evaluate.adapters.cosmos3_predictive import evaluate_cosmos3_prediction_receipt
 from wmloop.evaluate.cosmos3_paired_gt import compute_cosmos3_paired_metrics, sha256_file
-from wmloop.primitives.adapters.cosmos3_hooks import apply_action_conditioning_scale
+from wmloop.primitives.adapters.cosmos3_hooks import (
+    apply_action_probe,
+    cosmos3_probe_dose_unit,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,6 +36,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sample-args", type=Path, required=True)
     parser.add_argument("--action-input", type=Path, required=True)
     parser.add_argument("--action-hook-receipt", type=Path)
+    parser.add_argument(
+        "--action-probe",
+        choices=("action_conditioning_scale", "action_embedding_temporal_mix"),
+        default="action_conditioning_scale",
+    )
     parser.add_argument("--action-dose", type=float, default=0.0)
     parser.add_argument("--output-root", type=Path, required=True)
     return parser.parse_args()
@@ -57,7 +65,11 @@ def main() -> int:
         raise ValueError("COSMOS3_EVAL_DATASET_MODE_OR_VIEWPOINT_INVALID")
     gt = sample["video"].permute(1, 2, 3, 0).cpu().numpy()
     expected_action = np.asarray(
-        apply_action_conditioning_scale(sample["action"].cpu().numpy().tolist(), dose=args.action_dose),
+        apply_action_probe(
+            sample["action"].cpu().numpy().tolist(),
+            probe_id=args.action_probe,
+            dose=args.action_dose,
+        ),
         dtype=np.float32,
     )
 
@@ -75,8 +87,9 @@ def main() -> int:
     if args.action_hook_receipt is not None:
         hook_receipt = json.loads(args.action_hook_receipt.read_text(encoding="utf-8"))
         if (
-            hook_receipt.get("mode") != "action_conditioning_scale"
+            hook_receipt.get("mode") != args.action_probe
             or float(hook_receipt.get("parameters", {}).get("dose", float("nan"))) != args.action_dose
+            or hook_receipt.get("dose_unit") != cosmos3_probe_dose_unit(args.action_probe)
             or hook_receipt.get("output_sha256") != sha256_file(args.action_input)
             or hook_receipt.get("shape") != [16, 10]
         ):
@@ -135,9 +148,9 @@ def main() -> int:
         if hook_receipt is not None:
             receipt["intervention_ref"] = hook_path.name
             receipt["intervention"] = {
-                "probe_id": "action_conditioning_scale",
+                "probe_id": args.action_probe,
                 "dose": args.action_dose,
-                "dose_unit": "relative_action_input_scale",
+                "dose_unit": cosmos3_probe_dose_unit(args.action_probe),
                 "hook_receipt_sha256": sha256_file(hook_path),
             }
         receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -37,6 +37,7 @@ def fit_cosmos3_fingerprint(
         (int(row["sample_index"]), int(row["seed"])) for row in split[split_name]
     }
     doses = tuple(float(value) for value in campaign["probe"]["doses"])
+    probe_id = str(campaign["probe"]["probe_id"])
     by_key: dict[tuple[float, int, int], tuple[float, ...]] = {}
     evidence_rows: list[dict[str, object]] = []
     for manifest_path in shard_manifests:
@@ -77,8 +78,9 @@ def fit_cosmos3_fingerprint(
             if (
                 not isinstance(intervention, Mapping)
                 or float(intervention.get("dose", float("nan"))) != dose
+                or intervention.get("probe_id") != probe_id
             ):
-                raise Cosmos3FingerprintError("COSMOS3_FINGERPRINT_RECEIPT_DOSE_MISMATCH")
+                raise Cosmos3FingerprintError("COSMOS3_FINGERPRINT_RECEIPT_INTERVENTION_MISMATCH")
             receipt = _load_json(receipt_path)
             _verify_intervention_ref(receipt_path.parent, receipt)
             values = tuple(
