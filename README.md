@@ -233,6 +233,14 @@ adds 12 official 50-step gate receipts over four fixed checkpoint cells.
 This tests frozen-checkpoint evaluation robustness, not independent training
 seed replication.
 
+[`examples/acwm_training_seed_replication_cloth_self_forcing_v1`](examples/acwm_training_seed_replication_cloth_self_forcing_v1)
+separates repair-training randomness from evaluation randomness for
+`cloth_move + self_forcing_finetune`. Three independently fine-tuned 512-step
+checkpoints are each evaluated under the same three frozen evaluation seeds.
+All nine official four-metric gates pass; mean PSNR delta is `+1.0867` dB
+with a range of `+0.69` to `+1.67` dB. This is independent repair-fine-tuning
+evidence, not independent base-model pretraining or cross-backbone transfer.
+
 ## Progressive-fidelity cost audit
 
 [`examples/acwm_progressive_fidelity_efficiency_v1`](examples/acwm_progressive_fidelity_efficiency_v1)

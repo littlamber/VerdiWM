@@ -65,6 +65,9 @@ uv run python -m py_compile \
   scripts/export/cosmos3_fingerprint_public_bundle.py \
   scripts/export/probe_evolution.py \
   scripts/export/probe_evolution_settlement.py \
+  scripts/export/acwm_formal_visualization.py \
+  scripts/export/acwm_training_seed_replication_queue.py \
+  scripts/export/acwm_training_seed_replication_summary.py \
   scripts/evaluate_cosmos3_paired_gt.py \
   scripts/run_cosmos3_fingerprint_campaign.py \
   scripts/integrations/run_cosmos3_droid_lerobot_fd.py \
@@ -115,7 +118,9 @@ uv run pytest -q \
   tests/test_acwm_push_rope_deformable_contact_diagnostic_v1.py \
   tests/test_acwm_cloth_move_surface_fold_diagnostic_v1.py \
   tests/test_acwm_cloth_move_cloth_identity_drift_diagnostic_v1.py \
-  tests/test_acwm_cloth_move_deformable_memory_diagnostic_v1.py
+  tests/test_acwm_cloth_move_deformable_memory_diagnostic_v1.py \
+  tests/test_acwm_formal_visualization.py \
+  tests/test_acwm_training_seed_replication.py
 
 uv run python scripts/export/validate_public_example.py \
   examples/acwm_minimal_loop_cloth_next_forcing_v2

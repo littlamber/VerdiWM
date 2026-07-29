@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-acwm-targeted-gap-plan",
+  "experiment_id": "acwm_cloth_self_forcing_train_seed_replication_v1",
+  "state": "ready",
+  "claim_boundary": "Independent training-seed replication for one previously official-gated ACWM-Phys cell. A 512-step screen is triage only; each seed requires the frozen official 50-step gate, and passing seeds may continue to the pre-registered 1k cap. This study does not establish cross-backbone transfer.",
+  "training_seed_contract": {
+    "seeds": [
+      4101,
+      4202,
+      4303
+    ],
+    "independent_initialization_and_data_order": true,
+    "shared_baseline_checkpoint": true,
+    "shared_frozen_evaluator": true,
+    "evaluation_seeds": [
+      1101,
+      2202,
+      3303
+    ],
+    "factorial_gate_design": "3 independent repair-training seeds x 3 shared evaluation seeds",
+    "screen_steps": 512,
+    "confirmation_cap_steps": 1000,
+    "promotion_rule": "A seed is positive only after the frozen official 50-step PSNR/SSIM/MSE/masked-MSE gate passes. Report all seeds and all attempted checkpoints."
+  },
+  "environment_records": [
+    {
+      "environment": "cloth_move",
+      "evidence_level": "independent_training_seed_replication_pending",
+      "gap_family": "deformable_surface_dynamics",
+      "next_action": "replicate_previously_gated_effect_across_independent_training_seeds",
+      "mechanism_hypothesis": "A bounded latent self-forcing objective reduces train-inference mismatch and the resulting long-horizon appearance drift in cloth rollouts.",
+      "routed_failure_families": [
+        "train_infer_mismatch",
+        "appearance_drift"
+      ],
+      "recommended_existing_primitives": [
+        "self_forcing_finetune"
+      ],
+      "diagnostic_probe_candidates": [
+        "surface_fold_probe",
+        "cloth_identity_drift_probe"
+      ],
+      "primitive_parameters": {
+        "self_forcing_finetune": {
+          "self_forcing_rollout_horizon": 8,
+          "self_forcing_steps": 1,
+          "self_forcing_lr": 1e-05
+        }
+      }
+    }
+  ]
+}

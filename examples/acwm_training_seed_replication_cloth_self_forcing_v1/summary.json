@@ -1,0 +1,265 @@
+{
+  "all_cells_pass": true,
+  "artifact_type": "verdiwm-acwm-training-seed-replication-summary",
+  "claim_boundary": "This separates independent repair-fine-tuning seeds from shared evaluation seeds. It does not claim independent base-model pretraining or cross-backbone transfer.",
+  "distinct_candidate_checkpoint_count": 3,
+  "environment": "cloth_move",
+  "eval_seeds": [
+    1101,
+    2202,
+    3303
+  ],
+  "factorial_shape": [
+    3,
+    3
+  ],
+  "metric_summary": {
+    "masked_mse": {
+      "eval_seed_means": {
+        "1101": -0.01760733333333334,
+        "2202": -0.013905666666666663,
+        "3303": -0.009874999999999995
+      },
+      "max": -0.005186999999999997,
+      "mean": -0.013796,
+      "min": -0.022875000000000006,
+      "sample_std": 0.004996354220829427,
+      "sum_squares": {
+        "eval_seed": 8.973758866666692e-05,
+        "residual_interaction": 1.1604449333333348e-05,
+        "total": 0.00019970844400000028,
+        "training_seed": 9.836640599999998e-05
+      },
+      "training_seed_means": {
+        "4101": -0.013795999999999998,
+        "4202": -0.017845,
+        "4303": -0.009747
+      },
+      "variance_share": {
+        "eval_seed": 0.4493429865522702,
+        "residual_interaction": 0.05810695382180901,
+        "training_seed": 0.4925500596259207
+      }
+    },
+    "mse": {
+      "eval_seed_means": {
+        "1101": -0.0039033333333333337,
+        "2202": -0.0027506666666666665,
+        "3303": -0.00264
+      },
+      "max": -0.0020999999999999994,
+      "mean": -0.003098,
+      "min": -0.004817,
+      "sample_std": 0.0008499702935985471,
+      "sum_squares": {
+        "eval_seed": 2.936898666666669e-06,
+        "residual_interaction": 6.043166666666668e-07,
+        "total": 5.779596000000002e-06,
+        "training_seed": 2.238380666666665e-06
+      },
+      "training_seed_means": {
+        "4101": -0.0027916666666666676,
+        "4202": -0.003801333333333333,
+        "4303": -0.002701
+      },
+      "variance_share": {
+        "eval_seed": 0.5081494738847954,
+        "residual_interaction": 0.10456036488824938,
+        "training_seed": 0.387290161226955
+      }
+    },
+    "psnr": {
+      "eval_seed_means": {
+        "1101": 1.3033333333333321,
+        "2202": 1.0100000000000005,
+        "3303": 0.9466666666666678
+      },
+      "max": 1.6699999999999982,
+      "mean": 1.086666666666667,
+      "min": 0.6900000000000013,
+      "sample_std": 0.29444863728670834,
+      "sum_squares": {
+        "eval_seed": 0.217266666666664,
+        "residual_interaction": 0.09306666666666667,
+        "total": 0.6935999999999961,
+        "training_seed": 0.3832666666666652
+      },
+      "training_seed_means": {
+        "4101": 0.9700000000000001,
+        "4202": 1.3766666666666663,
+        "4303": 0.913333333333334
+      },
+      "variance_share": {
+        "eval_seed": 0.31324490580545733,
+        "residual_interaction": 0.13417916186082351,
+        "training_seed": 0.5525759323337188
+      }
+    },
+    "ssim": {
+      "eval_seed_means": {
+        "1101": 0.009233333333333352,
+        "2202": 0.004533333333333278,
+        "3303": 0.007000000000000006
+      },
+      "max": 0.011700000000000044,
+      "mean": 0.006922222222222212,
+      "min": 0.0025999999999999357,
+      "sample_std": 0.002701748405097071,
+      "sum_squares": {
+        "eval_seed": 3.316222222222328e-05,
+        "residual_interaction": 4.231111111111104e-06,
+        "total": 5.8395555555556534e-05,
+        "training_seed": 2.100222222222216e-05
+      },
+      "training_seed_means": {
+        "4101": 0.006600000000000013,
+        "4202": 0.008933333333333312,
+        "4303": 0.005233333333333312
+      },
+      "variance_share": {
+        "eval_seed": 0.567889489306653,
+        "residual_interaction": 0.07245604688332312,
+        "training_seed": 0.35965446381002414
+      }
+    }
+  },
+  "official_gate_pass_count": 9,
+  "official_gate_pass_rate": 1.0,
+  "primitive": "self_forcing_finetune",
+  "receipt_count": 9,
+  "records": [
+    {
+      "checkpoint_sha256": "db93c5fea669f0220ce0040f514135affbbec0ced0a5fee6906ecfcdafee81d7",
+      "delta": {
+        "masked_mse": -0.016618000000000008,
+        "mse": -0.003314000000000001,
+        "psnr": 1.0599999999999987,
+        "ssim": 0.00770000000000004
+      },
+      "environment": "cloth_move",
+      "eval_seed": 1101,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4101
+    },
+    {
+      "checkpoint_sha256": "db93c5fea669f0220ce0040f514135affbbec0ced0a5fee6906ecfcdafee81d7",
+      "delta": {
+        "masked_mse": -0.012785999999999992,
+        "mse": -0.0022260000000000005,
+        "psnr": 0.8200000000000003,
+        "ssim": 0.0042999999999999705
+      },
+      "environment": "cloth_move",
+      "eval_seed": 2202,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4101
+    },
+    {
+      "checkpoint_sha256": "db93c5fea669f0220ce0040f514135affbbec0ced0a5fee6906ecfcdafee81d7",
+      "delta": {
+        "masked_mse": -0.011983999999999995,
+        "mse": -0.0028350000000000007,
+        "psnr": 1.0300000000000011,
+        "ssim": 0.007800000000000029
+      },
+      "environment": "cloth_move",
+      "eval_seed": 3303,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4101
+    },
+    {
+      "checkpoint_sha256": "5ee6207a2b4c925c12b168f63fc5567df92e47384aea995071ce9e50a277d9da",
+      "delta": {
+        "masked_mse": -0.022875000000000006,
+        "mse": -0.004817,
+        "psnr": 1.6699999999999982,
+        "ssim": 0.011700000000000044
+      },
+      "environment": "cloth_move",
+      "eval_seed": 1101,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4202
+    },
+    {
+      "checkpoint_sha256": "5ee6207a2b4c925c12b168f63fc5567df92e47384aea995071ce9e50a277d9da",
+      "delta": {
+        "masked_mse": -0.018206,
+        "mse": -0.0036019999999999993,
+        "psnr": 1.3399999999999999,
+        "ssim": 0.006699999999999928
+      },
+      "environment": "cloth_move",
+      "eval_seed": 2202,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4202
+    },
+    {
+      "checkpoint_sha256": "5ee6207a2b4c925c12b168f63fc5567df92e47384aea995071ce9e50a277d9da",
+      "delta": {
+        "masked_mse": -0.012453999999999993,
+        "mse": -0.002985,
+        "psnr": 1.120000000000001,
+        "ssim": 0.008399999999999963
+      },
+      "environment": "cloth_move",
+      "eval_seed": 3303,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4202
+    },
+    {
+      "checkpoint_sha256": "e793a536b19ae06971d04541c25fcc0e15a3fc34267f7017fb2a3ee024890d88",
+      "delta": {
+        "masked_mse": -0.013329000000000008,
+        "mse": -0.0035790000000000006,
+        "psnr": 1.1799999999999997,
+        "ssim": 0.008299999999999974
+      },
+      "environment": "cloth_move",
+      "eval_seed": 1101,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4303
+    },
+    {
+      "checkpoint_sha256": "e793a536b19ae06971d04541c25fcc0e15a3fc34267f7017fb2a3ee024890d88",
+      "delta": {
+        "masked_mse": -0.010724999999999998,
+        "mse": -0.002423999999999999,
+        "psnr": 0.870000000000001,
+        "ssim": 0.0025999999999999357
+      },
+      "environment": "cloth_move",
+      "eval_seed": 2202,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4303
+    },
+    {
+      "checkpoint_sha256": "e793a536b19ae06971d04541c25fcc0e15a3fc34267f7017fb2a3ee024890d88",
+      "delta": {
+        "masked_mse": -0.005186999999999997,
+        "mse": -0.0020999999999999994,
+        "psnr": 0.6900000000000013,
+        "ssim": 0.0048000000000000265
+      },
+      "environment": "cloth_move",
+      "eval_seed": 3303,
+      "pass": true,
+      "primitive": "self_forcing_finetune",
+      "training_seed": 4303
+    }
+  ],
+  "schema_version": 1,
+  "state": "ready",
+  "training_seeds": [
+    4101,
+    4202,
+    4303
+  ]
+}

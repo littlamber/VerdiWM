@@ -45,6 +45,7 @@ def run_export(
     environment: str = "robot_arm",
     primitive: str = "latent_motion_prior",
     seed: int = 621,
+    training_seed: int | None = None,
     runtime_python: Path = DEFAULT_RUNTIME_PYTHON,
     data_root: Path = DEFAULT_DATA_ROOT,
     checkpoint_root: Path = DEFAULT_CHECKPOINT_ROOT,
@@ -70,6 +71,7 @@ def run_export(
 ) -> dict[str, object]:
     if (
         seed < 1
+        or (training_seed is not None and training_seed < 1)
         or gpu_index < 0
         or steps < 1
         or max_trajs < 1
@@ -188,6 +190,7 @@ def run_export(
             "primitive": primitive,
             "seed": seed,
             "eval_seed": seed,
+            "training_seed": training_seed,
             "paired_randomness_policy": "common Python, NumPy, Torch, and CUDA seed for baseline and candidate",
             "steps": steps,
             "split": split,
@@ -1009,6 +1012,11 @@ def main() -> None:
     parser.add_argument("--environment", default="robot_arm")
     parser.add_argument("--primitive", default="latent_motion_prior")
     parser.add_argument("--seed", type=int, default=621)
+    parser.add_argument(
+        "--training-seed",
+        type=int,
+        help="Independent repair-training seed associated with the candidate checkpoint.",
+    )
     parser.add_argument("--runtime-python", type=Path, default=DEFAULT_RUNTIME_PYTHON)
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
     parser.add_argument("--checkpoint-root", type=Path, default=DEFAULT_CHECKPOINT_ROOT)
@@ -1041,6 +1049,7 @@ def main() -> None:
         environment=args.environment,
         primitive=args.primitive,
         seed=args.seed,
+        training_seed=args.training_seed,
         runtime_python=args.runtime_python,
         data_root=args.data_root,
         checkpoint_root=args.checkpoint_root,
