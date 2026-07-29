@@ -275,10 +275,25 @@ def _row_preflight(row: Mapping[str, object]) -> str | None:
             blocker = _ready_dependency_blocker(Path(value))
             if blocker is not None:
                 return f"READY_DEPENDENCY_{index}:{blocker}"
+    official_gate_provided = False
     official_dependency = str(row.get("requires_official_quality_manifest") or "")
     if official_dependency:
-        return _official_quality_dependency_blocker(Path(official_dependency))
-    if row.get("phase") in {"confirm_4k", "confirm_staged"}:
+        official_gate_provided = True
+        blocker = _official_quality_dependency_blocker(Path(official_dependency))
+        if blocker is not None:
+            return blocker
+    official_dependencies = row.get("requires_official_quality_manifests", [])
+    if official_dependencies:
+        official_gate_provided = True
+        if not isinstance(official_dependencies, list) or not all(
+            isinstance(value, str) and value for value in official_dependencies
+        ):
+            return "OFFICIAL_QUALITY_DEPENDENCIES_INVALID"
+        for index, value in enumerate(official_dependencies):
+            blocker = _official_quality_dependency_blocker(Path(value))
+            if blocker is not None:
+                return f"OFFICIAL_QUALITY_DEPENDENCY_{index}:{blocker}"
+    if row.get("phase") in {"confirm_4k", "confirm_staged"} and not official_gate_provided:
         return "OFFICIAL_QUALITY_GATE_REQUIRED"
     return None
 

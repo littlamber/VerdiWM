@@ -10,6 +10,7 @@ from scripts.export.acwm_training_seed_replication_summary import (
     AcwmTrainingSeedSummaryError,
     build_summary,
 )
+from scripts.export.acwm_training_seed_stability_queue import build_stability_queue
 
 
 class AcwmTrainingSeedReplicationTests(unittest.TestCase):
@@ -55,6 +56,71 @@ class AcwmTrainingSeedReplicationTests(unittest.TestCase):
             self.assertTrue(all(row["requires_positive_manifest"] == "" for row in payload["rows"]))
             self.assertTrue(all(row["requires_ready_manifest"].endswith("/manifest.json") for row in payload["rows"]))
             self.assertTrue(all("--training-seed" in row["launch_argv_template"] for row in payload["rows"]))
+
+    def test_stability_queue_builds_training_and_checkpoint_factorial(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = root / "config.json"
+            config.write_text(
+                json.dumps(
+                    {
+                        "artifact_type": "wmloop-acwm-targeted-gap-plan",
+                        "state": "ready",
+                        "experiment_id": "stability-test",
+                        "training_seed_contract": {
+                            "seeds": [11, 22, 33],
+                            "evaluation_seeds": [101, 202, 303],
+                            "screen_steps": 512,
+                            "confirmation_cap_steps": 1000,
+                        },
+                        "environment_records": [
+                            {
+                                "environment": "cloth_move",
+                                "recommended_existing_primitives": ["self_forcing_finetune"],
+                                "primitive_parameters": {
+                                    "self_forcing_finetune": {
+                                        "self_forcing_rollout_horizon": 8,
+                                        "self_forcing_steps": 1,
+                                        "self_forcing_lr": 1e-5,
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            build_stability_queue(
+                experiment_config=config,
+                output_root=root / "queue",
+                repo_root=root / "repo",
+                report_root=root / "reports",
+                candidate_gpus=[0, 1, 2],
+            )
+            payload = json.loads((root / "queue/queue.json").read_text(encoding="utf-8"))
+            training_rows = [row for row in payload["rows"] if row["phase"] == "confirm_staged"]
+            gate_rows = [row for row in payload["rows"] if row["phase"] == "confirm_official_eval_gate"]
+
+            self.assertEqual(payload["checkpoint_ladder_steps"], [512, 800, 1000])
+            self.assertEqual(payload["row_count"], 21)
+            self.assertEqual(len(training_rows), 3)
+            self.assertEqual(len(gate_rows), 18)
+            self.assertTrue(all(len(row["requires_official_quality_manifests"]) == 3 for row in training_rows))
+            self.assertTrue(all("--allow-extended-confirmation" in row["launch_argv_template"] for row in training_rows))
+            self.assertEqual(
+                {
+                    (row["checkpoint_step"], row["training_seed"], row["eval_seed"])
+                    for row in gate_rows
+                },
+                {
+                    (step, training_seed, eval_seed)
+                    for step in (800, 1000)
+                    for training_seed in (11, 22, 33)
+                    for eval_seed in (101, 202, 303)
+                },
+            )
+            self.assertTrue(all("--training-seed" in row["launch_argv_template"] for row in gate_rows))
 
     def test_summary_requires_distinct_training_checkpoints_and_full_matrix(self) -> None:
         with TemporaryDirectory() as temporary:

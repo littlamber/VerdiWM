@@ -409,6 +409,51 @@ class AcwmAutoloopWorkerTests(unittest.TestCase):
             report = json.loads((root / "worker" / "autoloop-worker.json").read_text(encoding="utf-8"))
             self.assertEqual(report["records"][0]["reason"], "OFFICIAL_QUALITY_GATE_FAILED:-4.98")
 
+    def test_confirmation_requires_every_factorial_quality_gate(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifests = []
+            for index, passed in enumerate((True, False, True)):
+                manifest = root / f"gate-{index}" / "manifest.json"
+                manifest.parent.mkdir(parents=True)
+                manifest.write_text(
+                    json.dumps(
+                        {
+                            "state": "ready",
+                            "official_quality_gate": {
+                                "pass": passed,
+                                "delta_candidate_minus_baseline": {"psnr": 0.5 if passed else -0.25},
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                manifests.append(str(manifest))
+            row = {
+                "rank": 1,
+                "phase": "confirm_staged",
+                "campaign_id": "factorial-confirmation",
+                "environment": "cloth_move",
+                "primitive": "self_forcing_finetune",
+                "seed": 4101,
+                "train_steps": 1000,
+                "output_root": str(root / "confirmation"),
+                "launch_argv_template": ["python", "train.py"],
+                "requires_official_quality_manifests": manifests,
+            }
+
+            self.assertEqual(
+                _row_preflight(row),
+                "OFFICIAL_QUALITY_DEPENDENCY_1:OFFICIAL_QUALITY_GATE_FAILED:-0.25",
+            )
+
+            for manifest in manifests:
+                payload = json.loads(Path(manifest).read_text(encoding="utf-8"))
+                payload["official_quality_gate"]["pass"] = True
+                Path(manifest).write_text(json.dumps(payload), encoding="utf-8")
+
+            self.assertIsNone(_row_preflight(row))
+
     def test_finalizer_waits_for_every_ready_gate_manifest(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
