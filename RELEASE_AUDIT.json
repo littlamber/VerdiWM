@@ -9,7 +9,17 @@
     "no_oversized_files": true,
     "no_symlinks": true
   },
-  "file_count_before_manifest": 650,
+  "cosmos3_fingerprint_validation": {
+    "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+    "campaign_id": "cosmos3_irg_calibration_dev_v1",
+    "cross_backbone_transfer_eligible": false,
+    "locality_admission_state": "failed",
+    "measurement_count": 15,
+    "repeat_count": 3,
+    "state": "ready",
+    "video_count": 3
+  },
+  "file_count_before_manifest": 681,
   "public_example_validation": {
     "artifact_count": 9,
     "artifact_type": "verdiwm-public-example-validation",
@@ -42,5 +52,5 @@
   "schema_version": 1,
   "source_license": "Apache-2.0",
   "state": "ready",
-  "total_bytes_before_manifest": 9616750
+  "total_bytes_before_manifest": 11654934
 }

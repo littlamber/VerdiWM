@@ -18,6 +18,7 @@ from PIL import Image
 from wmloop.contracts import validate_document
 from wmloop.evaluate.adapters.cosmos3_predictive import evaluate_cosmos3_prediction_receipt
 from wmloop.evaluate.cosmos3_paired_gt import compute_cosmos3_paired_metrics, sha256_file
+from wmloop.primitives.adapters.cosmos3_hooks import apply_action_conditioning_scale
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,6 +32,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rollout", type=Path, required=True)
     parser.add_argument("--sample-args", type=Path, required=True)
     parser.add_argument("--action-input", type=Path, required=True)
+    parser.add_argument("--action-hook-receipt", type=Path)
+    parser.add_argument("--action-dose", type=float, default=0.0)
     parser.add_argument("--output-root", type=Path, required=True)
     return parser.parse_args()
 
@@ -53,7 +56,10 @@ def main() -> int:
     if sample["mode"] != "forward_dynamics" or sample["viewpoint"] != "concat_view":
         raise ValueError("COSMOS3_EVAL_DATASET_MODE_OR_VIEWPOINT_INVALID")
     gt = sample["video"].permute(1, 2, 3, 0).cpu().numpy()
-    expected_action = sample["action"].cpu().numpy()
+    expected_action = np.asarray(
+        apply_action_conditioning_scale(sample["action"].cpu().numpy().tolist(), dose=args.action_dose),
+        dtype=np.float32,
+    )
 
     sample_args = json.loads(args.sample_args.read_text(encoding="utf-8"))
     if sample_args.get("model_mode") != "forward_dynamics":
@@ -65,6 +71,18 @@ def main() -> int:
     action = np.asarray(json.loads(args.action_input.read_text(encoding="utf-8")), dtype=np.float32)
     if action.shape != (16, 10) or not np.allclose(action, expected_action, rtol=0.0, atol=1e-6):
         raise ValueError("COSMOS3_EVAL_ACTION_MISMATCH")
+    hook_receipt = None
+    if args.action_hook_receipt is not None:
+        hook_receipt = json.loads(args.action_hook_receipt.read_text(encoding="utf-8"))
+        if (
+            hook_receipt.get("mode") != "action_conditioning_scale"
+            or float(hook_receipt.get("parameters", {}).get("dose", float("nan"))) != args.action_dose
+            or hook_receipt.get("output_sha256") != sha256_file(args.action_input)
+            or hook_receipt.get("shape") != [16, 10]
+        ):
+            raise ValueError("COSMOS3_EVAL_ACTION_HOOK_RECEIPT_MISMATCH")
+    if args.action_dose != 0.0 and hook_receipt is None:
+        raise ValueError("COSMOS3_EVAL_ACTION_HOOK_RECEIPT_REQUIRED")
 
     rollout = iio.imread(args.rollout)
     metrics, alignment = compute_cosmos3_paired_metrics(ground_truth=gt, rollout=rollout)
@@ -77,11 +95,14 @@ def main() -> int:
         gt_path = temporary / "ground-truth.npy"
         condition_path = temporary / "conditioning.png"
         action_path = temporary / "action-input.json"
+        hook_path = temporary / "action-hook-receipt.json"
         rollout_path = temporary / "rollout.mp4"
         receipt_path = temporary / "prediction-receipt.json"
         np.save(gt_path, gt, allow_pickle=False)
         Image.fromarray(gt[0]).save(condition_path)
         shutil.copyfile(args.action_input, action_path)
+        if args.action_hook_receipt is not None:
+            shutil.copyfile(args.action_hook_receipt, hook_path)
         shutil.copyfile(args.rollout, rollout_path)
         receipt = {
             "schema_version": 1,
@@ -111,6 +132,14 @@ def main() -> int:
             },
             "evaluator_version": "cosmos3-paired-gt-v1",
         }
+        if hook_receipt is not None:
+            receipt["intervention_ref"] = hook_path.name
+            receipt["intervention"] = {
+                "probe_id": "action_conditioning_scale",
+                "dose": args.action_dose,
+                "dose_unit": "relative_action_input_scale",
+                "hook_receipt_sha256": sha256_file(hook_path),
+            }
         receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         evaluate_cosmos3_prediction_receipt(
             receipt_path=receipt_path,

@@ -72,6 +72,10 @@ PUBLIC_TEST_FILES = (
     "test_ctrl_world_predictive_campaign_runner.py",
     "test_cosmos3_forward_dynamics_public_bundle.py",
     "test_cosmos3_gpu_runtime_receipt.py",
+    "test_cosmos3_paired_gt.py",
+    "test_cosmos3_fingerprint.py",
+    "test_cosmos3_fingerprint_campaign_runner.py",
+    "test_cosmos3_fingerprint_public_bundle.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -207,6 +211,14 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "cosmos3_forward_dynamics_instance_v1",
             temporary / "examples" / "cosmos3_forward_dynamics_instance_v1",
+        )
+        _copy_tree(
+            source / "examples" / "cosmos3_paired_gt_dev_v1",
+            temporary / "examples" / "cosmos3_paired_gt_dev_v1",
+        )
+        _copy_tree(
+            source / "examples" / "cosmos3_target_local_irg_wide_v1",
+            temporary / "examples" / "cosmos3_target_local_irg_wide_v1",
         )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")

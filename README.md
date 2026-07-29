@@ -13,8 +13,8 @@ plane, typed intervention and evidence contracts, ACWM-Phys, Ctrl-World, and
 Cosmos3 ACWM adapters, 17 materialized intervention primitives, an
 Interventional Repair Geometry (IRG) implementation, eight joint-frame
 ACWM-Phys IRG assets, development and paper-split Ctrl-World charts, one
-Cosmos3 forward-dynamics instantiation bundle, and one integrity-checked
-operational closed-loop example.
+Cosmos3 forward-dynamics instantiation bundle, one settled Cosmos3 target-local
+wide-dose chart, and one integrity-checked operational closed-loop example.
 
 ## What is implemented
 
@@ -29,7 +29,7 @@ operational closed-loop example.
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
-| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and complete three-window paired-GT dev baseline available; probe chart pending |
+| Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime, complete three-window paired-GT dev baseline, and a settled wide-dose chart available; locality gate abstained and a narrow-dose campaign is pre-registered |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -195,6 +195,16 @@ adds three self-contained paired-GT dev receipts, an SVG/CSV summary, and
 aligned `GT | prediction` videos. Mean future-frame PSNR is `21.2759` dB.
 This is baseline predictive-quality evidence only; it does not establish a
 primitive benefit or transfer result.
+
+[`examples/cosmos3_target_local_irg_wide_v1`](examples/cosmos3_target_local_irg_wide_v1)
+adds the complete 15-cell action-conditioning-scale response chart over three
+dev identities and five paired doses. The public bundle includes metric tables,
+an SVG chart, and aligned `GT | -0.10 | zero | +0.10` videos. Its frozen
+locality residual is `0.9510`, above the `0.5` admission threshold, so the chart
+correctly abstains from cross-backbone transfer. The narrower follow-up dose
+radius is pre-registered in
+[`configs/experiments/cosmos3_irg_calibration_dev_narrow_v1.json`](configs/experiments/cosmos3_irg_calibration_dev_narrow_v1.json);
+it is not presented as completed evidence.
 
 [`examples/acwm_eval_seed_replication_v1`](examples/acwm_eval_seed_replication_v1)
 adds 12 official 50-step gate receipts over four fixed checkpoint cells.

@@ -70,6 +70,7 @@ def evaluate_cosmos3_prediction_receipt(
         "horizon_frames": receipt["horizon_frames"],
         "metrics": metrics,
         "action_conditioned": True,
+        "intervention": receipt.get("intervention"),
         "model_mode": "forward_dynamics",
         "rollout_ref": receipt["rollout_ref"],
         "evidence_source": receipt["evidence_source"],
