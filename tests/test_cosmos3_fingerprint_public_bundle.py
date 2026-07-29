@@ -38,7 +38,14 @@ class Cosmos3FingerprintPublicBundleTests(unittest.TestCase):
                 },
                 "claim_boundary": "target local only",
             }
-            campaign = {"campaign_id": "test", "probe": {"doses": [-0.1, 0.0, 0.1]}}
+            campaign = {
+                "campaign_id": "test",
+                "probe": {
+                    "probe_id": "action_embedding_temporal_mix",
+                    "dose_unit": "temporal_action_input_mix",
+                    "doses": [-0.1, 0.0, 0.1],
+                },
+            }
             measurements = []
             records = []
             for dose in (-0.1, 0.0, 0.1):
@@ -111,6 +118,8 @@ class Cosmos3FingerprintPublicBundleTests(unittest.TestCase):
             self.assertTrue((root / "public/tables/dose-metrics.csv").is_file())
             self.assertTrue((root / "public/tables/dose-response.csv").is_file())
             self.assertTrue((root / "public/figures/dose-response.svg").is_file())
+            self.assertIn("temporal action mix", (root / "public/figures/dose-response.svg").read_text())
+            self.assertIn("action_embedding_temporal_mix", (root / "public/README.md").read_text())
             machine_path_prefix = "/" + "mnt" + "/"
             self.assertNotIn(machine_path_prefix, (root / "public/measurements.jsonl").read_text())
 

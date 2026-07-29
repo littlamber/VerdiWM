@@ -55,11 +55,22 @@ def export_cosmos3_fingerprint_public_bundle(
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
     try:
         outcome_names = [str(value) for value in report["chart"]["outcome_names"]]
+        probe = campaign.get("probe")
+        if not isinstance(probe, Mapping):
+            raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_PROBE_INVALID")
+        probe_id = str(probe.get("probe_id", ""))
+        dose_unit = str(probe.get("dose_unit", ""))
+        probe_label = _probe_label(probe_id)
         metric_rows = _metric_rows(receipt_records)
         aggregate_rows = _aggregate_rows(metric_rows)
         _write_csv(temporary / "tables/dose-metrics.csv", metric_rows)
         _write_csv(temporary / "tables/dose-response.csv", aggregate_rows)
-        _write_svg(temporary / "figures/dose-response.svg", aggregate_rows, outcome_names)
+        _write_svg(
+            temporary / "figures/dose-response.svg",
+            aggregate_rows,
+            outcome_names,
+            probe_label=probe_label,
+        )
 
         sanitized_measurements = []
         for row in measurements:
@@ -91,12 +102,16 @@ def export_cosmos3_fingerprint_public_bundle(
                         for dose in selected
                     },
                     output_path=temporary / relative,
+                    probe_label=probe_label,
                 )
                 videos.append(
                     {
                         "sample_index": sample_index,
                         "seed": seed,
-                        "layout": f"GT|dose {selected[0]:+.2f}|dose 0.00|dose {selected[-1]:+.2f}",
+                        "layout": (
+                            f"GT|{probe_label} {selected[0]:+.2f}|{probe_label} 0.00|"
+                            f"{probe_label} {selected[-1]:+.2f}"
+                        ),
                         "path": relative,
                     }
                 )
@@ -111,6 +126,8 @@ def export_cosmos3_fingerprint_public_bundle(
             "split": report["split"],
             "measurement_count": len(measurements),
             "repeat_count": report["repeat_count"],
+            "probe_id": probe_id,
+            "dose_unit": dose_unit,
             "locality_admission_state": locality["state"],
             "cross_backbone_transfer_eligible": locality["cross_backbone_transfer_eligible"],
             "videos": videos,
@@ -214,7 +231,9 @@ def _aggregate_rows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, obje
     return result
 
 
-def _write_response_video(*, sources: Mapping[float, Path], output_path: Path) -> None:
+def _write_response_video(
+    *, sources: Mapping[float, Path], output_path: Path, probe_label: str
+) -> None:
     import imageio.v3 as iio
     import numpy as np
     from PIL import Image, ImageDraw
@@ -230,7 +249,7 @@ def _write_response_video(*, sources: Mapping[float, Path], output_path: Path) -
     if any(value.shape != reference.shape for value in predictions.values()) or gt.shape[0] != reference.shape[0]:
         raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_VIDEO_ALIGNMENT_INVALID")
     gt = gt[:, : reference.shape[1], : reference.shape[2], :]
-    labels = ["GT", *[f"action dose {dose:+.2f}" for dose in sorted(sources)]]
+    labels = ["GT", *[f"{probe_label} {dose:+.2f}" for dose in sorted(sources)]]
     frames = []
     for frame_index in range(reference.shape[0]):
         images = [gt[frame_index], *[predictions[dose][frame_index] for dose in sorted(sources)]]
@@ -246,7 +265,11 @@ def _write_response_video(*, sources: Mapping[float, Path], output_path: Path) -
 
 
 def _write_svg(
-    path: Path, rows: Sequence[Mapping[str, object]], outcome_names: Sequence[str]
+    path: Path,
+    rows: Sequence[Mapping[str, object]],
+    outcome_names: Sequence[str],
+    *,
+    probe_label: str,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     by_outcome: dict[str, list[Mapping[str, object]]] = defaultdict(list)
@@ -291,7 +314,7 @@ def _write_svg(
         [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
             '<rect width="100%" height="100%" fill="white"/>',
-            '<text x="40" y="42" font-size="24" font-weight="600">Cosmos3 target-local action-conditioning response</text>',
+            f'<text x="40" y="42" font-size="24" font-weight="600">Cosmos3 target-local {probe_label} response</text>',
             '<text x="40" y="70" font-size="14" fill="#555">Paired frozen DROID windows; every plotted outcome is oriented so higher is better</text>',
             *panels,
             '</svg>',
@@ -316,9 +339,21 @@ def _readme(bundle: Mapping[str, object]) -> str:
         f"This bundle contains `{bundle['measurement_count']}` paired-dose measurements "
         f"on the frozen `{bundle['split']}` split. Locality admission is "
         f"`{bundle['locality_admission_state']}`.\n\n"
-        "The chart measures a target-local response to reversible action-input scaling. "
+        f"The chart measures a target-local response to reversible `{bundle['probe_id']}` "
+        f"doses in `{bundle['dose_unit']}` units. "
         "It is not by itself evidence of model improvement or cross-backbone transfer.\n"
     )
+
+
+def _probe_label(probe_id: str) -> str:
+    labels = {
+        "action_conditioning_scale": "action scale",
+        "action_embedding_temporal_mix": "temporal action mix",
+    }
+    try:
+        return labels[probe_id]
+    except KeyError as exc:
+        raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_PROBE_INVALID") from exc
 
 
 def _load_mapping(path: Path) -> Mapping[str, Any]:
