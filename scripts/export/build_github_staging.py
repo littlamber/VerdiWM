@@ -46,6 +46,8 @@ PUBLIC_TEST_FILES = (
     "test_verdiwm_public_release.py",
     "test_acwm_public_experience_bundle.py",
     "test_acwm_multiseed_eval_summary.py",
+    "test_acwm_formal_visualization.py",
+    "test_acwm_training_seed_replication.py",
     "test_acwm_horizon_effect_profile.py",
     "test_acwm_training_seed_horizon.py",
     "test_agent_engineering_policy.py",
@@ -85,6 +87,9 @@ PUBLIC_TEST_FILES = (
     "test_cosmos3_fingerprint_campaign_runner.py",
     "test_cosmos3_fingerprint_public_bundle.py",
     "test_cosmos3_probe_evolution.py",
+    "test_cosmos3_directional_probe.py",
+    "test_cosmos3_directional_settlement.py",
+    "test_cosmos3_directional_settlement_public_bundle.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -115,6 +120,7 @@ COSMOS3_PUBLIC_EXAMPLES = (
     "cosmos3_target_local_irg_narrow_v1",
     "cosmos3_target_local_irg_temporal_mix_v1",
 )
+COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE = "cosmos3_directional_probe_split_reversal_v1"
 CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
 TEXT_SUFFIXES = {
     ".csv", ".json", ".jsonl", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
@@ -203,6 +209,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             temporary / "examples" / "acwm_training_seed_horizon_stability_v1",
         )
         _copy_tree(
+            source / "examples" / "acwm_training_seed_replication_cloth_self_forcing_v1",
+            temporary / "examples" / "acwm_training_seed_replication_cloth_self_forcing_v1",
+        )
+        _copy_tree(
             source / "examples" / "acwm_progressive_fidelity_efficiency_v1",
             temporary / "examples" / "acwm_progressive_fidelity_efficiency_v1",
         )
@@ -244,6 +254,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         )
         for name in COSMOS3_PUBLIC_EXAMPLES:
             _copy_tree(source / "examples" / name, temporary / "examples" / name)
+        _copy_tree(
+            source / "examples" / COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE,
+            temporary / "examples" / COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE,
+        )
 
         validation = validate_public_example(temporary / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2")
         experience_validation = validate_public_experience_bundle(
@@ -256,6 +270,11 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             name: _validate_cosmos3_fingerprint_bundle(temporary / "examples" / name)
             for name in COSMOS3_PUBLIC_EXAMPLES
         }
+        cosmos3_directional_settlement_validation = (
+            _validate_cosmos3_directional_settlement_bundle(
+                temporary / "examples" / COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE
+            )
+        )
         findings = audit_release_tree(temporary)
         if findings:
             raise GithubStagingError("GITHUB_STAGING_AUDIT_FAILED:" + ";".join(findings[:20]))
@@ -270,6 +289,9 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             "public_experience_validation": experience_validation,
             "training_seed_horizon_validation": training_seed_horizon_validation,
             "cosmos3_fingerprint_validations": cosmos3_fingerprint_validations,
+            "cosmos3_directional_settlement_validation": (
+                cosmos3_directional_settlement_validation
+            ),
             "checks": {
                 "allowlist_copy": True,
                 "no_symlinks": True,
@@ -391,6 +413,57 @@ def _validate_cosmos3_fingerprint_bundle(root: Path) -> dict[str, object]:
         "locality_admission_state": bundle["locality_admission_state"],
         "cross_backbone_transfer_eligible": bundle["cross_backbone_transfer_eligible"],
         "video_count": len(videos),
+        "manifest_file_count": len(declared),
+    }
+
+
+def _validate_cosmos3_directional_settlement_bundle(root: Path) -> dict[str, object]:
+    bundle_root = Path(root).resolve(strict=True)
+    bundle = json.loads((bundle_root / "bundle.json").read_text(encoding="utf-8"))
+    if (
+        not isinstance(bundle, dict)
+        or bundle.get("artifact_type")
+        != "verdiwm-cosmos3-directional-settlement-public-bundle"
+        or bundle.get("state") != "ready"
+        or bundle.get("settlement_state") not in {"settled_licensed", "settled_abstained"}
+        or bool(bundle.get("cross_backbone_transfer_eligible"))
+        != (bundle.get("settlement_state") == "settled_licensed")
+    ):
+        raise GithubStagingError("GITHUB_STAGING_COSMOS3_DIRECTIONAL_BUNDLE_INVALID")
+    if float(bundle["dev_accept_alignment_error"]) > float(bundle["maximum_alignment_error"]):
+        if bundle["settlement_state"] != "settled_abstained":
+            raise GithubStagingError(
+                "GITHUB_STAGING_COSMOS3_DIRECTIONAL_ALIGNMENT_VERDICT_INVALID"
+            )
+    accept_validation = _validate_cosmos3_fingerprint_bundle(bundle_root / "accept")
+    manifest_path = bundle_root / "MANIFEST.sha256"
+    declared: set[str] = set()
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        digest, relative = line.split("  ", 1)
+        target = (bundle_root / relative).resolve(strict=True)
+        if bundle_root not in target.parents or target.is_symlink() or relative in declared:
+            raise GithubStagingError("GITHUB_STAGING_COSMOS3_DIRECTIONAL_MANIFEST_INVALID")
+        if _sha256(target) != digest:
+            raise GithubStagingError(
+                f"GITHUB_STAGING_COSMOS3_DIRECTIONAL_MANIFEST_SHA_MISMATCH:{relative}"
+            )
+        declared.add(relative)
+    actual = {
+        path.relative_to(bundle_root).as_posix()
+        for path in bundle_root.rglob("*")
+        if path.is_file() and path.name != "MANIFEST.sha256"
+    }
+    if declared != actual:
+        raise GithubStagingError("GITHUB_STAGING_COSMOS3_DIRECTIONAL_MANIFEST_COVERAGE_INVALID")
+    return {
+        "artifact_type": bundle["artifact_type"],
+        "state": bundle["state"],
+        "campaign_id": bundle["campaign_id"],
+        "settlement_state": bundle["settlement_state"],
+        "dev_accept_alignment_error": bundle["dev_accept_alignment_error"],
+        "maximum_alignment_error": bundle["maximum_alignment_error"],
+        "cross_backbone_transfer_eligible": bundle["cross_backbone_transfer_eligible"],
+        "accept_validation": accept_validation,
         "manifest_file_count": len(declared),
     }
 

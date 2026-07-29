@@ -41,6 +41,20 @@ class Cosmos3FingerprintCampaignRunnerTests(unittest.TestCase):
         rows = [("GPU-target", 31), ("GPU-target", 77)]
         self.assertEqual(_foreign_compute_pids("GPU-target", rows, 10, parents.get), [77])
 
+    def test_gpu_exclusivity_retains_a_previously_observed_child_during_exit(self) -> None:
+        parents = {31: 1}
+        rows = [("GPU-target", 31)]
+        self.assertEqual(
+            _foreign_compute_pids(
+                "GPU-target",
+                rows,
+                10,
+                parents.get,
+                trusted_pids={31},
+            ),
+            [],
+        )
+
     def test_runtime_preflight_accepts_available_modules(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             _preflight_runtime(

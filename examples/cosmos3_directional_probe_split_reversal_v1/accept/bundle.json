@@ -1,0 +1,35 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+  "campaign_id": "cosmos3_irg_calibration_positive_scale_v1",
+  "claim_boundary": "Counterexample-driven directional Cosmos3 probe selected on dev and validated independently on accept; not model-improvement evidence.",
+  "cross_backbone_transfer_eligible": true,
+  "dose_unit": "relative_action_input_scale",
+  "locality_admission_state": "passed",
+  "measurement_count": 9,
+  "probe_id": "action_conditioning_scale",
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|action scale +0.0000|action scale +0.0125|action scale +0.0250",
+      "path": "videos/sample-48-seed-101-dose-response.mp4",
+      "sample_index": 48,
+      "seed": 101
+    },
+    {
+      "layout": "GT|action scale +0.0000|action scale +0.0125|action scale +0.0250",
+      "path": "videos/sample-64-seed-202-dose-response.mp4",
+      "sample_index": 64,
+      "seed": 202
+    },
+    {
+      "layout": "GT|action scale +0.0000|action scale +0.0125|action scale +0.0250",
+      "path": "videos/sample-80-seed-303-dose-response.mp4",
+      "sample_index": 80,
+      "seed": 303
+    }
+  ]
+}

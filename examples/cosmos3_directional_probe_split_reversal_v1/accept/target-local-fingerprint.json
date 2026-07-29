@@ -1,0 +1,93 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_positive_scale_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_positive_scale_v1:paper",
+    "covariance": [
+      [
+        0.3099751759101684,
+        -0.0016696182102530713,
+        -0.001995117640224989,
+        -0.00020507357737498447
+      ],
+      [
+        -0.0016696182102530713,
+        2.4234786843240285e-05,
+        7.467945949959107e-06,
+        3.0090017242090227e-05
+      ],
+      [
+        -0.001995117640224989,
+        7.467945949959107e-06,
+        1.3546474234434632e-05,
+        -4.914556267166122e-06
+      ],
+      [
+        -0.00020507357737498447,
+        3.0090017242090227e-05,
+        -4.914556267166122e-06,
+        5.5257713704668224e-05
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_conditioning_scale"
+    ],
+    "jacobian": [
+      [
+        1.438593115179761
+      ],
+      [
+        0.007997658106803918
+      ],
+      [
+        0.007504580114872835
+      ],
+      [
+        0.005570680765993642
+      ]
+    ],
+    "locality_residuals": {
+      "action_conditioning_scale": 0.32381385114741124
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        2.0698227460425933
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      1.438593115179761,
+      0.01131039656186523,
+      0.010613078978368601,
+      0.005570680765993642
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Counterexample-driven directional Cosmos3 probe selected on dev and validated independently on accept; not model-improvement evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": true,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_conditioning_scale": 0.32381385114741124
+    },
+    "state": "passed",
+    "supported_local_paths": [
+      "action_conditioning_scale"
+    ]
+  },
+  "measurement_count": 9,
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready"
+}

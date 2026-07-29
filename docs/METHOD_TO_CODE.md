@@ -14,7 +14,7 @@ still require experiments.
 | Joint-frame probe calibration | `wmloop/experiments/joint_fingerprint.py`, `scripts/run_acwm_joint_fingerprint_*.py` | 600-condition ACWM-Phys pilot complete; eight full-covariance assets included |
 | Adaptive locality-radius settlement | `wmloop/experiments/ctrl_world_fingerprint_settlement.py`, `scripts/export/ctrl_world_fingerprint_settlement.py` | Wide Ctrl-World radius rejected; radius 0.025 admitted on the frozen pilot split |
 | Progressive-fidelity validation | `scripts/export/acwm_screen_summary.py`, `wmloop/verify/` | Operational on ACWM-Phys |
-| Transfer certificate | `wmloop/geometry/transfer.py` | Six fail-closed terms implemented; calibration across backbones pending |
+| Transfer certificate | `wmloop/geometry/transfer.py`, `wmloop/experiments/cosmos3_directional_settlement.py` | Six fail-closed terms implemented; Cosmos3 dev/accept split reversal correctly abstained before LOBO |
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
 | Repair-collision discovery | `wmloop/geometry/evolution.py` | Implemented and unit tested; online atlas evolution pending |
 | Counterexample-driven probe evolution | `wmloop/experiments/probe_evolution.py`, `scripts/export/probe_evolution.py`, `scripts/export/probe_evolution_settlement.py` | Cosmos3 scale counterexamples produced and evaluated a novel temporal-mix probe; the 15-cell successor correctly settled as abstained |
@@ -94,6 +94,17 @@ dimension's temporal mean. The successor was materialized and evaluated over
 `settled_abstained`. This is evidence for an executable self-evolution loop and
 its safety boundary, not evidence for model repair or cross-backbone transfer.
 
+A second branch decomposed the narrow scale probe by polarity using dev data
+only. The positive one-sided doses `[0, 0.0125, 0.025]` passed the unchanged
+locality gate on dev (`0.3004`) and independently on accept (`0.3238`). This is
+not sufficient for transfer: the unit-Frobenius Jacobian alignment error was
+`1.999998`, above the frozen `0.5` threshold, because the dominant response
+reversed sign. `cosmos3_directional_settlement` therefore returns
+`settled_abstained`. The public
+`examples/cosmos3_directional_probe_split_reversal_v1` bundle retains both
+local charts, all accept dose-response videos, and the final certificate
+counterexample.
+
 ## ACWM reference instance
 
 The public examples project ACWM runs into diagnosis, typed materialized
@@ -122,12 +133,13 @@ must also be compared on held-out target trials from at least two external
 backbone families. The current minimum targets are Ctrl-World and Cosmos3;
 WAM is the recommended additional stress target.
 
-Target charts are a hard prerequisite, not a box-checking step. The current
-Cosmos3 temporal-mix successor remains unsupported under the frozen locality
-gate, so the planner must not manufacture a warm-start LOBO arm from it. The
-next executable paper experiment is either a new pre-registered diagnostic
-axis with a new campaign version or an independent external backbone whose
-target chart passes admission.
+Target charts are a hard prerequisite, not a box-checking step. The Cosmos3
+temporal-mix successor remains unsupported under the frozen locality gate, and
+the locally admitted positive-scale branch fails held-out alignment. The
+planner must not manufacture a warm-start LOBO arm from either branch. The next
+executable paper experiment is a new pre-registered diagnostic axis or an
+independent external backbone whose target chart and held-out alignment both
+pass admission.
 
 The checked-in LOBO pilot specification is
 `configs/experiments/three_backbone_lobo_pilot_v1.json`. It is deliberately a

@@ -98,3 +98,24 @@ threshold, so the result is `settled_abstained`. The wide (`0.9510`), narrow
 (`45.6476`), and temporal-mix (`2.0649`) failures remain linked as one
 counterexample lineage. Cosmos3 LOBO is therefore blocked; changing the radius
 or threshold after observing these results would require a new campaign.
+
+## Held-out directional settlement
+
+The narrow scale failure also exposed a polarity collision. Dev data alone was
+used to select the positive one-sided doses `[0, 0.0125, 0.025]`; the direction,
+outcomes, seeds, accept windows, evaluator, locality threshold (`0.5`), and
+dev/accept alignment threshold (`0.5`) were then frozen. Three independent
+accept shards produced nine paired receipts with clean physical-GPU audits.
+
+The positive path is locally linear on both splits: dev residual `0.3004` and
+accept residual `0.3238`. Its response is not split-stable, however. The
+normalized Jacobian distance is `1.999998`, near the maximum value of `2` for
+opposite directions, because the dominant PSNR derivative changes from
+`-0.5295` on dev to `+1.4386` on accept. The final settlement is therefore
+`settled_abstained`, with `dev_accept_jacobian_aligned` as the explicit failed
+term. This is a negative-transfer prevention result, not model improvement.
+
+The path-sanitized evidence is checked in at
+`examples/cosmos3_directional_probe_split_reversal_v1`. It includes dev and
+accept charts, dose-response tables, three accept videos, the alignment plot,
+and SHA manifests.

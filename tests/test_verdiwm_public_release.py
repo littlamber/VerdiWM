@@ -158,6 +158,14 @@ class GithubStagingTests(unittest.TestCase):
                 (
                     output
                     / "examples"
+                    / "acwm_training_seed_replication_cloth_self_forcing_v1"
+                    / "summary.json"
+                ).is_file()
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
                     / "acwm_progressive_fidelity_efficiency_v1"
                     / "MANIFEST.sha256"
                 ).is_file()
@@ -173,6 +181,10 @@ class GithubStagingTests(unittest.TestCase):
             self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint_settlement.py").is_file())
             self.assertTrue((output / "tests" / "test_ctrl_world_fingerprint_public_bundle.py").is_file())
             self.assertTrue((output / "tests" / "test_cosmos3_probe_evolution.py").is_file())
+            self.assertTrue((output / "tests" / "test_cosmos3_directional_probe.py").is_file())
+            self.assertTrue(
+                (output / "tests" / "test_cosmos3_directional_settlement.py").is_file()
+            )
             self.assertTrue((output / "examples" / "ctrl_world_target_local_irg_v1" / "bundle.json").is_file())
             self.assertTrue(
                 (output / "examples" / "cosmos3_target_local_irg_narrow_v1" / "bundle.json").is_file()
@@ -192,6 +204,17 @@ class GithubStagingTests(unittest.TestCase):
                     "cosmos3_target_local_irg_narrow_v1",
                     "cosmos3_target_local_irg_temporal_mix_v1",
                 },
+            )
+            directional = audit["cosmos3_directional_settlement_validation"]
+            self.assertEqual(directional["settlement_state"], "settled_abstained")
+            self.assertFalse(directional["cross_backbone_transfer_eligible"])
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "cosmos3_directional_probe_split_reversal_v1"
+                    / "bundle.json"
+                ).is_file()
             )
             self.assertTrue(
                 (output / "configs" / "constitution" / "ctrl_world_predictive_quality_pilot_v1.freeze.json").is_file()

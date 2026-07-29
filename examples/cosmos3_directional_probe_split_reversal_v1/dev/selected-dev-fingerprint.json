@@ -1,0 +1,99 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_positive_scale_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_positive_scale_v1:dev_selection",
+    "covariance": [
+      [
+        0.1504567624595611,
+        0.0007272880420575588,
+        0.0031865276199269507,
+        0.0004998944836745133
+      ],
+      [
+        0.0007272880420575588,
+        3.905771887551507e-06,
+        1.4380005324718878e-05,
+        5.660346364186351e-06
+      ],
+      [
+        0.0031865276199269507,
+        1.4380005324718878e-05,
+        7.017116548788994e-05,
+        2.0796120028850796e-06
+      ],
+      [
+        0.0004998944836745133,
+        5.660346364186351e-06,
+        2.0796120028850796e-06,
+        2.8632124475409363e-05
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_conditioning_scale"
+    ],
+    "jacobian": [
+      [
+        -0.5295117786663658
+      ],
+      [
+        -0.002406604082081191
+      ],
+      [
+        -0.0035551594375123527
+      ],
+      [
+        -0.003095974553542121
+      ]
+    ],
+    "locality_residuals": {
+      "action_conditioning_scale": 0.300394044143398
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        0.28043017060852254
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      -0.5295117786663658,
+      -0.003403452132141674,
+      -0.0050277546929286725,
+      -0.003095974553542121
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "A directional probe was selected using dev receipts only. Transfer remains prohibited until the frozen direction passes independent accept locality and dev/accept alignment.",
+  "derivation": {
+    "source_campaign_id": "cosmos3_irg_calibration_dev_narrow_v1",
+    "source_fingerprint_sha256": "71519a139a512c24f311ca93f9a7c6d297bfbc235b971096065a76c3dccde2f9",
+    "source_measurements_sha256": "0237d8f6a2b06397975f7b6889666dd9fbecb514e2e9b733aff64180ff1347d4",
+    "type": "dev_only_directional_subset"
+  },
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "require_independent_accept_settlement",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_conditioning_scale": 0.300394044143398
+    },
+    "state": "passed",
+    "supported_local_paths": [
+      "action_conditioning_scale"
+    ]
+  },
+  "measurement_count": 9,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}

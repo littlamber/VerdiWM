@@ -51,7 +51,15 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
     )
     _preflight_runtime(
         args.evaluator_python,
-        modules=("imageio.v3", "numpy", "PIL", "jsonschema", "cosmos_framework", "wmloop"),
+        modules=(
+            "imageio.v3",
+            "numpy",
+            "PIL",
+            "jsonschema",
+            "pyarrow.parquet",
+            "cosmos_framework",
+            "wmloop",
+        ),
         code="COSMOS3_EVALUATOR_PREFLIGHT_FAILED",
         cwd=args.verdiwm_root,
         env=env,
@@ -224,7 +232,12 @@ def _run(
                         for uuid, pid in rows
                         if uuid == target_uuid and _pid_is_descendant(pid, os.getpid())
                     )
-                    foreign = _foreign_compute_pids(target_uuid, rows, os.getpid())
+                    foreign = _foreign_compute_pids(
+                        target_uuid,
+                        rows,
+                        os.getpid(),
+                        trusted_pids=set(audit["observed_campaign_pids"]),
+                    )
                     audit["sample_count"] = int(audit["sample_count"]) + 1
                     audit["observed_campaign_pids"] = sorted(
                         set(audit["observed_campaign_pids"]) | set(own)
@@ -303,11 +316,15 @@ def _foreign_compute_pids(
     rows: Sequence[tuple[str, int]],
     root_pid: int,
     parent_reader: Callable[[int], int | None] | None = None,
+    trusted_pids: set[int] | None = None,
 ) -> list[int]:
+    trusted = trusted_pids or set()
     return sorted(
         pid
         for uuid, pid in rows
-        if uuid == target_uuid and not _pid_is_descendant(pid, root_pid, parent_reader)
+        if uuid == target_uuid
+        and pid not in trusted
+        and not _pid_is_descendant(pid, root_pid, parent_reader)
     )
 
 

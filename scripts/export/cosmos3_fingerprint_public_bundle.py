@@ -91,9 +91,7 @@ def export_cosmos3_fingerprint_public_bundle(
         if include_videos:
             identities = sorted({(key[1], key[2]) for key in receipt_records})
             doses = sorted({key[0] for key in receipt_records})
-            selected = (doses[0], 0.0, doses[-1])
-            if any(dose not in doses for dose in selected):
-                raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_VIDEO_DOSE_MISSING")
+            selected = _selected_video_doses(doses)
             for sample_index, seed in identities:
                 relative = f"videos/sample-{sample_index}-seed-{seed}-dose-response.mp4"
                 _write_response_video(
@@ -108,9 +106,8 @@ def export_cosmos3_fingerprint_public_bundle(
                     {
                         "sample_index": sample_index,
                         "seed": seed,
-                        "layout": (
-                            f"GT|{probe_label} {selected[0]:+.2f}|{probe_label} 0.00|"
-                            f"{probe_label} {selected[-1]:+.2f}"
+                        "layout": "|".join(
+                            ["GT", *(f"{probe_label} {dose:+.4f}" for dose in selected)]
                         ),
                         "path": relative,
                     }
@@ -206,6 +203,19 @@ def _metric_rows(
     return rows
 
 
+def _selected_video_doses(doses: Sequence[float]) -> tuple[float, float, float]:
+    ordered = tuple(sorted(set(float(value) for value in doses)))
+    if len(ordered) < 3 or 0.0 not in ordered:
+        raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_VIDEO_DOSE_MISSING")
+    if ordered[0] < 0.0 < ordered[-1]:
+        selected = (ordered[0], 0.0, ordered[-1])
+    else:
+        selected = (ordered[0], ordered[len(ordered) // 2], ordered[-1])
+    if len(set(selected)) != 3:
+        raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_VIDEO_DOSE_DUPLICATE")
+    return selected
+
+
 def _aggregate_rows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
     grouped: dict[tuple[float, str], list[float]] = defaultdict(list)
     oriented = {
@@ -249,7 +259,7 @@ def _write_response_video(
     if any(value.shape != reference.shape for value in predictions.values()) or gt.shape[0] != reference.shape[0]:
         raise Cosmos3FingerprintPublicBundleError("COSMOS3_PUBLIC_VIDEO_ALIGNMENT_INVALID")
     gt = gt[:, : reference.shape[1], : reference.shape[2], :]
-    labels = ["GT", *[f"{probe_label} {dose:+.2f}" for dose in sorted(sources)]]
+    labels = ["GT", *[f"{probe_label} {dose:+.4f}" for dose in sorted(sources)]]
     frames = []
     for frame_index in range(reference.shape[0]):
         images = [gt[frame_index], *[predictions[dose][frame_index] for dose in sorted(sources)]]
