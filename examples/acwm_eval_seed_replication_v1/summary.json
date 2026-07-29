@@ -1,0 +1,249 @@
+{
+  "artifact_type": "verdiwm-acwm-eval-seed-replication-summary",
+  "cell_count": 4,
+  "cells": [
+    {
+      "aggregates": {
+        "masked_mse": {
+          "mean_delta": -0.013821,
+          "population_std_delta": 0.004037933712515193
+        },
+        "mse": {
+          "mean_delta": -0.0023573333333333332,
+          "population_std_delta": 0.0007488543843023747
+        },
+        "psnr": {
+          "mean_delta": 0.8199999999999991,
+          "population_std_delta": 0.22861904265976277
+        },
+        "ssim": {
+          "mean_delta": 0.005599999999999976,
+          "population_std_delta": 0.0029877527787062217
+        }
+      },
+      "candidate_checkpoint_sha256": "c1df0bde176a73a57629a1b6a5f34fe3f17a2b693273446a72047051f5868535",
+      "environment": "cloth_move",
+      "eval_seeds": [
+        1101,
+        2202,
+        2805
+      ],
+      "pass_count": 3,
+      "pass_rate": 1.0,
+      "primitive": "self_forcing_finetune",
+      "seed_count": 3,
+      "stability": "eval_seed_robust"
+    },
+    {
+      "aggregates": {
+        "masked_mse": {
+          "mean_delta": -0.0008726666666666666,
+          "population_std_delta": 0.0016825713126706464
+        },
+        "mse": {
+          "mean_delta": -0.00010333333333333336,
+          "population_std_delta": 0.0001997337116151291
+        },
+        "psnr": {
+          "mean_delta": 0.41000000000000014,
+          "population_std_delta": 0.9747136331593328
+        },
+        "ssim": {
+          "mean_delta": 0.0024333333333333242,
+          "population_std_delta": 0.003104119127152727
+        }
+      },
+      "candidate_checkpoint_sha256": "306f07985351369d5dcea7b8138382bd9fa3ee627856aaa12a73fc20e1c92e79",
+      "environment": "pour_water",
+      "eval_seeds": [
+        1101,
+        2202,
+        2905
+      ],
+      "pass_count": 2,
+      "pass_rate": 0.6666666666666666,
+      "primitive": "inv_dyn_reward_finetune",
+      "seed_count": 3,
+      "stability": "eval_seed_sensitive_positive"
+    },
+    {
+      "aggregates": {
+        "masked_mse": {
+          "mean_delta": -9.766666666666669e-05,
+          "population_std_delta": 3.9406711216351114e-05
+        },
+        "mse": {
+          "mean_delta": -9.03501810404587e-21,
+          "population_std_delta": 4.320493798938586e-06
+        },
+        "psnr": {
+          "mean_delta": -0.046666666666666856,
+          "population_std_delta": 0.10873004286866422
+        },
+        "ssim": {
+          "mean_delta": 0.0006333333333333746,
+          "population_std_delta": 0.00012472191289245098
+        }
+      },
+      "candidate_checkpoint_sha256": "6f95744f9857d5a45fea6a0001c6585994203ceae2210ad666dacfa580197d3e",
+      "environment": "push_rope",
+      "eval_seeds": [
+        874,
+        1101,
+        2202
+      ],
+      "pass_count": 2,
+      "pass_rate": 0.6666666666666666,
+      "primitive": "self_forcing_finetune",
+      "seed_count": 3,
+      "stability": "eval_seed_sensitive_positive"
+    },
+    {
+      "aggregates": {
+        "masked_mse": {
+          "mean_delta": -0.0026350000000000006,
+          "population_std_delta": 0.0010604304157589347
+        },
+        "mse": {
+          "mean_delta": -0.0005289999999999998,
+          "population_std_delta": 0.0001707005174762709
+        },
+        "psnr": {
+          "mean_delta": 1.2533333333333339,
+          "population_std_delta": 0.35649528592800317
+        },
+        "ssim": {
+          "mean_delta": 0.010666666666666639,
+          "population_std_delta": 0.0015923427883328572
+        }
+      },
+      "candidate_checkpoint_sha256": "704fd4560baff8ee1c45e643fd0eaa81ad70d1970f12835ba4f1940b54f9491f",
+      "environment": "robot_arm",
+      "eval_seeds": [
+        1101,
+        2202,
+        2830
+      ],
+      "pass_count": 3,
+      "pass_rate": 1.0,
+      "primitive": "self_forcing_finetune",
+      "seed_count": 3,
+      "stability": "eval_seed_robust"
+    }
+  ],
+  "claim_boundary": "Frozen-checkpoint robustness across evaluation randomness only. This is not independent training-seed evidence and does not establish cross-backbone transfer.",
+  "expected_seeds_per_cell": 3,
+  "receipt_count": 12,
+  "schema_version": 1,
+  "state": "ready",
+  "videos": [
+    {
+      "environment": "cloth_move",
+      "eval_seed": 1101,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/cloth_move-self_forcing_finetune-seed-1101.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "5a2e726591b41a48b9d836b40c96b4433d99e861b4ed6e52ce8a13e647127281"
+    },
+    {
+      "environment": "cloth_move",
+      "eval_seed": 2202,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/cloth_move-self_forcing_finetune-seed-2202.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "66ccd988a20a35b6b83ae211b187720252c07c5790bfd3489f4913b5063c2a2f"
+    },
+    {
+      "environment": "cloth_move",
+      "eval_seed": 2805,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/cloth_move-self_forcing_finetune-seed-2805.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "cd95c57f9fd9d2a98cded8d32b23601b7840eaf1576bc048d7103a2d09020a86"
+    },
+    {
+      "environment": "pour_water",
+      "eval_seed": 1101,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/pour_water-inv_dyn_reward_finetune-seed-1101.mp4",
+      "primitive": "inv_dyn_reward_finetune",
+      "sha256": "228d736dfa314acc05a6751b27612dec51309726c9ef0fa97dc43187bf483846"
+    },
+    {
+      "environment": "pour_water",
+      "eval_seed": 2202,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": false,
+      "path": "videos/pour_water-inv_dyn_reward_finetune-seed-2202.mp4",
+      "primitive": "inv_dyn_reward_finetune",
+      "sha256": "8faa14e2f0f4ecb851e01397f53a8a7778af56819fc82bc1516c7dca1f745b62"
+    },
+    {
+      "environment": "pour_water",
+      "eval_seed": 2905,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/pour_water-inv_dyn_reward_finetune-seed-2905.mp4",
+      "primitive": "inv_dyn_reward_finetune",
+      "sha256": "a9b13ec03b95ffbe55656cad786cf1af630f81575ed7a73453dcf492c9b00301"
+    },
+    {
+      "environment": "push_rope",
+      "eval_seed": 874,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/push_rope-self_forcing_finetune-seed-874.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "3f5a293a60e3759dd38e21552a5b2d67618f39164e09d8099c181c06fc32bdb8"
+    },
+    {
+      "environment": "push_rope",
+      "eval_seed": 1101,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/push_rope-self_forcing_finetune-seed-1101.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "b5382005f43646f4d7630298ce2c8e29a8b20c897a98e708d8b061948541f08f"
+    },
+    {
+      "environment": "push_rope",
+      "eval_seed": 2202,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": false,
+      "path": "videos/push_rope-self_forcing_finetune-seed-2202.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "05293f15348465f7877379d449041fee1beb0d512a96f32d558bef5ec4c9e1e8"
+    },
+    {
+      "environment": "robot_arm",
+      "eval_seed": 1101,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/robot_arm-self_forcing_finetune-seed-1101.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "68ef15da7ca3410e37dcd3cfd0a9121b6a8d27166e7cee7c84d60d1e5a71c9f6"
+    },
+    {
+      "environment": "robot_arm",
+      "eval_seed": 2202,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/robot_arm-self_forcing_finetune-seed-2202.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "cabe085a3926838c529cc40c500fd5008da42b6422e4206cf1e4dead401aa6dc"
+    },
+    {
+      "environment": "robot_arm",
+      "eval_seed": 2830,
+      "layout": "GT|baseline prediction|primitive prediction",
+      "official_gate_pass": true,
+      "path": "videos/robot_arm-self_forcing_finetune-seed-2830.mp4",
+      "primitive": "self_forcing_finetune",
+      "sha256": "d95dc8aeb23b5f88ebc504ad89863ddca52a24c4970ba71a38521d379501ede5"
+    }
+  ]
+}

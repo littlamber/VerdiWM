@@ -196,6 +196,14 @@ aligned `GT | prediction` videos. Mean future-frame PSNR is `21.2759` dB.
 This is baseline predictive-quality evidence only; it does not establish a
 primitive benefit or transfer result.
 
+[`examples/acwm_eval_seed_replication_v1`](examples/acwm_eval_seed_replication_v1)
+adds 12 official 50-step gate receipts over four fixed checkpoint cells.
+`cloth_move + self_forcing_finetune` and
+`robot_arm + self_forcing_finetune` pass all three evaluation seeds; the
+`push_rope` and `pour_water` cells pass two of three and remain seed-sensitive.
+This tests frozen-checkpoint evaluation robustness, not independent training
+seed replication.
+
 The instance remains `pilot_draft` and formal launch is false. See
 [Cosmos3 forward dynamics](docs/COSMOS3_FORWARD_DYNAMICS.md) for the binding
 and promotion sequence.
