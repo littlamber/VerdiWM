@@ -1,0 +1,75 @@
+{
+  "artifact_type": "verdiwm-cosmos3-fingerprint-campaign",
+  "campaign_id": "cosmos3_irg_calibration_dev_narrow_v1",
+  "claim_scope": "Target-local Cosmos3-Nano paired-dose predictive fingerprint calibration after the frozen wide-radius locality gate failed; not a model-improvement or transfer claim.",
+  "formal_claim_requires": "complete paired-dose dev and accept receipts, locality admission, and held-out selector evaluation",
+  "heldout_split_ref": "configs/goal/cosmos3_forward_dynamics_split_v1.json",
+  "locality_admission": {
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5
+  },
+  "outcomes": [
+    {
+      "name": "rollout_video_psnr",
+      "sign": 1.0,
+      "source_metric": "rollout_video_psnr",
+      "weight": 1.0
+    },
+    {
+      "name": "negative_rollout_video_l1",
+      "sign": -1.0,
+      "source_metric": "rollout_video_l1",
+      "weight": 2.0
+    },
+    {
+      "name": "negative_final_frame_mae",
+      "sign": -1.0,
+      "source_metric": "final_frame_mae",
+      "weight": 2.0
+    },
+    {
+      "name": "negative_temporal_difference_mae",
+      "sign": -1.0,
+      "source_metric": "temporal_difference_mae",
+      "weight": 1.0
+    }
+  ],
+  "predecessor_campaign": {
+    "campaign_id": "cosmos3_irg_calibration_dev_v1",
+    "decision": "narrow_dose_radius",
+    "fingerprint_ref": "results/reports/cosmos3-irg-dev-fingerprint-r1/target-local-fingerprint.json",
+    "observed_locality_residual": 0.9510001507610469
+  },
+  "probe": {
+    "dose_unit": "relative_action_input_scale",
+    "doses": [
+      -0.025,
+      -0.0125,
+      0.0,
+      0.0125,
+      0.025
+    ],
+    "hook_type": "H2",
+    "invariants": [
+      "same_checkpoint",
+      "same_sample_window",
+      "same_seed",
+      "same_evaluator"
+    ],
+    "probe_id": "action_conditioning_scale",
+    "reversible": true,
+    "scope": "inference_only",
+    "transformation": "multiply the exact 16x10 action tensor consumed by forward dynamics by 1+d"
+  },
+  "protocols": {
+    "paper": {
+      "required_receipts_per_dose": 3,
+      "split": "accept"
+    },
+    "pilot": {
+      "required_receipts_per_dose": 3,
+      "split": "dev"
+    }
+  },
+  "schema_version": 1
+}

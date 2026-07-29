@@ -1,0 +1,91 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_dev_narrow_v1",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_dev_narrow_v1:pilot",
+    "covariance": [
+      [
+        0.5834702242064478,
+        0.003042329313559808,
+        0.009278698987401433,
+        -0.0014570325062953945
+      ],
+      [
+        0.003042329313559808,
+        1.696672462810455e-05,
+        5.020013233551912e-05,
+        -9.262678331726818e-06
+      ],
+      [
+        0.009278698987401433,
+        5.020013233551912e-05,
+        0.00015055469508681526,
+        -2.591633148811693e-05
+      ],
+      [
+        -0.0014570325062953945,
+        -9.262678331726818e-06,
+        -2.591633148811693e-05,
+        6.152152842674661e-06
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_conditioning_scale"
+    ],
+    "jacobian": [
+      [
+        -0.05446013114773033
+      ],
+      [
+        -0.0009421181535549753
+      ],
+      [
+        -0.00019161178781303598
+      ],
+      [
+        -0.0026931255983022686
+      ]
+    ],
+    "locality_residuals": {
+      "action_conditioning_scale": 45.647629841426685
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        0.0029760074135011918
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      -0.05446013114773033,
+      -0.0013323562701153442,
+      -0.0002709799890357513,
+      -0.0026931255983022686
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Target-local Cosmos3-Nano paired-dose predictive fingerprint calibration after the frozen wide-radius locality gate failed; not a model-improvement or transfer claim.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_conditioning_scale": 45.647629841426685
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 15,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}
