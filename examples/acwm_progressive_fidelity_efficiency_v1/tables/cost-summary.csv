@@ -1,0 +1,3 @@
+condition,gpu_hours,measured_candidate_count,projected_candidate_count
+progressive_fidelity_observed,11.59161975,21,0
+confirm_every_candidate_measured_cost_projection,12.367715974,6,15

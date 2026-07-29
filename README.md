@@ -15,6 +15,8 @@ Interventional Repair Geometry (IRG) implementation, eight joint-frame
 ACWM-Phys IRG assets, development and paper-split Ctrl-World charts, one
 Cosmos3 forward-dynamics instantiation bundle, one settled Cosmos3 target-local
 wide-dose chart, and one integrity-checked operational closed-loop example.
+The release also includes a receipt-derived progressive-fidelity cost audit;
+its modest savings are retained as a system limitation rather than hidden.
 
 ## What is implemented
 
@@ -213,6 +215,17 @@ adds 12 official 50-step gate receipts over four fixed checkpoint cells.
 `push_rope` and `pour_water` cells pass two of three and remain seed-sensitive.
 This tests frozen-checkpoint evaluation robustness, not independent training
 seed replication.
+
+## Progressive-fidelity cost audit
+
+[`examples/acwm_progressive_fidelity_efficiency_v1`](examples/acwm_progressive_fidelity_efficiency_v1)
+reuses 21 settled 512-step screen-to-official-gate pairs and six independent
+800/1000 confirmation ladders. Against the frozen 512 gate, the cheap screen
+has positive recall `0.75` and false-rejection rate `0.20`; screen-to-confirm
+Spearman correlation is `0.4058`. The measured-cost confirm-all projection
+shows only `6.28%` GPU-hour reduction, demonstrating that the current 512-step
+screen is still too expensive. The bundle reports this as an optimization
+target, not as a strong efficiency claim.
 
 The instance remains `pilot_draft` and formal launch is false. See
 [Cosmos3 forward dynamics](docs/COSMOS3_FORWARD_DYNAMICS.md) for the binding

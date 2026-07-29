@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-public-progressive-fidelity-efficiency",
+  "state": "ready",
+  "study_id": "S6_progressive_fidelity_efficiency",
+  "candidate_count": 21,
+  "gate_pair_count": 21,
+  "confirm_pair_count": 6,
+  "gate_positive_count": 8,
+  "confirmation_positive_count": 3,
+  "metrics": {
+    "gpu_hour_reduction": 0.062751783,
+    "positive_recall": 0.75,
+    "false_rejection_rate": 0.2,
+    "screen_confirm_rank_correlation": 0.405839725,
+    "progressive_fidelity_gpu_hours": 11.59161975,
+    "confirm_every_candidate_projected_gpu_hours": 12.367715974
+  },
+  "cost_projection": {
+    "measured_exact_candidate_count": 6,
+    "projected_candidate_count": 15,
+    "fallback_order": [
+      "measured_exact_candidate",
+      "measured_environment_median",
+      "measured_global_median"
+    ]
+  },
+  "claim_boundary": "Efficiency evidence only; model-quality positives remain governed by settled frozen official-gate and checkpoint-ladder receipts."
+}
