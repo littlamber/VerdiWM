@@ -11,6 +11,7 @@ from scripts.export.acwm_training_seed_replication_summary import (
     build_summary,
 )
 from scripts.export.acwm_training_seed_stability_queue import build_stability_queue
+from scripts.export.acwm_training_seed_stability_summary import build_stability_summary
 
 
 class AcwmTrainingSeedReplicationTests(unittest.TestCase):
@@ -160,6 +161,35 @@ class AcwmTrainingSeedReplicationTests(unittest.TestCase):
             with self.assertRaisesRegex(AcwmTrainingSeedSummaryError, "FACTORIAL_INCOMPLETE"):
                 build_summary(manifests=manifests, output_root=root / "summary")
 
+    def test_stability_summary_retains_earlier_best_after_regression(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            summaries = {}
+            for step, base_delta, failing_cell in (
+                (512, 0.8, None),
+                (800, 1.0, None),
+                (1000, 1.2, (33, 303)),
+            ):
+                path = root / f"step-{step}.json"
+                _write_factorial_summary(path, base_delta, failing_cell)
+                summaries[step] = path
+
+            build_stability_summary(
+                checkpoint_summaries=summaries,
+                output_root=root / "stability",
+            )
+            payload = json.loads((root / "stability/summary.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(
+                payload["stability_verdict"],
+                "earlier_checkpoint_retained_after_max_checkpoint_regression",
+            )
+            self.assertEqual(payload["global_selected_checkpoint_step"], 800)
+            selected = {record["training_seed"]: record["checkpoint_step"] for record in payload["selected_checkpoints"]}
+            self.assertEqual(selected, {11: 1000, 22: 1000, 33: 800})
+            public = json.loads((root / "stability/public-summary.json").read_text(encoding="utf-8"))
+            self.assertNotIn("checkpoint_path", public["selected_checkpoints"][0])
+
 
 def _write_receipt(path: Path, training_seed: int, eval_seed: int, checkpoint_sha: str) -> None:
     offset = (training_seed // 11 + eval_seed // 101) / 10.0
@@ -183,6 +213,63 @@ def _write_receipt(path: Path, training_seed: int, eval_seed: int, checkpoint_sh
                         "masked_mse": -offset / 100.0,
                     },
                 },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_factorial_summary(
+    path: Path,
+    base_delta: float,
+    failing_cell: tuple[int, int] | None,
+) -> None:
+    records = []
+    values = []
+    for training_seed in (11, 22, 33):
+        for eval_seed in (101, 202, 303):
+            delta = base_delta + training_seed / 1000.0 + eval_seed / 10000.0
+            values.append(delta)
+            records.append(
+                {
+                    "environment": "cloth_move",
+                    "primitive": "self_forcing_finetune",
+                    "training_seed": training_seed,
+                    "eval_seed": eval_seed,
+                    "pass": (training_seed, eval_seed) != failing_cell,
+                    "checkpoint_path": f"/checkpoints/{training_seed}-{path.stem}.pt",
+                    "checkpoint_sha256": str(training_seed) * 32,
+                    "delta": {
+                        "psnr": delta,
+                        "ssim": delta / 100.0,
+                        "mse": -delta / 1000.0,
+                        "masked_mse": -delta / 100.0,
+                    },
+                }
+            )
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_type": "verdiwm-acwm-training-seed-replication-summary",
+                "state": "ready",
+                "environment": "cloth_move",
+                "primitive": "self_forcing_finetune",
+                "training_seeds": [11, 22, 33],
+                "eval_seeds": [101, 202, 303],
+                "factorial_shape": [3, 3],
+                "official_gate_pass_count": 9 - (1 if failing_cell else 0),
+                "official_gate_pass_rate": (9 - (1 if failing_cell else 0)) / 9,
+                "all_cells_pass": failing_cell is None,
+                "metric_summary": {
+                    "psnr": {
+                        "mean": sum(values) / len(values),
+                        "min": min(values),
+                        "max": max(values),
+                        "sample_std": 0.1,
+                    }
+                },
+                "records": records,
             }
         ),
         encoding="utf-8",
