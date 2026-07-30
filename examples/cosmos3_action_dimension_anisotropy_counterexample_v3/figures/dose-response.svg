@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620">
+<rect width="100%" height="100%" fill="white"/>
+<text x="40" y="42" font-size="24" font-weight="600">Cosmos3 target-local action dimension balance response</text>
+<text x="40" y="70" font-size="14" fill="#555">Paired frozen DROID windows; every plotted outcome is oriented so higher is better</text>
+<text x="70" y="83" font-size="16" font-weight="600">rollout_video_psnr</text>
+<line x1="70" y1="260" x2="460" y2="260" stroke="#999"/>
+<line x1="70" y1="105" x2="70" y2="260" stroke="#999"/>
+<polyline points="70.00,242.12 265.00,138.47 460.00,122.88" fill="none" stroke="#1976D2" stroke-width="3"/>
+<circle cx="70.00" cy="242.12" r="4" fill="#1976D2"/>
+<text x="52.00" y="281" font-size="12">-0.10</text>
+<circle cx="265.00" cy="138.47" r="4" fill="#1976D2"/>
+<text x="247.00" y="281" font-size="12">+0.00</text>
+<circle cx="460.00" cy="122.88" r="4" fill="#1976D2"/>
+<text x="442.00" y="281" font-size="12">+0.10</text>
+<text x="550" y="83" font-size="16" font-weight="600">negative_rollout_video_l1</text>
+<line x1="550" y1="260" x2="940" y2="260" stroke="#999"/>
+<line x1="550" y1="105" x2="550" y2="260" stroke="#999"/>
+<polyline points="550.00,242.12 745.00,122.88 940.00,128.57" fill="none" stroke="#C62828" stroke-width="3"/>
+<circle cx="550.00" cy="242.12" r="4" fill="#C62828"/>
+<text x="532.00" y="281" font-size="12">-0.10</text>
+<circle cx="745.00" cy="122.88" r="4" fill="#C62828"/>
+<text x="727.00" y="281" font-size="12">+0.00</text>
+<circle cx="940.00" cy="128.57" r="4" fill="#C62828"/>
+<text x="922.00" y="281" font-size="12">+0.10</text>
+<text x="70" y="328" font-size="16" font-weight="600">negative_final_frame_mae</text>
+<line x1="70" y1="505" x2="460" y2="505" stroke="#999"/>
+<line x1="70" y1="350" x2="70" y2="505" stroke="#999"/>
+<polyline points="70.00,487.12 265.00,370.43 460.00,367.88" fill="none" stroke="#2E7D32" stroke-width="3"/>
+<circle cx="70.00" cy="487.12" r="4" fill="#2E7D32"/>
+<text x="52.00" y="526" font-size="12">-0.10</text>
+<circle cx="265.00" cy="370.43" r="4" fill="#2E7D32"/>
+<text x="247.00" y="526" font-size="12">+0.00</text>
+<circle cx="460.00" cy="367.88" r="4" fill="#2E7D32"/>
+<text x="442.00" y="526" font-size="12">+0.10</text>
+<text x="550" y="328" font-size="16" font-weight="600">negative_temporal_difference_mae</text>
+<line x1="550" y1="505" x2="940" y2="505" stroke="#999"/>
+<line x1="550" y1="350" x2="550" y2="505" stroke="#999"/>
+<polyline points="550.00,487.12 745.00,381.94 940.00,367.88" fill="none" stroke="#6A1B9A" stroke-width="3"/>
+<circle cx="550.00" cy="487.12" r="4" fill="#6A1B9A"/>
+<text x="532.00" y="526" font-size="12">-0.10</text>
+<circle cx="745.00" cy="381.94" r="4" fill="#6A1B9A"/>
+<text x="727.00" y="526" font-size="12">+0.00</text>
+<circle cx="940.00" cy="367.88" r="4" fill="#6A1B9A"/>
+<text x="922.00" y="526" font-size="12">+0.10</text>
+</svg>

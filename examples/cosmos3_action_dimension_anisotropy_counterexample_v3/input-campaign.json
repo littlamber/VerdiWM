@@ -1,0 +1,93 @@
+{
+  "acceptance": {
+    "maximum_dev_accept_alignment_error": 0.5,
+    "require_accept_locality_admission": true
+  },
+  "artifact_type": "verdiwm-cosmos3-fingerprint-campaign",
+  "campaign_id": "cosmos3_irg_calibration_action_dimension_anisotropy_v3",
+  "claim_scope": "Pre-registered action-dimension anisotropy probe on a fresh dev3/accept3 split; not model-improvement evidence.",
+  "formal_claim_requires": "dev3 locality admission, independently complete accept3 receipts, accept3 locality admission, and frozen dev3/accept3 Jacobian alignment",
+  "heldout_split_ref": "configs/goal/cosmos3_forward_dynamics_split_v3.json",
+  "locality_admission": {
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5
+  },
+  "outcomes": [
+    {
+      "name": "rollout_video_psnr",
+      "sign": 1.0,
+      "source_metric": "rollout_video_psnr",
+      "weight": 1.0
+    },
+    {
+      "name": "negative_rollout_video_l1",
+      "sign": -1.0,
+      "source_metric": "rollout_video_l1",
+      "weight": 2.0
+    },
+    {
+      "name": "negative_final_frame_mae",
+      "sign": -1.0,
+      "source_metric": "final_frame_mae",
+      "weight": 2.0
+    },
+    {
+      "name": "negative_temporal_difference_mae",
+      "sign": -1.0,
+      "source_metric": "temporal_difference_mae",
+      "weight": 1.0
+    }
+  ],
+  "predecessor_campaign": {
+    "campaign_id": "cosmos3_irg_calibration_translation_positive_narrow_v2",
+    "decision": "retire further translation-radius shrinking and switch to an independently frozen action-dimension anisotropy axis",
+    "observed_accept_locality_residual": 2.446800670881418,
+    "observed_dev_accept_alignment_error": 1.9998156227234105,
+    "settlement_ref": "results/reports/cosmos3-translation-narrow-v2-settlement-r1/directional-probe-settlement.json",
+    "settlement_state": "settled_abstained"
+  },
+  "probe": {
+    "dose_domain": "symmetric_local",
+    "dose_unit": "relative_action_dimension_contrast_balance",
+    "doses": [
+      -0.1,
+      0.0,
+      0.1
+    ],
+    "hook_type": "H2",
+    "invariants": [
+      "same_checkpoint",
+      "same_sample_window",
+      "same_seed",
+      "same_evaluator",
+      "zero_dose_byte_identity",
+      "per_dimension_temporal_mean_preserved",
+      "per_dimension_gain_bounded_between_0.9_and_1.1",
+      "fresh_dev3_and_accept3_windows",
+      "accept3_not_used_for_probe_selection",
+      "frozen_thresholds_unchanged"
+    ],
+    "probe_id": "action_dimension_anisotropy",
+    "reversible": true,
+    "scope": "inference_only",
+    "transformation": "preserve each action dimension's temporal mean and apply a bounded signed gain to its centered temporal contrast; positive dose reduces and negative dose increases cross-dimension log-RMS spread"
+  },
+  "probe_registry_ref": "configs/probes/cosmos3_acwm_forward_dynamics_v2.json",
+  "protocols": {
+    "paper": {
+      "required_receipts_per_dose": 3,
+      "split": "accept"
+    },
+    "pilot": {
+      "required_receipts_per_dose": 3,
+      "split": "dev"
+    }
+  },
+  "schema_version": 1,
+  "selection_policy": {
+    "accept_data_used_for_selection": false,
+    "reason": "translation-only split reversal motivates a different mechanism axis tied to the runtime-ready action-dimension-balancing primitive",
+    "selection_split": "dev",
+    "validation_split": "accept"
+  }
+}

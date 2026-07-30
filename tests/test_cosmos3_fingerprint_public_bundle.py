@@ -17,6 +17,12 @@ class Cosmos3FingerprintPublicBundleTests(unittest.TestCase):
     def test_labels_translation_only_probe(self) -> None:
         self.assertEqual(_probe_label("action_translation_scale"), "translation action scale")
 
+    def test_labels_action_dimension_anisotropy_probe(self) -> None:
+        self.assertEqual(
+            _probe_label("action_dimension_anisotropy"),
+            "action dimension balance",
+        )
+
     def test_selects_three_distinct_symmetric_or_one_sided_video_doses(self) -> None:
         self.assertEqual(_selected_video_doses([-0.1, -0.05, 0.0, 0.05, 0.1]), (-0.1, 0.0, 0.1))
         self.assertEqual(_selected_video_doses([0.0, 0.0125, 0.025]), (0.0, 0.0125, 0.025))

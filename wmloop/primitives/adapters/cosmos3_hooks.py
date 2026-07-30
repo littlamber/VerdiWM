@@ -41,6 +41,7 @@ HOOK_ANCHORS = {
 
 COSMOS3_ACTION_PROBE_DOSE_UNITS = {
     "action_conditioning_scale": "relative_action_input_scale",
+    "action_dimension_anisotropy": "relative_action_dimension_contrast_balance",
     "action_embedding_temporal_mix": "temporal_action_input_mix",
     "action_translation_scale": "relative_translation_action_scale",
 }
@@ -109,11 +110,30 @@ def apply_action_translation_scale(
     ]
 
 
+def apply_action_dimension_anisotropy(
+    actions: Sequence[Sequence[float]], *, dose: float
+) -> list[list[float]]:
+    """Dose per-dimension temporal contrast toward or away from balanced energy."""
+    value = float(dose)
+    if not math.isfinite(value) or abs(value) > 0.1:
+        raise Cosmos3HookError("COSMOS3_ACTION_DOSE_OUT_OF_RANGE")
+    matrix = _action_matrix(actions)
+    if len(matrix[0]) != 10:
+        raise Cosmos3HookError("COSMOS3_DROID_ACTION_LAYOUT_INVALID")
+    means, gains = _dimension_contrast_parameters(matrix, dose=value)
+    return [
+        [means[index] + (entry - means[index]) * gains[index] for index, entry in enumerate(row)]
+        for row in matrix
+    ]
+
+
 def apply_action_probe(
     actions: Sequence[Sequence[float]], *, probe_id: str, dose: float
 ) -> list[list[float]]:
     if probe_id == "action_conditioning_scale":
         return apply_action_conditioning_scale(actions, dose=dose)
+    if probe_id == "action_dimension_anisotropy":
+        return apply_action_dimension_anisotropy(actions, dose=dose)
     if probe_id == "action_embedding_temporal_mix":
         return apply_action_temporal_mix(actions, dose=dose)
     if probe_id == "action_translation_scale":
@@ -167,7 +187,11 @@ def materialize_action_json(
     if mode in COSMOS3_ACTION_PROBE_DOSE_UNITS:
         transformed = apply_action_probe(payload, probe_id=mode, dose=dose)
         parameters: dict[str, Any] = {"dose": float(dose)}
-        gains = None
+        gains = (
+            _dimension_contrast_parameters(_action_matrix(payload), dose=float(dose))[1]
+            if mode == "action_dimension_anisotropy"
+            else None
+        )
     elif mode == "action_dimension_balancing":
         transformed, gains = balance_action_dimensions(payload, blend=blend, max_gain=max_gain)
         parameters = {"blend": float(blend), "max_gain": float(max_gain)}
@@ -192,7 +216,17 @@ def materialize_action_json(
         "reversible": mode in COSMOS3_ACTION_PROBE_DOSE_UNITS and float(dose) != 1.0,
         "temporal_mean_max_abs_error": (
             _temporal_mean_max_abs_error(matrix=_action_matrix(payload), transformed=transformed)
-            if mode == "action_embedding_temporal_mix"
+            if mode in {"action_embedding_temporal_mix", "action_dimension_anisotropy"}
+            else None
+        ),
+        "action_dimension_log_energy_spread_before": (
+            _temporal_contrast_log_spread(_action_matrix(payload))
+            if mode == "action_dimension_anisotropy"
+            else None
+        ),
+        "action_dimension_log_energy_spread_after": (
+            _temporal_contrast_log_spread(transformed)
+            if mode == "action_dimension_anisotropy"
             else None
         ),
         "unchanged_nontranslation_max_abs_error": (
@@ -226,6 +260,47 @@ def _temporal_mean_max_abs_error(
         )
         for index in range(width)
     )
+
+
+def _dimension_contrast_parameters(
+    matrix: Sequence[Sequence[float]], *, dose: float, epsilon: float = 1e-8
+) -> tuple[list[float], list[float]]:
+    width = len(matrix[0])
+    means = [sum(row[index] for row in matrix) / len(matrix) for index in range(width)]
+    energies = [
+        math.sqrt(sum((row[index] - means[index]) ** 2 for row in matrix) / len(matrix))
+        for index in range(width)
+    ]
+    active = [index for index, energy in enumerate(energies) if energy > epsilon]
+    scores = [0.0] * width
+    if active:
+        logs = {index: math.log(energies[index]) for index in active}
+        center = sum(logs.values()) / len(logs)
+        raw = {index: center - value for index, value in logs.items()}
+        scale = max(abs(value) for value in raw.values())
+        if scale > epsilon:
+            for index, value in raw.items():
+                scores[index] = value / scale
+    gains = [1.0 + dose * score for score in scores]
+    if any(gain <= 0.0 or not math.isfinite(gain) for gain in gains):
+        raise Cosmos3HookError("COSMOS3_ACTION_DIMENSION_GAIN_INVALID")
+    return means, gains
+
+
+def _temporal_contrast_log_spread(
+    matrix: Sequence[Sequence[float]], *, epsilon: float = 1e-8
+) -> float:
+    width = len(matrix[0])
+    means = [sum(row[index] for row in matrix) / len(matrix) for index in range(width)]
+    logs = [
+        math.log(energy)
+        for index in range(width)
+        if (energy := math.sqrt(
+            sum((row[index] - means[index]) ** 2 for row in matrix) / len(matrix)
+        ))
+        > epsilon
+    ]
+    return max(logs) - min(logs) if len(logs) >= 2 else 0.0
 
 
 def _unchanged_columns_max_abs_error(

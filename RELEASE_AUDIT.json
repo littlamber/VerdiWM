@@ -32,6 +32,18 @@
     "state": "ready"
   },
   "cosmos3_fingerprint_validations": {
+    "cosmos3_action_dimension_anisotropy_counterexample_v3": {
+      "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+      "campaign_id": "cosmos3_irg_calibration_action_dimension_anisotropy_v3",
+      "cross_backbone_transfer_eligible": false,
+      "locality_admission_state": "failed",
+      "manifest_file_count": 11,
+      "measurement_count": 9,
+      "probe_id": "action_dimension_anisotropy",
+      "repeat_count": 3,
+      "state": "ready",
+      "video_count": 3
+    },
     "cosmos3_target_local_irg_narrow_v1": {
       "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
       "campaign_id": "cosmos3_irg_calibration_dev_narrow_v1",
@@ -113,7 +125,7 @@
     "settlement_state": "settled_abstained",
     "state": "ready"
   },
-  "file_count_before_manifest": 837,
+  "file_count_before_manifest": 856,
   "public_example_validation": {
     "artifact_count": 9,
     "artifact_type": "verdiwm-public-example-validation",
@@ -146,7 +158,7 @@
   "schema_version": 1,
   "source_license": "Apache-2.0",
   "state": "ready",
-  "total_bytes_before_manifest": 19469014,
+  "total_bytes_before_manifest": 20847979,
   "training_seed_horizon_validation": {
     "artifact_type": "verdiwm-public-training-seed-horizon-bundle-validation",
     "manifest_entry_count": 16,

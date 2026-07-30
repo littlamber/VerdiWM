@@ -1,0 +1,35 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+  "campaign_id": "cosmos3_irg_calibration_action_dimension_anisotropy_v3",
+  "claim_boundary": "Pre-registered action-dimension anisotropy probe on a fresh dev3/accept3 split; not model-improvement evidence.",
+  "cross_backbone_transfer_eligible": false,
+  "dose_unit": "relative_action_dimension_contrast_balance",
+  "locality_admission_state": "failed",
+  "measurement_count": 9,
+  "probe_id": "action_dimension_anisotropy",
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|action dimension balance -0.1000|action dimension balance +0.0000|action dimension balance +0.1000",
+      "path": "videos/sample-112-seed-707-dose-response.mp4",
+      "sample_index": 112,
+      "seed": 707
+    },
+    {
+      "layout": "GT|action dimension balance -0.1000|action dimension balance +0.0000|action dimension balance +0.1000",
+      "path": "videos/sample-144-seed-808-dose-response.mp4",
+      "sample_index": 144,
+      "seed": 808
+    },
+    {
+      "layout": "GT|action dimension balance -0.1000|action dimension balance +0.0000|action dimension balance +0.1000",
+      "path": "videos/sample-175-seed-909-dose-response.mp4",
+      "sample_index": 175,
+      "seed": 909
+    }
+  ]
+}

@@ -40,6 +40,7 @@ def parse_args() -> argparse.Namespace:
         "--action-probe",
         choices=(
             "action_conditioning_scale",
+            "action_dimension_anisotropy",
             "action_embedding_temporal_mix",
             "action_translation_scale",
         ),

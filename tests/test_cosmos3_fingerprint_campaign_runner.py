@@ -16,6 +16,63 @@ from wmloop.primitives.adapters.cosmos3_hooks import apply_action_probe, materia
 
 
 class Cosmos3FingerprintCampaignRunnerTests(unittest.TestCase):
+    def test_dimension_anisotropy_probe_preserves_means_and_balances_energy(self) -> None:
+        actions = [
+            [float(step), float(step) * 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+            for step in range(16)
+        ]
+        balanced = apply_action_probe(
+            actions,
+            probe_id="action_dimension_anisotropy",
+            dose=0.1,
+        )
+        amplified = apply_action_probe(
+            actions,
+            probe_id="action_dimension_anisotropy",
+            dose=-0.1,
+        )
+        for index in range(10):
+            self.assertAlmostEqual(
+                sum(row[index] for row in balanced),
+                sum(row[index] for row in actions),
+            )
+        source_ratio = _contrast_rms(actions, 0) / _contrast_rms(actions, 1)
+        balanced_ratio = _contrast_rms(balanced, 0) / _contrast_rms(balanced, 1)
+        amplified_ratio = _contrast_rms(amplified, 0) / _contrast_rms(amplified, 1)
+        self.assertLess(balanced_ratio, source_ratio)
+        self.assertGreater(amplified_ratio, source_ratio)
+
+    def test_dimension_anisotropy_receipt_proves_zero_identity_and_energy_change(self) -> None:
+        actions = [
+            [float(step), float(step) * 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0]
+            for step in range(16)
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.json"
+            source.write_text(json.dumps(actions), encoding="utf-8")
+            zero = materialize_action_json(
+                source=source,
+                destination=root / "zero.json",
+                mode="action_dimension_anisotropy",
+                dose=0.0,
+            )
+            positive = materialize_action_json(
+                source=source,
+                destination=root / "positive.json",
+                mode="action_dimension_anisotropy",
+                dose=0.1,
+            )
+            self.assertEqual((root / "zero.json").read_bytes(), source.read_bytes())
+        self.assertTrue(zero["zero_dose_byte_identity"])
+        self.assertEqual(zero["dose_unit"], "relative_action_dimension_contrast_balance")
+        self.assertEqual(len(positive["gains"]), 10)
+        self.assertLessEqual(positive["temporal_mean_max_abs_error"], 1e-12)
+        self.assertLess(
+            positive["action_dimension_log_energy_spread_after"],
+            positive["action_dimension_log_energy_spread_before"],
+        )
+
     def test_temporal_mix_dispatch_preserves_per_dimension_mean(self) -> None:
         actions = [[1.0, 4.0], [3.0, 0.0], [2.0, 2.0]]
         mixed = apply_action_probe(
@@ -109,6 +166,11 @@ class Cosmos3FingerprintCampaignRunnerTests(unittest.TestCase):
                     cwd=Path(temporary),
                     env=os.environ.copy(),
                 )
+
+
+def _contrast_rms(actions: list[list[float]], index: int) -> float:
+    mean = sum(row[index] for row in actions) / len(actions)
+    return (sum((row[index] - mean) ** 2 for row in actions) / len(actions)) ** 0.5
 
 
 if __name__ == "__main__":

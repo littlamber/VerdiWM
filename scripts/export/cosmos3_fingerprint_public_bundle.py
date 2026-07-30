@@ -358,6 +358,7 @@ def _readme(bundle: Mapping[str, object]) -> str:
 def _probe_label(probe_id: str) -> str:
     labels = {
         "action_conditioning_scale": "action scale",
+        "action_dimension_anisotropy": "action dimension balance",
         "action_embedding_temporal_mix": "temporal action mix",
         "action_translation_scale": "translation action scale",
     }

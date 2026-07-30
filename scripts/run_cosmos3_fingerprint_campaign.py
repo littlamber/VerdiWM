@@ -27,6 +27,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
     probe_id = str(campaign["probe"]["probe_id"])
     if probe_id not in {
         "action_conditioning_scale",
+        "action_dimension_anisotropy",
         "action_embedding_temporal_mix",
         "action_translation_scale",
     }:

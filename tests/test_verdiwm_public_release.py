@@ -188,6 +188,16 @@ class GithubStagingTests(unittest.TestCase):
             self.assertTrue(
                 (output / "tests" / "test_cosmos3_split_v2_protocol.py").is_file()
             )
+            self.assertTrue(
+                (
+                    output
+                    / "tests"
+                    / "test_cosmos3_action_dimension_anisotropy_protocol.py"
+                ).is_file()
+            )
+            self.assertTrue(
+                (output / "tests" / "test_cosmos3_shard_recovery.py").is_file()
+            )
             self.assertTrue((output / "examples" / "ctrl_world_target_local_irg_v1" / "bundle.json").is_file())
             self.assertTrue(
                 (output / "examples" / "cosmos3_target_local_irg_narrow_v1" / "bundle.json").is_file()
@@ -197,6 +207,14 @@ class GithubStagingTests(unittest.TestCase):
                     output
                     / "examples"
                     / "cosmos3_target_local_irg_temporal_mix_v1"
+                    / "bundle.json"
+                ).is_file()
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "cosmos3_action_dimension_anisotropy_counterexample_v3"
                     / "bundle.json"
                 ).is_file()
             )
@@ -227,6 +245,7 @@ class GithubStagingTests(unittest.TestCase):
                     "cosmos3_target_local_irg_wide_v1",
                     "cosmos3_target_local_irg_narrow_v1",
                     "cosmos3_target_local_irg_temporal_mix_v1",
+                    "cosmos3_action_dimension_anisotropy_counterexample_v3",
                 },
             )
             directional = audit["cosmos3_directional_settlement_validation"]

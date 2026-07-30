@@ -1,0 +1,91 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_action_dimension_anisotropy_v3",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_action_dimension_anisotropy_v3:pilot",
+    "covariance": [
+      [
+        0.3847077997416845,
+        0.002628051418599405,
+        0.009153863771776023,
+        0.0021632015985643452
+      ],
+      [
+        0.002628051418599405,
+        2.5119603687322565e-05,
+        8.196125878693866e-06,
+        2.0348275524288947e-05
+      ],
+      [
+        0.009153863771776023,
+        8.196125878693866e-06,
+        0.0006297848414252985,
+        9.234562132513142e-06
+      ],
+      [
+        0.0021632015985643452,
+        2.0348275524288947e-05,
+        9.234562132513142e-06,
+        1.649397464935984e-05
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_dimension_anisotropy"
+    ],
+    "jacobian": [
+      [
+        0.7325980663232734
+      ],
+      [
+        0.003920897712186104
+      ],
+      [
+        0.00711955776102532
+      ],
+      [
+        0.0049149991057687486
+      ]
+    ],
+    "locality_residuals": {
+      "action_dimension_anisotropy": 0.7386339991957633
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        0.5368572070799731
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      0.7325980663232734,
+      0.005544986721251228,
+      0.010068575143740635,
+      0.0049149991057687486
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Pre-registered action-dimension anisotropy probe on a fresh dev3/accept3 split; not model-improvement evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_dimension_anisotropy": 0.7386339991957633
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 9,
+  "protocol": "pilot",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "dev",
+  "state": "ready"
+}

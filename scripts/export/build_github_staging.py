@@ -91,6 +91,8 @@ PUBLIC_TEST_FILES = (
     "test_cosmos3_directional_settlement.py",
     "test_cosmos3_directional_settlement_public_bundle.py",
     "test_cosmos3_split_v2_protocol.py",
+    "test_cosmos3_action_dimension_anisotropy_protocol.py",
+    "test_cosmos3_shard_recovery.py",
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
@@ -120,6 +122,7 @@ COSMOS3_PUBLIC_EXAMPLES = (
     "cosmos3_target_local_irg_wide_v1",
     "cosmos3_target_local_irg_narrow_v1",
     "cosmos3_target_local_irg_temporal_mix_v1",
+    "cosmos3_action_dimension_anisotropy_counterexample_v3",
 )
 COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE = "cosmos3_directional_probe_split_reversal_v1"
 COSMOS3_TRANSLATION_PUBLIC_EXAMPLE = "cosmos3_translation_locality_counterexample_v1"
