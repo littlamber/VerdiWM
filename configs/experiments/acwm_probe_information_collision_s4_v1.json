@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-probe-information-and-collision-study-config",
+  "study_id": "S4_probe_information_and_collision",
+  "claim_boundary": "This is a diagnostic information and collision study; it cannot establish repair quality or transfer.",
+  "collision_ground_truth_available": false,
+  "conditions": {
+    "fixed_minimal_probe_set": {
+      "status": "observed",
+      "selector_replay_report": "results/reports/acwm-selector-cpu-replay-r5-full-consensus",
+      "interpretation": "Historical fixed mechanism-path replay under the frozen ACWM-Phys reference contract."
+    },
+    "random_probe_expansion": {
+      "status": "pending",
+      "reason": "No preregistered random-subset replay receipt exists yet; do not substitute static_probe."
+    },
+    "counterexample_gated_probe_evolution": {
+      "status": "observed",
+      "selector_replay_report": "results/reports/acwm-selector-cpu-replay-r15-collision-aware-transfer-certified",
+      "interpretation": "Collision-aware, counterexample-gated replay with fail-closed transfer certificates."
+    }
+  },
+  "collision_redundancy_reports": [
+    "results/reports/acwm-action-dimension-anisotropy-redundancy-r1",
+    "results/reports/acwm-motion-region-event-phase-lag-redundancy-r1"
+  ]
+}

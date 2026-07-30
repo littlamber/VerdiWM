@@ -71,6 +71,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_fingerprint_campaign_runner.py",
     "test_progressive_fidelity.py",
     "test_stage_progressive_fidelity_sources.py",
+    "test_probe_information.py",
     "test_ctrl_world_instance_adapters.py",
     "test_ctrl_world_predictive_adapter.py",
     "test_ctrl_world_predictive_instance.py",
