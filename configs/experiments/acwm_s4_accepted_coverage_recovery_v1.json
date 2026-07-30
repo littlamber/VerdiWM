@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "study_id": "S4_probe_information_and_collision",
+  "state": "preregistered",
+  "objective": "Determine whether zero certificate-accepted evolved coverage is caused by non-cumulative probe composition or by insufficient non-leaking source-effect support.",
+  "frozen_inputs": {
+    "selector_plan": "results/reports/acwm-selector-cpu-replay-r23-action-dimension-anisotropy/input-plan.json",
+    "effect_label_index": "results/reports/acwm-selector-cpu-replay-r23-action-dimension-anisotropy/input-effect-label-index.json",
+    "collision_labels": "results/reports/acwm-collision-label-evaluation-s4-r1/input-preregistration.json"
+  },
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "stage_1_existing_evidence_recomposition": {
+    "gpu_hours": 0,
+    "probe_paths": [
+      "action_conditioning_amplification",
+      "action_conditioning_attenuation",
+      "self_rollout_teacher_recovery",
+      "motion_region_event_phase_lag",
+      "action_temporal_alignment",
+      "action_dimension_anisotropy"
+    ],
+    "selection_rule": "Use the latest already-materialized counterexample-driven successor for each primitive mechanism and compose all successors cumulatively. Do not inspect target-local effect signs to choose a path.",
+    "success_criterion": "At least one held-out IRG fold passes the unchanged transfer certificate."
+  },
+  "stage_2_minimal_new_evidence_rule": {
+    "activation": "Run only if stage 1 has zero accepted folds.",
+    "priority": [
+      "missing target-local required probe coverage",
+      "missing non-leaking source-effect count",
+      "mixed source-effect signs requiring a collision-disambiguating probe"
+    ],
+    "budget_rule": "Collect only the smallest mechanism-specific probe campaign or settled source-effect confirmation needed to make one prespecified fold certificate-evaluable. No certificate threshold may be changed after observing results."
+  },
+  "claim_boundary": "This recovery study may establish nonzero certificate coverage only. It cannot establish improved collision rate until the independently frozen collision labels are rerun on accepted folds."
+}

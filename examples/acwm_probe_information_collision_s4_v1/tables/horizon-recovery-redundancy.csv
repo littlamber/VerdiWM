@@ -1,0 +1,3 @@
+environment,reference_probe_id,candidate_probe_id,cosine_similarity,relative_l2,candidate_locality_residual,candidate_locality_pass,redundant
+push_cube,self_rollout_teacher_recovery,self_rollout_horizon_recovery,0.9999999886226363,0.030072463289117512,0.038656367283664964,True,True
+robot_arm,self_rollout_teacher_recovery,self_rollout_horizon_recovery,0.9999999941741042,0.027398445026401135,0.15070988948589892,True,True

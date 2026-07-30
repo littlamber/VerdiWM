@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 2,
+  "state": "frozen_before_execution",
+  "decision": "run_full_eight_environment_self_rollout_horizon_recovery_pilot",
+  "trigger": {
+    "stage_1_replay": "results/reports/acwm-selector-cpu-replay-r24-cumulative-successors/manifest.json",
+    "stage_1_replay_sha256": "26fd626670b59daa4820d0dea126b152561a38a951974ae6c71a1710bd0fdbc4",
+    "accepted_irg_fold_count": 0,
+    "certificate_failed_environment_count": 3,
+    "candidate_probe_coverage_incomplete_environment_count": 5
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_self_rollout_horizon_recovery_probe_pilot_v1.json",
+    "config_sha256": "057ac4d1258fabb99458107177ed61c863df5258337f3ffaea867fe387b4aee8",
+    "probe_id": "self_rollout_horizon_recovery",
+    "protocol": "pilot",
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_measurement_count": 120,
+    "gpu_count": 3,
+    "prior_smoke_status": "results/reports/acwm-self-rollout-horizon-recovery-collision-smoke-r1/status.json",
+    "prior_smoke_status_sha256": "b114adece78cef51efc4112f21f60b4da1e6dbdc361085bbc10863403d5a96c2"
+  },
+  "selection_rationale": [
+    "All three certificate-failed folds select self_forcing_finetune before certification.",
+    "Uniform teacher recovery admits mixed-sign source environments and therefore cannot satisfy the frozen unanimous-positive-source check.",
+    "Horizon-weighted teacher recovery was defined before this stage as the mechanism-specific successor for accumulating exposure error and already passed runtime smoke on two environments.",
+    "A single common eight-environment campaign is the minimum valid evidence unit for an eight-environment leave-one-out selector frame; per-environment probe substitution is prohibited."
+  ],
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "Build the horizon-recovery atlas, replace only the self_forcing_finetune required path in the cumulative affinity, rerun the same selector plan and effect-label index, then rerun the independently frozen collision labels without changing any threshold.",
+  "claim_boundary": "This stage is diagnostic evidence collection. It is not a model-improvement experiment and cannot by itself establish transfer safety or reduced collision rate."
+}
