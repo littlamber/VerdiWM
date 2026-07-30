@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 6,
+  "state": "frozen_before_execution",
+  "decision": "probe_multi_chunk_exposure_stability_then_conditionally_expand",
+  "trigger": {
+    "latest_selector_replay": "results/reports/acwm-selector-cpu-replay-r27-after-robot3322-audit/manifest.json",
+    "latest_selector_replay_sha256": "09d44ea00b8cff7c64befbb769456cff5ffaab03f4f316aeb69afcdc596eefa1",
+    "selector_cells": "results/reports/acwm-selector-cpu-replay-r27-after-robot3322-audit/tables/cells.csv",
+    "selector_cells_sha256": "2cf6c3564e1fe1d1bf9980bb20ff0b136a409dbf65988ba5968a5f8e0bc3d637",
+    "accepted_irg_fold_count": 0,
+    "candidate_probe_coverage_incomplete_environment_count": 2,
+    "missing_primitive": "next_forcing",
+    "missing_required_probe_path": "multi_chunk_exposure_stability",
+    "target_environments": ["cloth_move", "reacher"],
+    "target_selection_rule": "Use the two frozen r27 folds whose candidate set contains next_forcing and whose IRG cell abstains with candidate_probe_coverage_incomplete; do not inspect target-local effect signs.",
+    "nearest_existing_probe": "self_rollout_latest_feedback",
+    "nearest_existing_campaign": "results/reports/acwm-self-rollout-latest-feedback-campaign-pilot-r1",
+    "nearest_existing_campaign_status_sha256": "c46b5a5cb985b3c4217871d96ffbb72e354ff632325f34edad69f5dedc40912b"
+  },
+  "materialized_primitive_contract": {
+    "source": "wmloop/primitives/definitions/next_forcing/apply.py",
+    "source_sha256": "12d1d009b63aad11c210d5d642e043c744cc13d8b0a36915a991011d3621254d",
+    "actual_runtime_semantics": "Adds bounded supervised latent prefix-window auxiliary losses through the existing training_loss path.",
+    "explicit_non_claim": "The materialized primitive does not train on model-generated rollouts; the probe diagnoses cross-prefix exposure sensitivity as a mechanistic proxy and must not be described as direct generated-rollout training."
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_multi_chunk_exposure_stability_probe_pilot_v1.json",
+    "config_sha256": "1810b808d806882686b52b1535314405057036bce6a6f6c185572c80b05557ca",
+    "runtime": "scripts/run_acwm_fingerprint_probe.py",
+    "runtime_sha256": "f7b5df91dbdbc0ee44f72f5d7eba933c8fc39d8ee7f22f2edc25fcf4149f28b2",
+    "probe_id": "multi_chunk_exposure_stability",
+    "protocol": "pilot",
+    "chunk_count": 3,
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_full_measurement_count": 120,
+    "gpu_count": 3
+  },
+  "smoke_gate": {
+    "environments": ["cloth_move", "reacher"],
+    "measurement_count": 30,
+    "reference_campaign": "results/reports/acwm-self-rollout-latest-feedback-campaign-pilot-r1",
+    "reference_environment_manifest_sha256": {
+      "cloth_move": "938b3e7b5f8eb41095da57b219316b32db7bc0a40505c9cfcca2959de0f11d24",
+      "reacher": "a604cdc7df3448a93fdbde4e6c6ef9329933c0ef29ee625cc9b2ecf391c1a785"
+    },
+    "maximum_locality_residual": 0.5,
+    "minimum_cosine_similarity_for_redundancy": 0.999,
+    "maximum_relative_l2_for_redundancy": 0.1,
+    "expansion_rule": "Expand to the frozen eight-environment pilot only if runtime and receipt checks pass, at least one target environment passes locality, and the candidate is not redundant with self_rollout_latest_feedback on all locality-admitted target comparisons.",
+    "forbidden_selection_signals": ["primitive target effect sign", "selector rank", "collision label", "accepted fold outcome"]
+  },
+  "selection_rationale": [
+    "The cumulative primitive-probe affinity marks next_forcing as probe_missing and requires multi_chunk_exposure_stability.",
+    "The frozen r27 replay identifies exactly cloth_move and reacher as IRG folds with next_forcing candidate coverage incomplete.",
+    "The new path applies piecewise prefix-chunk recovery, which is algebraically distinct from the existing latest-state-only feedback path while preserving the same checkpoint, evaluator, seeds, dose frame, and autoregressive mode.",
+    "The probe and its claims are aligned to the actual supervised prefix-window runtime proxy; no generated-rollout training behavior is claimed."
+  ],
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "If the smoke gate admits expansion, collect the remaining six environments under the same campaign, build the atlas, replace only next_forcing's required path in a cumulative affinity, and rerun the unchanged selector plan, effect-label index, transfer certificate, and collision labels.",
+  "claim_boundary": "This stage tests whether piecewise multi-prefix recovery supplies a nonredundant local diagnostic direction for the implemented next_forcing proxy. It is not model-improvement evidence and cannot by itself establish selector superiority or transfer safety."
+}

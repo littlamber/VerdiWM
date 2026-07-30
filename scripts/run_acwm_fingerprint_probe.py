@@ -407,6 +407,67 @@ class AutoregressiveTeacherHorizonCurvatureRecoveryDose(AutoregressiveTeacherRec
         return self
 
 
+class AutoregressiveMultiChunkExposureStabilityDose(AutoregressiveTeacherRecoveryDose):
+    """Recover generated history in fixed prefix chunks after the anchor chunk."""
+
+    def __init__(
+        self,
+        dynamics_model,
+        dose: float,
+        teacher_history: torch.Tensor,
+        *,
+        chunk_count: int,
+    ) -> None:
+        super().__init__(dynamics_model, dose, teacher_history)
+        if not isinstance(chunk_count, int) or isinstance(chunk_count, bool):
+            raise RuntimeError("ACWM_MULTI_CHUNK_EXPOSURE_CHUNK_COUNT_INVALID")
+        if chunk_count < 2 or chunk_count > 8:
+            raise RuntimeError("ACWM_MULTI_CHUNK_EXPOSURE_CHUNK_COUNT_INVALID")
+        self.chunk_count = chunk_count
+
+    def __enter__(self):
+        dose = self.dose
+        teacher_history = self.teacher_history
+        chunk_count = self.chunk_count
+        original = self.original
+
+        def recovered_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1 or dose == 0.0:
+                return original(z, t, action)
+            if (
+                teacher_history.shape[0] != history.shape[0]
+                or teacher_history.shape[1] < history.shape[1]
+                or teacher_history.shape[2:] != history.shape[2:]
+            ):
+                raise RuntimeError("ACWM_MULTI_CHUNK_EXPOSURE_HISTORY_SHAPE_INVALID")
+            teacher = teacher_history[:, : history.shape[1]].to(
+                device=history.device, dtype=history.dtype
+            )
+            total_generated_slots = max(1, teacher_history.shape[1] - 1)
+            chunk_size = max(1, math.ceil(total_generated_slots / chunk_count))
+            generated_positions = torch.arange(
+                history.shape[1] - 1,
+                device=history.device,
+                dtype=torch.int64,
+            )
+            chunk_index = torch.div(
+                generated_positions,
+                chunk_size,
+                rounding_mode="floor",
+            ).clamp_max(chunk_count - 1)
+            chunk_weight = chunk_index.to(history.dtype) / float(chunk_count - 1)
+            weight = torch.cat(
+                [torch.zeros(1, device=history.device, dtype=history.dtype), chunk_weight]
+            )
+            shape = (1, history.shape[1]) + (1,) * (history.ndim - 2)
+            recovered_history = history + dose * weight.reshape(shape) * (teacher - history)
+            return original(torch.cat([recovered_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(recovered_forward, self.dit)
+        return self
+
+
 class AutoregressiveMotionDose:
     """Scale temporal increments in generated latent history."""
 
@@ -729,6 +790,19 @@ def _dose_context(
         return AutoregressiveTeacherHorizonCurvatureRecoveryDose(
             dynamics_model, dose, teacher_history
         )
+    if probe_id == "multi_chunk_exposure_stability":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_MULTI_CHUNK_EXPOSURE_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_MULTI_CHUNK_EXPOSURE_HISTORY_HOOK_MISSING")
+        if teacher_history is None:
+            raise RuntimeError("ACWM_MULTI_CHUNK_EXPOSURE_REFERENCE_MISSING")
+        return AutoregressiveMultiChunkExposureStabilityDose(
+            dynamics_model,
+            dose,
+            teacher_history,
+            chunk_count=probe.get("chunk_count"),
+        )
     if probe_id == "motion_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_MOTION_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -809,6 +883,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "self_rollout_teacher_recovery",
         "self_rollout_horizon_recovery",
         "self_rollout_horizon_recovery_curvature",
+        "multi_chunk_exposure_stability",
     }:
         with torch.no_grad():
             teacher_history = model.encode_obs(gt_video)

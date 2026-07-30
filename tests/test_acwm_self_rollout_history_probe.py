@@ -19,6 +19,7 @@ from scripts.run_acwm_fingerprint_probe import (
     AutoregressiveTeacherHorizonCurvatureRecoveryDose,
     AutoregressiveTeacherHorizonRecoveryDose,
     AutoregressiveTeacherRecoveryDose,
+    AutoregressiveMultiChunkExposureStabilityDose,
     AutoregressiveMotionDose,
     AutoregressiveMotionEventAlignmentDose,
     AutoregressiveMotionEventPhaseCurvatureDose,
@@ -71,6 +72,12 @@ SELF_HORIZON_CURVATURE_RECOVERY_CAMPAIGN = (
     / "configs"
     / "experiments"
     / "acwm_phys_self_rollout_horizon_recovery_curvature_probe_pilot_v1.json"
+)
+MULTI_CHUNK_EXPOSURE_CAMPAIGN = (
+    ROOT
+    / "configs"
+    / "experiments"
+    / "acwm_phys_multi_chunk_exposure_stability_probe_pilot_v1.json"
 )
 
 
@@ -443,6 +450,43 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
 
         with AutoregressiveTeacherHorizonCurvatureRecoveryDose(
             dynamics, 0.0, teacher
+        ):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed, z))
+
+    def test_multi_chunk_exposure_recovery_is_piecewise_and_reversible(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [3.0], [5.0], [7.0], [9.0], [11.0], [99.0]]])
+        teacher = torch.tensor([[[1.0], [2.0], [4.0], [6.0], [8.0], [10.0], [98.0]]])
+        t = torch.zeros(1, 7)
+        action = torch.zeros(1, 7, 1)
+
+        with AutoregressiveMultiChunkExposureStabilityDose(
+            dynamics, 0.5, teacher, chunk_count=3
+        ):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :3], z[:, :3]))
+        self.assertTrue(torch.equal(observed[:, 3:5], torch.tensor([[[6.75], [8.75]]])))
+        self.assertTrue(torch.equal(observed[:, 5:6], torch.tensor([[[10.5]]])))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(MULTI_CHUNK_EXPOSURE_CAMPAIGN)
+        context = _dose_context(dynamics, campaign, 0.0, teacher_history=teacher)
+        self.assertIsInstance(context, AutoregressiveMultiChunkExposureStabilityDose)
+
+    def test_multi_chunk_exposure_zero_dose_is_exact_identity(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.randn(2, 7, 3)
+        teacher = torch.randn(2, 7, 3)
+        t = torch.zeros(2, 7)
+        action = torch.zeros(2, 7, 1)
+
+        with AutoregressiveMultiChunkExposureStabilityDose(
+            dynamics, 0.0, teacher, chunk_count=3
         ):
             observed = dit(z, t, action)
 

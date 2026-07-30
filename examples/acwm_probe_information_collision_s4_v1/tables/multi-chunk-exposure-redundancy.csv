@@ -1,0 +1,3 @@
+environment,reference_probe_id,candidate_probe_id,cosine_similarity,relative_l2,candidate_locality_residual,candidate_locality_pass,redundant
+cloth_move,self_rollout_latest_feedback,multi_chunk_exposure_stability,0.9995302806283992,0.1477837683302472,0.07443243806363217,True,False
+reacher,self_rollout_latest_feedback,multi_chunk_exposure_stability,0.9983831544541503,0.8414687319962244,0.7690942116068242,False,False

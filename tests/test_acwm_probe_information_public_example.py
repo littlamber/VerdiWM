@@ -18,7 +18,11 @@ class AcwmProbeInformationPublicExampleTests(unittest.TestCase):
         self.assertEqual(summary["collision"]["labeled_case_count"], 8)
         self.assertEqual(summary["collision"]["accepted_coverage"], 0.0)
         self.assertIsNone(summary["collision"]["post_evolution_collision_rate"])
-        self.assertEqual(len(summary["prior_probe_evolution_attempts"]), 3)
+        self.assertEqual(summary["latest_probe_evolution"]["probe_id"], "multi_chunk_exposure_stability")
+        self.assertEqual(summary["latest_probe_evolution"]["measurement_count"], 120)
+        self.assertEqual(summary["latest_probe_evolution"]["locality_pass_count"], 7)
+        self.assertFalse(summary["latest_probe_evolution"]["generated_rollout_training_claimed"])
+        self.assertEqual(len(summary["prior_probe_evolution_attempts"]), 4)
         self.assertEqual(
             summary["prior_probe_evolution_attempts"][-1]["probe_id"],
             "self_rollout_horizon_recovery_curvature",

@@ -29,9 +29,19 @@ locality (`4.6426`); the locality-admitted `push_cube` response (`0.0358`) was
 redundant with linear horizon recovery (cosine `0.999999997`, relative L2
 `0.0221`). The frozen rule therefore rejected eight-environment expansion.
 
-The latest r27 replay retains five unresolved probe work orders,
+Stage 6 then materialized `multi_chunk_exposure_stability` for the supervised
+prefix-window proxy actually implemented by `next_forcing`; it does not claim
+generated-rollout training. The protocol-matched gate admitted `cloth_move`
+(locality `0.0744`, cosine `0.99953`, relative L2 `0.14778`) as local and
+non-redundant against latest-state feedback, while `reacher` failed locality
+(`0.7691`). The resulting eight-environment atlas has 120 complete measurements
+and 7/8 local environments.
+
+The latest r28 replay retains five unresolved probe work orders,
 but still accepts zero folds. Twelve IRG cells are stopped by the unchanged
 transfer certificate and twelve by incomplete target-local probe coverage. The
+new path cannot resolve the mixed 800/1000-step `cloth_move` target label or the
+unsupported `reacher` target candidate. The
 safety alert remains F1 `0.8571`; all four pre-certificate comparable choices
 are collisions, including the existing `pour_water` regression. Therefore the
 post-evolution collision rate is undefined, not zero, and S4 remains partial.

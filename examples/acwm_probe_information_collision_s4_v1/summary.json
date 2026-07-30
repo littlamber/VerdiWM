@@ -29,18 +29,24 @@
     "regressed_targets_before_certificate": ["pour_water"]
   },
   "latest_probe_evolution": {
-    "probe_id": "motion_region_event_phase_curvature",
+    "probe_id": "multi_chunk_exposure_stability",
     "environment_count": 8,
     "measurement_count": 120,
     "locality_pass_count": 7,
-    "target_locality_pass_environments": ["stack_cube"],
-    "target_locality_failed_environments": ["cloth_move"],
+    "target_locality_pass_environments": ["cloth_move"],
+    "target_locality_failed_environments": ["reacher"],
     "redundancy_decision": "admit_as_nonredundant",
-    "probe_work_order_count_before": 6,
+    "probe_work_order_count_before": 5,
     "probe_work_order_count_after": 5,
-    "transfer_certificate_abstention_count_before": 9,
+    "transfer_certificate_abstention_count_before": 12,
     "transfer_certificate_abstention_count_after": 12,
-    "accepted_fold_count_after_replay": 0
+    "accepted_fold_count_after_replay": 0,
+    "primitive_runtime_semantics": "supervised_prefix_window_proxy",
+    "generated_rollout_training_claimed": false,
+    "remaining_target_blockers": {
+      "cloth_move": "mixed_settled_checkpoint_effect_sign",
+      "reacher": "target_candidate_unsupported_and_probe_nonlocal"
+    }
   },
   "prior_probe_evolution_attempts": [
     {
@@ -54,6 +60,13 @@
       "measurement_count": 30,
       "target_locality_pass_count": 0,
       "decision": "reject_as_nonlocal"
+    },
+    {
+      "probe_id": "motion_region_event_phase_curvature",
+      "measurement_count": 120,
+      "locality_pass_count": 7,
+      "target_locality_pass_count": 1,
+      "decision": "admit_as_nonredundant"
     },
     {
       "probe_id": "self_rollout_horizon_recovery_curvature",
