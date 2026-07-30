@@ -39,6 +39,13 @@ def evaluate_probe_smoke_redundancy(
     reference_probe_ids: set[str] = set()
     candidate_probe_ids: set[str] = set()
     for environment in environments:
+        reference_manifest = _load_environment_manifest(reference_root, environment)
+        candidate_manifest = _load_environment_manifest(candidate_root, environment)
+        _assert_matched_measurement_contract(
+            reference_manifest,
+            candidate_manifest,
+            environment=environment,
+        )
         reference = _load_chart(reference_root, environment)
         candidate = _load_chart(candidate_root, environment)
         if reference.get("outcome_names") != candidate.get("outcome_names"):
@@ -78,13 +85,21 @@ def evaluate_probe_smoke_redundancy(
     candidate_probe_id = next(iter(candidate_probe_ids))
     if reference_probe_id == candidate_probe_id:
         raise ProbeSmokeRedundancyError("PROBE_REDUNDANCY_SUCCESSOR_NOT_NOVEL")
-    redundant = all(bool(row["redundant"]) for row in comparisons)
+    locality_admitted = [row for row in comparisons if bool(row["candidate_locality_pass"])]
+    expandable = any(not bool(row["redundant"]) for row in locality_admitted)
+    if expandable:
+        decision = "expand_collision_evidence"
+    elif locality_admitted:
+        decision = "reject_as_redundant"
+    else:
+        decision = "reject_no_local_evidence"
     report = {
         "schema_version": 1,
         "artifact_type": "verdiwm-probe-smoke-redundancy-gate",
         "state": "ready",
-        "decision": "reject_as_redundant" if redundant else "expand_collision_evidence",
-        "expand_to_eight_environment_pilot": not redundant,
+        "decision": decision,
+        "expand_to_eight_environment_pilot": expandable,
+        "locality_admitted_environment_count": len(locality_admitted),
         "reference_probe_id": reference_probe_id,
         "candidate_probe_id": candidate_probe_id,
         "thresholds": {
@@ -106,7 +121,8 @@ def evaluate_probe_smoke_redundancy(
             "artifact_type": "verdiwm-probe-smoke-redundancy-gate-manifest",
             "state": "ready",
             "decision": report["decision"],
-            "expand_to_eight_environment_pilot": not redundant,
+            "expand_to_eight_environment_pilot": expandable,
+            "locality_admitted_environment_count": len(locality_admitted),
             "environment_count": len(comparisons),
             "report_path": str(destination / "probe-smoke-redundancy.json"),
         },
@@ -124,6 +140,40 @@ def _load_chart(root: Path, environment: str) -> Mapping[str, Any]:
     if not isinstance(payload, Mapping):
         raise ProbeSmokeRedundancyError(f"PROBE_REDUNDANCY_CHART_INVALID:{path}")
     return payload
+
+
+def _load_environment_manifest(root: Path, environment: str) -> Mapping[str, Any]:
+    path = root / "environments" / environment / "manifest.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ProbeSmokeRedundancyError(f"PROBE_REDUNDANCY_MANIFEST_INVALID:{path}") from exc
+    if not isinstance(payload, Mapping):
+        raise ProbeSmokeRedundancyError(f"PROBE_REDUNDANCY_MANIFEST_INVALID:{path}")
+    return payload
+
+
+def _assert_matched_measurement_contract(
+    reference: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    *,
+    environment: str,
+) -> None:
+    fields = (
+        "environment",
+        "protocol",
+        "checkpoint_sha256",
+        "config_sha256",
+        "seeds",
+        "doses",
+        "measurement_count",
+    )
+    mismatched = [field for field in fields if reference.get(field) != candidate.get(field)]
+    if mismatched:
+        raise ProbeSmokeRedundancyError(
+            f"PROBE_REDUNDANCY_MEASUREMENT_CONTRACT_MISMATCH:{environment}:"
+            f"{','.join(mismatched)}"
+        )
 
 
 def _single_probe(chart: Mapping[str, Any], environment: str) -> str:

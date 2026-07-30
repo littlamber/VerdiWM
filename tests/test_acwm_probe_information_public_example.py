@@ -18,6 +18,14 @@ class AcwmProbeInformationPublicExampleTests(unittest.TestCase):
         self.assertEqual(summary["collision"]["labeled_case_count"], 8)
         self.assertEqual(summary["collision"]["accepted_coverage"], 0.0)
         self.assertIsNone(summary["collision"]["post_evolution_collision_rate"])
+        self.assertEqual(len(summary["prior_probe_evolution_attempts"]), 3)
+        self.assertEqual(
+            summary["prior_probe_evolution_attempts"][-1]["probe_id"],
+            "self_rollout_horizon_recovery_curvature",
+        )
+        self.assertTrue(
+            summary["prior_probe_evolution_attempts"][-1]["protocol_matched_to_reference"]
+        )
         for path in ROOT.rglob("*"):
             if path.is_file():
                 self.assertNotIn("/" + "mnt" + "/", path.read_text(errors="ignore"))

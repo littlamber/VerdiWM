@@ -370,6 +370,43 @@ class AutoregressiveTeacherHorizonRecoveryDose(AutoregressiveTeacherRecoveryDose
         return self
 
 
+class AutoregressiveTeacherHorizonCurvatureRecoveryDose(AutoregressiveTeacherRecoveryDose):
+    """Recover generated history with a convex quadratic history-age schedule."""
+
+    def __enter__(self):
+        dose = self.dose
+        teacher_history = self.teacher_history
+        original = self.original
+
+        def recovered_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1 or dose == 0.0:
+                return original(z, t, action)
+            if (
+                teacher_history.shape[0] != history.shape[0]
+                or teacher_history.shape[1] < history.shape[1]
+                or teacher_history.shape[2:] != history.shape[2:]
+            ):
+                raise RuntimeError("ACWM_TEACHER_HORIZON_CURVATURE_HISTORY_SHAPE_INVALID")
+            teacher = teacher_history[:, : history.shape[1]].to(
+                device=history.device, dtype=history.dtype
+            )
+            shape = (1, history.shape[1]) + (1,) * (history.ndim - 2)
+            normalized_age = torch.linspace(
+                0.0,
+                1.0,
+                steps=history.shape[1],
+                device=history.device,
+                dtype=history.dtype,
+            ).reshape(shape)
+            curvature_weight = normalized_age.square()
+            recovered_history = history + dose * curvature_weight * (teacher - history)
+            return original(torch.cat([recovered_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(recovered_forward, self.dit)
+        return self
+
+
 class AutoregressiveMotionDose:
     """Scale temporal increments in generated latent history."""
 
@@ -682,6 +719,16 @@ def _dose_context(
         if teacher_history is None:
             raise RuntimeError("ACWM_TEACHER_HORIZON_RECOVERY_REFERENCE_MISSING")
         return AutoregressiveTeacherHorizonRecoveryDose(dynamics_model, dose, teacher_history)
+    if probe_id == "self_rollout_horizon_recovery_curvature":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_TEACHER_HORIZON_CURVATURE_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_TEACHER_HORIZON_CURVATURE_HISTORY_HOOK_MISSING")
+        if teacher_history is None:
+            raise RuntimeError("ACWM_TEACHER_HORIZON_CURVATURE_REFERENCE_MISSING")
+        return AutoregressiveTeacherHorizonCurvatureRecoveryDose(
+            dynamics_model, dose, teacher_history
+        )
     if probe_id == "motion_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_MOTION_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -761,6 +808,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     if campaign["probe"]["probe_id"] in {
         "self_rollout_teacher_recovery",
         "self_rollout_horizon_recovery",
+        "self_rollout_horizon_recovery_curvature",
     }:
         with torch.no_grad():
             teacher_history = model.encode_obs(gt_video)

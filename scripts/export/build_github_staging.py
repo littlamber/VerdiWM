@@ -74,6 +74,7 @@ PUBLIC_TEST_FILES = (
     "test_progressive_fidelity.py",
     "test_stage_progressive_fidelity_sources.py",
     "test_probe_information.py",
+    "test_acwm_probe_smoke_redundancy.py",
     "test_random_probe_expansion.py",
     "test_collision_labels.py",
     "test_acwm_probe_information_public_example.py",

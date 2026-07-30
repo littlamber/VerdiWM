@@ -16,6 +16,7 @@ from scripts.run_acwm_fingerprint_probe import (
     AutoregressiveHistoryDose,
     AutoregressiveHistoryTemporalMixDose,
     AutoregressiveLatestFeedbackDose,
+    AutoregressiveTeacherHorizonCurvatureRecoveryDose,
     AutoregressiveTeacherHorizonRecoveryDose,
     AutoregressiveTeacherRecoveryDose,
     AutoregressiveMotionDose,
@@ -64,6 +65,12 @@ SELF_TEACHER_RECOVERY_CAMPAIGN = (
 )
 SELF_HORIZON_RECOVERY_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_horizon_recovery_probe_pilot_v1.json"
+)
+SELF_HORIZON_CURVATURE_RECOVERY_CAMPAIGN = (
+    ROOT
+    / "configs"
+    / "experiments"
+    / "acwm_phys_self_rollout_horizon_recovery_curvature_probe_pilot_v1.json"
 )
 
 
@@ -404,6 +411,42 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         campaign = load_campaign(SELF_HORIZON_RECOVERY_CAMPAIGN)
         context = _dose_context(dynamics, campaign, 0.0, teacher_history=teacher)
         self.assertIsInstance(context, AutoregressiveTeacherHorizonRecoveryDose)
+
+    def test_self_rollout_horizon_curvature_recovery_is_quadratic_in_history_age(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [3.0], [7.0], [9.0]]])
+        teacher = torch.tensor([[[1.0], [2.0], [5.0], [8.0]]])
+        t = torch.zeros(1, 4)
+        action = torch.zeros(1, 4, 1)
+
+        with AutoregressiveTeacherHorizonCurvatureRecoveryDose(
+            dynamics, 0.5, teacher
+        ):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :1], z[:, :1]))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertTrue(torch.equal(observed[:, 1:3], torch.tensor([[[2.875], [6.0]]])))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(SELF_HORIZON_CURVATURE_RECOVERY_CAMPAIGN)
+        context = _dose_context(dynamics, campaign, 0.0, teacher_history=teacher)
+        self.assertIsInstance(context, AutoregressiveTeacherHorizonCurvatureRecoveryDose)
+
+    def test_self_rollout_horizon_curvature_zero_dose_is_exact_identity(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [3.0], [7.0], [9.0]]])
+        teacher = torch.tensor([[[1.0], [2.0], [5.0], [8.0]]])
+        t = torch.zeros(1, 4)
+        action = torch.zeros(1, 4, 1)
+
+        with AutoregressiveTeacherHorizonCurvatureRecoveryDose(
+            dynamics, 0.0, teacher
+        ):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed, z))
 
 
 if __name__ == "__main__":

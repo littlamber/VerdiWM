@@ -14,7 +14,7 @@ mean Gram condition number of `79731.1816`.
 
 Eight fixed-selector top-1 cases were labeled using target-local settled
 official-gate signs: six collisions and two non-collisions. Counterexample
-evolution then tested three chronological successors without changing the
+evolution then tested four chronological successors without changing the
 certificate. Horizon-weighted teacher recovery produced 120 measurements and
 passed locality in 7/8 environments, but was redundant with uniform teacher
 recovery. Action-dimension interaction was non-redundant but failed locality in
@@ -23,7 +23,13 @@ passed its frozen smoke gate and produced a complete 120-measurement atlas with
 7/8 local environments; it recovered the `stack_cube` motion-region coverage
 gap but not `cloth_move`.
 
-The latest r26 replay reduces unresolved probe work orders from six to five,
+Stage 5 tested a quadratic history-age recovery successor under a protocol-
+matched 10-step pilot. The `reacher` response was non-redundant but failed
+locality (`4.6426`); the locality-admitted `push_cube` response (`0.0358`) was
+redundant with linear horizon recovery (cosine `0.999999997`, relative L2
+`0.0221`). The frozen rule therefore rejected eight-environment expansion.
+
+The latest r27 replay retains five unresolved probe work orders,
 but still accepts zero folds. Twelve IRG cells are stopped by the unchanged
 transfer certificate and twelve by incomplete target-local probe coverage. The
 safety alert remains F1 `0.8571`; all four pre-certificate comparable choices

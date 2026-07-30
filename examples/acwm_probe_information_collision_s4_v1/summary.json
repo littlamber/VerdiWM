@@ -54,6 +54,15 @@
       "measurement_count": 30,
       "target_locality_pass_count": 0,
       "decision": "reject_as_nonlocal"
+    },
+    {
+      "probe_id": "self_rollout_horizon_recovery_curvature",
+      "measurement_count": 30,
+      "protocol": "pilot",
+      "protocol_matched_to_reference": true,
+      "target_locality_pass_count": 1,
+      "locality_admitted_nonredundant_count": 0,
+      "decision": "reject_as_redundant"
     }
   ],
   "open_blocker": "nonzero_certificate_accepted_evolved_coverage_required",

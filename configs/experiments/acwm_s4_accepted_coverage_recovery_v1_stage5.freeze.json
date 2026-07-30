@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 5,
+  "state": "frozen_before_execution",
+  "decision": "probe_self_rollout_horizon_recovery_curvature_then_conditionally_expand",
+  "trigger": {
+    "latest_selector_replay": "results/reports/acwm-selector-cpu-replay-r27-after-robot3322-audit/manifest.json",
+    "latest_selector_replay_sha256": "09d44ea00b8cff7c64befbb769456cff5ffaab03f4f316aeb69afcdc596eefa1",
+    "probe_evolution_work_orders": "results/reports/acwm-selector-cpu-replay-r27-after-robot3322-audit/tables/probe-evolution-work-orders.csv",
+    "probe_evolution_work_orders_sha256": "5817536a8a77e635c80b90a351ade0e1c6f3fb753ffb5fdc3130a8264d01fb9b",
+    "transfer_work_orders": "results/reports/acwm-selector-cpu-replay-r27-after-robot3322-audit/tables/transfer-work-orders.csv",
+    "transfer_work_orders_sha256": "bfbe8e1a00113a12acdac09027f94cf9a7a379cb286615176a028171f7b1bfab",
+    "accepted_irg_fold_count": 0,
+    "remaining_probe_evolution_work_order_count": 5,
+    "self_rollout_horizon_curvature_work_order_count": 1,
+    "target_environments": ["reacher", "push_cube"],
+    "rejected_predecessor_probe": "self_rollout_horizon_recovery",
+    "rejected_predecessor_redundancy_report": "results/reports/acwm-self-rollout-horizon-recovery-redundancy-r1/probe-smoke-redundancy.json",
+    "rejected_predecessor_redundancy_sha256": "19f9928b8af61885541c302fa978d76e26674e4e8772ba154810e21ed323a180"
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_self_rollout_horizon_recovery_curvature_probe_pilot_v1.json",
+    "config_sha256": "e87e96ee0e3b437b0f2f119326086612e33c395b6484ef2bc0a800d33eba34c7",
+    "runtime": "scripts/run_acwm_fingerprint_probe.py",
+    "runtime_sha256": "0a45cfedbfb9f449912d58adc51116830e018fce2788d9a56cb95967c8a3f9de",
+    "probe_id": "self_rollout_horizon_recovery_curvature",
+    "protocol": "pilot",
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_full_measurement_count": 120,
+    "gpu_count": 3
+  },
+  "smoke_gate": {
+    "environments": ["reacher", "push_cube"],
+    "measurement_count": 30,
+    "reference_campaign": "results/reports/acwm-self-rollout-horizon-recovery-campaign-pilot-r1",
+    "reference_campaign_status_sha256": "ddeba63f458a0d28cb485e08043e7de65ca2190a5308a3b2fb972126314c5585",
+    "maximum_locality_residual": 0.5,
+    "minimum_cosine_similarity_for_redundancy": 0.999,
+    "maximum_relative_l2_for_redundancy": 0.1,
+    "expansion_rule": "Expand to the frozen eight-environment pilot only if runtime and receipt checks pass, at least one target environment passes locality, and the candidate is not redundant with linear self_rollout_horizon_recovery on all locality-admitted target comparisons.",
+    "forbidden_selection_signals": ["primitive target effect sign", "selector rank", "collision label", "accepted fold outcome"]
+  },
+  "selection_rationale": [
+    "The r27 work order requests self_rollout_horizon_recovery_curvature for the remaining self-forcing coverage gap.",
+    "The predecessor applies a linear history-age schedule and was redundant with uniform teacher recovery; the successor applies a convex quadratic schedule and therefore isolates acceleration of recoverable exposure error rather than its mean or slope.",
+    "The first conditioned latent, current noisy latent, input actions, checkpoint, evaluator, seeds, teacher reference, and symmetric dose frame remain unchanged.",
+    "Probe selection uses the frozen work order and algebraic non-equivalence only; no target-local primitive benefit label is used."
+  ],
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "If the smoke gate admits expansion, collect the remaining six environments under the same campaign, build the atlas, replace only self_forcing_finetune's required path in a cumulative affinity, and rerun the unchanged selector plan, effect-label index, transfer certificate, and collision labels.",
+  "claim_boundary": "This stage tests whether quadratic history-age recovery supplies a nonredundant local diagnostic direction. It is not model-improvement evidence and cannot by itself establish selector superiority or transfer safety."
+}
