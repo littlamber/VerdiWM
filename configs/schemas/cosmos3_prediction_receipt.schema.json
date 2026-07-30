@@ -88,6 +88,7 @@
           "enum": [
             "action_conditioning_scale",
             "action_dimension_anisotropy",
+            "action_dimension_interaction",
             "action_embedding_temporal_mix",
             "action_translation_scale"
           ]
@@ -97,6 +98,7 @@
           "enum": [
             "relative_action_input_scale",
             "relative_action_dimension_contrast_balance",
+            "radians_action_dimension_coupling",
             "temporal_action_input_mix",
             "relative_translation_action_scale"
           ]

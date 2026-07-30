@@ -13,8 +13,8 @@ plane, typed intervention and evidence contracts, ACWM-Phys, Ctrl-World, and
 Cosmos3 ACWM adapters, 17 materialized intervention primitives, an
 Interventional Repair Geometry (IRG) implementation, eight joint-frame
 ACWM-Phys IRG assets, development and paper-split Ctrl-World charts, one
-Cosmos3 forward-dynamics instantiation bundle, four settled Cosmos3
-target-local charts, two held-out directional split settlements, two
+Cosmos3 forward-dynamics instantiation bundle, six settled Cosmos3
+target-local charts, three held-out directional split settlements, three
 counterexample-driven probe-evolution settlements, and one integrity-checked
 operational closed-loop example.
 The release also includes a receipt-derived progressive-fidelity cost audit;
@@ -34,7 +34,7 @@ its modest savings are retained as a system limitation rather than hidden.
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
 | Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and paired-GT evidence are complete; held-out directional probes have correctly abstained, so transfer and LOBO remain prohibited |
-| Counterexample-driven diagnostic-probe evolution | Global scale, temporal mix, directional scale, translation-only scale, and action-dimension anisotropy produced retained counterexamples; the latest fresh dev3 successor fails the frozen locality gate before accept3 inspection |
+| Counterexample-driven diagnostic-probe evolution | Global scale, temporal mix, directional scale, translation-only scale, action-dimension anisotropy, and off-diagonal action coupling produced retained counterexamples; the fresh dev4 successor passes locality but reverses on accept4 |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
@@ -243,6 +243,16 @@ locality residual of `0.7386`, above the unchanged `0.5` threshold. The system
 therefore settles `settled_abstained` without inspecting accept3. This is
 evidence that probe evolution and the pre-acceptance safety gate execute as
 specified; it is not model-improvement or cross-backbone-transfer evidence.
+
+[`examples/cosmos3_action_dimension_interaction_split_reversal_v4`](examples/cosmos3_action_dimension_interaction_split_reversal_v4)
+records the structurally different off-diagonal successor on fresh dev4 and
+accept4 windows. Signed orthogonal rotations couple action dimensions
+`(0,3)`, `(1,4)`, `(2,5)`, and `(6,7)` while preserving temporal means,
+centered action energy, and dimensions 8/9. Dev4 passes locality with residual
+`0.0065`, but accept4 fails at `0.5672` and reverses the dominant response;
+the normalized Jacobian alignment error is `1.9998`. The frozen certificate
+therefore returns `settled_abstained` and prohibits LOBO. This is diagnostic
+split-instability evidence, not a model-improvement result.
 
 [`examples/acwm_eval_seed_replication_v1`](examples/acwm_eval_seed_replication_v1)
 adds 12 official 50-step gate receipts over four fixed checkpoint cells.

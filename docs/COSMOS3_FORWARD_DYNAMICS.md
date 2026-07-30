@@ -119,3 +119,19 @@ The path-sanitized evidence is checked in at
 `examples/cosmos3_directional_probe_split_reversal_v1`. It includes dev and
 accept charts, dose-response tables, three accept videos, the alignment plot,
 and SHA manifests.
+
+## Off-diagonal interaction successor
+
+After the diagonal action-dimension anisotropy probe failed on dev3, a fresh
+dev4/accept4 campaign froze a structurally different diagnostic direction.
+The hook applies signed orthogonal rotations to centered action pairs `(0,3)`,
+`(1,4)`, `(2,5)`, and `(6,7)`. It preserves each dimension's temporal mean,
+total centered action energy, exact zero-dose bytes, and dimensions 8/9.
+
+All 18 dev4/accept4 receipts carry clean physical-GPU audits. Dev4 locality
+passes at `0.0065`, while accept4 locality fails at `0.5672` under the unchanged
+`0.5` threshold. The normalized dev/accept Jacobian distance is `1.9998`, also
+above its frozen `0.5` threshold. The final state is `settled_abstained`, so
+LOBO remains prohibited. The public evidence, tables, alignment plot, and three
+accept videos are in
+`examples/cosmos3_action_dimension_interaction_split_reversal_v4`.

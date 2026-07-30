@@ -16,6 +16,75 @@ from wmloop.primitives.adapters.cosmos3_hooks import apply_action_probe, materia
 
 
 class Cosmos3FingerprintCampaignRunnerTests(unittest.TestCase):
+    def test_dimension_interaction_is_mean_and_energy_preserving_reversible_rotation(self) -> None:
+        actions = [
+            [
+                float(step),
+                float(step) * 0.5,
+                float(step) * -0.25,
+                float(step % 3),
+                float((step + 1) % 5),
+                float(step) * 0.125,
+                float(step % 4),
+                float(step) * -0.75,
+                0.25,
+                -1.0,
+            ]
+            for step in range(16)
+        ]
+        rotated = apply_action_probe(
+            actions,
+            probe_id="action_dimension_interaction",
+            dose=0.05,
+        )
+        recovered = apply_action_probe(
+            rotated,
+            probe_id="action_dimension_interaction",
+            dose=-0.05,
+        )
+        self.assertNotEqual(rotated, actions)
+        for index in range(10):
+            self.assertAlmostEqual(
+                sum(row[index] for row in rotated),
+                sum(row[index] for row in actions),
+                places=11,
+            )
+        self.assertAlmostEqual(_centered_energy(rotated), _centered_energy(actions), places=10)
+        for source_row, recovered_row in zip(actions, recovered, strict=True):
+            for source, value in zip(source_row, recovered_row, strict=True):
+                self.assertAlmostEqual(source, value, places=11)
+        for source_row, rotated_row in zip(actions, rotated, strict=True):
+            self.assertEqual(rotated_row[8:], source_row[8:])
+
+    def test_dimension_interaction_receipt_proves_runtime_invariants(self) -> None:
+        actions = [
+            [float(step + index) for index in range(9)] + [float(step % 2)]
+            for step in range(16)
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source.json"
+            source.write_text(json.dumps(actions), encoding="utf-8")
+            zero = materialize_action_json(
+                source=source,
+                destination=root / "zero.json",
+                mode="action_dimension_interaction",
+                dose=0.0,
+            )
+            positive = materialize_action_json(
+                source=source,
+                destination=root / "positive.json",
+                mode="action_dimension_interaction",
+                dose=0.05,
+            )
+            self.assertEqual((root / "zero.json").read_bytes(), source.read_bytes())
+        self.assertTrue(zero["zero_dose_byte_identity"])
+        self.assertEqual(positive["dose_unit"], "radians_action_dimension_coupling")
+        self.assertEqual(positive["coupling_pairs"], [[0, 3], [1, 4], [2, 5], [6, 7]])
+        self.assertLessEqual(positive["temporal_mean_max_abs_error"], 1e-12)
+        self.assertLessEqual(positive["action_dimension_centered_energy_relative_error"], 1e-12)
+        self.assertEqual(positive["unchanged_uncoupled_max_abs_error"], 0.0)
+
     def test_dimension_anisotropy_probe_preserves_means_and_balances_energy(self) -> None:
         actions = [
             [float(step), float(step) * 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0]
@@ -171,6 +240,15 @@ class Cosmos3FingerprintCampaignRunnerTests(unittest.TestCase):
 def _contrast_rms(actions: list[list[float]], index: int) -> float:
     mean = sum(row[index] for row in actions) / len(actions)
     return (sum((row[index] - mean) ** 2 for row in actions) / len(actions)) ** 0.5
+
+
+def _centered_energy(actions: list[list[float]]) -> float:
+    means = [sum(row[index] for row in actions) / len(actions) for index in range(len(actions[0]))]
+    return sum(
+        (row[index] - means[index]) ** 2
+        for row in actions
+        for index in range(len(row))
+    )
 
 
 if __name__ == "__main__":

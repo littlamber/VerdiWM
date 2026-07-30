@@ -105,6 +105,15 @@ reversed sign. `cosmos3_directional_settlement` therefore returns
 local charts, all accept dose-response videos, and the final certificate
 counterexample.
 
+The latest branch replaces diagonal contrast scaling with a mean- and
+energy-preserving orthogonal rotation over four frozen action-dimension pairs.
+It passes the dev4 locality gate (`0.0065`) but fails independent accept4
+locality (`0.5672`) and reverses the normalized Jacobian direction
+(`1.9998 > 0.5`). The
+`examples/cosmos3_action_dimension_interaction_split_reversal_v4` bundle
+retains the complete certificate counterexample. The result demonstrates
+fail-closed probe evolution; it does not license LOBO or establish repair.
+
 ## ACWM reference instance
 
 The public examples project ACWM runs into diagnosis, typed materialized

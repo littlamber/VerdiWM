@@ -1,0 +1,91 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint",
+  "campaign_id": "cosmos3_irg_calibration_action_dimension_interaction_v4",
+  "chart": {
+    "artifact_type": "verdiwm-irg-response-chart",
+    "chart_id": "cosmos3_irg_calibration_action_dimension_interaction_v4:paper",
+    "covariance": [
+      [
+        2.0662836253361774,
+        0.02994119697966085,
+        0.03197101729180475,
+        0.015954858965257265
+      ],
+      [
+        0.02994119697966085,
+        0.0006599680672000756,
+        0.0012377737716643758,
+        0.0002569528497938026
+      ],
+      [
+        0.03197101729180475,
+        0.0012377737716643758,
+        0.0031476149693850995,
+        0.0003351058698798071
+      ],
+      [
+        0.015954858965257265,
+        0.0002569528497938026,
+        0.0003351058698798071,
+        0.00012613086139793935
+      ]
+    ],
+    "goal_schema": "cosmos3_acwm_forward_dynamics_v1",
+    "intervention_names": [
+      "action_dimension_interaction"
+    ],
+    "jacobian": [
+      [
+        -0.7601093910894244
+      ],
+      [
+        -0.014779003654808906
+      ],
+      [
+        -0.013280089497920838
+      ],
+      [
+        -0.017210174115285838
+      ]
+    ],
+    "locality_residuals": {
+      "action_dimension_interaction": 0.5671691280665291
+    },
+    "outcome_names": [
+      "rollout_video_psnr",
+      "negative_rollout_video_l1",
+      "negative_final_frame_mae",
+      "negative_temporal_difference_mae"
+    ],
+    "repair_metric": [
+      [
+        0.5788530359676174
+      ]
+    ],
+    "repeat_count": 3,
+    "response_coordinate": [
+      -0.7601093910894244,
+      -0.020900667406992295,
+      -0.018780882677488158,
+      -0.017210174115285838
+    ],
+    "schema_version": 1
+  },
+  "claim_boundary": "Pre-registered action-dimension interaction probe on a fresh dev4/accept4 split; not model-improvement evidence.",
+  "locality_admission": {
+    "cross_backbone_transfer_eligible": false,
+    "failure_policy": "abstain",
+    "maximum_residual": 0.5,
+    "path_residuals": {
+      "action_dimension_interaction": 0.5671691280665291
+    },
+    "state": "failed",
+    "supported_local_paths": []
+  },
+  "measurement_count": 9,
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready"
+}

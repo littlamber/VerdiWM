@@ -42,7 +42,7 @@ The validator checks:
 - paper-level replication remains false for the shared-seed bundle;
 - public JSON and Markdown contain no local host paths.
 
-The four checked-in Cosmos3 target-local bundles each carry an independent
+The five checked-in Cosmos3 probe-evolution bundles each carry an independent
 `MANIFEST.sha256`. Validate them without model assets:
 
 ```bash
@@ -50,13 +50,14 @@ for example in \
   cosmos3_target_local_irg_wide_v1 \
   cosmos3_target_local_irg_narrow_v1 \
   cosmos3_target_local_irg_temporal_mix_v1 \
-  cosmos3_action_dimension_anisotropy_counterexample_v3; do
+  cosmos3_action_dimension_anisotropy_counterexample_v3 \
+  cosmos3_action_dimension_interaction_split_reversal_v4; do
   (cd "examples/${example}" && sha256sum -c MANIFEST.sha256)
 done
 ```
 
 The release builder repeats this coverage check, validates each indexed video,
-and records all four verdicts in `RELEASE_AUDIT.json`.
+and records all five verdicts in `RELEASE_AUDIT.json`.
 
 ## ACWM-Phys runtime
 

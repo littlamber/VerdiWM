@@ -271,6 +271,18 @@ class GithubStagingTests(unittest.TestCase):
                     / "bundle.json"
                 ).is_file()
             )
+            interaction = audit["cosmos3_interaction_settlement_validation"]
+            self.assertEqual(interaction["settlement_state"], "settled_abstained")
+            self.assertFalse(interaction["cross_backbone_transfer_eligible"])
+            self.assertEqual(interaction["accept_validation"]["locality_admission_state"], "failed")
+            self.assertTrue(
+                (
+                    output
+                    / "examples"
+                    / "cosmos3_action_dimension_interaction_split_reversal_v4"
+                    / "bundle.json"
+                ).is_file()
+            )
             self.assertTrue(
                 (output / "configs" / "constitution" / "ctrl_world_predictive_quality_pilot_v1.freeze.json").is_file()
             )

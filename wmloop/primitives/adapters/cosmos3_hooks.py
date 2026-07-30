@@ -42,9 +42,13 @@ HOOK_ANCHORS = {
 COSMOS3_ACTION_PROBE_DOSE_UNITS = {
     "action_conditioning_scale": "relative_action_input_scale",
     "action_dimension_anisotropy": "relative_action_dimension_contrast_balance",
+    "action_dimension_interaction": "radians_action_dimension_coupling",
     "action_embedding_temporal_mix": "temporal_action_input_mix",
     "action_translation_scale": "relative_translation_action_scale",
 }
+
+ACTION_DIMENSION_INTERACTION_PAIRS = ((0, 3), (1, 4), (2, 5), (6, 7))
+ACTION_DIMENSION_INTERACTION_UNCOUPLED = (8, 9)
 
 
 def audit_cosmos3_forward_dynamics_hooks(cosmos3_root: Path) -> dict[str, object]:
@@ -127,6 +131,31 @@ def apply_action_dimension_anisotropy(
     ]
 
 
+def apply_action_dimension_interaction(
+    actions: Sequence[Sequence[float]], *, dose: float
+) -> list[list[float]]:
+    """Rotate centered DROID action pairs without changing means or energy."""
+    value = float(dose)
+    if not math.isfinite(value) or abs(value) > 0.1:
+        raise Cosmos3HookError("COSMOS3_ACTION_DOSE_OUT_OF_RANGE")
+    matrix = _action_matrix(actions)
+    if len(matrix[0]) != 10:
+        raise Cosmos3HookError("COSMOS3_DROID_ACTION_LAYOUT_INVALID")
+    means = [sum(row[index] for row in matrix) / len(matrix) for index in range(10)]
+    cosine = math.cos(value)
+    sine = math.sin(value)
+    transformed: list[list[float]] = []
+    for row in matrix:
+        output = list(row)
+        for left, right in ACTION_DIMENSION_INTERACTION_PAIRS:
+            left_centered = row[left] - means[left]
+            right_centered = row[right] - means[right]
+            output[left] = means[left] + cosine * left_centered - sine * right_centered
+            output[right] = means[right] + sine * left_centered + cosine * right_centered
+        transformed.append(output)
+    return transformed
+
+
 def apply_action_probe(
     actions: Sequence[Sequence[float]], *, probe_id: str, dose: float
 ) -> list[list[float]]:
@@ -134,6 +163,8 @@ def apply_action_probe(
         return apply_action_conditioning_scale(actions, dose=dose)
     if probe_id == "action_dimension_anisotropy":
         return apply_action_dimension_anisotropy(actions, dose=dose)
+    if probe_id == "action_dimension_interaction":
+        return apply_action_dimension_interaction(actions, dose=dose)
     if probe_id == "action_embedding_temporal_mix":
         return apply_action_temporal_mix(actions, dose=dose)
     if probe_id == "action_translation_scale":
@@ -212,11 +243,36 @@ def materialize_action_json(
         "output_sha256": _sha256(destination_path),
         "shape": [len(transformed), len(transformed[0])],
         "gains": gains,
+        "coupling_pairs": (
+            [list(pair) for pair in ACTION_DIMENSION_INTERACTION_PAIRS]
+            if mode == "action_dimension_interaction"
+            else None
+        ),
         "dose_unit": COSMOS3_ACTION_PROBE_DOSE_UNITS.get(mode),
         "reversible": mode in COSMOS3_ACTION_PROBE_DOSE_UNITS and float(dose) != 1.0,
         "temporal_mean_max_abs_error": (
             _temporal_mean_max_abs_error(matrix=_action_matrix(payload), transformed=transformed)
-            if mode in {"action_embedding_temporal_mix", "action_dimension_anisotropy"}
+            if mode in {
+                "action_embedding_temporal_mix",
+                "action_dimension_anisotropy",
+                "action_dimension_interaction",
+            }
+            else None
+        ),
+        "action_dimension_centered_energy_relative_error": (
+            _centered_energy_relative_error(
+                matrix=_action_matrix(payload), transformed=transformed
+            )
+            if mode == "action_dimension_interaction"
+            else None
+        ),
+        "unchanged_uncoupled_max_abs_error": (
+            _unchanged_indices_max_abs_error(
+                matrix=_action_matrix(payload),
+                transformed=transformed,
+                indices=ACTION_DIMENSION_INTERACTION_UNCOUPLED,
+            )
+            if mode == "action_dimension_interaction"
             else None
         ),
         "action_dimension_log_energy_spread_before": (
@@ -301,6 +357,40 @@ def _temporal_contrast_log_spread(
         > epsilon
     ]
     return max(logs) - min(logs) if len(logs) >= 2 else 0.0
+
+
+def _centered_energy_relative_error(
+    *, matrix: Sequence[Sequence[float]], transformed: Sequence[Sequence[float]]
+) -> float:
+    width = len(matrix[0])
+    source_means = [sum(row[index] for row in matrix) / len(matrix) for index in range(width)]
+    transformed_means = [
+        sum(row[index] for row in transformed) / len(transformed) for index in range(width)
+    ]
+    source_energy = sum(
+        (row[index] - source_means[index]) ** 2
+        for row in matrix
+        for index in range(width)
+    )
+    transformed_energy = sum(
+        (row[index] - transformed_means[index]) ** 2
+        for row in transformed
+        for index in range(width)
+    )
+    return abs(transformed_energy - source_energy) / max(source_energy, 1e-12)
+
+
+def _unchanged_indices_max_abs_error(
+    *,
+    matrix: Sequence[Sequence[float]],
+    transformed: Sequence[Sequence[float]],
+    indices: Sequence[int],
+) -> float:
+    return max(
+        abs(row[index] - transformed_row[index])
+        for row, transformed_row in zip(matrix, transformed, strict=True)
+        for index in indices
+    )
 
 
 def _unchanged_columns_max_abs_error(

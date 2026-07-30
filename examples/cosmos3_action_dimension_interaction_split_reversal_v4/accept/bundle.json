@@ -1,0 +1,35 @@
+{
+  "artifact_type": "verdiwm-cosmos3-target-local-fingerprint-public-bundle",
+  "campaign_id": "cosmos3_irg_calibration_action_dimension_interaction_v4",
+  "claim_boundary": "Pre-registered action-dimension interaction probe on a fresh dev4/accept4 split; not model-improvement evidence.",
+  "cross_backbone_transfer_eligible": false,
+  "dose_unit": "radians_action_dimension_coupling",
+  "locality_admission_state": "failed",
+  "measurement_count": 9,
+  "probe_id": "action_dimension_interaction",
+  "protocol": "paper",
+  "repeat_count": 3,
+  "schema_version": 1,
+  "split": "accept",
+  "state": "ready",
+  "videos": [
+    {
+      "layout": "GT|action dimension interaction -0.0500|action dimension interaction +0.0000|action dimension interaction +0.0500",
+      "path": "videos/sample-465-seed-1111-dose-response.mp4",
+      "sample_index": 465,
+      "seed": 1111
+    },
+    {
+      "layout": "GT|action dimension interaction -0.0500|action dimension interaction +0.0000|action dimension interaction +0.0500",
+      "path": "videos/sample-529-seed-1212-dose-response.mp4",
+      "sample_index": 529,
+      "seed": 1212
+    },
+    {
+      "layout": "GT|action dimension interaction -0.0500|action dimension interaction +0.0000|action dimension interaction +0.0500",
+      "path": "videos/sample-689-seed-1313-dose-response.mp4",
+      "sample_index": 689,
+      "seed": 1313
+    }
+  ]
+}

@@ -14,6 +14,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -21,6 +22,11 @@ import imageio_ffmpeg
 from PIL import Image
 
 from cosmos_framework.data.vfm.action.datasets import DROIDLeRobotDataset
+
+
+VERDIWM_ROOT = Path(__file__).resolve().parents[2]
+if str(VERDIWM_ROOT) not in sys.path:
+    sys.path.insert(0, str(VERDIWM_ROOT))
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,6 +64,7 @@ def parse_args() -> argparse.Namespace:
         choices=(
             "action_conditioning_scale",
             "action_dimension_anisotropy",
+            "action_dimension_interaction",
             "action_embedding_temporal_mix",
             "action_translation_scale",
         ),
