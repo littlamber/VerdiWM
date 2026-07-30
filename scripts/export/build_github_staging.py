@@ -72,6 +72,9 @@ PUBLIC_TEST_FILES = (
     "test_progressive_fidelity.py",
     "test_stage_progressive_fidelity_sources.py",
     "test_probe_information.py",
+    "test_random_probe_expansion.py",
+    "test_collision_labels.py",
+    "test_acwm_probe_information_public_example.py",
     "test_ctrl_world_instance_adapters.py",
     "test_ctrl_world_predictive_adapter.py",
     "test_ctrl_world_predictive_instance.py",
@@ -228,6 +231,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_selector_ablation_v1",
             temporary / "examples" / "acwm_selector_ablation_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_probe_information_collision_s4_v1",
+            temporary / "examples" / "acwm_probe_information_collision_s4_v1",
         )
         _copy_tree(
             source / "examples" / "acwm_paper_primitive_matrix_v1",

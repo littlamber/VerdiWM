@@ -1,0 +1,4 @@
+condition,status,observed,claim_eligible,evaluated_cell_count,abstained_cell_count
+fixed_minimal_probe_set,observed,True,False,96,0
+random_probe_expansion,observed,True,False,1920,0
+counterexample_gated_probe_evolution,observed,True,False,72,24

@@ -147,7 +147,7 @@
     "settlement_state": "settled_abstained",
     "state": "ready"
   },
-  "file_count_before_manifest": 884,
+  "file_count_before_manifest": 899,
   "public_example_validation": {
     "artifact_count": 9,
     "artifact_type": "verdiwm-public-example-validation",
@@ -180,7 +180,7 @@
   "schema_version": 1,
   "source_license": "Apache-2.0",
   "state": "ready",
-  "total_bytes_before_manifest": 22537629,
+  "total_bytes_before_manifest": 22598359,
   "training_seed_horizon_validation": {
     "artifact_type": "verdiwm-public-training-seed-horizon-bundle-validation",
     "manifest_entry_count": 16,

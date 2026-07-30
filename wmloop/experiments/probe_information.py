@@ -24,6 +24,8 @@ METRICS = (
     "ranking_kendall_tau",
     "selection_regret",
     "negative_selection",
+    "probe_gpu_hours",
+    "gram_condition_number",
 )
 
 
@@ -121,18 +123,52 @@ def export_probe_information_study(
                 }
             )
 
+    collision_label_report: Mapping[str, Any] | None = None
+    collision_label_rows: list[dict[str, object]] = []
+    collision_label_value = config.get("collision_label_report")
+    if collision_label_value is not None:
+        if not isinstance(collision_label_value, str) or not collision_label_value:
+            raise ProbeInformationError("S4_COLLISION_LABEL_REPORT_INVALID")
+        collision_label_root = _resolve_path(collision_label_value, config_file.parents[2])
+        collision_label_file = collision_label_root / "collision-label-evaluation.json"
+        collision_label_report = _load_mapping(collision_label_file)
+        if (
+            collision_label_report.get("artifact_type") != "verdiwm-collision-label-evaluation"
+            or collision_label_report.get("state") != "ready"
+        ):
+            raise ProbeInformationError("S4_COLLISION_LABEL_REPORT_INVALID")
+        raw_cases = collision_label_report.get("cases")
+        if not isinstance(raw_cases, list) or any(not isinstance(row, Mapping) for row in raw_cases):
+            raise ProbeInformationError("S4_COLLISION_LABEL_CASES_INVALID")
+        collision_label_rows = [dict(row) for row in raw_cases]
+        source_refs.append({"role": "collision_labels", **_source_ref(collision_label_file)})
+
     observed_conditions = sum(bool(row["observed"]) for row in condition_rows)
     pending_conditions = len(condition_rows) - observed_conditions
-    ground_truth_available = bool(config.get("collision_ground_truth_available", False))
+    ground_truth_available = bool(
+        collision_label_report
+        and int(collision_label_report.get("positive_collision_count", 0)) > 0
+        and int(collision_label_report.get("negative_collision_count", 0)) > 0
+    )
+    collision_f1 = collision_label_report.get("collision_detection_f1") if collision_label_report else None
+    post_evolution_collision_rate = (
+        collision_label_report.get("post_evolution_collision_rate") if collision_label_report else None
+    )
+    collision_metrics_complete = collision_f1 is not None and post_evolution_collision_rate is not None
     report = {
         "schema_version": 1,
         "artifact_type": "verdiwm-probe-information-and-collision-study",
         "study_id": config["study_id"],
-        "state": "ready" if pending_conditions == 0 and ground_truth_available else "partial",
+        "state": (
+            "ready"
+            if pending_conditions == 0 and ground_truth_available and collision_metrics_complete
+            else "partial"
+        ),
         "claim_boundary": (
             "This report describes diagnostic probe information and redundancy smoke evidence. "
             "It does not establish primitive quality, selector superiority, or transfer. "
-            "Missing random expansion and collision ground truth remain explicit blockers."
+            "Any pending random-expansion evidence, missing collision labels, or zero accepted "
+            "post-evolution coverage remains an explicit blocker."
         ),
         "condition_count": len(condition_rows),
         "observed_condition_count": observed_conditions,
@@ -140,10 +176,23 @@ def export_probe_information_study(
         "conditions": condition_rows,
         "collision": {
             "comparison_count": len(collision_rows),
+            "labeled_case_count": len(collision_label_rows),
             "ground_truth_available": ground_truth_available,
-            "collision_detection_f1": None,
-            "post_evolution_collision_rate": None,
+            "collision_detection_f1": collision_f1,
+            "post_evolution_collision_rate": post_evolution_collision_rate,
+            "accepted_case_count": (
+                collision_label_report.get("accepted_case_count") if collision_label_report else None
+            ),
+            "accepted_coverage": (
+                collision_label_report.get("accepted_coverage") if collision_label_report else None
+            ),
+            "pre_certificate_collision_rate": (
+                collision_label_report.get("pre_certificate_collision_rate")
+                if collision_label_report
+                else None
+            ),
             "rows": collision_rows,
+            "labeled_cases": collision_label_rows,
         },
         "work_orders": [
             {
@@ -156,6 +205,11 @@ def export_probe_information_study(
                 "status": "open" if not ground_truth_available else "closed",
                 "action": "Add held-out effect-sign labels for paired collision/non-collision cases before reporting F1.",
             },
+            {
+                "id": "S4-COLLISION-ACCEPTED-COVERAGE",
+                "status": "open" if post_evolution_collision_rate is None else "closed",
+                "action": "Obtain non-zero certificate-accepted evolved coverage before reporting post-evolution collision rate.",
+            },
         ],
         "source_refs": source_refs,
     }
@@ -164,6 +218,7 @@ def export_probe_information_study(
         "probe-information-and-collision.md": _markdown(report).encode("utf-8"),
         "tables/conditions.csv": _conditions_csv(condition_rows).encode("utf-8"),
         "tables/collision-smoke.csv": _collision_csv(collision_rows).encode("utf-8"),
+        "tables/collision-labeled-cases.csv": _generic_csv(collision_label_rows).encode("utf-8"),
         "tables/paper-summary.tex": _latex(report).encode("utf-8"),
         "source-refs.json": canonical_json({"sources": source_refs}),
     }
@@ -178,6 +233,9 @@ def export_probe_information_study(
             "condition_count": len(condition_rows),
             "observed_condition_count": observed_conditions,
             "collision_comparison_count": len(collision_rows),
+            "collision_labeled_case_count": len(collision_label_rows),
+            "collision_detection_f1": collision_f1,
+            "post_evolution_collision_rate": post_evolution_collision_rate,
             "report_path": str(destination / "probe-information-and-collision.json"),
         },
         archive_db=archive_db,
@@ -270,6 +328,17 @@ def _collision_csv(rows: list[dict[str, object]]) -> str:
     return output.getvalue()
 
 
+def _generic_csv(rows: list[dict[str, object]]) -> str:
+    if not rows:
+        return ""
+    output = io.StringIO()
+    fields = sorted({key for row in rows for key in row})
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore", lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+
 def _markdown(report: Mapping[str, Any]) -> str:
     lines = [
         "# S4 Probe Information and Collision Study",
@@ -287,8 +356,11 @@ def _markdown(report: Mapping[str, Any]) -> str:
         [
             "",
             f"Collision smoke comparisons: `{report['collision']['comparison_count']}`",
+            f"Independently labeled cases: `{report['collision']['labeled_case_count']}`",
             "",
-            "Collision F1 is intentionally `null` until independent ground-truth labels are supplied.",
+            f"Collision F1: `{report['collision']['collision_detection_f1']}`",
+            f"Accepted coverage: `{report['collision']['accepted_coverage']}`",
+            f"Post-evolution collision rate: `{report['collision']['post_evolution_collision_rate']}`",
             "",
             "## Open Work",
         ]
@@ -300,7 +372,7 @@ def _markdown(report: Mapping[str, Any]) -> str:
 
 def _latex(report: Mapping[str, Any]) -> str:
     lines = [
-        "% S4 is partial until random expansion and collision ground truth are observed.",
+        "% S4 remains partial until all conditions and certificate-accepted collision metrics are observed.",
         "\\begin{tabular}{lrr}",
         "Condition & Observed & Claim eligible \\\\",
         "\\hline",

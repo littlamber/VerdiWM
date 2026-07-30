@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-public-acwm-probe-information-collision-s4",
+  "state": "partial",
+  "study_id": "S4_probe_information_and_collision",
+  "condition_count": 3,
+  "observed_condition_count": 3,
+  "pending_condition_count": 0,
+  "random_probe_expansion": {
+    "cpu_only": true,
+    "execution_count": 80,
+    "randomization_seed_count": 16,
+    "subset_sizes": [1, 2, 4, 6, 8],
+    "probe_gpu_hours": 0.0
+  },
+  "collision": {
+    "labeled_case_count": 8,
+    "positive_collision_count": 6,
+    "negative_collision_count": 2,
+    "collision_detection_precision": 0.75,
+    "collision_detection_recall": 1.0,
+    "collision_detection_f1": 0.8571428571428571,
+    "accepted_case_count": 0,
+    "accepted_coverage": 0.0,
+    "post_evolution_collision_rate": null,
+    "pre_certificate_comparable_case_count": 3,
+    "pre_certificate_collision_rate": 0.6666666666666666,
+    "corrected_targets_before_certificate": ["cloth_move"],
+    "regressed_targets_before_certificate": []
+  },
+  "open_blocker": "nonzero_certificate_accepted_evolved_coverage_required",
+  "claim_boundary": "Diagnostic-system evidence only. Zero accepted coverage prevents a post-evolution collision-rate claim."
+}
