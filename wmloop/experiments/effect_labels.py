@@ -70,6 +70,8 @@ def build_effect_label_index(
                 "environment": payload.get("environment"),
                 "primitive": payload.get("primitive"),
                 "seed": payload.get("seed"),
+                "training_seed": payload.get("training_seed"),
+                "eval_seed": payload.get("eval_seed", payload.get("seed")),
                 "execution_role": execution_role,
                 "evidence_settled": evidence_settled,
                 "selector_admissible": selector_admissible,

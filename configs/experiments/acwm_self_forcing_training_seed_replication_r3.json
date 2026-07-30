@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-acwm-targeted-gap-plan",
+  "experiment_id": "acwm-self-forcing-training-seed-replication-r3",
+  "state": "ready",
+  "preregistration_state": "frozen_before_execution",
+  "supersedes": "configs/experiments/acwm_self_forcing_training_seed_replication_r2.json",
+  "superseded_plan_sha256": "c53f5f6a1d80c0e3cec352bdc5cc4879acf58e6c07ff13d100e6a5e1a15699d5",
+  "source_settlement": "results/reports/acwm-self-forcing-source-effect-repair-settlement-r2/source-effect-repair-settlement.json",
+  "source_settlement_sha256": "bba4e3dabdebd3444cfd50d4e01f0b661945968381293ec7f071613a588ffd76",
+  "claim_boundary": "Independent-training-seed replication only. A 512 screen is not a positive effect label; frozen official-gate and multi-eval-seed evidence remain required.",
+  "seeds": [3311, 3322],
+  "screen_steps": 512,
+  "confirmation_steps": 1000,
+  "train_batch_size": 8,
+  "environment_records": [
+    {
+      "environment": "cloth_move",
+      "evidence_level": "eval_seed_reproducible_positive_training_seed_underreplicated",
+      "mechanism_hypothesis": "Self-forcing may reduce autoregressive exposure mismatch and appearance drift for deformable cloth dynamics, but the observed positive effect currently has only one reproducible training seed.",
+      "routed_failure_families": ["train_infer_mismatch", "appearance_drift"],
+      "diagnostic_probe_candidates": ["self_rollout_temporal_mix", "motion_region_event_phase_curvature"],
+      "recommended_existing_primitives": ["self_forcing_finetune"],
+      "primitive_parameters": {
+        "self_forcing_finetune": {
+          "self_forcing_lr": 1e-5,
+          "self_forcing_rollout_horizon": 8,
+          "self_forcing_steps": 1
+        }
+      }
+    },
+    {
+      "environment": "robot_arm",
+      "evidence_level": "eval_seed_sign_inconsistent_training_seed_replication",
+      "mechanism_hypothesis": "Self-forcing may reduce autoregressive exposure mismatch and appearance drift for articulated rollouts, but the retained checkpoint is sensitive to evaluation seed.",
+      "routed_failure_families": ["train_infer_mismatch", "appearance_drift"],
+      "diagnostic_probe_candidates": ["self_rollout_temporal_mix", "action_embedding_temporal_mix"],
+      "recommended_existing_primitives": ["self_forcing_finetune"],
+      "primitive_parameters": {
+        "self_forcing_finetune": {
+          "self_forcing_lr": 1e-5,
+          "self_forcing_rollout_horizon": 8,
+          "self_forcing_steps": 1
+        }
+      }
+    }
+  ],
+  "selection": {
+    "primitive": "self_forcing_finetune",
+    "positive_replication_target": "cloth_move",
+    "uncertainty_resolution_target": "robot_arm",
+    "failure_policy": "retain uncertainty and do not use failed or screen-only runs as positive source support"
+  }
+}

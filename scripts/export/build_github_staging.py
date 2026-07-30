@@ -60,6 +60,8 @@ PUBLIC_TEST_FILES = (
     "test_acwm_effect_label_completion_plan.py",
     "test_acwm_effect_label_gate_queue.py",
     "test_acwm_effect_labels.py",
+    "test_acwm_source_effect_audit.py",
+    "test_acwm_source_effect_repair.py",
     "test_acwm_selector_ablation.py",
     "test_acwm_selector_cpu_replay.py",
     "test_acwm_selector_projection_compose.py",
@@ -163,6 +165,17 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         for tree in CONFIG_TREES:
             _copy_tree(source / "configs" / tree, temporary / "configs" / tree)
         for name in (
+            "acwm_self_forcing_source_effect_repair_r1.json",
+            "acwm_self_forcing_source_effect_repair_r1.sha256",
+            "acwm_self_forcing_robot3311_eval_seed_repair_r1.json",
+            "acwm_self_forcing_robot3311_eval_seed_repair_r1.sha256",
+            "acwm_self_forcing_robot3322_eval_seed_repair_r1.json",
+            "acwm_self_forcing_robot3322_eval_seed_repair_r1.sha256",
+        ):
+            path = temporary / "configs" / "experiments" / name
+            if path.exists():
+                path.unlink()
+        for name in (
             "cosmos3_forward_dynamics_predictive_pilot_v1.json",
             "cosmos3_forward_dynamics_predictive_pilot_v1.freeze.json",
         ):
@@ -223,6 +236,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_training_seed_replication_cloth_self_forcing_v1",
             temporary / "examples" / "acwm_training_seed_replication_cloth_self_forcing_v1",
+        )
+        _copy_tree(
+            source / "examples" / "acwm_source_effect_repair_v1",
+            temporary / "examples" / "acwm_source_effect_repair_v1",
         )
         _copy_tree(
             source / "examples" / "acwm_progressive_fidelity_efficiency_v1",

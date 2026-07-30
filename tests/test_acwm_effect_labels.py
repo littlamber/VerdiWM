@@ -21,6 +21,8 @@ class ACWMEffectLabelIndexTests(unittest.TestCase):
                         "environment": "push_cube",
                         "primitive": "next_forcing",
                         "seed": 1,
+                        "training_seed": 11,
+                        "eval_seed": 101,
                         "steps": 50,
                         "candidate_checkpoint_step": 1000,
                         "official_quality_gate": {
@@ -56,6 +58,8 @@ class ACWMEffectLabelIndexTests(unittest.TestCase):
             self.assertEqual(manifest["settled_label_count"], 1)
             report = json.loads((root / "index" / "effect-label-index.json").read_text())
             self.assertEqual(report["missing_environments"], ["stack_cube"])
+            self.assertEqual(report["labels"][0]["training_seed"], 11)
+            self.assertEqual(report["labels"][0]["eval_seed"], 101)
 
 
 if __name__ == "__main__":

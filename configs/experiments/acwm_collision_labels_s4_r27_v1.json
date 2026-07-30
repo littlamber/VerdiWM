@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-collision-label-preregistration",
+  "experiment_id": "acwm_collision_labels_s4_r27_v1",
+  "study_id": "S4_probe_information_and_collision",
+  "selector": "irg",
+  "fixed_replay_root": "results/reports/acwm-selector-cpu-replay-r5-full-consensus",
+  "evolved_replay_root": "results/reports/acwm-selector-cpu-replay-r27-after-robot3322-audit",
+  "effect_label_index_path": "results/reports/acwm-selector-cpu-replay-r5-full-consensus/input-effect-label-index.json",
+  "evolved_replay_selection_rule": "latest_completed_iteration_not_best_metric",
+  "label_source": "settled_target_local_official_gate_sign",
+  "alert_policy": "evolved_fold_abstains_or_top1_primitive_sign_signature_changes",
+  "claim_boundary": "Historical frozen collision-label evaluation rerun on the latest chronological r27 replay after robot_arm training-seed audit. Evolved pre-certificate choices and certificate-protected accepted coverage are reported separately; no label or alert threshold changed."
+}

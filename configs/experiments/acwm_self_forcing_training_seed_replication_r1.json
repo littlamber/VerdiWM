@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-acwm-dynamic-gap-plan",
+  "experiment_id": "acwm-self-forcing-training-seed-replication-r1",
+  "state": "frozen_before_execution",
+  "source_settlement": "results/reports/acwm-self-forcing-source-effect-repair-settlement-r2/source-effect-repair-settlement.json",
+  "source_settlement_sha256": "bba4e3dabdebd3444cfd50d4e01f0b661945968381293ec7f071613a588ffd76",
+  "claim_boundary": "Independent-training-seed replication only. A 512 screen is not a positive effect label; frozen official-gate and multi-eval-seed evidence remain required.",
+  "seeds": [3311, 3322],
+  "screen_steps": 512,
+  "confirmation_steps": 1000,
+  "train_batch_size": 8,
+  "environment_records": [
+    {
+      "environment": "cloth_move",
+      "evidence_level": "eval_seed_reproducible_positive_training_seed_underreplicated",
+      "recommended_existing_primitives": ["self_forcing_finetune"],
+      "primitive_parameters": {
+        "self_forcing_finetune": {
+          "self_forcing_lr": 1e-5,
+          "self_forcing_rollout_horizon": 8,
+          "self_forcing_steps": 1
+        }
+      }
+    },
+    {
+      "environment": "robot_arm",
+      "evidence_level": "eval_seed_sign_inconsistent_training_seed_replication",
+      "recommended_existing_primitives": ["self_forcing_finetune"],
+      "primitive_parameters": {
+        "self_forcing_finetune": {
+          "self_forcing_lr": 1e-5,
+          "self_forcing_rollout_horizon": 8,
+          "self_forcing_steps": 1
+        }
+      }
+    }
+  ],
+  "selection": {
+    "primitive": "self_forcing_finetune",
+    "positive_replication_target": "cloth_move",
+    "uncertainty_resolution_target": "robot_arm",
+    "failure_policy": "retain uncertainty and do not use failed or screen-only runs as positive source support"
+  }
+}
