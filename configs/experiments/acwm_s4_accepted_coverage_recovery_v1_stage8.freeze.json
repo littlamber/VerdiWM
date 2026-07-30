@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 8,
+  "state": "frozen_before_execution",
+  "decision": "rerun_action_temporal_alignment_phase_with_protocol_matched_doses_then_conditionally_expand",
+  "trigger": {
+    "source_work_order": "results/reports/acwm-selector-cpu-replay-r28-cumulative-multi-chunk/tables/probe-evolution-work-orders.csv",
+    "source_work_order_sha256": "5817536a8a77e635c80b90a351ade0e1c6f3fb753ffb5fdc3130a8264d01fb9b",
+    "predecessor_freeze": "configs/experiments/acwm_s4_accepted_coverage_recovery_v1_stage7.freeze.json",
+    "predecessor_freeze_sha256": "0b3e64e068d94a06f8edc2eb7d46e66636a0790062a32de2c34abfe5b1f9186a",
+    "predecessor_campaign_status": "results/reports/acwm-action-temporal-alignment-phase-collision-pilot-r1/status.json",
+    "predecessor_campaign_status_sha256": "83a89c06fdbf17fe1447c4b413501081fd78bd0893ab6ccbea42618430891fc0",
+    "predecessor_environment_manifest_sha256": "618db5578d72e4602cb0a0f101ea36986f829fbededd886ca56134b742614422",
+    "predecessor_gate_state": "protocol_invalid_no_conclusion",
+    "predecessor_gate_error": "PROBE_REDUNDANCY_MEASUREMENT_CONTRACT_MISMATCH:push_sand:doses",
+    "protocol_error": "Stage 7 candidate doses [-0.1,-0.05,0,0.05,0.1] did not match the frozen action_temporal_alignment reference doses [-0.05,-0.025,0,0.025,0.05].",
+    "effect_values_inspected_for_retry_decision": false,
+    "target_environments": ["push_sand"],
+    "primitive": "inv_dyn_reward_finetune",
+    "successor_probe_axis": "action_temporal_alignment_phase"
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_action_temporal_alignment_phase_probe_pilot_v2.json",
+    "config_sha256": "2ca6b0c6ba79de044fc8d2a68583b18e0f588102cf83e5233d6c349bd03cd068",
+    "runtime": "scripts/run_acwm_fingerprint_probe.py",
+    "runtime_sha256": "cf5352b086fc0df41c44152a4719ec3f6d1d26e73bac077724ac19bc478668be",
+    "probe_id": "action_temporal_alignment_phase",
+    "protocol": "pilot",
+    "doses": [-0.05, -0.025, 0.0, 0.025, 0.05],
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_full_measurement_count": 120,
+    "gpu_count": 3
+  },
+  "smoke_gate": {
+    "environments": ["push_sand"],
+    "measurement_count": 15,
+    "reference_probe": "action_temporal_alignment",
+    "reference_campaign_config": "configs/experiments/acwm_phys_action_temporal_alignment_probe_pilot_v1.json",
+    "reference_campaign_config_sha256": "8382f411a57886387cc8389a7a7b7a44d73ef1daa358b8298e61f66fe6b7bfa1",
+    "reference_campaign": "results/reports/acwm-action-temporal-alignment-campaign-pilot-r1",
+    "reference_environment_manifest_sha256": {
+      "push_sand": "5874b2ce1fda702d5d8bc27b42113adbb9d7ed3f93b38530b3b934a078f91556"
+    },
+    "maximum_locality_residual": 0.5,
+    "minimum_cosine_similarity_for_redundancy": 0.999,
+    "maximum_relative_l2_for_redundancy": 0.1,
+    "expansion_rule": "Expand to the frozen eight-environment pilot only if runtime and receipt checks pass, push_sand passes locality, and the phase response is not redundant with action_temporal_alignment on push_sand.",
+    "forbidden_selection_signals": ["Stage 7 effect values", "primitive target effect sign", "selector rank", "collision label", "accepted fold outcome"]
+  },
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "If the protocol-matched smoke gate admits expansion, collect the remaining seven environments under the same v2 campaign, build the atlas, compose the admitted phase path with the original r28 atlas sources in one pass, and rerun the unchanged selector plan, effect-label index, transfer certificate, and collision labels.",
+  "claim_boundary": "Stage 7 produced no locality or redundancy conclusion because its dose contract was mismatched. Stage 8 is a protocol correction fixed before rerun; it remains diagnostic-only and not model-improvement or transfer evidence."
+}

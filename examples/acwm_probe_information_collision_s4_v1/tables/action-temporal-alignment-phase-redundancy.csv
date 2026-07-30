@@ -1,0 +1,2 @@
+environment,locality_residual,locality_pass,reference_probe,cosine_similarity,relative_l2,redundant,decision
+push_sand,0.3352343601,true,action_temporal_alignment,-0.9999999082,1.6160011530,false,admit_local_path

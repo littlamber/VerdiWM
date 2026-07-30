@@ -29,23 +29,23 @@
     "regressed_targets_before_certificate": ["pour_water"]
   },
   "latest_probe_evolution": {
-    "probe_id": "multi_chunk_exposure_stability",
+    "probe_id": "action_temporal_alignment_phase",
     "environment_count": 8,
     "measurement_count": 120,
     "locality_pass_count": 7,
-    "target_locality_pass_environments": ["cloth_move"],
-    "target_locality_failed_environments": ["reacher"],
+    "target_locality_pass_environments": ["push_sand"],
+    "target_locality_failed_environments": [],
+    "nonlocal_environments": ["push_rope"],
     "redundancy_decision": "admit_as_nonredundant",
     "probe_work_order_count_before": 5,
-    "probe_work_order_count_after": 5,
+    "probe_work_order_count_after": 4,
     "transfer_certificate_abstention_count_before": 12,
     "transfer_certificate_abstention_count_after": 12,
     "accepted_fold_count_after_replay": 0,
-    "primitive_runtime_semantics": "supervised_prefix_window_proxy",
-    "generated_rollout_training_claimed": false,
+    "primitive_runtime_semantics": "online_adjacent_latent_delta_to_action_regression_auxiliary_loss",
+    "persistent_inverse_dynamics_reward_model_claimed": false,
     "remaining_target_blockers": {
-      "cloth_move": "mixed_settled_checkpoint_effect_sign",
-      "reacher": "target_candidate_unsupported_and_probe_nonlocal"
+      "push_sand": "action_dimension_anisotropy_path_nonlocal"
     }
   },
   "prior_probe_evolution_attempts": [
@@ -76,6 +76,22 @@
       "target_locality_pass_count": 1,
       "locality_admitted_nonredundant_count": 0,
       "decision": "reject_as_redundant"
+    },
+    {
+      "probe_id": "multi_chunk_exposure_stability",
+      "measurement_count": 120,
+      "locality_pass_count": 7,
+      "target_locality_pass_count": 1,
+      "decision": "admit_as_nonredundant"
+    }
+  ],
+  "protocol_failures": [
+    {
+      "stage": 7,
+      "probe_id": "action_temporal_alignment_phase",
+      "reason": "candidate_and_reference_dose_grids_mismatched",
+      "effect_values_used": false,
+      "conclusion": "no_locality_or_redundancy_conclusion"
     }
   ],
   "open_blocker": "nonzero_certificate_accepted_evolved_coverage_required",

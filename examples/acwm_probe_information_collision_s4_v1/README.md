@@ -37,11 +37,22 @@ non-redundant against latest-state feedback, while `reacher` failed locality
 (`0.7691`). The resulting eight-environment atlas has 120 complete measurements
 and 7/8 local environments.
 
-The latest r28 replay retains five unresolved probe work orders,
-but still accepts zero folds. Twelve IRG cells are stopped by the unchanged
+Stage 7 materialized `action_temporal_alignment_phase` for the actual
+`inv_dyn_reward_finetune` hook, which regresses time-aligned actions from
+adjacent latent deltas. Its first 15 measurements are retained as a protocol
+failure only: the candidate dose grid did not match the reference grid, so no
+effect value entered a decision. Stage 8 froze the matched grid before rerun.
+On `push_sand`, the matched phase response is local (`0.3352`) and
+non-redundant with action-event alignment (cosine `-0.9999999`, relative L2
+`1.6160`). The expanded atlas is complete for all eight environments and local
+in 7/8; `push_rope` is excluded as nonlocal (`1.9803`).
+
+The latest r29 replay removes the `push_sand` inverse-dynamics work order and
+reduces unresolved probe work orders from five to four, but still accepts zero
+folds. Twelve IRG cells are stopped by the unchanged
 transfer certificate and twelve by incomplete target-local probe coverage. The
-new path cannot resolve the mixed 800/1000-step `cloth_move` target label or the
-unsupported `reacher` target candidate. The
+remaining `push_sand` fold is blocked by the nonlocal
+`action_dimension_anisotropy` path. The
 safety alert remains F1 `0.8571`; all four pre-certificate comparable choices
 are collisions, including the existing `pour_water` regression. Therefore the
 post-evolution collision rate is undefined, not zero, and S4 remains partial.

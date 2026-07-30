@@ -18,18 +18,20 @@ class AcwmProbeInformationPublicExampleTests(unittest.TestCase):
         self.assertEqual(summary["collision"]["labeled_case_count"], 8)
         self.assertEqual(summary["collision"]["accepted_coverage"], 0.0)
         self.assertIsNone(summary["collision"]["post_evolution_collision_rate"])
-        self.assertEqual(summary["latest_probe_evolution"]["probe_id"], "multi_chunk_exposure_stability")
+        self.assertEqual(summary["latest_probe_evolution"]["probe_id"], "action_temporal_alignment_phase")
         self.assertEqual(summary["latest_probe_evolution"]["measurement_count"], 120)
         self.assertEqual(summary["latest_probe_evolution"]["locality_pass_count"], 7)
-        self.assertFalse(summary["latest_probe_evolution"]["generated_rollout_training_claimed"])
-        self.assertEqual(len(summary["prior_probe_evolution_attempts"]), 4)
+        self.assertFalse(
+            summary["latest_probe_evolution"]["persistent_inverse_dynamics_reward_model_claimed"]
+        )
+        self.assertEqual(summary["latest_probe_evolution"]["probe_work_order_count_after"], 4)
+        self.assertEqual(len(summary["prior_probe_evolution_attempts"]), 5)
         self.assertEqual(
             summary["prior_probe_evolution_attempts"][-1]["probe_id"],
-            "self_rollout_horizon_recovery_curvature",
+            "multi_chunk_exposure_stability",
         )
-        self.assertTrue(
-            summary["prior_probe_evolution_attempts"][-1]["protocol_matched_to_reference"]
-        )
+        self.assertEqual(summary["protocol_failures"][0]["stage"], 7)
+        self.assertFalse(summary["protocol_failures"][0]["effect_values_used"])
         for path in ROOT.rglob("*"):
             if path.is_file():
                 self.assertNotIn("/" + "mnt" + "/", path.read_text(errors="ignore"))

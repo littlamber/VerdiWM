@@ -212,6 +212,64 @@ class ActionEmbeddingEventAlignmentDose:
         return False
 
 
+class ActionEmbeddingEventPhaseDose:
+    """Dose the local temporal phase tangent of action-event contrast."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.embedder = dynamics_model.model.action_embedder
+        self.original = self.embedder.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def phase_forward(_module, action):
+            embedding = original(action)
+            if action.ndim != 3 or embedding.ndim != 3 or action.shape[0] != embedding.shape[0]:
+                raise RuntimeError("ACWM_ACTION_EVENT_PHASE_SHAPE_INVALID")
+            if dose == 0.0 or action.shape[1] < 2 or embedding.shape[1] < 2:
+                return embedding
+
+            action_delta = torch.cat(
+                [torch.zeros_like(action[:, :1]), action[:, 1:] - action[:, :-1]], dim=1
+            ).abs().mean(dim=-1)
+            event_scale = action_delta.amax(dim=1, keepdim=True)
+            event_weight = torch.where(
+                event_scale > 1e-12,
+                action_delta / event_scale.clamp_min(1e-12),
+                torch.zeros_like(action_delta),
+            )
+            if event_weight.shape[1] != embedding.shape[1]:
+                event_weight = torch.nn.functional.interpolate(
+                    event_weight.unsqueeze(1),
+                    size=embedding.shape[1],
+                    mode="linear",
+                    align_corners=True,
+                ).squeeze(1)
+
+            previous_weight = torch.cat(
+                [torch.zeros_like(event_weight[:, :1]), event_weight[:, :-1]], dim=1
+            )
+            next_weight = torch.cat(
+                [event_weight[:, 1:], torch.zeros_like(event_weight[:, :1])], dim=1
+            )
+            phase_tangent = 0.5 * (next_weight - previous_weight)
+            temporal_mean = embedding.mean(dim=1, keepdim=True)
+            perturbation = phase_tangent.unsqueeze(-1).to(embedding.dtype) * (
+                embedding - temporal_mean
+            )
+            perturbation = perturbation - perturbation.mean(dim=1, keepdim=True)
+            return embedding + dose * perturbation
+
+        self.embedder.forward = MethodType(phase_forward, self.embedder)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.embedder.forward = self.original
+        return False
+
+
 class AutoregressiveHistoryDose:
     """Scale generated latent history around the first conditioned latent."""
 
@@ -746,6 +804,10 @@ def _dose_context(
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_EVENT_ALIGNMENT_HOOK_MISSING")
         return ActionEmbeddingEventAlignmentDose(dynamics_model, dose)
+    if probe_id == "action_temporal_alignment_phase":
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_ACTION_EVENT_PHASE_HOOK_MISSING")
+        return ActionEmbeddingEventPhaseDose(dynamics_model, dose)
     if probe_id == "self_rollout_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_HISTORY_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")

@@ -12,6 +12,7 @@ from scripts.run_acwm_fingerprint_probe import (
     ActionDimensionAnisotropyDose,
     ActionDimensionInteractionDose,
     ActionEmbeddingEventAlignmentDose,
+    ActionEmbeddingEventPhaseDose,
     ActionEmbeddingTemporalMixDose,
     AutoregressiveHistoryDose,
     AutoregressiveHistoryTemporalMixDose,
@@ -44,6 +45,12 @@ ACTION_DIMENSION_INTERACTION_CAMPAIGN = (
 )
 ACTION_EVENT_ALIGNMENT_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_alignment_probe_pilot_v1.json"
+)
+ACTION_EVENT_PHASE_CAMPAIGN = (
+    ROOT
+    / "configs"
+    / "experiments"
+    / "acwm_phys_action_temporal_alignment_phase_probe_pilot_v1.json"
 )
 MOTION_REGION_CAMPAIGN = ROOT / "configs" / "experiments" / "acwm_phys_motion_region_probe_pilot_v1.json"
 MOTION_EVENT_CAMPAIGN = (
@@ -231,6 +238,45 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         action = torch.ones(1, 4, 2)
 
         with ActionEmbeddingEventAlignmentDose(dynamics, 0.5):
+            observed = embedder(action)
+
+        self.assertTrue(torch.equal(observed, action))
+
+    def test_action_event_phase_is_mean_preserving_and_antisymmetric(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.tensor([[[0.0], [1.0], [1.0], [3.0], [3.0]]])
+
+        with ActionEmbeddingEventPhaseDose(dynamics, 0.1):
+            positive = embedder(action)
+        with ActionEmbeddingEventPhaseDose(dynamics, -0.1):
+            negative = embedder(action)
+
+        self.assertFalse(torch.equal(positive, action))
+        self.assertTrue(torch.allclose(positive.mean(dim=1), action.mean(dim=1)))
+        self.assertTrue(torch.allclose(positive - action, -(negative - action)))
+        self.assertTrue(torch.equal(embedder(action), action))
+        campaign = load_campaign(ACTION_EVENT_PHASE_CAMPAIGN)
+        self.assertIsInstance(
+            _dose_context(dynamics, campaign, 0.0), ActionEmbeddingEventPhaseDose
+        )
+
+    def test_action_event_phase_zero_dose_is_exact_identity(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.randn(2, 5, 3)
+
+        with ActionEmbeddingEventPhaseDose(dynamics, 0.0):
+            observed = embedder(action)
+
+        self.assertTrue(torch.equal(observed, action))
+
+    def test_action_event_phase_is_identity_without_action_transition(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.ones(1, 4, 2)
+
+        with ActionEmbeddingEventPhaseDose(dynamics, 0.1):
             observed = embedder(action)
 
         self.assertTrue(torch.equal(observed, action))

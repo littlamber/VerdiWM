@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 7,
+  "state": "frozen_before_execution",
+  "decision": "probe_action_temporal_alignment_phase_then_conditionally_expand",
+  "trigger": {
+    "latest_selector_replay": "results/reports/acwm-selector-cpu-replay-r28-cumulative-multi-chunk/manifest.json",
+    "latest_selector_replay_sha256": "765ce4b73c35f798f8d17c81adc3f999d10ef4bd390e4fb29d22cdd2d8f0e076",
+    "probe_evolution_work_orders": "results/reports/acwm-selector-cpu-replay-r28-cumulative-multi-chunk/tables/probe-evolution-work-orders.csv",
+    "probe_evolution_work_orders_sha256": "5817536a8a77e635c80b90a351ade0e1c6f3fb753ffb5fdc3130a8264d01fb9b",
+    "accepted_irg_fold_count": 0,
+    "selected_work_order_count": 1,
+    "primitive": "inv_dyn_reward_finetune",
+    "nonlocal_or_missing_required_probe_path": "action_temporal_alignment",
+    "successor_probe_axis": "action_temporal_alignment_phase",
+    "target_environments": ["push_sand"],
+    "target_selection_rule": "Select only the frozen r28 probe-evolution work order for push_sand and inv_dyn_reward_finetune; do not inspect target-local effect signs, selector rank, or collision labels."
+  },
+  "materialized_primitive_contract": {
+    "source": "wmloop/primitives/definitions/inv_dyn_reward_finetune/apply.py",
+    "source_sha256": "12c4bff85d7fe9511a7f035d87a9bb168e0abf04a19dbe1ae549c0a58a91349f",
+    "actual_runtime_semantics": "Spatially pools adjacent latent deltas, fits a detached online ridge inverse head from those deltas to time-aligned input actions, and adds the weighted action-regression MSE to the base training loss.",
+    "explicit_non_claim": "The materialized primitive is an online latent action-identifiability auxiliary loss, not a learned persistent inverse-dynamics reward model and not downstream task-success optimization."
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_action_temporal_alignment_phase_probe_pilot_v1.json",
+    "config_sha256": "f568b5de79ed16e84e71b13c131303faf3495aaa24d2df36d4c1e85268feac3a",
+    "runtime": "scripts/run_acwm_fingerprint_probe.py",
+    "runtime_sha256": "cf5352b086fc0df41c44152a4719ec3f6d1d26e73bac077724ac19bc478668be",
+    "probe_id": "action_temporal_alignment_phase",
+    "protocol": "pilot",
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_full_measurement_count": 120,
+    "gpu_count": 3
+  },
+  "smoke_gate": {
+    "environments": ["push_sand"],
+    "measurement_count": 15,
+    "reference_probe": "action_temporal_alignment",
+    "reference_campaign": "results/reports/acwm-action-temporal-alignment-campaign-pilot-r1",
+    "reference_campaign_status_sha256": "8e14302dc92a20dad84357fa3db5a0e4b28ae394861a566d3c6db11031e4e651",
+    "reference_environment_manifest_sha256": {
+      "push_sand": "5874b2ce1fda702d5d8bc27b42113adbb9d7ed3f93b38530b3b934a078f91556"
+    },
+    "maximum_locality_residual": 0.5,
+    "minimum_cosine_similarity_for_redundancy": 0.999,
+    "maximum_relative_l2_for_redundancy": 0.1,
+    "expansion_rule": "Expand to the frozen eight-environment pilot only if runtime and receipt checks pass, push_sand passes locality, and the phase response is not redundant with action_temporal_alignment on push_sand.",
+    "forbidden_selection_signals": ["primitive target effect sign", "selector rank", "collision label", "accepted fold outcome"]
+  },
+  "selection_rationale": [
+    "The frozen r28 replay emits exactly one inv_dyn_reward_finetune probe-evolution work order: push_sand requires the action_temporal_alignment_phase successor.",
+    "The implemented auxiliary loss pairs adjacent latent deltas with time-aligned actions, so a signed event-phase tangent tests temporal pairing sensitivity more directly than event-magnitude contrast alone.",
+    "The successor leaves the external action sequence unchanged, has an exact identity at zero dose, preserves the per-trajectory action-embedding mean, and is restored after each paired inference.",
+    "The probe remains diagnostic-only and cannot establish model improvement, primitive benefit, or transfer safety."
+  ],
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "If the smoke gate admits expansion, collect the remaining seven environments under the same campaign, build the atlas, add the admitted phase path without removing the existing alignment path, and rerun the unchanged selector plan, effect-label index, transfer certificate, and collision labels.",
+  "claim_boundary": "This stage tests whether signed action-event phase response supplies a local nonredundant diagnostic direction for the implemented adjacent-latent inverse-action auxiliary loss. It is not repair-quality evidence and cannot by itself recover or validate accepted IRG coverage."
+}
