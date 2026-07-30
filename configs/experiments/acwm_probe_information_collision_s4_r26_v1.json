@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-probe-information-and-collision-study-config",
+  "study_id": "S4_probe_information_and_collision",
+  "claim_boundary": "This is a diagnostic information and collision study; it cannot establish repair quality or transfer.",
+  "conditions": {
+    "fixed_minimal_probe_set": {
+      "status": "observed",
+      "selector_replay_report": "results/reports/acwm-selector-cpu-replay-r5-full-consensus",
+      "interpretation": "Historical fixed mechanism-path replay under the frozen ACWM-Phys reference contract."
+    },
+    "random_probe_expansion": {
+      "status": "observed",
+      "selector_replay_report": "results/reports/acwm-random-probe-expansion-s4-r1",
+      "interpretation": "Preregistered deterministic random IRG path subsets under the frozen ACWM-Phys LOEO split; this is not static_probe."
+    },
+    "counterexample_gated_probe_evolution": {
+      "status": "observed",
+      "selector_replay_report": "results/reports/acwm-selector-cpu-replay-r26-cumulative-phase-curvature",
+      "selection_rule": "latest_completed_iteration_not_best_metric",
+      "interpretation": "Latest chronological counterexample-gated iteration after a rejected action-interaction successor and an admitted motion-event phase-curvature campaign, with the original fail-closed transfer certificate unchanged."
+    }
+  },
+  "collision_redundancy_reports": [
+    "results/reports/acwm-action-dimension-anisotropy-redundancy-r1",
+    "results/reports/acwm-motion-region-event-phase-lag-redundancy-r1",
+    "results/reports/acwm-self-rollout-horizon-recovery-redundancy-r1",
+    "results/reports/acwm-action-dimension-interaction-redundancy-r1",
+    "results/reports/acwm-motion-region-event-phase-curvature-redundancy-r1"
+  ],
+  "collision_label_report": "results/reports/acwm-collision-label-evaluation-s4-r3-phase-curvature"
+}

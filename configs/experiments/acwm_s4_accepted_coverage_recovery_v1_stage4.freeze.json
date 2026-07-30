@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 4,
+  "state": "frozen_before_execution",
+  "decision": "probe_motion_region_event_phase_curvature_then_conditionally_expand",
+  "trigger": {
+    "stage_3_status": "results/reports/acwm-action-dimension-interaction-collision-smoke-r1/status.json",
+    "stage_3_status_sha256": "7c6dbc03c5a9833f1d2fa6b0fa7eb27beee3b0e68654430bfff4aa2bf9ac9799",
+    "stage_3_redundancy_report": "results/reports/acwm-action-dimension-interaction-redundancy-r1/probe-smoke-redundancy.json",
+    "stage_3_redundancy_sha256": "5cd54244cc14d4d1826870f67c99b1966bf3168e03145fbe055fb4a3e8bf3103",
+    "stage_3_locality_pass_count": 0,
+    "stage_3_expansion_gate_passed": false,
+    "remaining_probe_evolution_work_order_count": 4,
+    "motion_region_event_phase_curvature_work_order_count": 2,
+    "target_environments": ["cloth_move", "stack_cube"]
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_motion_region_event_phase_curvature_probe_pilot_v1.json",
+    "config_sha256": "547f3cb0d9a8e3c3d314e4a0bbd3c793f61b64c93baede2abbc6474593c75cd5",
+    "runtime": "scripts/run_acwm_fingerprint_probe.py",
+    "runtime_sha256": "1af99cd9e03446810f3a0e65188b37e9c91679e481e51e616cfe89a99f62f1e3",
+    "probe_id": "motion_region_event_phase_curvature",
+    "protocol": "pilot",
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_full_measurement_count": 120,
+    "gpu_count": 3
+  },
+  "smoke_gate": {
+    "environments": ["cloth_move", "stack_cube"],
+    "measurement_count": 30,
+    "reference_campaign": "results/reports/acwm-motion-region-event-phase-lag-campaign-pilot-r1",
+    "maximum_locality_residual": 0.5,
+    "minimum_cosine_similarity_for_redundancy": 0.999,
+    "maximum_relative_l2_for_redundancy": 0.1,
+    "expansion_rule": "Expand to the frozen eight-environment pilot only if runtime and receipt checks pass, at least one target environment passes locality, and the candidate is not redundant with motion_region_event_phase_lag on all locality-admitted target comparisons.",
+    "forbidden_selection_signals": ["primitive target effect sign", "selector rank", "collision label", "accepted fold outcome"]
+  },
+  "selection_rationale": [
+    "The r25 work orders request motion_region_event_phase_curvature for both cloth_move and stack_cube, the largest remaining shared mechanism-specific gap after stage 3.",
+    "The predecessor phase-lag probe measures a first temporal difference of action-event salience; the successor measures a normalized second difference, adding curvature rather than rescaling the same response direction.",
+    "Spatial motion masking, first-conditioned-latent preservation, current-noisy-latent preservation, and action immutability remain unchanged, isolating the new temporal derivative order.",
+    "Probe selection uses work-order coverage and algebraic non-equivalence only; no target-local primitive benefit label is used."
+  ],
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "If the smoke gate admits expansion, collect the remaining six environments under the same campaign, build the atlas, replace only motion_region_reweight's required path in the cumulative affinity, and rerun the unchanged selector plan, effect-label index, transfer certificate, and collision labels.",
+  "claim_boundary": "This stage tests whether event-phase curvature supplies missing local diagnostic coverage. It is not model-improvement evidence and cannot by itself establish selector superiority or transfer safety."
+}

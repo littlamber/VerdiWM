@@ -10,6 +10,7 @@ torch = pytest.importorskip("torch")
 
 from scripts.run_acwm_fingerprint_probe import (
     ActionDimensionAnisotropyDose,
+    ActionDimensionInteractionDose,
     ActionEmbeddingEventAlignmentDose,
     ActionEmbeddingTemporalMixDose,
     AutoregressiveHistoryDose,
@@ -19,6 +20,7 @@ from scripts.run_acwm_fingerprint_probe import (
     AutoregressiveTeacherRecoveryDose,
     AutoregressiveMotionDose,
     AutoregressiveMotionEventAlignmentDose,
+    AutoregressiveMotionEventPhaseCurvatureDose,
     AutoregressiveMotionEventPhaseLagDose,
     AutoregressiveMotionRegionDose,
     _dose_context,
@@ -35,6 +37,9 @@ ACTION_TEMPORAL_MIX_CAMPAIGN = (
 ACTION_DIMENSION_ANISOTROPY_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_dimension_anisotropy_probe_pilot_v1.json"
 )
+ACTION_DIMENSION_INTERACTION_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_action_dimension_interaction_probe_pilot_v1.json"
+)
 ACTION_EVENT_ALIGNMENT_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_action_temporal_alignment_probe_pilot_v1.json"
 )
@@ -44,6 +49,9 @@ MOTION_EVENT_CAMPAIGN = (
 )
 MOTION_EVENT_PHASE_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_motion_region_event_phase_lag_probe_pilot_v1.json"
+)
+MOTION_EVENT_CURVATURE_CAMPAIGN = (
+    ROOT / "configs" / "experiments" / "acwm_phys_motion_region_event_phase_curvature_probe_pilot_v1.json"
 )
 SELF_TEMPORAL_MIX_CAMPAIGN = (
     ROOT / "configs" / "experiments" / "acwm_phys_self_rollout_temporal_mix_probe_pilot_v1.json"
@@ -152,6 +160,43 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         campaign = load_campaign(ACTION_DIMENSION_ANISOTROPY_CAMPAIGN)
         self.assertIsInstance(_dose_context(dynamics, campaign, 0.0), ActionDimensionAnisotropyDose)
 
+    def test_action_dimension_interaction_preserves_mean_energy_and_unpaired_dimension(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.tensor(
+            [[[0.0, 2.0, 7.0], [1.0, 4.0, 8.0], [2.0, 6.0, 9.0]]]
+        )
+
+        with ActionDimensionInteractionDose(dynamics, 0.05):
+            observed = embedder(action)
+
+        centered_before = action - action.mean(dim=1, keepdim=True)
+        centered_after = observed - observed.mean(dim=1, keepdim=True)
+        self.assertFalse(torch.equal(observed[..., :2], action[..., :2]))
+        self.assertTrue(torch.allclose(observed.mean(dim=1), action.mean(dim=1)))
+        self.assertTrue(
+            torch.allclose(
+                centered_after[..., :2].square().sum(),
+                centered_before[..., :2].square().sum(),
+            )
+        )
+        self.assertTrue(torch.equal(observed[..., 2], action[..., 2]))
+        self.assertTrue(torch.equal(embedder(action), action))
+        campaign = load_campaign(ACTION_DIMENSION_INTERACTION_CAMPAIGN)
+        self.assertIsInstance(
+            _dose_context(dynamics, campaign, 0.0), ActionDimensionInteractionDose
+        )
+
+    def test_action_dimension_interaction_zero_dose_is_exact_identity(self) -> None:
+        embedder = _IdentityActionEmbedder()
+        dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
+        action = torch.randn(2, 5, 7)
+
+        with ActionDimensionInteractionDose(dynamics, 0.0):
+            observed = embedder(action)
+
+        self.assertTrue(torch.equal(observed, action))
+
     def test_action_event_alignment_preserves_embedding_mean(self) -> None:
         embedder = _IdentityActionEmbedder()
         dynamics = SimpleNamespace(model=SimpleNamespace(action_embedder=embedder))
@@ -225,6 +270,38 @@ class AcwmSelfRolloutHistoryProbeTests(unittest.TestCase):
         action = torch.ones(1, 4, 2)
 
         with AutoregressiveMotionEventAlignmentDose(dynamics, 0.5):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed, z))
+
+    def test_motion_event_phase_curvature_is_event_local_and_reversible(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [2.0], [4.0], [7.0], [9.0]]])
+        t = torch.zeros(1, 5)
+        action = torch.tensor([[[0.0], [0.0], [2.0], [2.0], [2.0]]])
+
+        with AutoregressiveMotionEventPhaseCurvatureDose(dynamics, 0.05):
+            observed = dit(z, t, action)
+
+        self.assertTrue(torch.equal(observed[:, :1], z[:, :1]))
+        self.assertTrue(torch.equal(observed[:, -1:], z[:, -1:]))
+        self.assertFalse(torch.equal(observed[:, 1:-1], z[:, 1:-1]))
+        self.assertTrue(torch.equal(dit(z, t, action), z))
+        campaign = load_campaign(MOTION_EVENT_CURVATURE_CAMPAIGN)
+        self.assertIsInstance(
+            _dose_context(dynamics, campaign, 0.0),
+            AutoregressiveMotionEventPhaseCurvatureDose,
+        )
+
+    def test_motion_event_phase_curvature_is_identity_without_action_transition(self) -> None:
+        dit = _IdentityDiT()
+        dynamics = SimpleNamespace(model=dit)
+        z = torch.tensor([[[1.0], [2.0], [4.0], [7.0], [9.0]]])
+        t = torch.zeros(1, 5)
+        action = torch.ones(1, 5, 2)
+
+        with AutoregressiveMotionEventPhaseCurvatureDose(dynamics, 0.05):
             observed = dit(z, t, action)
 
         self.assertTrue(torch.equal(observed, z))

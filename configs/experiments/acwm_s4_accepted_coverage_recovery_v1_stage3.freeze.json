@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-preregistered-evidence-collection-stage-decision",
+  "experiment_id": "acwm_s4_accepted_coverage_recovery_v1",
+  "stage": 3,
+  "state": "frozen_before_execution",
+  "decision": "probe_action_dimension_interaction_then_conditionally_expand",
+  "trigger": {
+    "stage_2_replay": "results/reports/acwm-selector-cpu-replay-r25-cumulative-horizon-recovery/manifest.json",
+    "stage_2_replay_sha256": "481d65efc7601248ab5e892d6fadf50ac7dd676a74c33cf97ae7737c5120a9a6",
+    "accepted_irg_fold_count": 0,
+    "probe_evolution_work_order_count": 6,
+    "action_dimension_interaction_work_order_count": 2,
+    "target_environments": ["push_rope", "push_sand"],
+    "rejected_predecessor_probe": "self_rollout_horizon_recovery",
+    "rejected_predecessor_redundancy_report": "results/reports/acwm-self-rollout-horizon-recovery-redundancy-r1/probe-smoke-redundancy.json",
+    "rejected_predecessor_redundancy_sha256": "19f9928b8af61885541c302fa978d76e26674e4e8772ba154810e21ed323a180"
+  },
+  "selected_probe_campaign": {
+    "config": "configs/experiments/acwm_phys_action_dimension_interaction_probe_pilot_v1.json",
+    "config_sha256": "096e6c8ce411a18473a8885861b1e33179985641946a63a6df296dc61c4bd241",
+    "runtime": "scripts/run_acwm_fingerprint_probe.py",
+    "runtime_sha256": "7c5081c2cf31d61e9a25006010883f35f498e230afa894249b785dc52d3517b5",
+    "probe_id": "action_dimension_interaction",
+    "protocol": "pilot",
+    "environment_count": 8,
+    "dose_count": 5,
+    "seed_count": 3,
+    "planned_full_measurement_count": 120,
+    "gpu_count": 3
+  },
+  "smoke_gate": {
+    "environments": ["push_rope", "push_sand"],
+    "measurement_count": 30,
+    "reference_campaign": "results/reports/acwm-action-dimension-anisotropy-campaign-pilot-r1",
+    "reference_atlas_manifest": "results/reports/acwm-action-dimension-anisotropy-atlas-pilot-r1/manifest.json",
+    "reference_atlas_manifest_sha256": "6fe5e0a1612071e3056b071a2c0e23b9985a51b648e2932fa5226e42d9d57709",
+    "maximum_locality_residual": 0.5,
+    "minimum_cosine_similarity_for_redundancy": 0.999,
+    "maximum_relative_l2_for_redundancy": 0.1,
+    "expansion_rule": "Expand to the frozen eight-environment pilot only if runtime and receipt checks pass, at least one target environment passes locality, and the candidate is not redundant with action_dimension_anisotropy on all locality-admitted target comparisons.",
+    "forbidden_selection_signals": ["primitive target effect sign", "selector rank", "collision label", "accepted fold outcome"]
+  },
+  "selection_rationale": [
+    "The r25 work orders request action_dimension_interaction for both push_rope and push_sand, so one probe can address two mechanism-specific coverage gaps.",
+    "The predecessor action_dimension_anisotropy is a diagonal per-dimension contrast perturbation, whereas this successor is an off-diagonal orthogonal rotation over frozen dimension pairs and therefore measures a mathematically distinct Jacobian direction.",
+    "The orthogonal rotation preserves each dimension's temporal mean and each paired subspace's centered energy, preventing response magnitude from being explained by global action amplification.",
+    "Probe selection uses work-order coverage, invariants, and algebraic non-equivalence only; no target-local primitive benefit label is used."
+  ],
+  "frozen_transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "post_collection_rule": "If the smoke gate admits expansion, collect the remaining six environments under the same campaign, build the atlas, replace only action_dimension_balancing's required path in the cumulative affinity, and rerun the unchanged selector plan, effect-label index, transfer certificate, and collision labels.",
+  "claim_boundary": "This stage tests whether an off-diagonal action-coupling probe supplies missing local diagnostic coverage. It is not model-improvement evidence and cannot by itself establish selector superiority or transfer safety."
+}

@@ -23,20 +23,39 @@
     "accepted_case_count": 0,
     "accepted_coverage": 0.0,
     "post_evolution_collision_rate": null,
-    "pre_certificate_comparable_case_count": 3,
+    "pre_certificate_comparable_case_count": 4,
     "pre_certificate_collision_rate": 1.0,
     "corrected_targets_before_certificate": [],
     "regressed_targets_before_certificate": ["pour_water"]
   },
   "latest_probe_evolution": {
-    "probe_id": "self_rollout_horizon_recovery",
+    "probe_id": "motion_region_event_phase_curvature",
     "environment_count": 8,
     "measurement_count": 120,
     "locality_pass_count": 7,
-    "collision_environment_count": 2,
-    "redundancy_decision": "reject_as_redundant",
+    "target_locality_pass_environments": ["stack_cube"],
+    "target_locality_failed_environments": ["cloth_move"],
+    "redundancy_decision": "admit_as_nonredundant",
+    "probe_work_order_count_before": 6,
+    "probe_work_order_count_after": 5,
+    "transfer_certificate_abstention_count_before": 9,
+    "transfer_certificate_abstention_count_after": 12,
     "accepted_fold_count_after_replay": 0
   },
+  "prior_probe_evolution_attempts": [
+    {
+      "probe_id": "self_rollout_horizon_recovery",
+      "measurement_count": 120,
+      "locality_pass_count": 7,
+      "decision": "reject_as_redundant"
+    },
+    {
+      "probe_id": "action_dimension_interaction",
+      "measurement_count": 30,
+      "target_locality_pass_count": 0,
+      "decision": "reject_as_nonlocal"
+    }
+  ],
   "open_blocker": "nonzero_certificate_accepted_evolved_coverage_required",
   "claim_boundary": "Diagnostic-system evidence only. Zero accepted coverage prevents a post-evolution collision-rate claim."
 }

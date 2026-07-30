@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-primitive-probe-affinity",
+  "contract_id": "acwm_phys_primitive_probe_affinity_candidate_cumulative_phase_curvature_v1",
+  "claim_boundary": "Preregistered Stage 4 affinity for S4 accepted-coverage recovery. Relative to the Stage 2 cumulative contract, only the motion-region path changes from first-order event phase lag to the admitted second-order event phase curvature successor.",
+  "projection_selector": "irg",
+  "projection_source": "acwm_phys_irg_calibration_pilot_v1",
+  "projection_path_order": [
+    "action_conditioning_amplification",
+    "action_conditioning_attenuation",
+    "self_rollout_horizon_recovery",
+    "motion_region_event_phase_curvature",
+    "action_temporal_alignment",
+    "action_dimension_anisotropy"
+  ],
+  "minimum_covered_candidates_per_fold": 2,
+  "require_full_candidate_coverage": true,
+  "uncovered_candidate_policy": "abstain_fold_and_emit_probe_work_order",
+  "transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "primitives": {
+    "action_dimension_balancing": {
+      "coverage_state": "covered",
+      "required_probe_paths": ["action_dimension_anisotropy"],
+      "successor_probe_axis": "action_dimension_interaction",
+      "mechanism_rationale": "Retain the already-materialized direct action-dimension anisotropy response; the Stage 3 interaction successor failed locality on both target environments."
+    },
+    "inv_dyn_reward_finetune": {
+      "coverage_state": "covered",
+      "required_probe_paths": ["action_temporal_alignment"],
+      "successor_probe_axis": "action_temporal_alignment_phase",
+      "mechanism_rationale": "Retain the already-materialized action-transition-aligned response."
+    },
+    "motion_region_reweight": {
+      "coverage_state": "covered",
+      "required_probe_paths": ["motion_region_event_phase_curvature"],
+      "successor_probe_axis": "motion_region_event_phase_curvature_rate",
+      "mechanism_rationale": "Use the admitted second-order action-event phase response, which is local in stack_cube and algebraically distinct from first-order phase lag."
+    },
+    "next_forcing": {
+      "coverage_state": "probe_missing",
+      "required_probe_paths": ["multi_chunk_exposure_stability"],
+      "successor_probe_axis": "multi_chunk_exposure_stability",
+      "mechanism_rationale": "No existing local probe measures cross-chunk exposure stability."
+    },
+    "self_forcing_finetune": {
+      "coverage_state": "covered",
+      "required_probe_paths": ["self_rollout_horizon_recovery"],
+      "successor_probe_axis": "self_rollout_horizon_recovery_curvature",
+      "mechanism_rationale": "Retain the Stage 2 horizon-weighted teacher recovery response; it remains measured but redundant and does not relax certificate thresholds."
+    }
+  }
+}

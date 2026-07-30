@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 import os
 import random
 import sys
@@ -119,6 +120,44 @@ class ActionDimensionAnisotropyDose:
             return original(perturbed_action)
 
         self.embedder.forward = MethodType(anisotropic_forward, self.embedder)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.embedder.forward = self.original
+        return False
+
+
+class ActionDimensionInteractionDose:
+    """Rotate centered action-dimension pairs without changing their energy."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.embedder = dynamics_model.model.action_embedder
+        self.original = self.embedder.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def interaction_forward(_module, action):
+            if action.ndim != 3 or action.shape[-1] < 2:
+                raise RuntimeError("ACWM_ACTION_DIMENSION_INTERACTION_SHAPE_INVALID")
+            if dose == 0.0:
+                return original(action)
+            temporal_mean = action.mean(dim=1, keepdim=True)
+            centered = action - temporal_mean
+            rotated = centered.clone()
+            cosine = math.cos(dose)
+            sine = math.sin(dose)
+            for left in range(0, action.shape[-1] - 1, 2):
+                right = left + 1
+                left_centered = centered[..., left]
+                right_centered = centered[..., right]
+                rotated[..., left] = cosine * left_centered - sine * right_centered
+                rotated[..., right] = sine * left_centered + cosine * right_centered
+            return original(temporal_mean + rotated)
+
+        self.embedder.forward = MethodType(interaction_forward, self.embedder)
         return self
 
     def __exit__(self, exc_type, exc, traceback):
@@ -513,6 +552,71 @@ class AutoregressiveMotionEventPhaseLagDose:
         return False
 
 
+class AutoregressiveMotionEventPhaseCurvatureDose:
+    """Dose motion regions by event-phase curvature rather than phase slope."""
+
+    def __init__(self, dynamics_model, dose: float) -> None:
+        self.dose = float(dose)
+        self.dit = dynamics_model.model
+        self.original = self.dit.forward
+
+    def __enter__(self):
+        dose = self.dose
+        original = self.original
+
+        def phase_curvature_forward(_module, z, t, action):
+            history = z[:, :-1]
+            if history.shape[1] <= 1:
+                return original(z, t, action)
+            if action.ndim < 3 or action.shape[0] != history.shape[0] or action.shape[1] < history.shape[1]:
+                raise RuntimeError("ACWM_MOTION_EVENT_CURVATURE_ACTION_SHAPE_INVALID")
+
+            first = history[:, :1]
+            increments = history[:, 1:] - history[:, :-1]
+            motion = increments.abs().mean(dim=-1, keepdim=True)
+            spatial_dims = tuple(range(2, motion.ndim - 1))
+            if spatial_dims:
+                motion_scale = motion.amax(dim=spatial_dims, keepdim=True).clamp_min(1e-12)
+                motion_weight = (motion / motion_scale).clamp(0.0, 1.0)
+            else:
+                motion_weight = (motion > 0).to(motion.dtype)
+
+            action_history = action[:, : history.shape[1]].reshape(history.shape[0], history.shape[1], -1)
+            action_delta = (action_history[:, 1:] - action_history[:, :-1]).abs().mean(dim=-1)
+            event_scale = action_delta.amax(dim=1, keepdim=True)
+            event_weight = torch.where(
+                event_scale > 1e-12,
+                action_delta / event_scale.clamp_min(1e-12),
+                torch.zeros_like(action_delta),
+            )
+            zero = torch.zeros_like(event_weight[:, :1])
+            previous_event = torch.cat([zero, event_weight[:, :-1]], dim=1)
+            next_event = torch.cat([event_weight[:, 1:], zero], dim=1)
+            phase_curvature = previous_event - 2.0 * event_weight + next_event
+            curvature_scale = phase_curvature.abs().amax(dim=1, keepdim=True)
+            phase_curvature = torch.where(
+                curvature_scale > 1e-12,
+                phase_curvature / curvature_scale.clamp_min(1e-12),
+                torch.zeros_like(phase_curvature),
+            )
+            while phase_curvature.ndim < increments.ndim:
+                phase_curvature = phase_curvature.unsqueeze(-1)
+
+            phase_weight = motion_weight * phase_curvature.to(dtype=motion_weight.dtype)
+            focused_increments = increments * (1.0 + dose * phase_weight)
+            focused_history = torch.cat(
+                [first, first + torch.cumsum(focused_increments, dim=1)], dim=1
+            )
+            return original(torch.cat([focused_history, z[:, -1:]], dim=1), t, action)
+
+        self.dit.forward = MethodType(phase_curvature_forward, self.dit)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.dit.forward = self.original
+        return False
+
+
 def _dose_context(
     dynamics_model,
     campaign: dict[str, object],
@@ -536,6 +640,10 @@ def _dose_context(
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_DIMENSION_ANISOTROPY_HOOK_MISSING")
         return ActionDimensionAnisotropyDose(dynamics_model, dose)
+    if probe_id == "action_dimension_interaction":
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_ACTION_DIMENSION_INTERACTION_HOOK_MISSING")
+        return ActionDimensionInteractionDose(dynamics_model, dose)
     if probe_id == "action_temporal_alignment":
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_EVENT_ALIGNMENT_HOOK_MISSING")
@@ -598,6 +706,12 @@ def _dose_context(
         if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
             raise RuntimeError("ACWM_MOTION_EVENT_PHASE_LATENT_HOOK_MISSING")
         return AutoregressiveMotionEventPhaseLagDose(dynamics_model, dose)
+    if probe_id == "motion_region_event_phase_curvature":
+        if str(probe.get("generation_mode", "")) != "autoregressive":
+            raise RuntimeError("ACWM_MOTION_EVENT_CURVATURE_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
+        if not hasattr(dynamics_model, "model") or not hasattr(dynamics_model.model, "forward"):
+            raise RuntimeError("ACWM_MOTION_EVENT_CURVATURE_LATENT_HOOK_MISSING")
+        return AutoregressiveMotionEventPhaseCurvatureDose(dynamics_model, dose)
     raise RuntimeError(f"ACWM_PROBE_RUNTIME_UNSUPPORTED:{probe_id}")
 
 
