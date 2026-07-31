@@ -86,6 +86,14 @@ effect-sign agreement, and a calibrated lower bound. Failed terms produce
 abstention. Confident opposing effects in nearby IRG regions are repair
 collisions; they trigger counterexample-driven probe proposals.
 
+Probe creation is mediated by Counterexample-Guided Probe Basis Expansion
+(CPBE), not delegated directly to a language model. CPBE expresses residual,
+structured-mutation, atlas-retrieval, and LLM-generated candidates in one
+capability-checked Probe DSL. An evidence-conditioned acquisition function
+ranks expected regret and coverage gain per unit cost while penalizing
+nonlocality and redundancy. Selected probes pass static, offline, canary, and
+expanded stages before entering the diagnostic basis. See [CPBE](CPBE.md).
+
 A probe proposal is not an evolved asset until its successor campaign settles.
 The settlement binds the counterexample lineage, successor campaign, complete
 paired measurement count, unchanged locality threshold, and final admission
@@ -98,6 +106,7 @@ Primary code:
 - `wmloop/geometry/memory.py`
 - `wmloop/geometry/transfer.py`
 - `wmloop/geometry/evolution.py`
+- `wmloop/experiments/cpbe.py`
 
 ## Legal state ordering
 

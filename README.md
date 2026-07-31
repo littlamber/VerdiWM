@@ -35,6 +35,7 @@ its modest savings are retained as a system limitation rather than hidden.
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
 | Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and paired-GT evidence are complete; held-out directional probes have correctly abstained, so transfer and LOBO remain prohibited |
 | Counterexample-driven diagnostic-probe evolution | Global scale, temporal mix, directional scale, translation-only scale, action-dimension anisotropy, and off-diagonal action coupling produced retained counterexamples; the fresh dev4 successor passes locality but reverses on accept4 |
+| Counterexample-Guided Probe Basis Expansion | Probe DSL, residual/mutation/retrieval/LLM candidate synthesis, evidence-conditioned acquisition, and fail-closed successive halving implemented; held-out accepted-coverage gain is not yet established |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |

@@ -38,7 +38,11 @@ def run_diagnostic_probe_materialization_prompt_batch(
         raise DiagnosticProbeMaterializationPromptError("DIAGNOSTIC_PROBE_PROMPT_OUTPUT_EXISTS")
     bank_manifest_path = Path(failure_signature_bank_manifest).resolve(strict=True)
     bank_manifest = _load_manifest(bank_manifest_path)
-    work_orders = _selected_work_orders(bank_manifest, probe_ids=probe_ids)
+    work_orders = _selected_work_orders(
+        bank_manifest,
+        probe_ids=probe_ids,
+        manifest_root=bank_manifest_path.parent,
+    )
     alignment_contract = _alignment_contract()
     temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
     try:
@@ -68,7 +72,9 @@ def run_diagnostic_probe_materialization_prompt_batch(
             "source_failure_signature_bank": {
                 "manifest_path": str(bank_manifest_path),
                 "state": str(bank_manifest.get("state")),
-                "probe_work_order_count": len(_work_order_paths(bank_manifest)),
+                "probe_work_order_count": len(
+                    _work_order_paths(bank_manifest, manifest_root=bank_manifest_path.parent)
+                ),
             },
             "prompt_count": len(records),
             "probe_ids": [str(record["probe_id"]) for record in records],
@@ -141,7 +147,10 @@ def run_diagnostic_probe_materialization_prompt_batch(
 
 def _load_manifest(path: Path) -> Mapping[str, Any]:
     payload = _load_json_object(path, "DIAGNOSTIC_PROBE_PROMPT_BANK_MANIFEST_INVALID")
-    if payload.get("artifact_type") != "wmloop-failure-signature-bank-manifest":
+    if payload.get("artifact_type") not in {
+        "wmloop-failure-signature-bank-manifest",
+        "verdiwm-cpbe-plan-manifest",
+    }:
         raise DiagnosticProbeMaterializationPromptError("DIAGNOSTIC_PROBE_PROMPT_BANK_MANIFEST_INVALID")
     if payload.get("state") != "ready":
         raise DiagnosticProbeMaterializationPromptError("DIAGNOSTIC_PROBE_PROMPT_BANK_NOT_READY")
@@ -152,8 +161,9 @@ def _selected_work_orders(
     bank_manifest: Mapping[str, Any],
     *,
     probe_ids: Sequence[str],
+    manifest_root: Path,
 ) -> list[tuple[str, Path]]:
-    available = _work_order_paths(bank_manifest)
+    available = _work_order_paths(bank_manifest, manifest_root=manifest_root)
     requested = [probe_id for probe_id in probe_ids if probe_id]
     if not requested:
         return sorted(available.items())
@@ -165,7 +175,7 @@ def _selected_work_orders(
     return [(probe_id, available[probe_id]) for probe_id in requested]
 
 
-def _work_order_paths(bank_manifest: Mapping[str, Any]) -> dict[str, Path]:
+def _work_order_paths(bank_manifest: Mapping[str, Any], *, manifest_root: Path) -> dict[str, Path]:
     raw = bank_manifest.get("probe_work_order_paths")
     if not isinstance(raw, Mapping):
         raise DiagnosticProbeMaterializationPromptError("DIAGNOSTIC_PROBE_PROMPT_WORK_ORDERS_INVALID")
@@ -173,7 +183,12 @@ def _work_order_paths(bank_manifest: Mapping[str, Any]) -> dict[str, Path]:
     for probe_id, path in raw.items():
         if not isinstance(probe_id, str) or not probe_id or not isinstance(path, str) or not path:
             raise DiagnosticProbeMaterializationPromptError("DIAGNOSTIC_PROBE_PROMPT_WORK_ORDERS_INVALID")
-        output[probe_id] = Path(path).resolve(strict=True)
+        candidate = Path(path)
+        output[probe_id] = (
+            candidate.resolve(strict=True)
+            if candidate.is_absolute()
+            else (manifest_root / candidate).resolve(strict=True)
+        )
     return output
 
 

@@ -1,0 +1,4 @@
+probe_id,state,terminal,completed_stages,blockers,evidence_refs
+cpbe_residual_0f7e5f10f9,eliminated_canary,True,static;offline,locality_residual_exceeded,fixture://residual-phase/static;fixture://residual-phase/offline;fixture://residual-phase/canary
+cpbe_residual_1f625a8e46,eliminated_expanded,True,static;offline;canary,no_selector_or_coverage_gain,fixture://residual-curvature/static;fixture://residual-curvature/offline;fixture://residual-curvature/canary;fixture://residual-curvature/expanded
+fixture_retrieved_boundary_phase,settled_admitted,True,static;offline;canary;expanded,,fixture://boundary-phase/static;fixture://boundary-phase/offline;fixture://boundary-phase/canary;fixture://boundary-phase/expanded

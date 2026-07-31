@@ -104,6 +104,8 @@ PUBLIC_TEST_FILES = (
     "test_primitive_materialization_prompt.py",
     "test_diagnostic_probe_materialization_prompt.py",
     "test_diagnostic_probe_routing_admission.py",
+    "test_cpbe.py",
+    "test_cpbe_public_example.py",
     "test_acwm_push_cube_contact_event_diagnostic_v1.py",
     "test_acwm_push_cube_action_binding_diagnostic_v1.py",
     "test_acwm_push_cube_rigid_pose_slip_diagnostic_v1.py",
@@ -269,6 +271,14 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         _copy_tree(
             source / "examples" / "acwm_joint_irg_assets_v2",
             temporary / "examples" / "acwm_joint_irg_assets_v2",
+        )
+        _copy_tree(
+            source / "examples" / "cpbe_algorithm_smoke_v1",
+            temporary / "examples" / "cpbe_algorithm_smoke_v1",
+        )
+        _copy_tree(
+            source / "examples" / "cpbe_algorithm_smoke_settlement_v1",
+            temporary / "examples" / "cpbe_algorithm_smoke_settlement_v1",
         )
         _copy_tree(
             source / "examples" / "ctrl_world_target_local_irg_v1",

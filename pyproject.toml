@@ -34,6 +34,7 @@ dev = ["pytest>=8,<9"]
 [project.scripts]
 verdiwm-backbone-audit = "wmloop.control.backbone_instance:main"
 verdiwm-capability-matrix = "wmloop.control.backbone_capability_matrix:main"
+verdiwm-cpbe = "wmloop.experiments.cpbe:main"
 verdiwm-experiment-plan = "wmloop.experiments.lobo:main"
 verdiwm-experiment-report = "wmloop.experiments.report:main"
 

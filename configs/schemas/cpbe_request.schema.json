@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "experiment_id",
+    "evidence_class",
+    "context",
+    "current_probes",
+    "grammar"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"type": "string", "enum": ["verdiwm-cpbe-request"]},
+    "experiment_id": {"type": "string", "minLength": 1},
+    "evidence_class": {"type": "string", "enum": ["synthetic_fixture", "historical_replay", "live"]},
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collision_id",
+        "target_id",
+        "backbone_family",
+        "capability_class",
+        "failure_signature",
+        "primitive",
+        "available_hooks",
+        "capabilities",
+        "unexplained_residual",
+        "residual_evidence_refs",
+        "max_canaries"
+      ],
+      "properties": {
+        "collision_id": {"type": "string", "minLength": 1},
+        "target_id": {"type": "string", "minLength": 1},
+        "backbone_family": {"type": "string", "minLength": 1},
+        "capability_class": {"type": "string", "minLength": 1},
+        "failure_signature": {"type": "string", "minLength": 1},
+        "primitive": {"type": "string", "minLength": 1},
+        "available_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unexplained_residual": {"type": "object"},
+        "residual_evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "max_canaries": {"type": "integer", "minimum": 1}
+      }
+    },
+    "current_probes": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "grammar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signal_source",
+        "hook_type",
+        "spatial_mask",
+        "temporal_basis",
+        "contrast_operator",
+        "aggregation"
+      ],
+      "properties": {
+        "signal_source": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "hook_type": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "spatial_mask": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "temporal_basis": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "contrast_operator": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "aggregation": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "retrieval_candidates": {"type": "array", "items": {"type": "object"}},
+    "llm_candidates": {"type": "array", "items": {"type": "object"}},
+    "acquisition_policy": {"type": "object"},
+    "successive_halving_thresholds": {"type": "object"}
+  }
+}

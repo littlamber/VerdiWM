@@ -19,6 +19,7 @@ still require experiments.
 | Intervention-Effect Memory | `wmloop/geometry/memory.py`, `wmloop/archive/` | Positive/null/harmful/interaction records implemented |
 | Repair-collision discovery | `wmloop/geometry/evolution.py` | Implemented and unit tested; online atlas evolution pending |
 | Counterexample-driven probe evolution | `wmloop/experiments/probe_evolution.py`, `scripts/export/probe_evolution.py`, `scripts/export/probe_evolution_settlement.py` | Cosmos3 scale counterexamples produced and evaluated a novel temporal-mix probe; the 15-cell successor correctly settled as abstained |
+| Counterexample-Guided Probe Basis Expansion | `wmloop/experiments/cpbe.py`, `configs/schemas/cpbe_request.schema.json`, `configs/schemas/cpbe_stage_receipt.schema.json` | Probe DSL, four-source synthesis, evidence-conditioned acquisition, capability filtering, work-order generation, and successive-halving settlement implemented and unit tested; held-out accepted-coverage gain remains pending |
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
 | Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World chart is settled, while Cosmos3 LOBO is blocked by three frozen locality abstentions |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |

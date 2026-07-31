@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cpbe-request",
+  "experiment_id": "cpbe_algorithm_smoke_v1",
+  "evidence_class": "synthetic_fixture",
+  "context": {
+    "collision_id": "fixture_motion_collision",
+    "target_id": "fixture_target",
+    "backbone_family": "fixture_acwm",
+    "capability_class": "latent_action_conditioned",
+    "failure_signature": "long_horizon_motion_aliasing",
+    "primitive": "fixture_motion_reweight",
+    "available_hooks": ["action_conditioning", "latent_state"],
+    "capabilities": ["paired_seed_control"],
+    "unexplained_residual": {
+      "signal_source": 0.1,
+      "hook_type": 0.05,
+      "spatial_mask": 0.2,
+      "temporal_basis": 0.5,
+      "contrast_operator": 0.1,
+      "aggregation": 0.05
+    },
+    "residual_evidence_refs": ["fixture://collision/residual-attribution"],
+    "max_canaries": 3
+  },
+  "current_probes": [
+    {
+      "probe_id": "fixture_motion_magnitude",
+      "signal_source": "latent_delta",
+      "hook_type": "action_conditioning",
+      "spatial_mask": "global",
+      "temporal_basis": "latest",
+      "contrast_operator": "signed",
+      "dose_schedule": [-0.05, 0.0, 0.05],
+      "aggregation": "mean",
+      "invariants": ["same_seed", "same_trajectory", "same_evaluator"],
+      "required_capabilities": ["paired_seed_control"],
+      "estimated_gpu_hours": 0.5,
+      "origin": "retrieval",
+      "diagnostic_only": true,
+      "reversible": true
+    }
+  ],
+  "grammar": {
+    "signal_source": ["latent_delta", "contact_event", "boundary_flux"],
+    "hook_type": ["action_conditioning", "latent_state", "unsupported_hook"],
+    "spatial_mask": ["global", "motion_roi", "boundary_roi"],
+    "temporal_basis": ["latest", "phase_lag", "curvature"],
+    "contrast_operator": ["signed", "one_sided_positive", "orthogonal_rotation"],
+    "aggregation": ["mean", "horizon_weighted", "endpoint"]
+  },
+  "retrieval_candidates": [
+    {
+      "probe_id": "fixture_retrieved_boundary_phase",
+      "signal_source": "boundary_flux",
+      "hook_type": "action_conditioning",
+      "spatial_mask": "boundary_roi",
+      "temporal_basis": "phase_lag",
+      "contrast_operator": "signed",
+      "dose_schedule": [-0.05, 0.0, 0.05],
+      "aggregation": "endpoint",
+      "invariants": ["same_seed", "same_trajectory", "same_evaluator"],
+      "required_capabilities": ["paired_seed_control"],
+      "estimated_gpu_hours": 0.45,
+      "origin": "retrieval",
+      "diagnostic_only": true,
+      "reversible": true
+    }
+  ],
+  "llm_candidates": [
+    {
+      "probe_id": "fixture_llm_contact_curvature",
+      "signal_source": "contact_event",
+      "hook_type": "latent_state",
+      "spatial_mask": "motion_roi",
+      "temporal_basis": "curvature",
+      "contrast_operator": "orthogonal_rotation",
+      "dose_schedule": [-0.05, 0.0, 0.05],
+      "aggregation": "horizon_weighted",
+      "invariants": ["same_seed", "same_trajectory", "same_evaluator"],
+      "required_capabilities": ["paired_seed_control"],
+      "estimated_gpu_hours": 0.8,
+      "origin": "llm",
+      "diagnostic_only": true,
+      "reversible": true,
+      "rationale": "Synthetic mechanism hypothesis used only to test common candidate gating."
+    }
+  ],
+  "successive_halving_thresholds": {
+    "maximum_locality_residual": 0.5,
+    "maximum_redundancy_cosine": 0.95,
+    "minimum_collision_separation": 0.0,
+    "minimum_regret_reduction": 0.0,
+    "minimum_coverage_gain": 0.0
+  }
+}
