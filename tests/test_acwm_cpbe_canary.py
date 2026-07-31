@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -10,6 +11,7 @@ from wmloop.experiments.acwm_cpbe_canary import (
     _aggregate_response_vectors,
     evaluate_acwm_cpbe_canary,
     prepare_acwm_cpbe_canary_bundle,
+    publish_acwm_cpbe_expanded_receipt,
 )
 
 
@@ -154,6 +156,64 @@ def test_canary_fails_closed_on_cross_protocol_evidence() -> None:
             raise AssertionError("cross-protocol evidence must fail closed")
 
 
+def test_expanded_settlement_measures_frozen_primitive_after_demotion() -> None:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        spec = root / "collision-spec.json"
+        _write(
+            spec,
+            {
+                "artifact_type": "verdiwm-acwm-cpbe-collision-specification",
+                "target_environment": "push_cube",
+                "primitive": "inv_dyn_reward_finetune",
+                "labels": [{"environment": "push_cube", "sign": -1}],
+                "thresholds": {
+                    "minimum_regret_reduction": 0.0,
+                    "minimum_coverage_gain": 0.0,
+                },
+            },
+        )
+        baseline_replay = root / "baseline-replay"
+        candidate_replay = root / "candidate-replay"
+        _selector_replay_fixture(
+            baseline_replay,
+            rank=1,
+            probability=0.65,
+            affinity_id="baseline",
+        )
+        _selector_replay_fixture(
+            candidate_replay,
+            rank=2,
+            probability=0.45,
+            affinity_id="candidate",
+        )
+        baseline_collision = root / "baseline-collision"
+        candidate_collision = root / "candidate-collision"
+        for directory in (baseline_collision, candidate_collision):
+            directory.mkdir()
+            _write(
+                directory / "collision-label-evaluation.json",
+                {"artifact_type": "verdiwm-collision-label-evaluation", "accepted_coverage": 0.0},
+            )
+
+        manifest = publish_acwm_cpbe_expanded_receipt(
+            collision_spec_path=spec,
+            probe_id="cpbe_residual_fixture",
+            baseline_replay_root=baseline_replay,
+            candidate_replay_root=candidate_replay,
+            baseline_collision_root=baseline_collision,
+            candidate_collision_root=candidate_collision,
+            output_root=root / "settled",
+        )
+
+        assert manifest["passed"] is True
+        report = json.loads((root / "settled/expanded-report.json").read_text())
+        assert report["metrics"]["regret_reduction"] == 0.2
+        assert report["metrics"]["baseline_target_primitive_rank"] == 1
+        assert report["metrics"]["candidate_target_primitive_rank"] == 2
+        assert report["metrics"]["target_primitive_demoted"] is True
+
+
 def _inputs(root: Path) -> dict[str, Path]:
     for directory in (root / "plan", root / "descriptors", root / "inputs"):
         directory.mkdir(parents=True)
@@ -289,6 +349,41 @@ def _campaign_evidence(root: Path, probe_id: str, vectors: dict[str, list[float]
                 "locality_residuals": {probe_id: 0.1},
             },
         )
+
+
+def _selector_replay_fixture(
+    root: Path, *, rank: int, probability: float, affinity_id: str
+) -> None:
+    (root / "tables").mkdir(parents=True)
+    with (root / "tables/candidates.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=(
+                "target_environment",
+                "selector",
+                "seed",
+                "rank",
+                "primitive",
+                "source_positive_probability",
+            ),
+        )
+        writer.writeheader()
+        for seed in (101, 202, 303):
+            writer.writerow(
+                {
+                    "target_environment": "push_cube",
+                    "selector": "irg",
+                    "seed": seed,
+                    "rank": rank,
+                    "primitive": "inv_dyn_reward_finetune",
+                    "source_positive_probability": probability,
+                }
+            )
+    _write(root / "selector-replay.json", {"artifact_type": "verdiwm-acwm-selector-cpu-replay"})
+    _write(
+        root / "input-primitive-probe-affinity.json",
+        {"artifact_type": "verdiwm-primitive-probe-affinity", "contract_id": affinity_id},
+    )
 
 
 def _write(path: Path, payload: object) -> None:

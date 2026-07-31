@@ -1,4 +1,4 @@
-"""Turn a failed CPBE expansion into measured history and a new search round."""
+"""Turn a failed CPBE stage into measured history and a new search round."""
 
 from __future__ import annotations
 
@@ -35,13 +35,13 @@ def build_counterexample_round(
     plan: Mapping[str, Any],
     receipts: Sequence[Mapping[str, Any]],
     settlement: Mapping[str, Any],
-    atlas: Mapping[str, Any],
+    atlas: Mapping[str, Any] | None,
     probe_id: str,
     next_experiment_id: str,
     gpu_hours: float,
     evidence_refs: Sequence[str],
 ) -> tuple[dict[str, object], dict[str, object], list[Mapping[str, Any]], dict[str, object]]:
-    """Compile one terminal expanded failure into the next deterministic round."""
+    """Compile one terminal canary or expanded failure into the next round."""
 
     if request.get("artifact_type") != "verdiwm-cpbe-request" or request.get("evidence_class") != "live":
         raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_REQUEST_INVALID")
@@ -54,18 +54,31 @@ def build_counterexample_round(
 
     work_order = _unique_by_probe(plan.get("selected_work_orders"), probe_id, "CPBE_COUNTEREXAMPLE_WORK_ORDER")
     candidate = _unique_by_probe(settlement.get("candidates"), probe_id, "CPBE_COUNTEREXAMPLE_CANDIDATE")
-    if candidate.get("state") != "eliminated_expanded" or not candidate.get("terminal"):
-        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_NOT_EXPANDED_FAILURE")
-    stage_receipts = {
-        str(receipt.get("stage")): receipt
-        for receipt in receipts
-        if receipt.get("probe_id") == probe_id
-    }
-    if set(stage_receipts) != {"static", "offline", "canary", "expanded"}:
+    terminal_state = candidate.get("state")
+    if terminal_state not in {"eliminated_canary", "eliminated_expanded"} or not candidate.get(
+        "terminal"
+    ):
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_NOT_LEARNABLE_FAILURE")
+    stage_receipts: dict[str, Mapping[str, Any]] = {}
+    for receipt in receipts:
+        if receipt.get("probe_id") != probe_id:
+            continue
+        stage = str(receipt.get("stage"))
+        if stage in stage_receipts:
+            raise CPBECounterexampleError(f"CPBE_COUNTEREXAMPLE_RECEIPT_DUPLICATE:{stage}")
+        stage_receipts[stage] = receipt
+    failure_stage = "expanded" if terminal_state == "eliminated_expanded" else "canary"
+    expected_stages = {"static", "offline", "canary"}
+    if failure_stage == "expanded":
+        expected_stages.add("expanded")
+    if set(stage_receipts) != expected_stages:
         raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_RECEIPTS_INCOMPLETE")
     canary = stage_receipts["canary"]
-    expanded = stage_receipts["expanded"]
-    if canary.get("passed") is not True or expanded.get("passed") is not False:
+    if failure_stage == "expanded":
+        expanded = stage_receipts["expanded"]
+        if canary.get("passed") is not True or expanded.get("passed") is not False:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_STAGE_PATTERN_INVALID")
+    elif canary.get("passed") is not False:
         raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_STAGE_PATTERN_INVALID")
 
     program = _mapping(work_order, "program")
@@ -75,31 +88,45 @@ def build_counterexample_round(
         raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_SINGLE_AXIS_REQUIRED")
 
     canary_metrics = _mapping(canary, "metrics")
-    expanded_metrics = _mapping(expanded, "metrics")
     nonredundant = _boolean(canary_metrics, "nonredundant")
-    if not nonredundant or _number(canary_metrics, "collision_separation") <= 0.0:
-        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_NOT_INFORMATIVE")
-    regret = _number(expanded_metrics, "regret_reduction")
-    coverage = _number(expanded_metrics, "coverage_gain")
-    if regret > 0.0 or coverage > 0.0:
-        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_EXPANDED_GAIN_PRESENT")
-
-    environments = _mapping(atlas, "environments")
-    expected = int(atlas.get("environment_count", -1))
-    complete = int(atlas.get("measurement_complete_count", -1))
-    if atlas.get("state") != "ready" or expected <= 0 or complete != expected or len(environments) != expected:
-        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_ATLAS_INCOMPLETE")
-    locality_failures = sorted(
-        name
-        for name, row in environments.items()
-        if isinstance(row, Mapping) and row.get("locality_state") != "passed"
-    )
+    collision_separation = _number(canary_metrics, "collision_separation")
+    if failure_stage == "expanded":
+        if not nonredundant or collision_separation <= 0.0:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_NOT_INFORMATIVE")
+        expanded_metrics = _mapping(stage_receipts["expanded"], "metrics")
+        regret: float | None = _number(expanded_metrics, "regret_reduction")
+        coverage: float | None = _number(expanded_metrics, "coverage_gain")
+        if regret > 0.0 or coverage > 0.0:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_EXPANDED_GAIN_PRESENT")
+        if atlas is None:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_ATLAS_REQUIRED")
+        environments = _mapping(atlas, "environments")
+        expected = int(atlas.get("environment_count", -1))
+        complete = int(atlas.get("measurement_complete_count", -1))
+        if (
+            atlas.get("state") != "ready"
+            or expected <= 0
+            or complete != expected
+            or len(environments) != expected
+        ):
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_ATLAS_INCOMPLETE")
+        locality_failures = sorted(
+            name
+            for name, row in environments.items()
+            if isinstance(row, Mapping) and row.get("locality_state") != "passed"
+        )
+        locality_pass = not locality_failures
+    else:
+        locality_pass = _boolean(canary_metrics, "locality_passed")
+        regret = None
+        coverage = None
+        locality_failures = [] if locality_pass else ["canary_scope"]
 
     refs = [ref for ref in evidence_refs if isinstance(ref, str) and ref]
     if len(refs) < 4 or len(refs) != len(set(refs)):
         raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_EVIDENCE_INVALID")
     trial = {
-        "trial_id": f"{probe_id}__expanded_failure",
+        "trial_id": f"{probe_id}__{failure_stage}_failure",
         "evidence_class": "live",
         "context": {
             "backbone_family": _text(_mapping(request, "context"), "backbone_family"),
@@ -109,9 +136,9 @@ def build_counterexample_round(
         },
         "probe": dict(program),
         "outcomes": {
-            "locality_pass": not locality_failures,
+            "locality_pass": locality_pass,
             "nonredundant": nonredundant,
-            "collision_resolved": False,
+            "collision_resolved": collision_separation > 0.0,
             "regret_reduction": regret,
             "coverage_gain": coverage,
             "gpu_hours": gpu_hours,
@@ -120,11 +147,20 @@ def build_counterexample_round(
     }
 
     prior_residual = _mapping(_mapping(request, "context"), "unexplained_residual")
-    next_residual, credit = _expanded_failure_credit(
-        residual=prior_residual,
-        edited_axis=edited_axes[0],
-        locality_failed=bool(locality_failures),
-    )
+    if failure_stage == "expanded":
+        next_residual, credit = _expanded_failure_credit(
+            residual=prior_residual,
+            edited_axis=edited_axes[0],
+            locality_failed=bool(locality_failures),
+        )
+    else:
+        next_residual, credit = _canary_failure_credit(
+            residual=prior_residual,
+            edited_axis=edited_axes[0],
+            locality_passed=locality_pass,
+            nonredundant=nonredundant,
+            collision_separation=collision_separation,
+        )
     next_current = [dict(parent)]
     prior_max_canaries = int(_mapping(request, "context")["max_canaries"])
     next_context = {
@@ -173,7 +209,7 @@ def build_counterexample_round(
         },
         "capability_filtered_grammar_values": filtered_grammar_values,
         "successive_halving_width_policy": {
-            "policy_id": "expanded_failure_direct_parent_single_canary_v1",
+            "policy_id": f"{failure_stage}_failure_direct_parent_single_canary_v1",
             "prior_max_canaries": prior_max_canaries,
             "next_max_canaries": next_context["max_canaries"],
             "reference_parent_probe_id": parent["probe_id"],
@@ -200,39 +236,76 @@ def publish_counterexample_round(
     plan_path: Path,
     receipts_path: Path,
     settlement_path: Path,
-    atlas_path: Path,
-    canary_manifest_root: Path,
-    expanded_manifest_root: Path,
+    atlas_path: Path | None,
+    canary_manifest_root: Path | None,
+    canary_bundle_root: Path | None,
+    expanded_manifest_root: Path | None,
     probe_id: str,
     next_experiment_id: str,
     output_root: Path,
 ) -> dict[str, object]:
+    request_input = _load_object(request_path)
+    plan_input = _load_object(plan_path)
+    receipts_input = _load_jsonl(receipts_path)
+    settlement = _load_object(settlement_path)
+    candidate = _unique_by_probe(
+        settlement.get("candidates"), probe_id, "CPBE_COUNTEREXAMPLE_CANDIDATE"
+    )
+    failure_stage = (
+        "expanded" if candidate.get("state") == "eliminated_expanded" else "canary"
+    )
     source_paths = [
+        Path(request_path),
+        Path(history_path),
         Path(plan_path),
         Path(receipts_path),
         Path(settlement_path),
-        Path(atlas_path),
     ]
-    atlas = _load_object(atlas_path)
-    gpu_hours, runtime_refs = _measured_gpu_hours(
-        atlas=atlas,
-        probe_id=probe_id,
-        canary_manifest_root=canary_manifest_root,
-        expanded_manifest_root=expanded_manifest_root,
-    )
+    atlas = _load_object(atlas_path) if atlas_path is not None else None
+    if atlas_path is not None:
+        source_paths.append(Path(atlas_path))
+    if failure_stage == "canary":
+        if canary_bundle_root is None:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_BUNDLE_REQUIRED")
+        work_order = _unique_by_probe(
+            plan_input.get("selected_work_orders"), probe_id, "CPBE_COUNTEREXAMPLE_WORK_ORDER"
+        )
+        parent = _unique_parent(request=request_input, program=_mapping(work_order, "program"))
+        canary_receipt = _unique_by_stage(receipts_input, probe_id=probe_id, stage="canary")
+        gpu_hours, runtime_refs, cost_audit = _measured_canary_bundle(
+            bundle_root=canary_bundle_root,
+            probe_id=probe_id,
+            reference_probe_id=_text(parent, "probe_id"),
+            canary_receipt=canary_receipt,
+        )
+    else:
+        if canary_manifest_root is None:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_MANIFEST_ROOT_REQUIRED")
+        gpu_hours, runtime_refs = _measured_gpu_hours(
+            atlas=atlas,
+            probe_id=probe_id,
+            canary_manifest_root=canary_manifest_root,
+            expanded_manifest_root=expanded_manifest_root,
+            failure_stage=failure_stage,
+        )
+        cost_audit = {
+            "cost_basis": "candidate_elapsed_seconds",
+            "candidate_elapsed_derived_gpu_hours": gpu_hours,
+        }
     refs = [path.as_posix() for path in source_paths] + runtime_refs
     request, trial, history, report = build_counterexample_round(
-        request=_load_object(request_path),
+        request=request_input,
         history=_load_jsonl(history_path),
-        plan=_load_object(plan_path),
-        receipts=_load_jsonl(receipts_path),
-        settlement=_load_object(settlement_path),
+        plan=plan_input,
+        receipts=receipts_input,
+        settlement=settlement,
         atlas=atlas,
         probe_id=probe_id,
         next_experiment_id=next_experiment_id,
         gpu_hours=gpu_hours,
         evidence_refs=refs,
     )
+    report["runtime_cost_audit"] = cost_audit
     source_refs = {
         path.as_posix(): {
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
@@ -254,6 +327,7 @@ def publish_counterexample_round(
             "prior_experiment_id": report["prior_experiment_id"],
             "next_experiment_id": next_experiment_id,
             "probe_id": probe_id,
+            "failure_stage": failure_stage,
             "history_trial_count": len(history),
             "request_path": "inputs/cpbe-request.json",
             "history_path": "inputs/probe-trials.jsonl",
@@ -285,6 +359,44 @@ def _expanded_failure_credit(
     }
 
 
+def _canary_failure_credit(
+    *,
+    residual: Mapping[str, Any],
+    edited_axis: str,
+    locality_passed: bool,
+    nonredundant: bool,
+    collision_separation: float,
+) -> tuple[dict[str, float], dict[str, object]]:
+    weights = {field: _number(residual, field) for field in _DSL_FIELDS}
+    before = dict(weights)
+    if locality_passed and nonredundant and collision_separation <= 0.0:
+        weights[edited_axis] *= 0.10
+        failure_mode = "local_nonredundant_collision_not_separated"
+        updated = True
+    elif not locality_passed:
+        failure_mode = "nonlocal_unattributable"
+        updated = False
+    elif not nonredundant:
+        failure_mode = "redundant_unattributable"
+        updated = False
+    else:
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_FAILURE_UNEXPLAINED")
+    total = sum(weights.values())
+    normalized = {field: weights[field] / total for field in _DSL_FIELDS}
+    return normalized, {
+        "policy_id": "canary_counterexample_axis_credit_v1",
+        "before": before,
+        "after": normalized,
+        "failure_mode": failure_mode,
+        "residual_updated": updated,
+        "edited_axis_discount": {
+            "axis": edited_axis,
+            "multiplier": 0.10 if updated else 1.0,
+        },
+        "causal_attribution": False,
+    }
+
+
 def _single_axis_candidates(
     candidates: object, *, current: object
 ) -> tuple[list[Mapping[str, Any]], list[str]]:
@@ -312,6 +424,7 @@ def _capability_filter_grammar(
     available = set(capabilities)
     requirements = {
         ("aggregation", "horizon_weighted_goal_outcome"): "horizon_indexed_goal_outcomes",
+        ("spatial_mask", "active_action_dimensions"): "action_dimension_channel_map",
     }
     filtered: dict[str, list[str]] = {}
     removed: dict[str, list[str]] = {}
@@ -334,15 +447,23 @@ def _capability_filter_grammar(
 
 def _measured_gpu_hours(
     *,
-    atlas: Mapping[str, Any],
+    atlas: Mapping[str, Any] | None,
     probe_id: str,
     canary_manifest_root: Path,
-    expanded_manifest_root: Path,
+    expanded_manifest_root: Path | None,
+    failure_stage: str,
 ) -> tuple[float, list[str]]:
-    environments = _mapping(atlas, "environments")
     canary_names = ("cloth_move", "pour_water", "push_cube", "push_sand")
     paths = [Path(canary_manifest_root) / name / "manifest.json" for name in canary_names]
-    paths.extend(Path(expanded_manifest_root) / name / "manifest.json" for name in sorted(environments))
+    if failure_stage == "expanded":
+        if atlas is None or expanded_manifest_root is None:
+            raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_EXPANDED_INPUTS_REQUIRED")
+        environments = _mapping(atlas, "environments")
+        paths.extend(
+            Path(expanded_manifest_root) / name / "manifest.json" for name in sorted(environments)
+        )
+    elif failure_stage != "canary":
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_FAILURE_STAGE_INVALID")
     elapsed = 0.0
     for path in paths:
         manifest = _load_object(path)
@@ -350,6 +471,105 @@ def _measured_gpu_hours(
             raise CPBECounterexampleError(f"CPBE_COUNTEREXAMPLE_RUNTIME_MANIFEST_INVALID:{path}")
         elapsed += _number(manifest, "elapsed_seconds")
     return elapsed / 3600.0, [path.as_posix() for path in paths]
+
+
+def _measured_canary_bundle(
+    *,
+    bundle_root: Path,
+    probe_id: str,
+    reference_probe_id: str,
+    canary_receipt: Mapping[str, Any],
+) -> tuple[float, list[str], dict[str, object]]:
+    root = Path(bundle_root).resolve(strict=True)
+    report_path = root / "canary-report.json"
+    receipt_path = root / "cpbe-stage-receipt.json"
+    spec_path = root / "evidence/collision-spec.json"
+    report = _load_object(report_path)
+    receipt = _load_object(receipt_path)
+    spec = _load_object(spec_path)
+    receipt_core = {key: value for key, value in receipt.items() if key not in {"evidence_refs", "evidence_artifacts"}}
+    ledger_core = {
+        key: value
+        for key, value in canary_receipt.items()
+        if key not in {"evidence_refs", "evidence_artifacts"}
+    }
+    receipt_artifacts = sorted(
+        (item.get("sha256"), item.get("size_bytes"))
+        for item in _mapping_sequence(
+            receipt.get("evidence_artifacts"), "CPBE_COUNTEREXAMPLE_RECEIPT_ARTIFACTS_INVALID"
+        )
+    )
+    ledger_artifacts = sorted(
+        (item.get("sha256"), item.get("size_bytes"))
+        for item in _mapping_sequence(
+            canary_receipt.get("evidence_artifacts"),
+            "CPBE_COUNTEREXAMPLE_RECEIPT_ARTIFACTS_INVALID",
+        )
+    )
+    if receipt_core != ledger_core or receipt_artifacts != ledger_artifacts:
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_RECEIPT_MISMATCH")
+    if (
+        report.get("probe_id") != probe_id
+        or report.get("reference_probe_id") != reference_probe_id
+        or spec.get("reference_probe_id") != reference_probe_id
+    ):
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_REFERENCE_MISMATCH")
+    campaigns = _mapping_sequence(
+        spec.get("candidate_campaigns"), "CPBE_COUNTEREXAMPLE_CANDIDATE_CAMPAIGNS_INVALID"
+    )
+    if len(campaigns) != 1 or campaigns[0].get("probe_id") != probe_id:
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANDIDATE_CAMPAIGN_MISMATCH")
+    report_metrics = _mapping(report, "metrics")
+    receipt_metrics = _mapping(receipt, "metrics")
+    if any(
+        report_metrics.get(key) != receipt_metrics.get(key)
+        for key in ("locality_residual", "nonredundant", "collision_separation")
+    ):
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_CANARY_METRICS_MISMATCH")
+
+    comparisons = _mapping_sequence(
+        report.get("comparisons"), "CPBE_COUNTEREXAMPLE_COMPARISONS_INVALID"
+    )
+    environments = sorted({_text(row, "environment") for row in comparisons})
+    if not environments:
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_COMPARISONS_EMPTY")
+    candidate_elapsed = 0.0
+    reference_elapsed = 0.0
+    paths = [report_path, receipt_path, spec_path]
+    for environment in environments:
+        candidate_path = root / f"evidence/{environment}/candidate-manifest.json"
+        reference_path = root / f"evidence/{environment}/reference-manifest.json"
+        candidate = _load_object(candidate_path)
+        reference = _load_object(reference_path)
+        if (
+            candidate.get("state") != "ready"
+            or candidate.get("probe_id") != probe_id
+            or candidate.get("environment") != environment
+            or reference.get("state") != "ready"
+            or reference.get("probe_id") != reference_probe_id
+            or reference.get("environment") != environment
+        ):
+            raise CPBECounterexampleError(
+                f"CPBE_COUNTEREXAMPLE_RUNTIME_MANIFEST_INVALID:{environment}"
+            )
+        for manifest in (candidate, reference):
+            physical_gpu = manifest.get("physical_gpu")
+            if not isinstance(physical_gpu, int) or isinstance(physical_gpu, bool) or physical_gpu < 0:
+                raise CPBECounterexampleError(
+                    f"CPBE_COUNTEREXAMPLE_PHYSICAL_GPU_INVALID:{environment}"
+                )
+        candidate_elapsed += _positive_number(candidate, "elapsed_seconds")
+        reference_elapsed += _positive_number(reference, "elapsed_seconds")
+        paths.extend([candidate_path, reference_path])
+    candidate_gpu_hours = candidate_elapsed / 3600.0
+    reference_gpu_hours = reference_elapsed / 3600.0
+    return candidate_gpu_hours, [path.as_posix() for path in paths], {
+        "cost_basis": "elapsed_seconds_times_one_physical_gpu",
+        "candidate_elapsed_derived_gpu_hours": candidate_gpu_hours,
+        "reference_elapsed_derived_gpu_hours": reference_gpu_hours,
+        "stage_elapsed_derived_gpu_hours": candidate_gpu_hours + reference_gpu_hours,
+        "gpu_utilization_measured": False,
+    }
 
 
 def _unique_parent(*, request: Mapping[str, Any], program: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -363,6 +583,17 @@ def _unique_by_probe(rows: object, probe_id: str, code: str) -> Mapping[str, Any
     matches = [row for row in _mapping_sequence(rows, code) if row.get("probe_id") == probe_id]
     if len(matches) != 1:
         raise CPBECounterexampleError(f"{code}_NOT_UNIQUE")
+    return matches[0]
+
+
+def _unique_by_stage(
+    rows: Sequence[Mapping[str, Any]], *, probe_id: str, stage: str
+) -> Mapping[str, Any]:
+    matches = [
+        row for row in rows if row.get("probe_id") == probe_id and row.get("stage") == stage
+    ]
+    if len(matches) != 1:
+        raise CPBECounterexampleError("CPBE_COUNTEREXAMPLE_STAGE_RECEIPT_NOT_UNIQUE")
     return matches[0]
 
 
@@ -432,6 +663,13 @@ def _number(value: Mapping[str, Any], key: str) -> float:
     return float(item)
 
 
+def _positive_number(value: Mapping[str, Any], key: str) -> float:
+    item = _number(value, key)
+    if item <= 0.0:
+        raise CPBECounterexampleError(f"CPBE_COUNTEREXAMPLE_NUMBER_NOT_POSITIVE:{key}")
+    return item
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--request", type=Path, required=True)
@@ -439,9 +677,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--plan", type=Path, required=True)
     parser.add_argument("--receipts", type=Path, required=True)
     parser.add_argument("--settlement", type=Path, required=True)
-    parser.add_argument("--atlas", type=Path, required=True)
-    parser.add_argument("--canary-manifest-root", type=Path, required=True)
-    parser.add_argument("--expanded-manifest-root", type=Path, required=True)
+    parser.add_argument("--atlas", type=Path)
+    parser.add_argument("--canary-manifest-root", type=Path)
+    parser.add_argument("--canary-bundle-root", type=Path)
+    parser.add_argument("--expanded-manifest-root", type=Path)
     parser.add_argument("--probe-id", required=True)
     parser.add_argument("--next-experiment-id", required=True)
     parser.add_argument("--output-root", type=Path, required=True)
@@ -454,6 +693,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         settlement_path=args.settlement,
         atlas_path=args.atlas,
         canary_manifest_root=args.canary_manifest_root,
+        canary_bundle_root=args.canary_bundle_root,
         expanded_manifest_root=args.expanded_manifest_root,
         probe_id=args.probe_id,
         next_experiment_id=args.next_experiment_id,

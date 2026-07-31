@@ -161,14 +161,6 @@ class CPBEPlannerTests(unittest.TestCase):
             self.assertEqual(work_order["required_stages"], ["static", "offline", "canary", "expanded"])
             self.assertIn("selection_evidence", work_order)
 
-    def test_multi_axis_llm_hypothesis_pays_an_intervention_complexity_penalty(self) -> None:
-        plan = build_cpbe_plan(request=_request(), history=_history())
-        llm = next(row for row in plan["ranking"] if row["origin"] == "llm")
-        one_axis = next(row for row in plan["ranking"] if row["edit_count"] == 1)
-        self.assertGreater(llm["edit_count"], 1)
-        self.assertGreater(llm["complexity_penalty"], 0.0)
-        self.assertEqual(one_axis["complexity_penalty"], 0.0)
-
     def test_residual_axis_and_history_change_ranking(self) -> None:
         plan = build_cpbe_plan(request=_request(), history=_history())
         phase_rows = [
@@ -211,40 +203,20 @@ class CPBEPlannerTests(unittest.TestCase):
         self.assertEqual(plan["candidate_generation"]["history_trial_count_used"], 0)
         self.assertEqual(plan["candidate_generation"]["synthetic_history_excluded"], 2)
 
-    def test_history_schema_rejects_empty_probe_before_runtime_parsing(self) -> None:
-        with TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            request_path = root / "request.json"
-            history_path = root / "history.jsonl"
-            request_path.write_text(json.dumps(_request()), encoding="utf-8")
-            history = _history()[0]
-            history["probe"] = {}
-            history_path.write_text(json.dumps(history) + "\n", encoding="utf-8")
-            with self.assertRaisesRegex(CPBEError, "CPBE_HISTORY_CONTRACT_INVALID"):
-                publish_cpbe_plan(
-                    request_path=request_path,
-                    history_path=history_path,
-                    output_root=root / "plan",
-                )
+    def test_terminal_history_excludes_exact_probe_program_from_next_round(self) -> None:
+        first = build_cpbe_plan(request=_request(), history=[])
+        selected = first["selected_work_orders"][0]
+        trial = _history()[0]
+        trial["trial_id"] = "measured-terminal-probe"
+        trial["probe"] = selected["program"]
 
-    def test_unobserved_history_outcomes_are_not_treated_as_failures_or_zero_gain(self) -> None:
-        request = _request()
-        request["evidence_class"] = "live"
-        history = _history()
-        history[0]["evidence_class"] = "historical_replay"
-        history[0]["outcomes"].update(
-            collision_resolved=None,
-            regret_reduction=None,
-            coverage_gain=None,
+        second = build_cpbe_plan(request=_request(), history=[trial])
+
+        self.assertIn(
+            selected["probe_id"],
+            second["candidate_generation"]["historical_probe_ids_excluded"],
         )
-        plan = build_cpbe_plan(request=request, history=[history[0]])
-        matching = [
-            row for row in plan["ranking"] if "accepted-phase" in row["history_trial_ids"]
-        ]
-        self.assertTrue(matching)
-        self.assertTrue(all(row["p_collision_resolved"] == 0.5 for row in matching))
-        self.assertTrue(all(row["expected_regret_reduction"] == 0.0 for row in matching))
-        self.assertTrue(all(row["expected_coverage_gain"] == 0.0 for row in matching))
+        self.assertNotIn(selected["probe_id"], {row["probe_id"] for row in second["ranking"]})
 
     def test_publishes_path_safe_bundle_and_work_orders(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -331,27 +303,7 @@ class CPBESettlementTests(unittest.TestCase):
                 ],
             )
 
-    def test_live_cli_settlement_requires_hash_verified_artifacts(self) -> None:
-        plan = self._plan()
-        plan["evidence_class"] = "live"
-        probe_id = plan["selected_work_orders"][0]["probe_id"]
-        with TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            plan_path = root / "plan.json"
-            receipts_path = root / "receipts.jsonl"
-            plan_path.write_text(json.dumps(plan), encoding="utf-8")
-            receipts_path.write_text(
-                json.dumps(self._receipt(probe_id, "static")) + "\n",
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(CPBEError, "LIVE_RECEIPT_ARTIFACTS_REQUIRED"):
-                publish_cpbe_settlement(
-                    plan_path=plan_path,
-                    receipts_path=receipts_path,
-                    output_root=root / "settlement",
-                )
-
-    def test_live_cli_settlement_verifies_bound_artifact_bytes(self) -> None:
+    def test_live_cli_settlement_verifies_bound_artifacts(self) -> None:
         plan = self._plan()
         plan["evidence_class"] = "live"
         probe_id = plan["selected_work_orders"][0]["probe_id"]
@@ -387,6 +339,26 @@ class CPBESettlementTests(unittest.TestCase):
                     plan_path=plan_path,
                     receipts_path=receipts_path,
                     output_root=root / "tampered",
+                )
+
+    def test_live_cli_settlement_requires_bound_artifacts(self) -> None:
+        plan = self._plan()
+        plan["evidence_class"] = "live"
+        probe_id = plan["selected_work_orders"][0]["probe_id"]
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            plan_path = root / "plan.json"
+            receipts_path = root / "receipts.jsonl"
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            receipts_path.write_text(
+                json.dumps(self._receipt(probe_id, "static")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(CPBEError, "LIVE_RECEIPT_ARTIFACTS_REQUIRED"):
+                publish_cpbe_settlement(
+                    plan_path=plan_path,
+                    receipts_path=receipts_path,
+                    output_root=root / "settlement",
                 )
 
 

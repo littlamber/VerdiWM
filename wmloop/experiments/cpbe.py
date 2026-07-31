@@ -233,6 +233,10 @@ def build_cpbe_plan(
     residual = _generate_residual_candidates(context=context, current=current, grammar=grammar)
     mutations = _generate_mutation_candidates(current=current, grammar=grammar)
     candidates = _deduplicate_candidates((*residual, *mutations, *retrieval, *llm))
+    historical_probe_ids = {trial.probe.probe_id for trial in trials}
+    candidates = tuple(
+        candidate for candidate in candidates if candidate.probe_id not in historical_probe_ids
+    )
     if not candidates:
         raise CPBEError("CPBE_NO_CANDIDATES")
 
@@ -276,6 +280,7 @@ def build_cpbe_plan(
             "history_trial_count": len(all_trials),
             "history_trial_count_used": len(trials),
             "synthetic_history_excluded": len(all_trials) - len(trials),
+            "historical_probe_ids_excluded": sorted(historical_probe_ids),
         },
         "acquisition_policy": asdict(policy),
         "successive_halving_thresholds": halving_thresholds,
@@ -437,7 +442,11 @@ def publish_cpbe_settlement(
     receipt_bytes = Path(receipts_path).read_bytes()
     plan = _load_json_object(plan_path)
     receipts = _load_jsonl(receipts_path)
-    _verify_live_receipt_artifacts(plan=plan, receipts=receipts, receipt_root=Path(receipts_path).resolve().parent)
+    _verify_live_receipt_artifacts(
+        plan=plan,
+        receipts=receipts,
+        receipt_root=Path(receipts_path).resolve().parent,
+    )
     report = settle_cpbe_plan(plan=plan, receipts=receipts)
     return write_bundle(
         output_root=output_root,

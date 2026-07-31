@@ -302,13 +302,18 @@ class CPBEActionEmbeddingResidualDose:
             raise RuntimeError(f"ACWM_CPBE_PROBE_RUNTIME_UNSUPPORTED:{probe_id}")
         required = {
             "hook_type": "H2",
-            "signal_source": "raw_action_sequence",
             "spatial_mask": "all_action_embedding",
             "diagnostic_only": True,
             "reversible": True,
         }
         if expected is not None:
-            required.update({"aggregation": "goal_outcome_vector", **expected})
+            required.update(
+                {
+                    "signal_source": "raw_action_sequence",
+                    "aggregation": "goal_outcome_vector",
+                    **expected,
+                }
+            )
         mismatched = [key for key, value in required.items() if self.probe.get(key) != value]
         if mismatched:
             raise RuntimeError(
@@ -327,6 +332,7 @@ class CPBEActionEmbeddingResidualDose:
                     "signed_mean_preserving_phase",
                 },
                 "aggregation": {"goal_outcome_vector", "source_sign_margin"},
+                "signal_source": {"raw_action_sequence", "action_embedding_delta"},
             }
             unsupported = [
                 key for key, values in allowed.items() if self.probe.get(key) not in values
@@ -342,6 +348,7 @@ class CPBEActionEmbeddingResidualDose:
     def __enter__(self):
         dose = self.dose
         basis_name = str(self.probe["temporal_basis"])
+        signal_source = str(self.probe["signal_source"])
         original = self.original
 
         def residual_forward(_module, action):
@@ -354,12 +361,13 @@ class CPBEActionEmbeddingResidualDose:
                 raise RuntimeError("ACWM_CPBE_ACTION_EMBEDDING_SHAPE_INVALID")
             if dose == 0.0:
                 return embedding
-            if action.shape[1] < 3 and basis_name != "event_phase_tangent":
+            event_source = embedding if signal_source == "action_embedding_delta" else action
+            if event_source.shape[1] < 3 and basis_name != "event_phase_tangent":
                 raise RuntimeError("ACWM_CPBE_EVENT_BASIS_SEQUENCE_TOO_SHORT")
-            if action.shape[1] < 2:
+            if event_source.shape[1] < 2:
                 raise RuntimeError("ACWM_CPBE_EVENT_BASIS_SEQUENCE_TOO_SHORT")
 
-            event_weight = _normalized_action_event_weight(action)
+            event_weight = _normalized_action_event_weight(event_source)
             if event_weight.shape[1] != embedding.shape[1]:
                 event_weight = torch.nn.functional.interpolate(
                     event_weight.unsqueeze(1),

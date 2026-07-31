@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cpbe-residual-prior-provenance",
+  "experiment_id": "acwm_cpbe_s4_r31_push_cube_inv_dyn_v1",
+  "state": "ready",
+  "target_environment": "push_cube",
+  "primitive": "inv_dyn_reward_finetune",
+  "collision_facts": {
+    "ground_truth_collision": true,
+    "target_positive": false,
+    "r30_candidate": "cpbe_residual_33b1d8a8f5",
+    "r30_locality_passed": true,
+    "r30_nonredundant": true,
+    "r30_collision_separation": -0.006469471739052768,
+    "r30_terminal_state": "eliminated_canary",
+    "source_effect_signs": {
+      "cloth_move": "negative",
+      "push_sand": "negative",
+      "pour_water": "positive"
+    }
+  },
+  "residual_attribution": {
+    "kind": "heuristic_credit_update_not_empirical_axis_attribution",
+    "policy_id": "canary_counterexample_axis_credit_v1",
+    "rule": "The single aggregation edit was local and nonredundant but did not separate the frozen collision. Only the failed aggregation-axis credit is multiplied by 0.1; all remaining axis ratios are preserved before normalization.",
+    "weights": {
+      "signal_source": 0.37174721189591076,
+      "hook_type": 0.03717472118959107,
+      "spatial_mask": 0.39653035935563813,
+      "temporal_basis": 0.03965303593556382,
+      "contrast_operator": 0.08674101610904585,
+      "aggregation": 0.06815365551425032
+    }
+  },
+  "capability_filter": {
+    "removed": {
+      "spatial_mask": [
+        "active_action_dimensions"
+      ]
+    },
+    "reason": "The ACWM adapter exposes no verified action-dimension-to-embedding-channel map; materializing this mask would change the declared intervention semantics."
+  },
+  "evidence_refs": [
+    "results/reports/acwm-cpbe-s4-r30-final-settlement-r1/cpbe-settlement.json",
+    "results/reports/acwm-cpbe-s4-r30-cpbe_residual_33b1d8a8f5-canary-settlement-r1/canary-report.json",
+    "results/reports/acwm-cpbe-s4-r31-counterexample-update-r3/counterexample-update.json",
+    "results/reports/acwm-cpbe-s4-r31-push-cube-inv-dyn-plan-r3/cpbe-plan.json"
+  ],
+  "claim_boundary": "Collision outcomes are measured. Axis weights are a deterministic search-credit heuristic, not causal attribution. The selected probe still requires static, offline, canary, expanded, and unchanged selector settlement."
+}

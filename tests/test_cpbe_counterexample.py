@@ -5,9 +5,55 @@ import pytest
 from wmloop.experiments.cpbe_counterexample import (
     CPBECounterexampleError,
     _capability_filter_grammar,
+    _canary_failure_credit,
     _expanded_failure_credit,
     _single_axis_candidates,
 )
+
+
+def test_canary_collision_failure_reallocates_credit_to_mechanism_axes() -> None:
+    updated, audit = _canary_failure_credit(
+        residual={
+            "signal_source": 0.23,
+            "hook_type": 0.02,
+            "spatial_mask": 0.25,
+            "temporal_basis": 0.02,
+            "contrast_operator": 0.05,
+            "aggregation": 0.43,
+        },
+        edited_axis="aggregation",
+        locality_passed=True,
+        nonredundant=True,
+        collision_separation=-0.006,
+    )
+
+    assert sum(updated.values()) == pytest.approx(1.0)
+    assert updated["signal_source"] > updated["aggregation"]
+    assert updated["contrast_operator"] > 0.05
+    assert audit["failure_mode"] == "local_nonredundant_collision_not_separated"
+    assert audit["residual_updated"] is True
+    assert audit["causal_attribution"] is False
+
+
+def test_unattributable_canary_failure_does_not_change_residual_credit() -> None:
+    residual = {
+        "signal_source": 0.23,
+        "hook_type": 0.02,
+        "spatial_mask": 0.25,
+        "temporal_basis": 0.02,
+        "contrast_operator": 0.05,
+        "aggregation": 0.43,
+    }
+    updated, audit = _canary_failure_credit(
+        residual=residual,
+        edited_axis="aggregation",
+        locality_passed=False,
+        nonredundant=True,
+        collision_separation=-0.006,
+    )
+
+    assert updated == pytest.approx(residual)
+    assert audit["residual_updated"] is False
 
 
 def test_expanded_failure_reassigns_credit_away_from_failed_temporal_axis() -> None:
@@ -94,3 +140,22 @@ def test_capability_filter_removes_unsupported_horizon_aggregation() -> None:
 
     assert filtered["aggregation"] == ["goal_outcome_vector", "source_sign_margin"]
     assert removed == {"aggregation": ["horizon_weighted_goal_outcome"]}
+
+
+def test_capability_filter_removes_unmapped_action_dimension_mask() -> None:
+    grammar = {
+        "signal_source": ["raw"],
+        "hook_type": ["H2"],
+        "spatial_mask": ["all", "active_action_dimensions"],
+        "temporal_basis": ["phase"],
+        "contrast_operator": ["signed"],
+        "aggregation": ["vector"],
+    }
+
+    filtered, removed = _capability_filter_grammar(
+        grammar=grammar,
+        capabilities=["action_embedding_hook"],
+    )
+
+    assert filtered["spatial_mask"] == ["all"]
+    assert removed == {"spatial_mask": ["active_action_dimensions"]}

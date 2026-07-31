@@ -47,7 +47,7 @@ def publish_cpbe_materialization(
         rows.append(
             {
                 "probe_id": probe_id,
-                "materialization_template": "source_sign_margin_v1",
+                "materialization_template": _materialization_template(program),
                 "program_sha256": hashlib.sha256(canonical_json(program)).hexdigest(),
                 "files": {
                     path: hashlib.sha256(payload).hexdigest()
@@ -84,9 +84,7 @@ def publish_cpbe_materialization(
 def _validate_supported(*, order: Mapping[str, Any], program: Mapping[str, Any]) -> None:
     expected = {
         "hook_type": "H2",
-        "signal_source": "raw_action_sequence",
         "spatial_mask": "all_action_embedding",
-        "aggregation": "source_sign_margin",
         "diagnostic_only": True,
         "reversible": True,
     }
@@ -95,6 +93,7 @@ def _validate_supported(*, order: Mapping[str, Any], program: Mapping[str, Any])
         raise CPBEMaterializerError(
             "CPBE_MATERIALIZER_PROGRAM_UNSUPPORTED:" + ",".join(sorted(mismatched))
         )
+    template = _materialization_template(program)
     if program.get("temporal_basis") not in {"event_salience", "event_phase_tangent"}:
         raise CPBEMaterializerError("CPBE_MATERIALIZER_TEMPORAL_BASIS_UNSUPPORTED")
     if program.get("contrast_operator") not in {
@@ -102,6 +101,11 @@ def _validate_supported(*, order: Mapping[str, Any], program: Mapping[str, Any])
         "signed_mean_preserving_phase",
     }:
         raise CPBEMaterializerError("CPBE_MATERIALIZER_CONTRAST_UNSUPPORTED")
+    if template == "action_embedding_delta_goal_outcome_v1" and (
+        program.get("temporal_basis") != "event_phase_tangent"
+        or program.get("contrast_operator") != "signed_mean_preserving_phase"
+    ):
+        raise CPBEMaterializerError("CPBE_MATERIALIZER_EMBEDDING_DELTA_PROGRAM_UNSUPPORTED")
     parent_ids = program.get("parent_probe_ids")
     rationale = program.get("rationale")
     if not isinstance(parent_ids, list) or len(parent_ids) != 1 or not isinstance(rationale, str):
@@ -110,7 +114,35 @@ def _validate_supported(*, order: Mapping[str, Any], program: Mapping[str, Any])
         raise CPBEMaterializerError("CPBE_MATERIALIZER_SCOPE_INVALID")
 
 
+def _materialization_template(program: Mapping[str, Any]) -> str:
+    key = (program.get("signal_source"), program.get("aggregation"))
+    templates = {
+        ("raw_action_sequence", "source_sign_margin"): "source_sign_margin_v1",
+        ("action_embedding_delta", "goal_outcome_vector"): (
+            "action_embedding_delta_goal_outcome_v1"
+        ),
+    }
+    template = templates.get(key)
+    if template is None:
+        mismatched = [
+            field
+            for field, allowed in {
+                "signal_source": {"raw_action_sequence", "action_embedding_delta"},
+                "aggregation": {"source_sign_margin", "goal_outcome_vector"},
+            }.items()
+            if program.get(field) not in allowed
+        ]
+        raise CPBEMaterializerError(
+            "CPBE_MATERIALIZER_PROGRAM_UNSUPPORTED:"
+            + ",".join(sorted(mismatched or ("aggregation", "signal_source")))
+        )
+    return template
+
+
 def _module_source(order: Mapping[str, Any]) -> str:
+    program = _mapping(order, "program")
+    if _materialization_template(program) == "action_embedding_delta_goal_outcome_v1":
+        return _embedding_delta_module_source(order)
     probe_id = _text(order, "probe_id")
     environment = _text(order, "environment")
     signature = _text(order, "signature")
@@ -147,6 +179,9 @@ def measure_cpbe_residual(
 
 
 def _test_source(order: Mapping[str, Any]) -> str:
+    program = _mapping(order, "program")
+    if _materialization_template(program) == "action_embedding_delta_goal_outcome_v1":
+        return _embedding_delta_test_source(order)
     probe_id = _text(order, "probe_id")
     return f'''from __future__ import annotations
 
@@ -172,8 +207,151 @@ def test_source_sign_margin_is_schema_valid_and_target_label_free() -> None:
 '''
 
 
+def _embedding_delta_module_source(order: Mapping[str, Any]) -> str:
+    probe_id = _text(order, "probe_id")
+    environment = _text(order, "environment")
+    signature = _text(order, "signature")
+    doses = tuple(float(value) for value in _mapping(order, "program")["dose_schedule"])
+    return f'''"""Generated CPBE action-embedding-delta diagnostic for {probe_id}."""
+
+from __future__ import annotations
+
+import math
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
+from wmloop.contracts import ContractValidationError, validate_document
+
+PROBE_ID = {probe_id!r}
+ENVIRONMENT = {environment!r}
+SIGNATURE = {signature!r}
+DOSE_SCHEDULE = {doses!r}
+
+
+class CPBEEmbeddingDeltaError(ValueError):
+    """The embedding-delta fixture or diagnostic output is invalid."""
+
+
+def embedding_delta_event_weights(
+    action_embeddings: Sequence[Sequence[float]],
+) -> list[float]:
+    rows = _matrix(action_embeddings, "ACTION_EMBEDDINGS")
+    if len(rows) < 2:
+        raise CPBEEmbeddingDeltaError("CPBE_EMBEDDING_DELTA_SEQUENCE_TOO_SHORT")
+    weights = [0.0]
+    for previous, current in zip(rows, rows[1:]):
+        weights.append(sum(abs(right - left) for left, right in zip(previous, current)) / len(current))
+    scale = max(weights)
+    return [value / scale if scale > 1e-12 else 0.0 for value in weights]
+
+
+def measure_cpbe_residual(
+    *,
+    dose_responses: Mapping[float, Sequence[float]],
+    evidence_refs: Sequence[str] = (),
+) -> dict[str, object]:
+    parsed = {{float(dose): _vector(vector, "GOAL_OUTCOME_VECTOR") for dose, vector in dose_responses.items()}}
+    if tuple(sorted(parsed)) != tuple(sorted(DOSE_SCHEDULE)) or 0.0 not in parsed:
+        raise CPBEEmbeddingDeltaError("CPBE_EMBEDDING_DELTA_DOSE_SCHEDULE_MISMATCH")
+    width = len(parsed[0.0])
+    if any(len(vector) != width for vector in parsed.values()):
+        raise CPBEEmbeddingDeltaError("CPBE_EMBEDDING_DELTA_OUTCOME_WIDTH_MISMATCH")
+    denominator = sum(dose * dose for dose in DOSE_SCHEDULE)
+    zero = parsed[0.0]
+    response = [
+        sum(dose * (parsed[dose][column] - zero[column]) for dose in DOSE_SCHEDULE) / denominator
+        for column in range(width)
+    ]
+    output = {{
+        "schema_version": 1,
+        "artifact_type": "wmloop-diagnostic-probe-output",
+        "probe_id": PROBE_ID,
+        "role": "diagnostic",
+        "environment": ENVIRONMENT,
+        "signature": SIGNATURE,
+        "state": "measured",
+        "metrics": {{
+            "signal_source": "action_embedding_delta",
+            "aggregation": "goal_outcome_vector",
+            "response_vector": response,
+            "target_label_used_for_fit": False,
+        }},
+        "flags": ["diagnostic_only", "target_label_free"],
+        "evidence_refs": list(evidence_refs),
+        "verdict_exposure_allowed": False,
+        "limitations": [
+            "Offline diagnostic fixture only; runtime locality and collision separation remain unsettled."
+        ],
+    }}
+    try:
+        validate_document("diagnostic_probe_output", output, root=Path(__file__).resolve().parents[3])
+    except ContractValidationError as exc:
+        raise CPBEEmbeddingDeltaError(f"CPBE_EMBEDDING_DELTA_OUTPUT_INVALID:{{exc}}") from exc
+    return output
+
+
+def _matrix(value: Sequence[Sequence[float]], code: str) -> list[list[float]]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        raise CPBEEmbeddingDeltaError(code)
+    rows = [_vector(row, code) for row in value]
+    if not rows or any(len(row) != len(rows[0]) for row in rows):
+        raise CPBEEmbeddingDeltaError(code)
+    return rows
+
+
+def _vector(value: Sequence[float], code: str) -> list[float]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or not value:
+        raise CPBEEmbeddingDeltaError(code)
+    parsed = [float(item) for item in value]
+    if any(not math.isfinite(item) for item in parsed):
+        raise CPBEEmbeddingDeltaError(code)
+    return parsed
+'''
+
+
+def _embedding_delta_test_source(order: Mapping[str, Any]) -> str:
+    probe_id = _text(order, "probe_id")
+    doses = tuple(float(value) for value in _mapping(order, "program")["dose_schedule"])
+    responses = {dose: [dose, -2.0 * dose] for dose in doses}
+    return f'''from __future__ import annotations
+
+import pytest
+
+from wmloop.diagnose.probes.{probe_id} import (
+    embedding_delta_event_weights,
+    measure_cpbe_residual,
+)
+
+
+def test_embedding_delta_signal_and_goal_outcome_response_are_exact() -> None:
+    weights = embedding_delta_event_weights([[0.0, 0.0], [1.0, 0.0], [1.0, 2.0]])
+    assert weights == pytest.approx([0.0, 0.5, 1.0])
+    output = measure_cpbe_residual(dose_responses={responses!r})
+    assert output["probe_id"] == {probe_id!r}
+    assert output["metrics"]["response_vector"] == pytest.approx([1.0, -2.0])
+    assert output["metrics"]["target_label_used_for_fit"] is False
+    assert output["verdict_exposure_allowed"] is False
+'''
+
+
 def _descriptor(order: Mapping[str, Any]) -> dict[str, object]:
     probe_id = _text(order, "probe_id")
+    program = _mapping(order, "program")
+    template = _materialization_template(program)
+    if template == "source_sign_margin_v1":
+        implementation_parameters = {
+            "aggregation": "source_sign_margin",
+            "fit_scope": "settled_source_environments_only",
+            "target_label_used_for_fit": False,
+            "projection": "source_centroid_discriminant_in_goal_outcome_frame",
+        }
+    else:
+        implementation_parameters = {
+            "signal_source": "action_embedding_delta",
+            "aggregation": "goal_outcome_vector",
+            "event_weight": "normalized_mean_absolute_embedding_delta",
+            "target_label_used_for_fit": False,
+        }
     return {
         "schema_version": 1,
         "artifact_type": "wmloop-staged-diagnostic-probe-descriptor",
@@ -186,13 +364,8 @@ def _descriptor(order: Mapping[str, Any]) -> dict[str, object]:
         "module": f"wmloop.diagnose.probes.{probe_id}",
         "callable": "measure_cpbe_residual",
         "measurement_callable": "measure_cpbe_residual",
-        "program": dict(_mapping(order, "program")),
-        "implementation_parameters": {
-            "aggregation": "source_sign_margin",
-            "fit_scope": "settled_source_environments_only",
-            "target_label_used_for_fit": False,
-            "projection": "source_centroid_discriminant_in_goal_outcome_frame",
-        },
+        "program": dict(program),
+        "implementation_parameters": implementation_parameters,
         "verdict_exposure_allowed": False,
         "admission_gates_satisfied": [
             "schema_valid_diagnostic_probe_output",

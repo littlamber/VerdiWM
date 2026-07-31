@@ -42,6 +42,11 @@ class _DownsampledEmbedder(torch.nn.Module):
         return action[:, ::2]
 
 
+class _SquaredEmbedder(torch.nn.Module):
+    def forward(self, action: torch.Tensor) -> torch.Tensor:
+        return action.square()
+
+
 def _campaign(probe_id: str) -> dict[str, object]:
     temporal_basis, contrast_operator, _ = PROGRAMS[probe_id]
     return {
@@ -154,6 +159,28 @@ class ACWMCPBERuntimeAdapterTests(unittest.TestCase):
             observed = model.model.action_embedder(action)
         self.assertEqual(observed.shape, action.shape)
         torch.testing.assert_close(observed.mean(dim=1), action.mean(dim=1))
+
+    def test_runtime_adapter_lowers_action_embedding_delta_signal_source(self) -> None:
+        action = torch.tensor(
+            [[[0.0, 0.2], [0.5, -0.1], [0.2, 0.8], [1.0, 0.4], [0.7, 1.1]]],
+            dtype=torch.float64,
+        )
+        campaign = _campaign("cpbe_residual_027381736e")
+        campaign["probe"].update(  # type: ignore[index]
+            probe_id="cpbe_residual_embedding_delta_fixture",
+            signal_source="action_embedding_delta",
+            contrast_operator="signed_mean_preserving_phase",
+        )
+        model = SimpleNamespace(model=SimpleNamespace(action_embedder=_SquaredEmbedder()))
+        baseline = model.model.action_embedder(action)
+        with _dose_context(model, campaign, 0.05):
+            observed = model.model.action_embedder(action)
+
+        self.assertEqual(observed.shape, baseline.shape)
+        self.assertFalse(torch.equal(observed, baseline))
+        torch.testing.assert_close(
+            observed.mean(dim=1), baseline.mean(dim=1), rtol=1e-12, atol=1e-12
+        )
 
 
 if __name__ == "__main__":

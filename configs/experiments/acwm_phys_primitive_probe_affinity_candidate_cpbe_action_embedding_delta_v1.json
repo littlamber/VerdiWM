@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-primitive-probe-affinity",
+  "contract_id": "acwm_phys_primitive_probe_affinity_candidate_cpbe_action_embedding_delta_v1",
+  "projection_selector": "irg",
+  "projection_source": "acwm_phys_irg_calibration_pilot_v1",
+  "projection_path_order": [
+    "action_conditioning_amplification",
+    "action_conditioning_attenuation",
+    "self_rollout_horizon_recovery",
+    "motion_region_event_phase_curvature",
+    "action_temporal_alignment",
+    "action_dimension_anisotropy",
+    "multi_chunk_exposure_stability",
+    "action_temporal_alignment_phase",
+    "cpbe_residual_63f088b0d5"
+  ],
+  "minimum_covered_candidates_per_fold": 2,
+  "require_full_candidate_coverage": true,
+  "uncovered_candidate_policy": "abstain_fold_and_emit_probe_work_order",
+  "transfer_certificate": {
+    "minimum_nonleaking_source_environments": 2,
+    "minimum_selected_positive_probability": 0.75,
+    "require_unanimous_positive_sources": true,
+    "distance_support_policy": "source_effect_leave_one_out_max_nearest",
+    "failure_policy": "abstain_fold"
+  },
+  "primitives": {
+    "action_dimension_balancing": {
+      "required_probe_paths": ["action_dimension_anisotropy"],
+      "coverage_state": "covered",
+      "successor_probe_axis": "action_dimension_interaction",
+      "mechanism_rationale": "Retain the already-materialized direct action-dimension anisotropy response; the Stage 3 interaction successor failed locality on both target environments."
+    },
+    "inv_dyn_reward_finetune": {
+      "required_probe_paths": ["cpbe_residual_63f088b0d5"],
+      "coverage_state": "covered",
+      "successor_probe_axis": "counterexample_guided_action_embedding_delta",
+      "mechanism_rationale": "Use the CPBE canary-admitted action-embedding-delta phase response for the frozen push_cube mixed-source-sign collision; target-local primitive labels and certificate thresholds remain unchanged."
+    },
+    "motion_region_reweight": {
+      "required_probe_paths": ["motion_region_event_phase_curvature"],
+      "coverage_state": "covered",
+      "successor_probe_axis": "motion_region_event_phase_curvature_rate",
+      "mechanism_rationale": "Retain the admitted second-order action-event phase response."
+    },
+    "next_forcing": {
+      "required_probe_paths": ["multi_chunk_exposure_stability"],
+      "coverage_state": "covered",
+      "successor_probe_axis": "multi_chunk_exposure_stability_rate",
+      "mechanism_rationale": "Retain the Stage 6 admitted piecewise prefix-chunk recovery response for the supervised prefix-window proxy actually implemented by next_forcing."
+    },
+    "self_forcing_finetune": {
+      "required_probe_paths": ["self_rollout_horizon_recovery"],
+      "coverage_state": "covered",
+      "successor_probe_axis": "self_rollout_horizon_recovery_curvature",
+      "mechanism_rationale": "Retain the Stage 2 horizon-weighted teacher recovery response; it remains measured but redundant and does not relax certificate thresholds."
+    }
+  },
+  "claim_boundary": "CPBE expanded-stage candidate affinity. Relative to chronological r29, only inv_dyn_reward_finetune changes from action_temporal_alignment_phase to cpbe_residual_63f088b0d5. All other mappings, target-local effect labels, and transfer-certificate thresholds remain unchanged; diagnostic admission is not primitive-benefit evidence."
+}

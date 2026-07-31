@@ -346,10 +346,10 @@ def publish_acwm_cpbe_expanded_receipt(
     candidate_collision = Path(candidate_collision_root).resolve(strict=True)
     baseline_candidates = baseline_root / "tables/candidates.csv"
     candidate_candidates = candidate_root / "tables/candidates.csv"
-    baseline_probability = _selector_probability(
+    baseline_probability, baseline_rank = _selector_candidate_state(
         baseline_candidates, target=target, primitive=primitive
     )
-    candidate_probability = _selector_probability(
+    candidate_probability, candidate_rank = _selector_candidate_state(
         candidate_candidates, target=target, primitive=primitive
     )
     baseline_error = baseline_probability if target_label < 0 else 1.0 - baseline_probability
@@ -398,6 +398,9 @@ def publish_acwm_cpbe_expanded_receipt(
         "coverage_gain": coverage_gain,
         "baseline_source_positive_probability": baseline_probability,
         "candidate_source_positive_probability": candidate_probability,
+        "baseline_target_primitive_rank": baseline_rank,
+        "candidate_target_primitive_rank": candidate_rank,
+        "target_primitive_demoted": candidate_rank > baseline_rank,
         "target_label_sign": target_label,
         "baseline_accepted_coverage": baseline_coverage,
         "candidate_accepted_coverage": candidate_coverage,
@@ -806,19 +809,29 @@ def _finite(value: object, name: str) -> float:
     return float(value)
 
 
-def _selector_probability(path: Path, *, target: str, primitive: str) -> float:
-    values: set[float] = set()
+def _selector_candidate_state(
+    path: Path, *, target: str, primitive: str
+) -> tuple[float, int]:
+    values: set[tuple[float, int]] = set()
     with Path(path).open(newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if (
                 row.get("target_environment") == target
                 and row.get("selector") == "irg"
                 and row.get("primitive") == primitive
-                and row.get("rank") == "1"
             ):
-                values.add(_finite(float(row["source_positive_probability"]), "SOURCE_PROBABILITY"))
+                probability = _finite(
+                    float(row["source_positive_probability"]), "SOURCE_PROBABILITY"
+                )
+                try:
+                    rank = int(row["rank"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise ACWMCPBECanaryError("ACWM_CPBE_SELECTOR_RANK_INVALID") from exc
+                if rank <= 0:
+                    raise ACWMCPBECanaryError("ACWM_CPBE_SELECTOR_RANK_INVALID")
+                values.add((probability, rank))
     if len(values) != 1:
-        raise ACWMCPBECanaryError("ACWM_CPBE_SELECTOR_PROBABILITY_INVALID")
+        raise ACWMCPBECanaryError("ACWM_CPBE_SELECTOR_CANDIDATE_STATE_INVALID")
     return next(iter(values))
 
 
