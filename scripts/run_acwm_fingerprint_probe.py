@@ -270,6 +270,161 @@ class ActionEmbeddingEventPhaseDose:
         return False
 
 
+class CPBEActionEmbeddingResidualDose:
+    """Compile a frozen CPBE event-basis program into an ACWM H2 hook."""
+
+    _PROGRAMS = {
+        "cpbe_residual_027381736e": {
+            "temporal_basis": "event_phase_tangent",
+            "contrast_operator": "signed_mean_preserving_scale",
+        },
+        "cpbe_residual_397450ddec": {
+            "temporal_basis": "multi_scale_event_phase",
+            "contrast_operator": "signed_mean_preserving_phase",
+        },
+        "cpbe_residual_eeecb3d726": {
+            "temporal_basis": "event_phase_curvature",
+            "contrast_operator": "signed_mean_preserving_phase",
+        },
+    }
+
+    def __init__(self, dynamics_model, dose: float, *, probe: dict[str, object]) -> None:
+        self.dose = float(dose)
+        self.probe = probe
+        self.embedder = dynamics_model.model.action_embedder
+        self.original = self.embedder.forward
+        self._validate_program()
+
+    def _validate_program(self) -> None:
+        probe_id = self.probe.get("probe_id")
+        expected = self._PROGRAMS.get(str(probe_id))
+        if expected is None and not str(probe_id).startswith("cpbe_residual_"):
+            raise RuntimeError(f"ACWM_CPBE_PROBE_RUNTIME_UNSUPPORTED:{probe_id}")
+        required = {
+            "hook_type": "H2",
+            "signal_source": "raw_action_sequence",
+            "spatial_mask": "all_action_embedding",
+            "diagnostic_only": True,
+            "reversible": True,
+        }
+        if expected is not None:
+            required.update({"aggregation": "goal_outcome_vector", **expected})
+        mismatched = [key for key, value in required.items() if self.probe.get(key) != value]
+        if mismatched:
+            raise RuntimeError(
+                f"ACWM_CPBE_PROGRAM_MISMATCH:{probe_id}:{','.join(sorted(mismatched))}"
+            )
+        if expected is None:
+            allowed = {
+                "temporal_basis": {
+                    "event_salience",
+                    "event_phase_tangent",
+                    "event_phase_curvature",
+                    "multi_scale_event_phase",
+                },
+                "contrast_operator": {
+                    "signed_mean_preserving_scale",
+                    "signed_mean_preserving_phase",
+                },
+                "aggregation": {"goal_outcome_vector", "source_sign_margin"},
+            }
+            unsupported = [
+                key for key, values in allowed.items() if self.probe.get(key) not in values
+            ]
+            if unsupported:
+                raise RuntimeError(
+                    f"ACWM_CPBE_PROGRAM_UNSUPPORTED:{probe_id}:{','.join(sorted(unsupported))}"
+                )
+        doses = tuple(float(value) for value in self.probe.get("doses", ()))
+        if doses != (-0.05, -0.025, 0.0, 0.025, 0.05) or self.dose not in doses:
+            raise RuntimeError(f"ACWM_CPBE_DOSE_GRID_MISMATCH:{probe_id}")
+
+    def __enter__(self):
+        dose = self.dose
+        basis_name = str(self.probe["temporal_basis"])
+        original = self.original
+
+        def residual_forward(_module, action):
+            embedding = original(action)
+            if (
+                action.ndim != 3
+                or embedding.ndim != 3
+                or action.shape[0] != embedding.shape[0]
+            ):
+                raise RuntimeError("ACWM_CPBE_ACTION_EMBEDDING_SHAPE_INVALID")
+            if dose == 0.0:
+                return embedding
+            if action.shape[1] < 3 and basis_name != "event_phase_tangent":
+                raise RuntimeError("ACWM_CPBE_EVENT_BASIS_SEQUENCE_TOO_SHORT")
+            if action.shape[1] < 2:
+                raise RuntimeError("ACWM_CPBE_EVENT_BASIS_SEQUENCE_TOO_SHORT")
+
+            event_weight = _normalized_action_event_weight(action)
+            if event_weight.shape[1] != embedding.shape[1]:
+                event_weight = torch.nn.functional.interpolate(
+                    event_weight.unsqueeze(1),
+                    size=embedding.shape[1],
+                    mode="linear",
+                    align_corners=True,
+                ).squeeze(1)
+            temporal_basis = _cpbe_temporal_basis(event_weight, basis_name)
+            temporal_mean = embedding.mean(dim=1, keepdim=True)
+            perturbation = temporal_basis.unsqueeze(-1).to(embedding.dtype) * (
+                embedding - temporal_mean
+            )
+            perturbation = perturbation - perturbation.mean(dim=1, keepdim=True)
+            return embedding + dose * perturbation
+
+        self.embedder.forward = MethodType(residual_forward, self.embedder)
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self.embedder.forward = self.original
+        return False
+
+
+def _normalized_action_event_weight(action: torch.Tensor) -> torch.Tensor:
+    action_delta = torch.cat(
+        [torch.zeros_like(action[:, :1]), action[:, 1:] - action[:, :-1]], dim=1
+    ).abs().mean(dim=-1)
+    event_scale = action_delta.amax(dim=1, keepdim=True)
+    return torch.where(
+        event_scale > 1e-12,
+        action_delta / event_scale.clamp_min(1e-12),
+        torch.zeros_like(action_delta),
+    )
+
+
+def _cpbe_temporal_basis(event_weight: torch.Tensor, basis_name: str) -> torch.Tensor:
+    zero = torch.zeros_like(event_weight[:, :1])
+    if basis_name == "event_salience":
+        return event_weight
+    if basis_name == "event_phase_tangent":
+        previous = torch.cat([zero, event_weight[:, :-1]], dim=1)
+        following = torch.cat([event_weight[:, 1:], zero], dim=1)
+        return 0.5 * (following - previous)
+    if basis_name == "event_phase_curvature":
+        previous = torch.cat([zero, event_weight[:, :-1]], dim=1)
+        following = torch.cat([event_weight[:, 1:], zero], dim=1)
+        curvature = previous - 2.0 * event_weight + following
+        scale = curvature.abs().amax(dim=1, keepdim=True)
+        return torch.where(
+            scale > 1e-12,
+            curvature / scale.clamp_min(1e-12),
+            torch.zeros_like(curvature),
+        )
+    if basis_name == "multi_scale_event_phase":
+        phases = []
+        length = event_weight.shape[1]
+        for scale in (1, 2):
+            padded = torch.nn.functional.pad(event_weight, (scale, scale))
+            previous = padded[:, :length]
+            following = padded[:, 2 * scale : 2 * scale + length]
+            phases.append((following - previous) / (2.0 * scale))
+        return torch.stack(phases, dim=0).mean(dim=0)
+    raise RuntimeError(f"ACWM_CPBE_TEMPORAL_BASIS_UNSUPPORTED:{basis_name}")
+
+
 class AutoregressiveHistoryDose:
     """Scale generated latent history around the first conditioned latent."""
 
@@ -808,6 +963,14 @@ def _dose_context(
         if not hasattr(dynamics_model.model, "action_embedder"):
             raise RuntimeError("ACWM_ACTION_EVENT_PHASE_HOOK_MISSING")
         return ActionEmbeddingEventPhaseDose(dynamics_model, dose)
+    if str(probe_id).startswith("cpbe_residual_"):
+        if not hasattr(dynamics_model.model, "action_embedder"):
+            raise RuntimeError("ACWM_CPBE_ACTION_EMBEDDER_HOOK_MISSING")
+        return CPBEActionEmbeddingResidualDose(
+            dynamics_model,
+            dose,
+            probe=probe,
+        )
     if probe_id == "self_rollout_history_scale":
         if str(probe.get("generation_mode", "")) != "autoregressive":
             raise RuntimeError("ACWM_HISTORY_PROBE_REQUIRES_AUTOREGRESSIVE_MODE")
@@ -1017,6 +1180,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "elapsed_seconds": round(time.time() - started, 6),
         "measurement_sha256": sha256_file(measurement_path),
         "response_chart_sha256": sha256_file(chart_path),
+        "runtime_source": str(Path(__file__).resolve()),
+        "runtime_source_sha256": sha256_file(Path(__file__).resolve()),
         "claim_boundary": campaign["claim_scope"],
     }
     (output_root / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-staged-diagnostic-probe-descriptor",
+  "state": "staged",
+  "probe_id": "cpbe_residual_eeecb3d726",
+  "environment": "push_cube",
+  "signature": "mixed_source_sign_positive_prediction_vs_negative_target",
+  "priority": "P0_collision_basis_gap",
+  "work_order_id": "acwm_cpbe_s4_r29_push_cube_inv_dyn_v1:cpbe_residual_eeecb3d726",
+  "collision_id": "acwm_s4_r29_push_cube_inv_dyn_sign_collision",
+  "primitive": "inv_dyn_reward_finetune",
+  "role": "diagnostic",
+  "verdict_exposure_allowed": false,
+  "signal_contract": "Measure the frozen Probe DSL program as diagnostic-only evidence for collision separation; never expose its output to verdict evidence.",
+  "module": "wmloop.diagnose.probes.cpbe_residual_eeecb3d726",
+  "callable": "measure_phase_curvature_fixture",
+  "program": {
+    "probe_id": "cpbe_residual_eeecb3d726",
+    "signal_source": "raw_action_sequence",
+    "hook_type": "H2",
+    "spatial_mask": "all_action_embedding",
+    "temporal_basis": "event_phase_curvature",
+    "contrast_operator": "signed_mean_preserving_phase",
+    "dose_schedule": [-0.05, -0.025, 0.0, 0.025, 0.05],
+    "aggregation": "goal_outcome_vector",
+    "invariants": [
+      "same_checkpoint",
+      "same_input_action",
+      "same_trajectory",
+      "same_seed",
+      "same_evaluator",
+      "per_trajectory_action_embedding_temporal_mean_preserved",
+      "dose_grid_matches_action_temporal_alignment_reference"
+    ],
+    "required_capabilities": [
+      "action_embedding_hook",
+      "action_sequence_hook",
+      "paired_seed_control"
+    ],
+    "estimated_gpu_hours": 0.011611821701388888,
+    "origin": "residual",
+    "parent_probe_ids": [
+      "action_temporal_alignment_phase"
+    ],
+    "diagnostic_only": true,
+    "reversible": true,
+    "rationale": "Change temporal_basis from event_phase_tangent to event_phase_curvature. Residual weight=0.320000."
+  },
+  "input_contract": {
+    "action_sequence": "finite rectangular [time, action_dimension] with at least three timesteps",
+    "action_embeddings": "finite rectangular [time, embedding_dimension] aligned to action_sequence",
+    "goal_outcome_vectors": "one finite equal-width vector per frozen dose, ordered by dose_schedule",
+    "evidence_refs": "optional cas://sha256 references"
+  },
+  "output_contract": {
+    "schema": "diagnostic_probe_output",
+    "artifact_type": "wmloop-diagnostic-probe-output",
+    "role": "diagnostic",
+    "verdict_exposure_allowed": false
+  },
+  "failure_semantics": [
+    "CPBE_RESIDUAL_ACTION_SEQUENCE_INVALID",
+    "CPBE_RESIDUAL_ACTION_EMBEDDINGS_INVALID",
+    "CPBE_RESIDUAL_GOAL_OUTCOME_VECTORS_INVALID",
+    "CPBE_RESIDUAL_TEMPORAL_LENGTH_MISMATCH",
+    "CPBE_RESIDUAL_TIMESTEPS_INSUFFICIENT",
+    "CPBE_RESIDUAL_DOSE_GRID_MISMATCH",
+    "CPBE_RESIDUAL_EVIDENCE_REFS_INVALID",
+    "CPBE_RESIDUAL_OUTPUT_CONTRACT_INVALID"
+  ],
+  "admission_gates": [
+    "schema_valid_diagnostic_probe_output",
+    "offline_fixture_test_passed",
+    "runtime_smoke_on_dev_split",
+    "locality_and_nonredundancy_canary_passed",
+    "selector_regret_or_coverage_gain_observed",
+    "no_verdict_evidence_exposure"
+  ],
+  "required_stages": [
+    "static",
+    "offline",
+    "canary",
+    "expanded"
+  ],
+  "admission_state": {
+    "static": "implemented",
+    "offline": "fixture_test_available",
+    "canary": "not_run",
+    "expanded": "not_run"
+  },
+  "claim_boundary": "Staging and offline fixture checks establish diagnostic DSL semantics only; they do not establish runtime, locality, collision-resolution, selector-gain, transfer, or verdict evidence.",
+  "promotion_boundary": "Verdict-facing use requires a human-approved version boundary before a new campaign."
+}

@@ -19,6 +19,27 @@ from wmloop.experiments.cpbe import (
     build_cpbe_plan,
     settle_cpbe_plan,
 )
+from wmloop.experiments.acwm_cpbe_bootstrap import (
+    ACWMCPBEBootstrapError,
+    build_acwm_cpbe_bootstrap,
+)
+from wmloop.experiments.cpbe_stage_runner import (
+    CPBEStageRunnerError,
+    publish_static_offline_receipts,
+)
+from wmloop.experiments.acwm_cpbe_canary import (
+    ACWMCPBECanaryError,
+    evaluate_acwm_cpbe_canary,
+    prepare_acwm_cpbe_canary_bundle,
+)
+from wmloop.experiments.cpbe_counterexample import (
+    CPBECounterexampleError,
+    build_counterexample_round,
+)
+from wmloop.experiments.cpbe_materializer import (
+    CPBEMaterializerError,
+    publish_cpbe_materialization,
+)
 
 __all__ = [
     "ARMS",
@@ -29,12 +50,23 @@ __all__ = [
     "EffectLabelIndexError",
     "CtrlWorldFingerprintError",
     "CPBEError",
+    "ACWMCPBEBootstrapError",
+    "CPBEStageRunnerError",
+    "ACWMCPBECanaryError",
+    "CPBECounterexampleError",
+    "CPBEMaterializerError",
     "SelectorAblationError",
     "build_fingerprint_atlas",
     "build_effect_label_index",
     "evaluate_ctrl_world_fingerprint",
     "build_selector_ablation_plan",
     "build_cpbe_plan",
+    "build_acwm_cpbe_bootstrap",
+    "publish_static_offline_receipts",
+    "evaluate_acwm_cpbe_canary",
+    "prepare_acwm_cpbe_canary_bundle",
+    "build_counterexample_round",
+    "publish_cpbe_materialization",
     "load_experiment_spec",
     "settle_cpbe_plan",
 ]

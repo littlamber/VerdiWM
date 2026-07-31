@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-diagnostic-probe-staging-descriptor",
+  "state": "offline_fixture_only",
+  "probe_id": "cpbe_residual_027381736e",
+  "environment": "push_cube",
+  "signature": "mixed_source_sign_positive_prediction_vs_negative_target",
+  "role": "diagnostic",
+  "priority": "P0_collision_basis_gap",
+  "collision_id": "acwm_s4_r29_push_cube_inv_dyn_sign_collision",
+  "primitive": "inv_dyn_reward_finetune",
+  "signal_contract": "Measure the frozen Probe DSL program as diagnostic-only evidence for collision separation; never expose its output to verdict evidence.",
+  "required_stages": ["static", "offline", "canary", "expanded"],
+  "implementation": {
+    "module": "wmloop.diagnose.probes.cpbe_residual_027381736e",
+    "measurement_callable": "measure_probe",
+    "transform_callable": "apply_contrast_dose",
+    "execution_mode": "pure_offline_fixture"
+  },
+  "program": {
+    "aggregation": "goal_outcome_vector",
+    "contrast_operator": "signed_mean_preserving_scale",
+    "diagnostic_only": true,
+    "dose_schedule": [-0.05, -0.025, 0.0, 0.025, 0.05],
+    "estimated_gpu_hours": 0.011611821701388888,
+    "hook_type": "H2",
+    "invariants": [
+      "same_checkpoint",
+      "same_input_action",
+      "same_trajectory",
+      "same_seed",
+      "same_evaluator",
+      "per_trajectory_action_embedding_temporal_mean_preserved",
+      "dose_grid_matches_action_temporal_alignment_reference"
+    ],
+    "origin": "residual",
+    "parent_probe_ids": ["action_temporal_alignment_phase"],
+    "probe_id": "cpbe_residual_027381736e",
+    "required_capabilities": [
+      "action_embedding_hook",
+      "action_sequence_hook",
+      "paired_seed_control"
+    ],
+    "rationale": "Change contrast_operator from signed_mean_preserving_phase to signed_mean_preserving_scale. Residual weight=0.280000.",
+    "reversible": true,
+    "signal_source": "raw_action_sequence",
+    "spatial_mask": "all_action_embedding",
+    "temporal_basis": "event_phase_tangent"
+  },
+  "admission": {
+    "schema_valid_diagnostic_probe_output": "covered_by_narrow_test",
+    "offline_fixture_test_passed": "covered_by_narrow_test",
+    "runtime_smoke_on_dev_split": "pending",
+    "locality_and_nonredundancy_canary_passed": "pending",
+    "selector_regret_or_coverage_gain_observed": "pending",
+    "no_verdict_evidence_exposure": "covered_by_narrow_test"
+  },
+  "routing_allowed": false,
+  "verdict_exposure_allowed": false,
+  "gpu_execution_required": false,
+  "claim_boundary": "Offline diagnostic materialization only; no effect, transfer, routing, or quality claim is licensed.",
+  "limitations": [
+    "Runtime smoke on the development split remains a separate admission step.",
+    "Canary locality, nonredundancy, selector regret, and coverage gain remain unmeasured.",
+    "Promotion requires the remaining admission gates and a human-approved version boundary before any new campaign."
+  ]
+}

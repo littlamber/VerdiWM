@@ -17,7 +17,43 @@
         "primitive": {"type": "string", "minLength": 1}
       }
     },
-    "probe": {"type": "object"},
+    "probe": {
+      "type": "object",
+      "required": [
+        "probe_id",
+        "signal_source",
+        "hook_type",
+        "spatial_mask",
+        "temporal_basis",
+        "contrast_operator",
+        "dose_schedule",
+        "aggregation",
+        "invariants",
+        "required_capabilities",
+        "estimated_gpu_hours",
+        "origin",
+        "diagnostic_only",
+        "reversible"
+      ],
+      "properties": {
+        "probe_id": {"type": "string", "minLength": 1},
+        "signal_source": {"type": "string", "minLength": 1},
+        "hook_type": {"type": "string", "minLength": 1},
+        "spatial_mask": {"type": "string", "minLength": 1},
+        "temporal_basis": {"type": "string", "minLength": 1},
+        "contrast_operator": {"type": "string", "minLength": 1},
+        "dose_schedule": {"type": "array", "minItems": 2, "items": {"type": "number"}},
+        "aggregation": {"type": "string", "minLength": 1},
+        "invariants": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "required_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0.0},
+        "origin": {"type": "string", "enum": ["residual", "mutation", "retrieval", "llm"]},
+        "parent_probe_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "rationale": {"type": "string"},
+        "diagnostic_only": {"type": "boolean", "enum": [true]},
+        "reversible": {"type": "boolean", "enum": [true]}
+      }
+    },
     "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
     "outcomes": {
       "type": "object",
@@ -31,11 +67,11 @@
         "gpu_hours"
       ],
       "properties": {
-        "locality_pass": {"type": "boolean"},
-        "nonredundant": {"type": "boolean"},
-        "collision_resolved": {"type": "boolean"},
-        "regret_reduction": {"type": "number"},
-        "coverage_gain": {"type": "number"},
+        "locality_pass": {"type": ["boolean", "null"]},
+        "nonredundant": {"type": ["boolean", "null"]},
+        "collision_resolved": {"type": ["boolean", "null"]},
+        "regret_reduction": {"type": ["number", "null"]},
+        "coverage_gain": {"type": ["number", "null"]},
         "gpu_hours": {"type": "number", "exclusiveMinimum": 0.0}
       }
     }

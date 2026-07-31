@@ -156,18 +156,24 @@ class HistoricalProbeTrial:
     failure_signature: str
     primitive: str
     probe: ProbeProgram
-    locality_pass: bool
-    nonredundant: bool
-    collision_resolved: bool
-    regret_reduction: float
-    coverage_gain: float
+    locality_pass: bool | None
+    nonredundant: bool | None
+    collision_resolved: bool | None
+    regret_reduction: float | None
+    coverage_gain: float | None
     gpu_hours: float
     evidence_refs: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if not self.trial_id or self.evidence_class not in _EVIDENCE_CLASSES or not self.evidence_refs or any(
-            not math.isfinite(value)
-            for value in (self.regret_reduction, self.coverage_gain, self.gpu_hours)
+        measured_numbers = (
+            value for value in (self.regret_reduction, self.coverage_gain) if value is not None
+        )
+        if (
+            not self.trial_id
+            or self.evidence_class not in _EVIDENCE_CLASSES
+            or not self.evidence_refs
+            or any(not math.isfinite(value) for value in measured_numbers)
+            or not math.isfinite(self.gpu_hours)
         ):
             raise CPBEError("CPBE_HISTORY_INVALID")
         if self.gpu_hours <= 0.0:
@@ -184,6 +190,7 @@ class AcquisitionPolicy:
     nonlocal_penalty: float = 0.5
     redundancy_penalty: float = 0.25
     nonredundancy_penalty: float = 0.25
+    complexity_penalty: float = 0.15
 
     def __post_init__(self) -> None:
         if any(not math.isfinite(value) or value < 0.0 for value in asdict(self).values()):
@@ -347,7 +354,8 @@ def settle_cpbe_plan(
         raise CPBEError("CPBE_PLAN_INVALID")
     thresholds = {
         "maximum_locality_residual": 0.5,
-        "maximum_redundancy_cosine": 0.95,
+        "maximum_redundancy_cosine": 0.999,
+        "maximum_redundancy_relative_l2": 0.1,
         "minimum_collision_separation": 0.0,
         "minimum_regret_reduction": 0.0,
         "minimum_coverage_gain": 0.0,
@@ -429,6 +437,7 @@ def publish_cpbe_settlement(
     receipt_bytes = Path(receipts_path).read_bytes()
     plan = _load_json_object(plan_path)
     receipts = _load_jsonl(receipts_path)
+    _verify_live_receipt_artifacts(plan=plan, receipts=receipts, receipt_root=Path(receipts_path).resolve().parent)
     report = settle_cpbe_plan(plan=plan, receipts=receipts)
     return write_bundle(
         output_root=output_root,
@@ -454,6 +463,47 @@ def publish_cpbe_settlement(
         archive_db=archive_db,
         cas_root=cas_root,
     )
+
+
+def _verify_live_receipt_artifacts(
+    *,
+    plan: Mapping[str, Any],
+    receipts: Sequence[Mapping[str, Any]],
+    receipt_root: Path,
+) -> None:
+    """Fail closed when a non-fixture receipt is not bound to local evidence bytes."""
+
+    if plan.get("evidence_class") == "synthetic_fixture":
+        return
+    receipt_root = receipt_root.resolve()
+    for receipt in receipts:
+        artifacts = receipt.get("evidence_artifacts")
+        if not isinstance(artifacts, list) or not artifacts:
+            raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACTS_REQUIRED")
+        for artifact in artifacts:
+            if not isinstance(artifact, Mapping):
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_INVALID")
+            raw_path = artifact.get("path")
+            if not isinstance(raw_path, str) or not raw_path:
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_INVALID")
+            relative = Path(raw_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_PATH_INVALID")
+            candidate = receipt_root / relative
+            if candidate.is_symlink():
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_PATH_INVALID")
+            try:
+                path = candidate.resolve(strict=True)
+                path.relative_to(receipt_root)
+            except (OSError, ValueError) as exc:
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_PATH_INVALID") from exc
+            if not path.is_file():
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_PATH_INVALID")
+            payload = path.read_bytes()
+            if artifact.get("size_bytes") != len(payload):
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_SIZE_MISMATCH")
+            if artifact.get("sha256") != hashlib.sha256(payload).hexdigest():
+                raise CPBEError("CPBE_LIVE_RECEIPT_ARTIFACT_SHA256_MISMATCH")
 
 
 def _generate_residual_candidates(
@@ -559,6 +609,7 @@ def _score_candidate(
     utility_lcb = utility_mean - policy.confidence_z * utility_se
     residual_alignment = _residual_alignment(candidate, current=current, context=context)
     structural_redundancy = max(_program_similarity(candidate, parent) for parent in current)
+    edit_count = min(_program_edit_count(candidate, parent) for parent in current)
     uncertainty = 1.0 / math.sqrt(1.0 + total_weight)
     acquisition = (
         utility_lcb
@@ -568,6 +619,10 @@ def _score_candidate(
     acquisition -= policy.nonlocal_penalty * (1.0 - p_local)
     acquisition -= policy.redundancy_penalty * structural_redundancy
     acquisition -= policy.nonredundancy_penalty * (1.0 - p_nonredundant)
+    complexity_penalty = (
+        policy.complexity_penalty * max(edit_count - 1, 0) / candidate.estimated_gpu_hours
+    )
+    acquisition -= complexity_penalty
     return {
         "probe_id": candidate.probe_id,
         "origin": candidate.origin,
@@ -585,6 +640,8 @@ def _score_candidate(
         "utility_lcb": utility_lcb,
         "residual_alignment": residual_alignment,
         "structural_redundancy": structural_redundancy,
+        "edit_count": edit_count,
+        "complexity_penalty": complexity_penalty,
         "uncertainty": uncertainty,
         "estimated_gpu_hours": candidate.estimated_gpu_hours,
         "acquisition_score": acquisition,
@@ -612,12 +669,18 @@ def _program_similarity(left: ProbeProgram, right: ProbeProgram) -> float:
     return sum(compared) / len(compared)
 
 
+def _program_edit_count(left: ProbeProgram, right: ProbeProgram) -> int:
+    return sum(getattr(left, field) != getattr(right, field) for field in _DSL_FIELDS)
+
+
 def _beta_probability(
     weighted: Sequence[tuple[HistoricalProbeTrial, float]],
     outcome: Any,
 ) -> float:
-    successes = sum(weight for trial, weight in weighted if outcome(trial))
-    total = sum(weight for _, weight in weighted)
+    observed = [(trial, weight, outcome(trial)) for trial, weight in weighted]
+    observed = [(trial, weight, value) for trial, weight, value in observed if value is not None]
+    successes = sum(weight for _, weight, value in observed if value is True)
+    total = sum(weight for _, weight, _ in observed)
     return (1.0 + successes) / (2.0 + total)
 
 
@@ -625,12 +688,14 @@ def _weighted_mean_se(
     weighted: Sequence[tuple[HistoricalProbeTrial, float]],
     value: Any,
 ) -> tuple[float, float]:
-    total = sum(weight for _, weight in weighted)
+    observed = [(trial, weight, value(trial)) for trial, weight in weighted]
+    observed = [(trial, weight, item) for trial, weight, item in observed if item is not None]
+    total = sum(weight for _, weight, _ in observed)
     if total <= 0.0:
         return 0.0, 0.5
-    mean = sum(weight * float(value(trial)) for trial, weight in weighted) / total
-    variance = sum(weight * (float(value(trial)) - mean) ** 2 for trial, weight in weighted) / total
-    effective_n = total**2 / max(sum(weight**2 for _, weight in weighted), 1e-12)
+    mean = sum(weight * float(item) for _, weight, item in observed) / total
+    variance = sum(weight * (float(item) - mean) ** 2 for _, weight, item in observed) / total
+    effective_n = total**2 / max(sum(weight**2 for _, weight, _ in observed), 1e-12)
     return mean, math.sqrt(variance / max(effective_n, 1.0) + 0.25 / (1.0 + total))
 
 
@@ -782,11 +847,27 @@ def _stage_metric_blockers(
     if stage == "canary":
         locality = _metric(metrics, "locality_residual")
         redundancy = _metric(metrics, "redundancy_cosine")
+        relative_l2 = metrics.get("redundancy_relative_l2")
+        nonredundant = metrics.get("nonredundant")
         separation = _metric(metrics, "collision_separation")
         if locality > thresholds["maximum_locality_residual"]:
             blockers.append("locality_residual_exceeded")
-        if abs(redundancy) > thresholds["maximum_redundancy_cosine"]:
-            blockers.append("empirically_redundant")
+        if nonredundant is not None:
+            if not isinstance(nonredundant, bool):
+                raise CPBEError("CPBE_STAGE_METRIC_INVALID:nonredundant")
+            if not nonredundant:
+                blockers.append("empirically_redundant")
+        elif relative_l2 is None:
+            # Backward compatibility for historical one-dimensional receipts.
+            if abs(redundancy) > thresholds["maximum_redundancy_cosine"]:
+                blockers.append("empirically_redundant")
+        else:
+            parsed_relative_l2 = _metric(metrics, "redundancy_relative_l2")
+            if (
+                redundancy >= thresholds["maximum_redundancy_cosine"]
+                and parsed_relative_l2 <= thresholds["maximum_redundancy_relative_l2"]
+            ):
+                blockers.append("empirically_redundant")
         if separation <= thresholds["minimum_collision_separation"]:
             blockers.append("collision_not_separated")
     if stage == "expanded":
@@ -871,11 +952,11 @@ def _parse_history(value: Mapping[str, Any]) -> HistoricalProbeTrial:
         failure_signature=_required_string(context, "failure_signature"),
         primitive=_required_string(context, "primitive"),
         probe=_parse_probe(value.get("probe"), default_origin="retrieval"),
-        locality_pass=_required_bool(outcomes, "locality_pass"),
-        nonredundant=_required_bool(outcomes, "nonredundant"),
-        collision_resolved=_required_bool(outcomes, "collision_resolved"),
-        regret_reduction=_required_number(outcomes, "regret_reduction"),
-        coverage_gain=_required_number(outcomes, "coverage_gain"),
+        locality_pass=_optional_bool(outcomes, "locality_pass"),
+        nonredundant=_optional_bool(outcomes, "nonredundant"),
+        collision_resolved=_optional_bool(outcomes, "collision_resolved"),
+        regret_reduction=_optional_number(outcomes, "regret_reduction"),
+        coverage_gain=_optional_number(outcomes, "coverage_gain"),
         gpu_hours=_required_number(outcomes, "gpu_hours"),
         evidence_refs=_string_tuple(
             value.get("evidence_refs"),
@@ -923,7 +1004,8 @@ def _parse_policy(value: object) -> AcquisitionPolicy:
 def _parse_halving_thresholds(value: object) -> dict[str, float]:
     defaults = {
         "maximum_locality_residual": 0.5,
-        "maximum_redundancy_cosine": 0.95,
+        "maximum_redundancy_cosine": 0.999,
+        "maximum_redundancy_relative_l2": 0.1,
         "minimum_collision_separation": 0.0,
         "minimum_regret_reduction": 0.0,
         "minimum_coverage_gain": 0.0,
@@ -939,7 +1021,11 @@ def _parse_halving_thresholds(value: object) -> dict[str, float]:
         if not isinstance(item, (int, float)) or not math.isfinite(float(item)):
             raise CPBEError("CPBE_SETTLEMENT_THRESHOLD_INVALID")
         defaults[key] = float(item)
-    if defaults["maximum_locality_residual"] < 0.0 or not 0.0 <= defaults["maximum_redundancy_cosine"] <= 1.0:
+    if (
+        defaults["maximum_locality_residual"] < 0.0
+        or not 0.0 <= defaults["maximum_redundancy_cosine"] <= 1.0
+        or defaults["maximum_redundancy_relative_l2"] < 0.0
+    ):
         raise CPBEError("CPBE_SETTLEMENT_THRESHOLD_INVALID")
     return defaults
 
@@ -980,6 +1066,24 @@ def _required_bool(value: Mapping[str, Any], key: str) -> bool:
     if not isinstance(item, bool):
         raise CPBEError(f"CPBE_BOOLEAN_REQUIRED:{key}")
     return item
+
+
+def _optional_bool(value: Mapping[str, Any], key: str) -> bool | None:
+    item = value.get(key)
+    if item is None:
+        return None
+    if not isinstance(item, bool):
+        raise CPBEError(f"CPBE_BOOLEAN_REQUIRED:{key}")
+    return item
+
+
+def _optional_number(value: Mapping[str, Any], key: str) -> float | None:
+    item = value.get(key)
+    if item is None:
+        return None
+    if not isinstance(item, (int, float)) or isinstance(item, bool) or not math.isfinite(float(item)):
+        raise CPBEError(f"CPBE_NUMBER_REQUIRED:{key}")
+    return float(item)
 
 
 def _mapping(value: Mapping[str, Any], key: str) -> Mapping[str, Any]:

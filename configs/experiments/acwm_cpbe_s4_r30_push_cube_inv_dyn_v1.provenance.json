@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cpbe-residual-prior-provenance",
+  "experiment_id": "acwm_cpbe_s4_r30_push_cube_inv_dyn_v1",
+  "state": "ready",
+  "target_environment": "push_cube",
+  "primitive": "inv_dyn_reward_finetune",
+  "collision_facts": {
+    "ground_truth_collision": true,
+    "target_positive": false,
+    "evolved_predicted_sign": "positive",
+    "evolved_state": "abstained",
+    "evolved_abstention_reason": "transfer_certificate_failed",
+    "source_positive_probability": 0.6540279790325406,
+    "minimum_required_positive_probability": 0.75,
+    "source_effect_signs": {
+      "cloth_move": "negative",
+      "push_sand": "negative",
+      "pour_water": "positive"
+    }
+  },
+  "residual_attribution": {
+    "kind": "heuristic_credit_update_not_empirical_axis_attribution",
+    "policy_id": "expanded_counterexample_axis_credit_v1",
+    "rule": "The single temporal-basis edit passed canary separation but failed expanded selector and coverage gates, so its credit is discounted. Aggregation and signal source receive objective credit; spatial mask receives cross-environment locality credit because push_rope was nonlocal.",
+    "weights": {
+      "signal_source": 0.23041474654377878,
+      "hook_type": 0.023041474654377874,
+      "spatial_mask": 0.24577572964669733,
+      "temporal_basis": 0.024577572964669735,
+      "contrast_operator": 0.05376344086021505,
+      "aggregation": 0.4224270353302611
+    }
+  },
+  "evidence_refs": [
+    "results/reports/acwm-cpbe-s4-r29-final-settlement-r1/cpbe-settlement.json",
+    "results/reports/acwm-cpbe-s4-r29-397450ddec-expanded-settlement-r1/expanded-report.json",
+    "results/reports/acwm-cpbe-s4-r29-397450ddec-atlas-8env-r1/fingerprint-atlas.json",
+    "results/reports/acwm-cpbe-s4-r30-counterexample-update-r3/counterexample-update.json"
+  ],
+  "claim_boundary": "Collision and expanded outcomes are frozen observations. Axis weights are a deterministic search-credit heuristic, not measured causal attribution. Every selected probe still requires static, offline, canary, expanded, and unchanged selector/certificate settlement."
+}
