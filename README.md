@@ -49,8 +49,9 @@ validation.
 
 1. **Compile intent.** A user objective is converted into a versioned goal,
    metric roles, held-out protocol, resource budget, and immutable verifier.
-2. **Diagnose.** Verdict probes measure success; diagnostic probes localize
-   likely mechanisms without being allowed to decide acceptance.
+2. **Diagnose and fingerprint.** Outcome/verdict diagnostics measure horizon,
+   action following, appearance drift, and OoD gaps. Separately, semantic
+   intervention probes perturb the model to estimate an IRG response chart.
 3. **Compile an intervention.** A semantic primitive is admitted only when the
    target backbone exposes the required hook and all invariants are checked.
 4. **Test progressively.** Cheap screens precede the frozen official gate and
@@ -61,6 +62,21 @@ validation.
    context-local in memory and become transfer priors only under a certificate.
 7. **Evolve the atlas.** Nearby contexts with opposing repair effects create
    counterexamples that prioritize new diagnostic directions.
+
+## Probe taxonomy
+
+VerdiWM keeps three probe layers explicit:
+
+| Layer | Role | ACWM-Phys v1 instance |
+|---|---|---|
+| Outcome/verdict diagnostics | Coordinates measured in the outcome vector | `horizon_curve`, `action_following`, `appearance_drift`, `ood_profile` |
+| Canonical base intervention probes | Cross-backbone semantic perturbation families | Action scaling, controlled context retention, first-frame anchoring strength, sampler-noise stress |
+| Admitted IRG paths | Locality-tested columns of an instantiated response Jacobian | Seven executable paths after polarity splitting and mechanism-specific expansion |
+
+The four outcome diagnostics are not the four base intervention probes. The
+seven ACWM paths are also not seven base probes. The machine-readable contract
+is `configs/probes/irg_base_v1.json`; see `configs/probes/README.md` for the
+mapping and current materialization status.
 
 See [Architecture](docs/ARCHITECTURE.md) and
 [Method to code](docs/METHOD_TO_CODE.md) for the detailed mapping. To bring up

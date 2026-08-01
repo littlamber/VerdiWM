@@ -7,6 +7,7 @@ still require experiments.
 |---|---|---|
 | Goal compiler and constitutional contract | `wmloop/control/user_intent_compiler.py`, `wmloop/constitution.py`, `configs/schemas/` | Implemented and contract tested |
 | Verdict/diagnostic probe separation | `wmloop/diagnose/probe_registry.py`, `wmloop/diagnose/probes/` | Implemented; ACWM adapters available |
+| Canonical base intervention-probe contract | `configs/probes/irg_base_v1.json`, `configs/schemas/irg_base_probe_registry.schema.json` | Four semantic families frozen; only action scaling is measured in the current ACWM atlas |
 | Typed semantic intervention | `wmloop/geometry/types.py`, `wmloop/primitives/` | Implemented and unit tested |
 | Intent-to-code materialization gate | `wmloop/propose/primitive_materialization_prompt.py`, `wmloop/verify/primitive_materialization_gate.py` | Implemented; 17 ACWM primitives materialized |
 | Local response chart | `wmloop/geometry/irg.py` | Central/one-sided secants implemented and unit tested |
@@ -36,6 +37,15 @@ is inference-only. `compile_intervention` returns a receipt rather than silently
 substituting an easier implementation.
 
 ## Interventional Repair Geometry
+
+Probe terminology is layer-qualified. `configs/probes/acwm_v1.json` registers
+passive outcome and verdict diagnostics; its four entries are coordinates of
+the measured outcome vector, not columns of `J`. The canonical base
+intervention bank is `configs/probes/irg_base_v1.json` and contains action
+scaling, controlled context retention, first-frame anchoring strength, and
+sampler-noise stress. An instantiated atlas may split these families by dose
+polarity or add counterexample-driven successor paths. The seven columns in
+the ACWM-Phys v1 joint frame are such admitted paths, not seven base probes.
 
 For local intervention doses `d` and goal outcomes `m`, VerdiWM estimates a
 response Jacobian by paired central differences when both dose signs are

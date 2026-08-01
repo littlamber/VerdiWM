@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-irg-base-probe-registry",
+  "library_version": "v1.0",
+  "outcome_probe_registry_ref": "configs/probes/acwm_v1.json",
+  "admitted_path_registry_ref": "configs/experiments/acwm_phys_joint_irg_autoregressive_pilot_v1.json",
+  "base_probes": [
+    {
+      "id": "action_scaling",
+      "display_name": "Action scaling",
+      "semantic_variable": "action_conditioning_magnitude",
+      "diagnoses": [
+        "action responsiveness",
+        "controllability-stability trade-off"
+      ],
+      "dose_unit": "relative_action_gain",
+      "inference_only": true,
+      "reversible": true,
+      "acwm_v1_status": "measured_and_admitted",
+      "acwm_v1_admitted_paths": [
+        "action_conditioning_amplification",
+        "action_conditioning_attenuation"
+      ]
+    },
+    {
+      "id": "controlled_context_retention",
+      "display_name": "Controlled context retention",
+      "semantic_variable": "retained_history_fraction",
+      "diagnoses": [
+        "history dependence",
+        "forgetting onset",
+        "context-loss-induced long-horizon drift"
+      ],
+      "dose_unit": "retained_history_fraction_delta",
+      "inference_only": true,
+      "reversible": true,
+      "acwm_v1_status": "not_materialized_for_atlas",
+      "acwm_v1_admitted_paths": []
+    },
+    {
+      "id": "first_frame_anchoring_strength",
+      "display_name": "First-frame anchoring strength",
+      "semantic_variable": "first_frame_conditioning_gain",
+      "diagnoses": [
+        "identity drift",
+        "background drift",
+        "scene-layout drift"
+      ],
+      "dose_unit": "relative_anchor_gain",
+      "inference_only": true,
+      "reversible": true,
+      "acwm_v1_status": "runtime_hook_only",
+      "acwm_v1_admitted_paths": []
+    },
+    {
+      "id": "sampler_noise_stress",
+      "display_name": "Sampler-noise stress",
+      "semantic_variable": "sampler_noise_strength_or_schedule",
+      "diagnoses": [
+        "sampling robustness",
+        "model-instability versus sampler-instability attribution"
+      ],
+      "dose_unit": "relative_sampler_noise_stress",
+      "inference_only": true,
+      "reversible": true,
+      "acwm_v1_status": "not_materialized_for_atlas",
+      "acwm_v1_admitted_paths": []
+    }
+  ]
+}

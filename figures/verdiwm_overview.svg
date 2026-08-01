@@ -44,17 +44,17 @@
     <text x="365" y="164" class="label" text-anchor="middle">Capability Audit</text>
     <circle cx="315" cy="210" r="18" fill="#E6F2F8" stroke="#0072B2" stroke-width="2"/>
     <path d="M303 210 L312 219 L329 199" fill="none" stroke="#0072B2" stroke-width="3"/>
-    <text x="345" y="216" class="sub">static probes</text>
+    <text x="345" y="216" class="tiny">outcome diagnostics</text>
     <circle cx="315" cy="260" r="18" fill="#E6F2F8" stroke="#0072B2" stroke-width="2"/>
     <path d="M304 260 H326 M315 249 V271" stroke="#0072B2" stroke-width="3"/>
-    <text x="345" y="266" class="sub">hook mask</text>
+    <text x="345" y="266" class="sub">probe hook mask</text>
   </g>
 
   <g id="irg">
     <rect x="510" y="70" width="360" height="270" class="box" stroke="#0072B2" stroke-width="3"/>
     <rect x="510" y="70" width="360" height="12" fill="#0072B2"/>
     <text x="690" y="116" class="label" text-anchor="middle">Interventional Repair Geometry</text>
-    <text x="690" y="142" class="tiny" text-anchor="middle">paired finite differences define repair response</text>
+    <text x="690" y="142" class="tiny" text-anchor="middle">base/evolved semantic doses define repair response</text>
 
     <circle cx="555" cy="220" r="10" fill="#4D4D4D"/>
     <text x="555" y="253" class="tiny" text-anchor="middle">baseline</text>
