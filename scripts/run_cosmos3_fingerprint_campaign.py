@@ -31,6 +31,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
         "action_dimension_interaction",
         "action_embedding_temporal_mix",
         "action_translation_scale",
+        "cpbe_residual_63f088b0d5",
     }:
         raise ValueError("COSMOS3_CAMPAIGN_PROBE_UNSUPPORTED")
     configured_doses = tuple(float(value) for value in campaign["probe"]["doses"])

@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-backbone-instance",
+  "instance_id": "ctrl_world_predictive_quality_paper_v1",
+  "backbone_family": "ctrl_world",
+  "goal_id": "ctrl_world_predictive_quality_paper_v1",
+  "campaign_state": "active_ready",
+  "claim_scope": "Frozen Ctrl-World ACWM paper-split target-local fingerprint validation on stack replay. Readiness does not imply model improvement or successful cross-backbone transfer.",
+  "surfaces": [
+    {
+      "surface_id": "model_repo",
+      "role": "runtime",
+      "status": "external_ready",
+      "artifact_ref": "external/Ctrl-World",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": false,
+      "notes": "Observed evaluation and model-source checkout used by the frozen campaign runner."
+    },
+    {
+      "surface_id": "runtime_python",
+      "role": "runtime",
+      "status": "external_ready",
+      "artifact_ref": "external/Ctrl-World-python",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": false,
+      "notes": "CUDA-capable runtime used for the paired predictive campaign."
+    },
+    {
+      "surface_id": "goal_spec",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/goal/ctrl_world_predictive_quality_paper_v1.yaml",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Declares the paper-split predictive fingerprint objective and fixed 32-frame horizon."
+    },
+    {
+      "surface_id": "heldout_split",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/goal/ctrl_world_heldout_split.json",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "The paper protocol uses only stack accept identities and never reuses dev receipts."
+    },
+    {
+      "surface_id": "probe_registry",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/probes/ctrl_world_acwm_predictive_v1.json",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Predictive verdict probes only; downstream task success is excluded."
+    },
+    {
+      "surface_id": "campaign_contract",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/experiments/ctrl_world_irg_calibration_narrow_paper_v1.json",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Freezes the radius-0.025 dose ladder selected before paper-split execution."
+    },
+    {
+      "surface_id": "evaluator_adapter",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "wmloop/evaluate/adapters/ctrl_world_predictive.py",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": true,
+      "notes": "Accepts paired-ground-truth predictive receipts and rejects downstream success evidence."
+    },
+    {
+      "surface_id": "campaign_runner",
+      "role": "adapter",
+      "status": "ready",
+      "artifact_ref": "scripts/run_ctrl_world_predictive_campaign.py",
+      "required_for_closed_loop": true,
+      "required_for_formal_verdict": false,
+      "notes": "Executes reversible paired doses without changing checkpoint or action trajectories."
+    },
+    {
+      "surface_id": "constitution_config",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/constitution/ctrl_world_predictive_quality_paper_v1.json",
+      "required_for_closed_loop": false,
+      "required_for_formal_verdict": true,
+      "notes": "Lists every verifier- and campaign-affecting frozen surface."
+    },
+    {
+      "surface_id": "constitution_freeze",
+      "role": "constitutional",
+      "status": "ready",
+      "artifact_ref": "configs/constitution/ctrl_world_predictive_quality_paper_v1.freeze.json",
+      "required_for_closed_loop": false,
+      "required_for_formal_verdict": true,
+      "notes": "Deterministic digest manifest generated before any paper-split GPU launch."
+    }
+  ],
+  "invariants": [
+    "Paper-split receipts cannot reuse any dev identity or artifact.",
+    "All doses use the same checkpoint, action trajectory, task episode, seed, horizon, and paired evaluator.",
+    "Downstream task success and policy success cannot enter this ACWM verdict.",
+    "Locality admission permits later selector tests but is not itself evidence of model improvement or transfer."
+  ],
+  "next_actions": [
+    "Run all five doses on the frozen stack accept identities.",
+    "Merge shards and settle the paper-split chart independently of the development verdict.",
+    "Use the settled chart only in a separately frozen selector and effect-confirmation experiment."
+  ]
+}

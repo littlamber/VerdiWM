@@ -45,6 +45,7 @@ COSMOS3_ACTION_PROBE_DOSE_UNITS = {
     "action_dimension_interaction": "radians_action_dimension_coupling",
     "action_embedding_temporal_mix": "temporal_action_input_mix",
     "action_translation_scale": "relative_translation_action_scale",
+    "cpbe_residual_63f088b0d5": "relative_action_embedding_phase_dose",
 }
 
 ACTION_DIMENSION_INTERACTION_PAIRS = ((0, 3), (1, 4), (2, 5), (6, 7))
@@ -169,6 +170,11 @@ def apply_action_probe(
         return apply_action_temporal_mix(actions, dose=dose)
     if probe_id == "action_translation_scale":
         return apply_action_translation_scale(actions, dose=dose)
+    if probe_id == "cpbe_residual_63f088b0d5":
+        value = float(dose)
+        if value not in {-0.05, -0.025, 0.0, 0.025, 0.05}:
+            raise Cosmos3HookError("COSMOS3_CPBE_DOSE_GRID_MISMATCH")
+        return _action_matrix(actions)
     raise Cosmos3HookError("COSMOS3_ACTION_MODE_UNKNOWN")
 
 
@@ -177,6 +183,82 @@ def cosmos3_probe_dose_unit(probe_id: str) -> str:
         return COSMOS3_ACTION_PROBE_DOSE_UNITS[probe_id]
     except KeyError as exc:
         raise Cosmos3HookError("COSMOS3_ACTION_MODE_UNKNOWN") from exc
+
+
+class Cosmos3CPBEActionEmbeddingDeltaDose:
+    """Apply the exact r31 phase dose to one packed action trajectory."""
+
+    DOSES = (-0.05, -0.025, 0.0, 0.025, 0.05)
+
+    def __init__(self, model: object, *, dose: float, expected_token_count: int) -> None:
+        action2llm = getattr(model, "action2llm", None)
+        forward = getattr(action2llm, "forward", None)
+        if action2llm is None or not callable(forward):
+            raise Cosmos3HookError("COSMOS3_ACTION_EMBEDDING_HOOK_MISSING")
+        if float(dose) not in self.DOSES:
+            raise Cosmos3HookError("COSMOS3_CPBE_DOSE_GRID_MISMATCH")
+        if int(expected_token_count) < 2:
+            raise Cosmos3HookError("COSMOS3_CPBE_TOKEN_COUNT_INVALID")
+        self.action2llm = action2llm
+        self.original = forward
+        self.dose = float(dose)
+        self.expected_token_count = int(expected_token_count)
+        self.audit: dict[str, object] = {
+            "invocation_count": 0,
+            "maximum_temporal_mean_abs_error": 0.0,
+            "maximum_temporal_mean_tolerance": 0.0,
+            "expected_token_count": self.expected_token_count,
+        }
+
+    def __enter__(self) -> "Cosmos3CPBEActionEmbeddingDeltaDose":
+        from types import MethodType
+
+        import torch
+
+        original = self.original
+        dose = self.dose
+        expected = self.expected_token_count
+        audit = self.audit
+
+        def phase_forward(_module: object, *args: object, **kwargs: object) -> object:
+            embedding = original(*args, **kwargs)
+            if getattr(embedding, "ndim", None) != 2 or int(embedding.shape[0]) != expected:
+                raise Cosmos3HookError("COSMOS3_CPBE_PACKED_EMBEDDING_SHAPE_INVALID")
+            audit["invocation_count"] = int(audit["invocation_count"]) + 1
+            if dose == 0.0:
+                return embedding
+            delta = embedding[1:] - embedding[:-1]
+            event_weight = torch.cat(
+                (delta[:1].abs().mean(dim=-1, keepdim=True) * 0.0, delta.abs().mean(dim=-1, keepdim=True)),
+                dim=0,
+            ).squeeze(-1)
+            scale = event_weight.amax()
+            event_weight = event_weight / scale.clamp_min(1e-12)
+            event_weight = event_weight * (scale > 1e-12).to(event_weight.dtype)
+            previous = torch.cat((event_weight[:1] * 0.0, event_weight[:-1]), dim=0)
+            following = torch.cat((event_weight[1:], event_weight[:1] * 0.0), dim=0)
+            tangent = 0.5 * (following - previous)
+            temporal_mean = embedding.mean(dim=0, keepdim=True)
+            perturbation = tangent.unsqueeze(-1).to(embedding.dtype) * (embedding - temporal_mean)
+            perturbation = perturbation - perturbation.mean(dim=0, keepdim=True)
+            output = embedding + dose * perturbation
+            error = float((output.mean(dim=0) - temporal_mean.squeeze(0)).abs().max().item())
+            mean_scale = max(1.0, float(temporal_mean.abs().amax().item()))
+            tolerance = float(torch.finfo(embedding.dtype).eps) * mean_scale
+            audit["maximum_temporal_mean_abs_error"] = max(
+                float(audit["maximum_temporal_mean_abs_error"]), error
+            )
+            audit["maximum_temporal_mean_tolerance"] = max(
+                float(audit["maximum_temporal_mean_tolerance"]), tolerance
+            )
+            return output
+
+        self.action2llm.forward = MethodType(phase_forward, self.action2llm)
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> bool:
+        self.action2llm.forward = self.original
+        return False
 
 
 def balance_action_dimensions(

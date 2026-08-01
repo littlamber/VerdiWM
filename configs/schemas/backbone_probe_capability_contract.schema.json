@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "instance_id", "backbone_family", "capability_class", "capabilities", "claim_boundary"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-backbone-probe-capability-contract"]},
+    "instance_id": {"type": "string", "minLength": 1},
+    "backbone_family": {"type": "string", "minLength": 1},
+    "capability_class": {"type": "string", "minLength": 1},
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "implemented", "reason", "evidence"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["hook", "capability", "semantic_operation", "invariant"]},
+          "implemented": {"type": "boolean"},
+          "reason": {"type": "string", "minLength": 1},
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["surface_id", "path", "anchors"],
+              "properties": {
+                "surface_id": {"type": "string", "minLength": 1},
+                "path": {"type": "string", "minLength": 1},
+                "anchors": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+              }
+            }
+          }
+        }
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1},
+    "notes": {"type": "string", "minLength": 1}
+  }
+}

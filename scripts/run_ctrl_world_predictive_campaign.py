@@ -192,6 +192,7 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
         interact_num=int(args.interact_num),
         num_inference_steps=int(args.num_inference_steps),
         probe_id=str(campaign["probe"]["probe_id"]),
+        probe=dict(campaign["probe"]),
         seed_by_episode={str(row["episode_id"]): int(row["seed"]) for row in rows},
     )
     episode_list = output_root / "episode-list.jsonl"
@@ -263,6 +264,14 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
         sys.argv = original_argv
         run_state["close_dose"]()
 
+    runtime_probe_audit = _settle_runtime_probe_audits(
+        probe_id=str(campaign["probe"]["probe_id"]),
+        selected_doses=selected_doses,
+        rows=run_state["dose_audits"],
+    )
+    runtime_probe_audit_path = output_root / "runtime-probe-audit.json"
+    _write_json(runtime_probe_audit_path, runtime_probe_audit)
+
     receipt_index = {
         "artifact_type": "verdiwm-ctrl-world-fingerprint-receipt-index",
         "campaign_id": campaign["campaign_id"],
@@ -298,11 +307,58 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
         "doses": list(selected_doses),
         "receipt_count": len(receipt_rows),
         "receipt_index": str(receipt_index_path),
+        "runtime_probe_audit": str(runtime_probe_audit_path),
         "fingerprint_manifest": fingerprint,
         "claim_boundary": campaign["claim_scope"],
     }
     _write_json(output_root / "campaign-run.json", report)
     return report
+
+
+def _settle_runtime_probe_audits(
+    *, probe_id: str, selected_doses: Sequence[float], rows: Sequence[Mapping[str, Any]]
+) -> dict[str, object]:
+    if probe_id != "cpbe_residual_63f088b0d5":
+        return {
+            "schema_version": 1,
+            "artifact_type": "verdiwm-ctrl-world-runtime-probe-audit",
+            "state": "not_required",
+            "probe_id": probe_id,
+            "rows": list(rows),
+        }
+    settled_rows: list[dict[str, object]] = []
+    for dose in selected_doses:
+        matching = [row for row in rows if float(row.get("dose", float("nan"))) == float(dose)]
+        if not matching:
+            raise CtrlWorldPredictiveCampaignError("CTRL_WORLD_CPBE_RUNTIME_AUDIT_MISSING")
+        invocation_count = sum(int(row["audit"]["invocation_count"]) for row in matching)
+        maximum_error = max(
+            float(row["audit"]["maximum_temporal_mean_abs_error"]) for row in matching
+        )
+        maximum_tolerance = max(
+            float(row["audit"]["maximum_temporal_mean_tolerance"]) for row in matching
+        )
+        if invocation_count < 1:
+            raise CtrlWorldPredictiveCampaignError("CTRL_WORLD_CPBE_HOOK_NOT_INVOKED")
+        if maximum_error > maximum_tolerance:
+            raise CtrlWorldPredictiveCampaignError("CTRL_WORLD_CPBE_MEAN_PRESERVATION_FAILED")
+        settled_rows.append(
+            {
+                "dose": float(dose),
+                "context_count": len(matching),
+                "invocation_count": invocation_count,
+                "maximum_temporal_mean_abs_error": maximum_error,
+                "maximum_temporal_mean_tolerance": maximum_tolerance,
+            }
+        )
+    return {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-ctrl-world-runtime-probe-audit",
+        "state": "passed",
+        "probe_id": probe_id,
+        "rows": settled_rows,
+        "claim_boundary": "Runtime invocation and invariant evidence only; not model quality or transfer evidence.",
+    }
 
 
 def _load_upstream_module(*, eval_root: Path, model_root: Path) -> Any:
@@ -347,12 +403,19 @@ def _install_runtime_adapters(
     interact_num: int,
     num_inference_steps: int,
     probe_id: str,
+    probe: Mapping[str, Any],
     seed_by_episode: Mapping[str, int],
 ) -> dict[str, Any]:
     original_wm_args = module.wm_args
     original_agent = module.agent
     original_reward_scorer = module.RewardScorer
-    state: dict[str, Any] = {"agent": None, "reward": None, "dose": 0.0, "dose_context": None}
+    state: dict[str, Any] = {
+        "agent": None,
+        "reward": None,
+        "dose": 0.0,
+        "dose_context": None,
+        "dose_audits": [],
+    }
 
     def patched_wm_args(*, task_type: str) -> Any:
         runtime_args = original_wm_args(task_type=task_type)
@@ -366,6 +429,11 @@ def _install_runtime_adapters(
         context = state.get("dose_context")
         if context is not None:
             context.__exit__(None, None, None)
+            audit = getattr(context, "audit", None)
+            if isinstance(audit, Mapping):
+                state["dose_audits"].append(
+                    {"dose": float(state["dose"]), "audit": dict(audit)}
+                )
             state["dose_context"] = None
 
     def patched_agent(runtime_args: Any) -> Any:
@@ -387,6 +455,7 @@ def _install_runtime_adapters(
             model=state["agent"].model,
             probe_id=probe_id,
             dose=float(state["dose"]),
+            probe=probe,
         )
         context.__enter__()
         state["dose_context"] = context

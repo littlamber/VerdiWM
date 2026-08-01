@@ -11,6 +11,7 @@ from scripts.run_ctrl_world_predictive_campaign import (
     CtrlWorldPredictiveCampaignError,
     _asset_identity,
     _load_upstream_module_with_local_model_base,
+    _settle_runtime_probe_audits,
     prediction_receipts_from_summary,
     protocol_rows,
 )
@@ -119,6 +120,28 @@ class CtrlWorldPredictiveCampaignRunnerTests(unittest.TestCase):
                 os.environ.pop("CTRL_WORLD_MODEL_ROOT", None)
             else:
                 os.environ["CTRL_WORLD_MODEL_ROOT"] = original
+
+    def test_cpbe_runtime_audit_requires_invocation_and_dtype_bounded_error(self) -> None:
+        settled = _settle_runtime_probe_audits(
+            probe_id="cpbe_residual_63f088b0d5",
+            selected_doses=[-0.05],
+            rows=[
+                {
+                    "dose": -0.05,
+                    "audit": {
+                        "invocation_count": 8,
+                        "maximum_temporal_mean_abs_error": 0.001,
+                        "maximum_temporal_mean_tolerance": 0.01,
+                    },
+                }
+            ],
+        )
+        self.assertEqual(settled["state"], "passed")
+        self.assertEqual(settled["rows"][0]["invocation_count"], 8)
+        with self.assertRaisesRegex(CtrlWorldPredictiveCampaignError, "AUDIT_MISSING"):
+            _settle_runtime_probe_audits(
+                probe_id="cpbe_residual_63f088b0d5", selected_doses=[0.05], rows=[]
+            )
 
 
 if __name__ == "__main__":

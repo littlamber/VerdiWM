@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-cross-backbone-reuse-audit-config",
+  "expected_backbones": ["acwm_phys", "ctrl_world", "cosmos3"],
+  "probe_compile_reports": [
+    {"backbone": "ctrl_world", "path": "results/reports/ctrl-world-r31-probe-semantic-compile-r2/compile-report.json"},
+    {"backbone": "cosmos3", "path": "results/reports/cosmos3-r31-probe-semantic-compile-r2/compile-report.json"}
+  ],
+  "fingerprints": [
+    {"backbone": "ctrl_world", "split_role": "development", "path": "results/reports/ctrl-world-predictive-narrow-pilot-r1-fingerprint/target-local-fingerprint.json"},
+    {"backbone": "ctrl_world", "split_role": "formal", "path": "results/reports/ctrl-world-predictive-paper-r1-fingerprint/target-local-fingerprint.json"},
+    {"backbone": "cosmos3", "split_role": "formal", "path": "results/reports/cosmos3-irg-positive-scale-accept-fingerprint-r1/target-local-fingerprint.json"}
+  ],
+  "lobo_report": {"path": "results/reports/three-backbone-lobo-report-r2/experiment-report.json"},
+  "certificate_ablation": {"path": "results/reports/acwm-r31-transfer-certificate-ablation-r1/certificate-ablation.json"},
+  "claim_boundary": "Input selection for a read-only evidence reuse audit; no missing measurements may be imputed."
+}

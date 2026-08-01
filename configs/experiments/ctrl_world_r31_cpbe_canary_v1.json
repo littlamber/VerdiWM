@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+  "campaign_id": "ctrl_world_r31_cpbe_canary_v1",
+  "backbone_instance_ref": "configs/backbones/ctrl_world_predictive_quality_paper_v1.json",
+  "heldout_split_ref": "configs/goal/ctrl_world_heldout_split.json",
+  "claim_scope": "Development-split r31 runtime and locality canary only; no model improvement or cross-backbone transfer claim.",
+  "probe": {
+    "probe_id": "cpbe_residual_63f088b0d5",
+    "hook_type": "H2",
+    "signal_source": "action_embedding_delta",
+    "spatial_mask": "all_action_embedding",
+    "temporal_basis": "event_phase_tangent",
+    "contrast_operator": "signed_mean_preserving_phase",
+    "aggregation": "goal_outcome_vector",
+    "transformation": "apply the signed mean-preserving event-phase tangent dose to the actual Action_encoder2 embedding",
+    "dose_unit": "relative_action_embedding_phase_dose",
+    "doses": [-0.05, -0.025, 0.0, 0.025, 0.05],
+    "scope": "diagnostic_inference_only",
+    "diagnostic_only": true,
+    "reversible": true,
+    "invariants": ["same_checkpoint", "same_input_action", "same_trajectory", "same_seed", "same_evaluator", "per_trajectory_action_embedding_temporal_mean_preserved", "dose_grid_matches_action_temporal_alignment_reference"]
+  },
+  "outcomes": [
+    {"name": "rollout_video_psnr", "source_metric": "rollout_video_psnr", "sign": 1.0, "weight": 1.0},
+    {"name": "negative_rollout_video_l1", "source_metric": "rollout_video_l1", "sign": -1.0, "weight": 2.0},
+    {"name": "negative_segment_final_mae", "source_metric": "segment_final_mae", "sign": -1.0, "weight": 2.0},
+    {"name": "negative_segment_view_pair_mae", "source_metric": "segment_view_pair_mae", "sign": -1.0, "weight": 1.0},
+    {"name": "negative_segment_view_fused_mae", "source_metric": "segment_view_fused_mae", "sign": -1.0, "weight": 1.0}
+  ],
+  "protocols": {
+    "pilot": {"split": "dev", "required_receipts_per_dose": 3},
+    "paper": {"split": "accept", "required_receipts_per_dose": 3}
+  },
+  "locality_admission": {"maximum_residual": 0.5, "failure_policy": "abstain_from_cross_backbone_transfer"},
+  "formal_claim_requires": "an independent accept campaign and settled repair confirmation receipts"
+}

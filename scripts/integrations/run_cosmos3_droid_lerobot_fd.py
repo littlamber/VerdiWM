@@ -67,6 +67,7 @@ def parse_args() -> argparse.Namespace:
             "action_dimension_interaction",
             "action_embedding_temporal_mix",
             "action_translation_scale",
+            "cpbe_residual_63f088b0d5",
         ),
         default="action_conditioning_scale",
         help="VerdiWM inference-only action probe materialized before forward dynamics.",
@@ -181,11 +182,7 @@ def run_chunks(args: argparse.Namespace, records: list[dict], input_dir: Path, o
 
         print(f"running chunk {chunk_idx}: {record['name']}", flush=True)
         print(f"conditioning image: {current_vision_path}", flush=True)
-        subprocess.run(
-            [
-                str(args.repo_root / ".venv" / "bin" / "python"),
-                "-m",
-                "cosmos_framework.scripts.inference",
+        official_args = [
                 "--parallelism-preset=latency",
                 "--no-guardrails",
                 "-i",
@@ -203,7 +200,29 @@ def run_chunks(args: argparse.Namespace, records: list[dict], input_dir: Path, o
                 "--seed",
                 str(record["seed"]),
                 "--benchmark",
-            ],
+            ]
+        if args.action_probe == "cpbe_residual_63f088b0d5":
+            command = [
+                str(args.repo_root / ".venv" / "bin" / "python"),
+                str(VERDIWM_ROOT / "scripts/integrations/run_cosmos3_inference_with_r31_probe.py"),
+                "--dose",
+                str(args.action_dose),
+                "--action-input",
+                str(record["action_path"]),
+                "--runtime-receipt",
+                str(input_dir / f"robotics_droid_action_chunk_{chunk_idx:02d}.hook.json"),
+                "--",
+                *official_args,
+            ]
+        else:
+            command = [
+                str(args.repo_root / ".venv" / "bin" / "python"),
+                "-m",
+                "cosmos_framework.scripts.inference",
+                *official_args,
+            ]
+        subprocess.run(
+            command,
             cwd=str(args.repo_root),
             env=env,
             check=True,

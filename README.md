@@ -36,6 +36,7 @@ its modest savings are retained as a system limitation rather than hidden.
 | Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and paired-GT evidence are complete; held-out directional probes have correctly abstained, so transfer and LOBO remain prohibited |
 | Counterexample-driven diagnostic-probe evolution | Global scale, temporal mix, directional scale, translation-only scale, action-dimension anisotropy, and off-diagonal action coupling produced retained counterexamples; the fresh dev4 successor passes locality but reverses on accept4 |
 | Counterexample-Guided Probe Basis Expansion | Probe DSL, residual/mutation/retrieval/LLM candidate synthesis, deterministic materialization, evidence-conditioned acquisition, and hash-bound successive halving implemented; ACWM-Phys r29/r30 are settled negative self-evolution traces with zero admitted candidates |
+| Exact r31 semantic portability | The same typed CPBE action-embedding program compiles and executes on Ctrl-World and Cosmos3; bounded responses are small and mixed, so repair benefit and transfer remain unestablished |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
@@ -182,6 +183,22 @@ complete, but the radius-`0.025` chart has locality residual `1.1063`, above the
 frozen `0.5` threshold. The certificate therefore returns
 `settled_abstained`. This retained negative-transfer case is evidence that the
 admission gate changes behavior; it is not a failed result to hide or relabel.
+
+## Cross-backbone r31 runtime canary
+
+[`examples/r31_cross_backbone_runtime_v1`](examples/r31_cross_backbone_runtime_v1)
+records the exact same typed CPBE program at the action-embedding hook in
+Ctrl-World and Cosmos3. The `-0.05`, `0`, and `+0.05` doses each have runtime
+invocation receipts and dtype-aware temporal-mean invariant checks. Ctrl-World
+invoked the hook 24 times per dose over three episodes; Cosmos3 invoked it 30
+times per dose on one frozen development sample.
+
+The response is measurable but small and mixed. Ctrl-World mean PSNR changes
+from `21.6203` at zero dose to `21.5779` and `21.6427`; Cosmos3 PSNR changes
+from `23.1172` to `23.1156` and `23.0997`. This establishes executable semantic
+portability only. It is not evidence of repair benefit, locality admission,
+cold-vs-warm efficiency, or cross-backbone transfer; the reuse audit remains
+blocked with zero settled confirmation receipts.
 
 ## Cosmos3 forward-dynamics instance
 

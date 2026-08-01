@@ -24,6 +24,9 @@ uv run python -m py_compile \
   wmloop/experiments/cosmos3_fingerprint.py \
   wmloop/experiments/cosmos3_directional_settlement.py \
   wmloop/experiments/probe_evolution.py \
+  wmloop/experiments/probe_semantic_compile.py \
+  wmloop/experiments/certificate_ablation.py \
+  wmloop/experiments/cross_backbone_reuse_audit.py \
   wmloop/evaluate/adapters/ctrl_world.py \
   wmloop/primitives/adapters/backbone_registry.py \
   wmloop/primitives/adapters/ctrl_world_hooks.py \
@@ -74,6 +77,8 @@ uv run python -m py_compile \
   scripts/evaluate_cosmos3_paired_gt.py \
   scripts/run_cosmos3_fingerprint_campaign.py \
   scripts/integrations/run_cosmos3_droid_lerobot_fd.py \
+  scripts/integrations/run_cosmos3_inference_with_r31_probe.py \
+  scripts/export/r31_cross_backbone_runtime_bundle.py \
   scripts/run_ctrl_world_bounded_smoke.py
 
 uv run pytest -q \
@@ -100,7 +105,13 @@ uv run pytest -q \
   tests/test_cosmos3_directional_settlement.py \
   tests/test_cosmos3_directional_settlement_public_bundle.py \
   tests/test_cosmos3_split_v2_protocol.py \
+  tests/test_cosmos3_r31_probe_runtime.py \
   tests/test_ctrl_world_probe_evolution.py \
+  tests/test_ctrl_world_r31_probe_runtime.py \
+  tests/test_probe_semantic_compile.py \
+  tests/test_certificate_ablation.py \
+  tests/test_cross_backbone_reuse_audit.py \
+  tests/test_r31_cross_backbone_runtime_bundle.py \
   tests/test_primitive_materialization_prompt.py \
   tests/test_diagnostic_probe_materialization_prompt.py \
   tests/test_diagnostic_probe_routing_admission.py \
