@@ -4,6 +4,24 @@ VerdiWM onboards external world-model repositories through a read-only discovery
 
 ## Quick Start
 
+The normal user path is one resumable command from source discovery through a
+settled bounded experiment:
+
+```bash
+verdiwm-run /path/to/model \
+  --output-root /path/to/runs/model-smoke-v1 \
+  --runtime-python /path/to/environment/bin/python \
+  --evaluator-contract /path/to/evaluator.json \
+  --asset=--ckpt_path=/path/to/checkpoint.pt
+```
+
+`pipeline-input.lock.json` binds the source tree, evaluator, runtime path,
+assets, budgets, and output stores. Repeating the same command resumes atomic
+stages and already settled trials. Changing any locked input requires a new run
+root; it never silently reuses old evidence.
+
+For discovery only, run:
+
 ```bash
 verdiwm-onboard /path/to/model
 ```
@@ -54,11 +72,13 @@ An evaluator contract is an external frozen JSON file. Keeping it outside the im
 ```json
 {
   "evaluator_id": "task_success_v1",
-  "command": ["python", "scripts/eval.py"],
+  "command": ["{python}", "{repo_root}/scripts/eval.py", "--ckpt_path", "{asset:--ckpt_path}"],
   "input_artifacts": ["checkpoint", "frozen_split"],
   "output_artifacts": ["evaluation-receipt.json"],
   "metrics": ["success_rate"],
-  "verifier": "task_success_receipt_v1"
+  "verifier": "task_success_receipt_v1",
+  "conformance_imports": ["torch"],
+  "scheduler_template": "/path/to/candidate-batch-template.json"
 }
 ```
 
@@ -71,3 +91,30 @@ verdiwm-onboard /path/to/model \
 ```
 
 Discovery evidence is not a performance claim. Only a passing frozen evaluator receipt may enter reusable optimization memory.
+
+Required evaluator assets are fingerprinted during onboarding, checked before
+and after CPU conformance, embedded in the PASS receipt, and recomputed before
+compilation and every scheduler admission. A changed checkpoint, model
+dependency, or dataset is rejected before GPU allocation.
+
+## Ctrl-World Replay Example
+
+The checked-in declarative contract and candidate template onboard Ctrl-World
+without a handwritten Python adapter:
+
+```bash
+uv run verdiwm-run /share/project/hywu/wjy/Ctrl-World \
+  --output-root /share/project/hywu/wjy/verdiwm-runs/ctrl-world-universal-loop-v3 \
+  --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
+  --evaluator-contract configs/onboarding/ctrl_world_replay_evaluator_v1.json \
+  --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
+  --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
+  --asset=--ckpt_path=/share/project/hywu/wjy/Ctrl-World/checkpoint-10000.pt \
+  --asset=--dataset_root_path=/share/project/hywu/wjy/Ctrl-World/dataset_example \
+  --asset=--dataset_meta_info_path=/share/project/hywu/wjy/Ctrl-World/dataset_meta_info \
+  --no-import-probe
+```
+
+`--no-import-probe` skips the onboarding metadata probe only. The isolated
+conformance stage still performs the declared real imports and evaluator help
+check before it can authorize compilation.

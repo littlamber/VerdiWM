@@ -27,6 +27,20 @@ backbone-specific verifier promotes it.
 
 ## Candidate queues and progressive fidelity
 
+For an external repository, `verdiwm-run` is the preferred orchestration entry
+point. It executes the following fail-closed sequence:
+
+```text
+input lock -> onboarding -> CPU conformance -> candidate compilation
+           -> budgeted GPU scheduler -> CAS/archive settlement -> cleanup
+```
+
+The run root contains `onboarding/`, `conformance/`, `compiled/`, `cas/`,
+`archive.db`, and `pipeline-manifest.json`. A top-level `PASS` requires every
+selected candidate to settle `PASS`; onboarding or conformance blockers stop
+before GPU scheduling. An interruption is durable and rerunning the identical
+command resumes from existing hashes and receipts.
+
 For a bounded set of hypotheses, use a candidate batch rather than creating
 plans ad hoc. The batch schema is
 `configs/schemas/auto_experiment_candidate_batch.schema.json`, and the checked-in

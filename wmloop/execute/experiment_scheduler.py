@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.control.onboarding_admission import (
+    OnboardingAdmissionError,
+    verify_onboarding_admission,
+)
 from wmloop.execute.auto_experiment import (
     AutoExperimentError,
     _validate_plan_semantics,
@@ -62,7 +66,9 @@ def plan_candidate_batch(
         lock = _load_json_object(lock_path, "EXPERIMENT_SCHEDULER_LOCK_INVALID")
         if lock.get("batch_sha256") != batch_sha256:
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BATCH_MISMATCH")
-        return _load_json_object(destination / "queue.json", "EXPERIMENT_SCHEDULER_QUEUE_INVALID")
+        return _load_json_object(
+            destination / "queue.json", "EXPERIMENT_SCHEDULER_QUEUE_INVALID"
+        )
 
     destination.mkdir(mode=0o700, parents=True)
     (destination / "plans").mkdir(mode=0o700)
@@ -95,7 +101,9 @@ def plan_candidate_batch(
                 "rank": row["rank"],
                 "score": row["score"],
                 "screen_gpu_hours": row["screen_gpu_hours"],
-                "max_ladder_gpu_hours": sum(float(stage["estimated_gpu_hours"]) for stage in candidate["stages"]),
+                "max_ladder_gpu_hours": sum(
+                    float(stage["estimated_gpu_hours"]) for stage in candidate["stages"]
+                ),
                 "stages": stage_records,
             }
         )
@@ -125,7 +133,9 @@ def plan_candidate_batch(
         },
     )
     _write_json_atomic(destination / "queue.json", queue)
-    _write_json_atomic(destination / "manifest.json", _queue_manifest(queue, destination))
+    _write_json_atomic(
+        destination / "manifest.json", _queue_manifest(queue, destination)
+    )
     _write_markdown(destination / "queue.md", queue)
     return queue
 
@@ -143,15 +153,24 @@ def run_selected_queue(
 
     queue_source = Path(queue_path).resolve(strict=True)
     queue = _load_json_object(queue_source, "EXPERIMENT_SCHEDULER_QUEUE_INVALID")
-    if queue.get("artifact_type") != "verdiwm-auto-experiment-queue" or queue.get("state") != "ready":
+    if (
+        queue.get("artifact_type") != "verdiwm-auto-experiment-queue"
+        or queue.get("state") != "ready"
+    ):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_QUEUE_NOT_READY")
     root = queue_source.parent
     execution_path = root / "execution.json"
     execution = _load_optional_json(execution_path)
-    shared_budget = Path(budget_db).resolve() if budget_db is not None else root / "budget.db"
+    shared_budget = (
+        Path(budget_db).resolve() if budget_db is not None else root / "budget.db"
+    )
     if execution and execution.get("budget_db") != str(shared_budget):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_PATH_MISMATCH")
-    results = execution.get("results", {}) if isinstance(execution.get("results"), Mapping) else {}
+    results = (
+        execution.get("results", {})
+        if isinstance(execution.get("results"), Mapping)
+        else {}
+    )
     results = dict(results)
     candidate_states: dict[str, str] = {}
     for selected in queue["selected"]:
@@ -161,14 +180,23 @@ def run_selected_queue(
             stage = str(stage_record["stage"])
             result_key = f"{candidate_id}:{stage}"
             previous = results.get(result_key)
-            if isinstance(previous, Mapping) and previous.get("state") in {"completed", "blocked"}:
+            if isinstance(previous, Mapping) and previous.get("state") in {
+                "completed",
+                "blocked",
+            }:
                 if previous.get("state") == "blocked":
                     candidate_state = "blocked"
                     break
                 continue
-            plan_path = _resolve_inside(root, str(stage_record["plan_path"]), "EXPERIMENT_SCHEDULER_PLAN_PATH_INVALID")
+            plan_path = _resolve_inside(
+                root,
+                str(stage_record["plan_path"]),
+                "EXPERIMENT_SCHEDULER_PLAN_PATH_INVALID",
+            )
             if _sha256_bytes(plan_path.read_bytes()) != stage_record.get("plan_sha256"):
-                raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_PLAN_HASH_MISMATCH")
+                raise ExperimentSchedulerError(
+                    "EXPERIMENT_SCHEDULER_PLAN_HASH_MISMATCH"
+                )
             run_root = root / "runs" / candidate_id / stage
             try:
                 manifest = run_auto_experiment(
@@ -185,7 +213,9 @@ def run_selected_queue(
                     "state": "error",
                     "error": {"type": type(exc).__name__, "message": str(exc)[:500]},
                 }
-                _write_json_atomic(execution_path, _execution_document(queue, results, shared_budget))
+                _write_json_atomic(
+                    execution_path, _execution_document(queue, results, shared_budget)
+                )
                 raise
             verdict = manifest.get("verdict")
             passed = verdict == "PASS"
@@ -196,7 +226,9 @@ def run_selected_queue(
                 "evidence_level": manifest.get("evidence_level"),
                 "manifest_path": str(run_root / "manifest.json"),
             }
-            _write_json_atomic(execution_path, _execution_document(queue, results, shared_budget))
+            _write_json_atomic(
+                execution_path, _execution_document(queue, results, shared_budget)
+            )
             if not passed:
                 candidate_state = "blocked"
                 break
@@ -210,18 +242,25 @@ def run_selected_queue(
 def _load_batch(path: Path, *, workspace_root: Path) -> dict[str, object]:
     try:
         batch = _load_json_object(path, "EXPERIMENT_SCHEDULER_BATCH_INVALID")
-        validate_document("auto_experiment_candidate_batch", batch, root=workspace_root)
+        validate_document("auto_experiment_candidate_batch", batch)
     except (ContractValidationError, AutoExperimentError) as exc:
-        raise ExperimentSchedulerError(f"EXPERIMENT_SCHEDULER_BATCH_INVALID:{exc}") from exc
+        raise ExperimentSchedulerError(
+            f"EXPERIMENT_SCHEDULER_BATCH_INVALID:{exc}"
+        ) from exc
     _validate_batch_semantics(batch, workspace_root=workspace_root)
     return batch
 
 
-def _validate_batch_semantics(batch: Mapping[str, object], *, workspace_root: Path) -> None:
+def _validate_batch_semantics(
+    batch: Mapping[str, object], *, workspace_root: Path
+) -> None:
+    _validate_external_workspace_admission(batch, workspace_root=workspace_root)
     if not math.isfinite(float(batch["total_budget_gpu_hours"])):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_INVALID")
     scoring = batch["scoring"]
-    if not isinstance(scoring, Mapping) or not any(float(scoring[key]) > 0 for key in _SCORE_WEIGHTS):
+    if not isinstance(scoring, Mapping) or not any(
+        float(scoring[key]) > 0 for key in _SCORE_WEIGHTS
+    ):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_SCORING_ZERO")
     candidates = batch["candidates"]
     if not isinstance(candidates, list):
@@ -238,12 +277,22 @@ def _validate_batch_semantics(batch: Mapping[str, object], *, workspace_root: Pa
         if not isinstance(stages, list):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGES_INVALID")
         names = [str(stage["stage"]) for stage in stages if isinstance(stage, Mapping)]
-        if names != sorted(names, key=lambda name: _STAGE_ORDER.get(name, 99)) or names[0:1] != ["screen"]:
+        if names != sorted(names, key=lambda name: _STAGE_ORDER.get(name, 99)) or names[
+            0:1
+        ] != ["screen"]:
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGE_ORDER_INVALID")
-        if len(set(names)) != len(names) or names not in (["screen"], ["screen", "gate"], ["screen", "gate", "confirm"]):
+        if len(set(names)) != len(names) or names not in (
+            ["screen"],
+            ["screen", "gate"],
+            ["screen", "gate", "confirm"],
+        ):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGE_LADDER_INVALID")
-        if sum(float(stage["estimated_gpu_hours"]) for stage in stages) > float(batch["total_budget_gpu_hours"]):
-            raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_CANDIDATE_LADDER_EXCEEDS_BUDGET")
+        if sum(float(stage["estimated_gpu_hours"]) for stage in stages) > float(
+            batch["total_budget_gpu_hours"]
+        ):
+            raise ExperimentSchedulerError(
+                "EXPERIMENT_SCHEDULER_CANDIDATE_LADDER_EXCEEDS_BUDGET"
+            )
         for stage in stages:
             if not isinstance(stage, Mapping):
                 raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGE_INVALID")
@@ -251,7 +300,9 @@ def _validate_batch_semantics(batch: Mapping[str, object], *, workspace_root: Pa
             try:
                 _validate_plan_semantics(plan, workspace_root=workspace_root)
             except AutoExperimentError as exc:
-                raise ExperimentSchedulerError(f"EXPERIMENT_SCHEDULER_STAGE_INVALID:{exc}") from exc
+                raise ExperimentSchedulerError(
+                    f"EXPERIMENT_SCHEDULER_STAGE_INVALID:{exc}"
+                ) from exc
 
 
 def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
@@ -260,10 +311,13 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
     for candidate in batch["candidates"]:
         stage = candidate["stages"][0]
         screen_hours = float(stage["estimated_gpu_hours"])
-        score = sum(
-            float(scoring[f"{field}_weight"]) * float(candidate[field])
-            for field in _SCORE_FIELDS
-        ) - float(scoring["cost_weight"]) * screen_hours
+        score = (
+            sum(
+                float(scoring[f"{field}_weight"]) * float(candidate[field])
+                for field in _SCORE_FIELDS
+            )
+            - float(scoring["cost_weight"]) * screen_hours
+        )
         rows.append(
             {
                 "candidate": candidate,
@@ -271,14 +325,19 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
                 "screen_gpu_hours": screen_hours,
             }
         )
-    rows.sort(key=lambda row: (-float(row["score"]), str(row["candidate"]["candidate_id"])))
+    rows.sort(
+        key=lambda row: (-float(row["score"]), str(row["candidate"]["candidate_id"]))
+    )
     for rank, row in enumerate(rows, start=1):
         row["rank"] = rank
     return rows
 
 
 def _budget_select(
-    ranked: Sequence[Mapping[str, object]], *, total_budget_gpu_hours: float, max_selected_candidates: int
+    ranked: Sequence[Mapping[str, object]],
+    *,
+    total_budget_gpu_hours: float,
+    max_selected_candidates: int,
 ) -> tuple[list[Mapping[str, object]], list[dict[str, object]]]:
     selected: list[Mapping[str, object]] = []
     deferred: list[dict[str, object]] = []
@@ -307,7 +366,10 @@ def _budget_select(
 
 
 def _stage_plan(
-    *, batch: Mapping[str, object], candidate: Mapping[str, object], stage: Mapping[str, object]
+    *,
+    batch: Mapping[str, object],
+    candidate: Mapping[str, object],
+    stage: Mapping[str, object],
 ) -> dict[str, object]:
     candidate_id = str(candidate["candidate_id"])
     stage_name = str(stage["stage"])
@@ -324,12 +386,45 @@ def _stage_plan(
         "stage": stage_name,
         "total_budget_gpu_hours": batch["total_budget_gpu_hours"],
     }
-    plan.update({key: stage[key] for key in (
-        "command", "working_directory", "allowed_gpu_indices", "estimated_gpu_hours",
-        "timeout_seconds", "gpu_wait_seconds", "sample_interval_seconds", "result_path",
-        "artifacts", "metric_gates", "environment", "cleanup_policy",
-    )})
+    plan.update(
+        {
+            key: stage[key]
+            for key in (
+                "command",
+                "working_directory",
+                "allowed_gpu_indices",
+                "estimated_gpu_hours",
+                "timeout_seconds",
+                "gpu_wait_seconds",
+                "sample_interval_seconds",
+                "result_path",
+                "artifacts",
+                "metric_gates",
+                "environment",
+                "cleanup_policy",
+            )
+        }
+    )
+    if "onboarding_admission" in batch:
+        plan["onboarding_admission"] = batch["onboarding_admission"]
     return plan
+
+
+def _validate_external_workspace_admission(
+    batch: Mapping[str, object], *, workspace_root: Path
+) -> None:
+    control_root = Path(__file__).resolve().parents[2]
+    if Path(workspace_root).resolve() == control_root:
+        return
+    try:
+        verify_onboarding_admission(
+            batch.get("onboarding_admission"),
+            expected_repo_root=workspace_root,
+        )
+    except OnboardingAdmissionError as exc:
+        raise ExperimentSchedulerError(
+            f"EXPERIMENT_SCHEDULER_ONBOARDING_ADMISSION_INVALID:{exc}"
+        ) from exc
 
 
 def _trial_id(candidate_id: str, stage: str) -> str:
@@ -340,7 +435,9 @@ def _trial_id(candidate_id: str, stage: str) -> str:
     return f"auto-{candidate_id[:108]}-{digest}"
 
 
-def _queue_manifest(queue: Mapping[str, object], destination: Path) -> dict[str, object]:
+def _queue_manifest(
+    queue: Mapping[str, object], destination: Path
+) -> dict[str, object]:
     return {
         "schema_version": 1,
         "artifact_type": "verdiwm-auto-experiment-queue-manifest",
@@ -386,7 +483,12 @@ def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
             + " -> ".join(str(stage["stage"]) for stage in row["stages"])
             + " |"
         )
-    lines.extend(("", "Deferred candidates are retained with a machine-readable reason; no GPU work is implied by this queue."))
+    lines.extend(
+        (
+            "",
+            "Deferred candidates are retained with a machine-readable reason; no GPU work is implied by this queue.",
+        )
+    )
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
         temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -398,14 +500,22 @@ def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
 
 def _load_optional_json(path: Path) -> dict[str, object]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8")) if path.is_file() and not path.is_symlink() else {}
+        value = (
+            json.loads(path.read_text(encoding="utf-8"))
+            if path.is_file() and not path.is_symlink()
+            else {}
+        )
     except (OSError, json.JSONDecodeError):
         return {}
     return value if isinstance(value, dict) else {}
 
 
 def _resolve_inside(root: Path, value: str, code: str) -> Path:
-    resolved = (root / value).resolve() if not Path(value).is_absolute() else Path(value).resolve()
+    resolved = (
+        (root / value).resolve()
+        if not Path(value).is_absolute()
+        else Path(value).resolve()
+    )
     try:
         resolved.relative_to(root.resolve())
     except ValueError as exc:
@@ -434,16 +544,22 @@ def _round(value: float) -> float:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    plan_parser = commands.add_parser("plan", help="rank candidates and write a bounded queue")
+    plan_parser = commands.add_parser(
+        "plan", help="rank candidates and write a bounded queue"
+    )
     plan_parser.add_argument("--batch", type=Path, required=True)
     plan_parser.add_argument("--output-root", type=Path, required=True)
     plan_parser.add_argument("--workspace-root", type=Path, default=Path.cwd())
-    run_parser = commands.add_parser("run", help="run selected candidates with PASS-only promotion")
+    run_parser = commands.add_parser(
+        "run", help="run selected candidates with PASS-only promotion"
+    )
     run_parser.add_argument("--queue", type=Path, required=True)
     run_parser.add_argument("--workspace-root", type=Path, default=Path.cwd())
     run_parser.add_argument("--archive-db", type=Path, required=True)
     run_parser.add_argument("--cas-root", type=Path, required=True)
-    run_parser.add_argument("--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases"))
+    run_parser.add_argument(
+        "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
+    )
     run_parser.add_argument("--budget-db", type=Path)
     args = parser.parse_args(argv)
     try:

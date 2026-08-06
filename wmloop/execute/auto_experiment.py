@@ -23,6 +23,10 @@ from typing import Any, Mapping, Sequence
 
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore, SettledTrialRecord
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.control.onboarding_admission import (
+    OnboardingAdmissionError,
+    verify_onboarding_admission,
+)
 from wmloop.execute.backends import LocalSubprocessBackend
 from wmloop.execute.budget import BudgetLedger, BudgetPolicy
 from wmloop.execute.gpu_exclusivity_audit import (
@@ -40,7 +44,9 @@ class AutoExperimentError(RuntimeError):
 
 
 _ENVIRONMENT_KEY = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
-_PLACEHOLDER = re.compile(r"\{(scratch_dir|workspace_root|output_root|gpu_index|gpu_uuid)\}")
+_PLACEHOLDER = re.compile(
+    r"\{(scratch_dir|workspace_root|output_root|gpu_index|gpu_uuid)\}"
+)
 _COST_CAPS = ((0.5, "very_low"), (8.0, "low"), (48.0, "medium"), (120.0, "high"))
 _METRIC_OPERATORS = {"gte", "lte", "gt", "lt"}
 
@@ -119,7 +125,12 @@ def run_auto_experiment(
             expected_fencing_token=existing.fencing_token,
         )
 
-    scratch = destination / "scratch" / str(plan["trial_id"]) / f"attempt-{admission.fencing_token:04d}"
+    scratch = (
+        destination
+        / "scratch"
+        / str(plan["trial_id"])
+        / f"attempt-{admission.fencing_token:04d}"
+    )
     if scratch.exists() or scratch.is_symlink():
         raise AutoExperimentError("AUTO_EXPERIMENT_SCRATCH_EXISTS")
     scratch.mkdir(mode=0o700, parents=True)
@@ -177,7 +188,12 @@ def run_auto_experiment(
                 f"{type(exc).__name__}: {exc}\n", encoding="utf-8"
             )
             execution = {
-                "lease": {"index": None, "uuid": "", "name": "unavailable", "lock_path": ""},
+                "lease": {
+                    "index": None,
+                    "uuid": "",
+                    "name": "unavailable",
+                    "lock_path": "",
+                },
                 "authorization": {"state": "unavailable"},
                 "command": list(plan["command"]),
                 "environment_keys": sorted(plan["environment"]),
@@ -185,9 +201,13 @@ def run_auto_experiment(
                 "timed_out": False,
                 "duration_seconds": 0.0,
                 "gpu_sampling": _load_json_object(
-                    scratch / "gpu-sampling.json", "AUTO_EXPERIMENT_GPU_SAMPLING_INVALID"
+                    scratch / "gpu-sampling.json",
+                    "AUTO_EXPERIMENT_GPU_SAMPLING_INVALID",
                 ),
-                "execution_error": {"type": type(exc).__name__, "message": str(exc)[:500]},
+                "execution_error": {
+                    "type": type(exc).__name__,
+                    "message": str(exc)[:500],
+                },
             }
         receipt = _settle_trial(
             plan=plan,
@@ -254,7 +274,9 @@ def _execute_trial(
         plan["allowed_gpu_indices"],
         wait_seconds=float(plan["gpu_wait_seconds"]),
     ) as lease:
-        audit_root = destination / "gpu-audits" / f"{plan['trial_id']}-f{fencing_token:04d}"
+        audit_root = (
+            destination / "gpu-audits" / f"{plan['trial_id']}-f{fencing_token:04d}"
+        )
         audit_manifest = run_gpu_exclusivity_audit(
             output_root=audit_root,
             requested_gpus=[lease.index],
@@ -273,18 +295,31 @@ def _execute_trial(
             "gpu_index": str(lease.index),
             "gpu_uuid": lease.uuid,
         }
-        command = tuple(_expand_token(str(token), substitutions) for token in plan["command"])
+        command = tuple(
+            _expand_token(str(token), substitutions) for token in plan["command"]
+        )
         environment = dict(os.environ)
-        environment.update({str(key): str(value) for key, value in plan["environment"].items()})
+        environment.update(
+            {
+                str(key): _expand_token(str(value), substitutions)
+                for key, value in plan["environment"].items()
+            }
+        )
         environment.update(lease.environment())
         environment.update(
             {
                 "VERDIWM_TRIAL_ID": str(plan["trial_id"]),
                 "VERDIWM_TRIAL_SCRATCH": str(scratch),
-                "PYTHONPATH": _prepend_pythonpath(workspace_root, environment.get("PYTHONPATH")),
+                "PYTHONPATH": _prepend_pythonpath(
+                    workspace_root, environment.get("PYTHONPATH")
+                ),
             }
         )
-        workdir = _resolve_inside(workspace_root, str(plan["working_directory"]), "AUTO_EXPERIMENT_WORKDIR_INVALID")
+        workdir = _resolve_inside(
+            workspace_root,
+            str(plan["working_directory"]),
+            "AUTO_EXPERIMENT_WORKDIR_INVALID",
+        )
         sampler = GpuSamplingRecorder(
             gpu_index=lease.index,
             sample_interval_seconds=float(plan["sample_interval_seconds"]),
@@ -307,7 +342,9 @@ def _execute_trial(
             "lease": lease.to_document(),
             "authorization": authorization,
             "command": list(command),
-            "environment_keys": sorted(set(plan["environment"]) | set(lease.environment())),
+            "environment_keys": sorted(
+                set(plan["environment"]) | set(lease.environment())
+            ),
             "exit_code": result.exit_code,
             "timed_out": result.timed_out,
             "duration_seconds": result.duration_seconds,
@@ -329,9 +366,13 @@ def _settle_trial(
     archive: ArchiveStore,
     budget_db: Path,
 ) -> dict[str, object]:
-    result_path = _resolve_inside(scratch, str(plan["result_path"]), "AUTO_EXPERIMENT_RESULT_PATH_INVALID")
+    result_path = _resolve_inside(
+        scratch, str(plan["result_path"]), "AUTO_EXPERIMENT_RESULT_PATH_INVALID"
+    )
     result = _load_optional_json(result_path)
-    metric_gates = tuple(item for item in plan["metric_gates"] if isinstance(item, Mapping))
+    metric_gates = tuple(
+        item for item in plan["metric_gates"] if isinstance(item, Mapping)
+    )
     verdict = verify_auto_experiment_result(
         result=result,
         metric_gates=metric_gates,
@@ -343,14 +384,20 @@ def _settle_trial(
     if execution["timed_out"] is True:
         execution_blockers.append({"code": "EXECUTION_TIMED_OUT"})
     if execution["exit_code"] != 0:
-        execution_blockers.append({"code": "EXECUTION_FAILED", "exit_code": execution["exit_code"]})
+        execution_blockers.append(
+            {"code": "EXECUTION_FAILED", "exit_code": execution["exit_code"]}
+        )
     if execution.get("execution_error"):
-        execution_blockers.append({"code": "EXECUTION_ERROR", **dict(execution["execution_error"])})
+        execution_blockers.append(
+            {"code": "EXECUTION_ERROR", **dict(execution["execution_error"])}
+        )
 
     artifact_refs: dict[str, str] = {}
     missing_artifacts = []
     for relative in plan["artifacts"]:
-        artifact = _resolve_inside(scratch, str(relative), "AUTO_EXPERIMENT_ARTIFACT_PATH_INVALID")
+        artifact = _resolve_inside(
+            scratch, str(relative), "AUTO_EXPERIMENT_ARTIFACT_PATH_INVALID"
+        )
         if not artifact.is_file() or artifact.is_symlink():
             missing_artifacts.append(str(relative))
             continue
@@ -358,7 +405,9 @@ def _settle_trial(
         archive.record_artifact_reference(ref)
         artifact_refs[str(relative)] = ref
     if missing_artifacts:
-        execution_blockers.append({"code": "REQUIRED_ARTIFACTS_MISSING", "paths": missing_artifacts})
+        execution_blockers.append(
+            {"code": "REQUIRED_ARTIFACTS_MISSING", "paths": missing_artifacts}
+        )
 
     support_refs = {}
     for name, path, media_type in (
@@ -433,7 +482,9 @@ def _settle_trial(
     return receipt
 
 
-def _record_archive_from_receipt(*, archive: ArchiveStore, receipt: Mapping[str, Any]) -> None:
+def _record_archive_from_receipt(
+    *, archive: ArchiveStore, receipt: Mapping[str, Any]
+) -> None:
     trial_id = str(receipt["archive_trial_id"])
     if trial_id in archive.visible_settled_trials():
         return
@@ -458,7 +509,8 @@ def _record_archive_from_receipt(*, archive: ArchiveStore, receipt: Mapping[str,
 
 
 def cleanup_auto_experiment_scratch(
-    *, run_root: Path,
+    *,
+    run_root: Path,
     older_than_hours: float,
     apply: bool = False,
     archive_db: Path | None = None,
@@ -469,7 +521,9 @@ def cleanup_auto_experiment_scratch(
     root = Path(run_root).resolve(strict=True)
     if not root.is_dir() or root.is_symlink() or older_than_hours < 0:
         raise AutoExperimentError("AUTO_EXPERIMENT_CLEANUP_ROOT_INVALID")
-    cutoff = _dt.datetime.now(tz=_dt.timezone.utc).timestamp() - older_than_hours * 3600.0
+    cutoff = (
+        _dt.datetime.now(tz=_dt.timezone.utc).timestamp() - older_than_hours * 3600.0
+    )
     candidates = []
     retained = []
     archive = ArchiveStore(Path(archive_db)) if archive_db is not None else None
@@ -488,7 +542,8 @@ def cleanup_auto_experiment_scratch(
             and marker.get("archive_recorded") is True
             and isinstance(marker.get("receipt_ref"), str)
             and str(marker["receipt_ref"]).startswith("cas://sha256/")
-            and marker.get("required_artifact_count") == marker.get("archived_artifact_count")
+            and marker.get("required_artifact_count")
+            == marker.get("archived_artifact_count")
         )
         if not eligible:
             retained.append({"path": str(scratch), "reason": "NOT_PROVEN_SETTLED"})
@@ -530,7 +585,10 @@ def _recover_archived_run(
     if not receipt_path.is_file() or receipt_path.is_symlink():
         raise AutoExperimentError("AUTO_EXPERIMENT_SETTLEMENT_RECOVERY_REQUIRED")
     receipt = _load_json_object(receipt_path, "AUTO_EXPERIMENT_RECEIPT_INVALID")
-    if receipt.get("settlement_state") != "settled" or receipt.get("state") != "terminal":
+    if (
+        receipt.get("settlement_state") != "settled"
+        or receipt.get("state") != "terminal"
+    ):
         raise AutoExperimentError("AUTO_EXPERIMENT_RECEIPT_NOT_SETTLED")
     if str(receipt.get("archive_trial_id")) not in archive.visible_settled_trials():
         raise AutoExperimentError("AUTO_EXPERIMENT_ARCHIVE_RECEIPT_MISMATCH")
@@ -541,7 +599,10 @@ def _recover_archived_run(
         if not marker_path.is_file() or marker_path.is_symlink():
             continue
         marker = _load_optional_json(marker_path)
-        if marker.get("state") != "settled" or marker.get("archive_recorded") is not True:
+        if (
+            marker.get("state") != "settled"
+            or marker.get("archive_recorded") is not True
+        ):
             marker.update(
                 {
                     "state": "settled",
@@ -582,13 +643,18 @@ def _verify_cleanup_proof(
     if not isinstance(receipt_ref, str):
         return "RECEIPT_REF_INVALID"
     try:
-        receipt_core = _load_json_bytes(cas.read_bytes(receipt_ref), "RECEIPT_CAS_INVALID")
+        receipt_core = _load_json_bytes(
+            cas.read_bytes(receipt_ref), "RECEIPT_CAS_INVALID"
+        )
     except Exception:
         return "RECEIPT_CAS_UNREADABLE"
     if receipt_core.get("artifact_type") != "verdiwm-auto-experiment-receipt":
         return "RECEIPT_CAS_INVALID"
     archive_trial_id = receipt_core.get("archive_trial_id")
-    if not isinstance(archive_trial_id, str) or archive_trial_id not in archive.visible_settled_trials():
+    if (
+        not isinstance(archive_trial_id, str)
+        or archive_trial_id not in archive.visible_settled_trials()
+    ):
         return "ARCHIVE_RECORD_MISSING"
     refs: list[object] = []
     for block_name in ("artifact_refs", "support_refs"):
@@ -597,7 +663,10 @@ def _verify_cleanup_proof(
             refs.extend(block.values())
     refs.extend(
         value
-        for value in (receipt_core.get("failure_context_ref"), receipt_core.get("verdict_ref"))
+        for value in (
+            receipt_core.get("failure_context_ref"),
+            receipt_core.get("verdict_ref"),
+        )
         if isinstance(value, str)
     )
     for uri in refs:
@@ -611,20 +680,42 @@ def _verify_cleanup_proof(
 def _load_plan(path: Path, *, workspace_root: Path) -> dict[str, object]:
     try:
         plan = _load_json_object(path, "AUTO_EXPERIMENT_PLAN_INVALID")
-        validate_document("auto_experiment_plan", plan, root=workspace_root)
+        validate_document("auto_experiment_plan", plan)
     except (ContractValidationError, AutoExperimentError) as exc:
         raise AutoExperimentError(f"AUTO_EXPERIMENT_PLAN_INVALID:{exc}") from exc
     _validate_plan_semantics(plan, workspace_root=workspace_root)
     return plan
 
 
-def _validate_plan_semantics(plan: Mapping[str, object], *, workspace_root: Path) -> None:
-    for field in ("objective", "hypothesis", "selection_reason", "falsification_criterion"):
+def _validate_plan_semantics(
+    plan: Mapping[str, object], *, workspace_root: Path
+) -> None:
+    control_root = Path(__file__).resolve().parents[2]
+    if Path(workspace_root).resolve() != control_root:
+        try:
+            verify_onboarding_admission(
+                plan.get("onboarding_admission"),
+                expected_repo_root=workspace_root,
+            )
+        except OnboardingAdmissionError as exc:
+            raise AutoExperimentError(
+                f"AUTO_EXPERIMENT_ONBOARDING_ADMISSION_INVALID:{exc}"
+            ) from exc
+    for field in (
+        "objective",
+        "hypothesis",
+        "selection_reason",
+        "falsification_criterion",
+    ):
         value = plan.get(field)
         if not isinstance(value, str) or len(value.strip()) < 12:
             raise AutoExperimentError(f"AUTO_EXPERIMENT_RATIONALE_TOO_SHORT:{field}")
-    estimated = _finite_float(plan.get("estimated_gpu_hours"), "AUTO_EXPERIMENT_ESTIMATE_INVALID")
-    total = _finite_float(plan.get("total_budget_gpu_hours"), "AUTO_EXPERIMENT_TOTAL_BUDGET_INVALID")
+    estimated = _finite_float(
+        plan.get("estimated_gpu_hours"), "AUTO_EXPERIMENT_ESTIMATE_INVALID"
+    )
+    total = _finite_float(
+        plan.get("total_budget_gpu_hours"), "AUTO_EXPERIMENT_TOTAL_BUDGET_INVALID"
+    )
     if estimated > total:
         raise AutoExperimentError("AUTO_EXPERIMENT_ESTIMATE_EXCEEDS_TOTAL_BUDGET")
     if bool(plan.get("human_approved", False)) and _cost_class(estimated) != "high":
@@ -634,7 +725,9 @@ def _validate_plan_semantics(plan: Mapping[str, object], *, workspace_root: Path
         ("gpu_wait_seconds", 0.0),
         ("sample_interval_seconds", 0.0),
     ):
-        value = _finite_float(plan.get(field), f"AUTO_EXPERIMENT_{field.upper()}_INVALID")
+        value = _finite_float(
+            plan.get(field), f"AUTO_EXPERIMENT_{field.upper()}_INVALID"
+        )
         if value <= minimum if field != "gpu_wait_seconds" else value < minimum:
             raise AutoExperimentError(f"AUTO_EXPERIMENT_{field.upper()}_INVALID")
     workdir = _resolve_inside(
@@ -674,7 +767,9 @@ def _validate_plan_semantics(plan: Mapping[str, object], *, workspace_root: Path
         raise AutoExperimentError("AUTO_EXPERIMENT_GPU_ALLOWLIST_DUPLICATE")
 
 
-def _initialize_output(*, destination: Path, plan: Mapping[str, object], plan_sha256: str) -> None:
+def _initialize_output(
+    *, destination: Path, plan: Mapping[str, object], plan_sha256: str
+) -> None:
     if destination.exists() or destination.is_symlink():
         if destination.is_symlink() or not destination.is_dir():
             raise AutoExperimentError("AUTO_EXPERIMENT_OUTPUT_ROOT_INVALID")
@@ -682,7 +777,9 @@ def _initialize_output(*, destination: Path, plan: Mapping[str, object], plan_sh
         if not lock_path.is_file():
             raise AutoExperimentError("AUTO_EXPERIMENT_OUTPUT_ROOT_UNBOUND")
         lock = _load_json_object(lock_path, "AUTO_EXPERIMENT_PLAN_LOCK_INVALID")
-        if lock.get("plan_sha256") != plan_sha256 or lock.get("trial_id") != plan.get("trial_id"):
+        if lock.get("plan_sha256") != plan_sha256 or lock.get("trial_id") != plan.get(
+            "trial_id"
+        ):
             raise AutoExperimentError("AUTO_EXPERIMENT_OUTPUT_PLAN_MISMATCH")
         return
     destination.mkdir(mode=0o700, parents=True)
@@ -736,14 +833,20 @@ def _cleanup_settled_scratch(
     result = {
         "state": "applied" if apply else "retained",
         "path": str(scratch),
-        "reason": "ARCHIVED_TERMINAL" if marker.get("archive_recorded") is True else "ARCHIVE_REQUIRED",
+        "reason": (
+            "ARCHIVED_TERMINAL"
+            if marker.get("archive_recorded") is True
+            else "ARCHIVE_REQUIRED"
+        ),
     }
     if apply:
         shutil.rmtree(scratch)
     return result
 
 
-def _manifest_from_receipt(*, receipt: Mapping[str, object], destination: Path) -> dict[str, object]:
+def _manifest_from_receipt(
+    *, receipt: Mapping[str, object], destination: Path
+) -> dict[str, object]:
     verdict = receipt.get("verdict")
     return {
         "schema_version": 1,
@@ -754,7 +857,9 @@ def _manifest_from_receipt(*, receipt: Mapping[str, object], destination: Path) 
         "trial_id": receipt.get("trial_id"),
         "stage": receipt.get("stage"),
         "verdict": verdict.get("verdict") if isinstance(verdict, Mapping) else None,
-        "evidence_level": verdict.get("evidence_level") if isinstance(verdict, Mapping) else "void",
+        "evidence_level": (
+            verdict.get("evidence_level") if isinstance(verdict, Mapping) else "void"
+        ),
         "receipt_ref": receipt.get("receipt_ref"),
         "receipt_path": str(destination / "receipts" / f"{receipt['trial_id']}.json"),
         "verdict_path": str(destination / "verdicts" / f"{receipt['trial_id']}.json"),
@@ -858,11 +963,24 @@ def _write_json_atomic(path: Path, payload: object) -> None:
 
 
 def _canonical_json(payload: object) -> bytes:
-    return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8") + b"\n"
+    return (
+        json.dumps(
+            payload,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+        + b"\n"
+    )
 
 
-def _put_json(*, cas: ContentAddressedStore, archive: ArchiveStore, payload: Mapping[str, object]) -> str:
-    reference = cas.put_bytes(_canonical_json(payload), media_type="application/json").uri
+def _put_json(
+    *, cas: ContentAddressedStore, archive: ArchiveStore, payload: Mapping[str, object]
+) -> str:
+    reference = cas.put_bytes(
+        _canonical_json(payload), media_type="application/json"
+    ).uri
     archive.record_artifact_reference(reference)
     return reference
 
@@ -886,7 +1004,9 @@ def _git_state(workspace_root: Path) -> dict[str, object]:
         capture_output=True,
         text=True,
     )
-    revision = revision_result.stdout.strip() if revision_result.returncode == 0 else "unknown"
+    revision = (
+        revision_result.stdout.strip() if revision_result.returncode == 0 else "unknown"
+    )
     diff_result = subprocess.run(
         ("git", "-C", str(workspace_root), "diff", "--no-ext-diff", "--binary", "HEAD"),
         check=False,
@@ -902,7 +1022,11 @@ def _git_state(workspace_root: Path) -> dict[str, object]:
     untracked_sources, untracked_payload = _untracked_source_state(workspace_root)
     return {
         "revision": revision,
-        "dirty": bool(status_result.stdout.strip()) if status_result.returncode == 0 else True,
+        "dirty": (
+            bool(status_result.stdout.strip())
+            if status_result.returncode == 0
+            else True
+        ),
         "untracked_source_files": untracked_sources,
         "implementation_hash": _sha256_bytes(
             (revision + "\n").encode("utf-8") + diff + untracked_payload
@@ -939,13 +1063,19 @@ def _untracked_source_state(workspace_root: Path) -> tuple[list[dict[str, str]],
             payload.extend(b"UNTRACKED_SOURCE_PATH_INVALID\0" + raw_path + b"\0")
             continue
         source = (workspace_root / relative).resolve()
-        if not _is_inside(workspace_root, source) or not source.is_file() or source.is_symlink():
+        if (
+            not _is_inside(workspace_root, source)
+            or not source.is_file()
+            or source.is_symlink()
+        ):
             payload.extend(b"UNTRACKED_SOURCE_MEMBER_INVALID\0" + raw_path + b"\0")
             continue
         content = source.read_bytes()
         digest = _sha256_bytes(content)
         records.append({"path": relative, "sha256": digest})
-        payload.extend(raw_path + b"\0" + digest.encode("ascii") + b"\0" + content + b"\0")
+        payload.extend(
+            raw_path + b"\0" + digest.encode("ascii") + b"\0" + content + b"\0"
+        )
     return records, bytes(payload)
 
 
@@ -955,7 +1085,11 @@ def _evaluator_hash(metric_gates: Sequence[Mapping[str, object]]) -> str:
 
 
 def _finite_float(value: object, error_code: str) -> float:
-    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(float(value)):
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(float(value))
+    ):
         raise AutoExperimentError(error_code)
     return float(value)
 
@@ -980,9 +1114,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--workspace-root", type=Path, default=Path.cwd())
     run_parser.add_argument("--archive-db", type=Path)
     run_parser.add_argument("--cas-root", type=Path)
-    run_parser.add_argument("--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases"))
+    run_parser.add_argument(
+        "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
+    )
     run_parser.add_argument("--budget-db", type=Path)
-    cleanup_parser = subparsers.add_parser("cleanup", help="dry-run or apply proven scratch cleanup")
+    cleanup_parser = subparsers.add_parser(
+        "cleanup", help="dry-run or apply proven scratch cleanup"
+    )
     cleanup_parser.add_argument("--run-root", type=Path, required=True)
     cleanup_parser.add_argument("--older-than-hours", type=float, default=168.0)
     cleanup_parser.add_argument("--archive-db", type=Path)
@@ -992,7 +1130,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "run":
             output = Path(args.output_root).resolve()
-            archive_db = Path(args.archive_db) if args.archive_db else output.parent / "archive.db"
+            archive_db = (
+                Path(args.archive_db)
+                if args.archive_db
+                else output.parent / "archive.db"
+            )
             cas_root = Path(args.cas_root) if args.cas_root else output.parent
             manifest = run_auto_experiment(
                 plan_path=args.plan,
@@ -1008,7 +1150,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 run_root=args.run_root,
                 older_than_hours=args.older_than_hours,
                 apply=args.apply,
-                archive_db=args.archive_db or Path(args.run_root).resolve().parent / "archive.db",
+                archive_db=args.archive_db
+                or Path(args.run_root).resolve().parent / "archive.db",
                 cas_root=args.cas_root or Path(args.run_root).resolve().parent,
             )
         print(json.dumps(manifest, ensure_ascii=True, sort_keys=True))

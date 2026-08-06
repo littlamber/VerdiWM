@@ -33,6 +33,7 @@ _MAX_ASSETS = 500
 _MAX_DEPENDENCIES = 200
 _MAX_IMPORTS = 64
 _MAX_SOURCE_PARSE_BYTES = 1_500_000
+_MAX_SOURCE_REVISION_FILES = 5_000
 _SUBPROCESS_TIMEOUT_SECONDS = 8.0
 _SKIP_DIRECTORIES = frozenset(
     {
@@ -143,6 +144,7 @@ class OnboardingOptions:
     output_root: Path | None = None
     runtime_python: Path | None = None
     evaluator_contract: Path | None = None
+    asset_bindings: tuple[tuple[str, Path], ...] = ()
     probe_imports: bool = True
     max_files: int = _MAX_FILES
 
@@ -172,12 +174,59 @@ def scan_repository(options: OnboardingOptions) -> dict[str, object]:
     return _build_report(repo, options)
 
 
+def compute_source_revision(
+    repo_root: Path, *, max_files: int = _MAX_FILES
+) -> dict[str, object]:
+    """Return the same source binding used by onboarding without other probes."""
+
+    repo = _validate_repo(repo_root)
+    files, truncated = _discover_files(repo, max_files=max_files)
+    if truncated:
+        return {
+            "state": "unbound",
+            "kind": "none",
+            "revision": "SOURCE_REVISION_UNBOUND",
+            "detail": "source inventory exceeded the revision scan limit",
+        }
+    return _discover_source_revision(repo, files)
+
+
+def compute_source_tree_revision(
+    repo_root: Path, *, max_files: int = _MAX_FILES
+) -> dict[str, object]:
+    """Return a content binding even when the repository is a Git checkout."""
+
+    repo = _validate_repo(repo_root)
+    files, truncated = _discover_files(repo, max_files=max_files)
+    if truncated:
+        return {
+            "state": "unbound",
+            "kind": "none",
+            "revision": "SOURCE_REVISION_UNBOUND",
+            "detail": "source inventory exceeded the revision scan limit",
+        }
+    return _source_tree_revision(repo, files)
+
+
+def compute_asset_fingerprint(asset_path: Path) -> str:
+    """Return the deterministic fingerprint used for an external asset binding."""
+
+    raw_path = Path(asset_path).expanduser()
+    if not raw_path.exists() or raw_path.is_symlink():
+        raise OnboardingError("ASSET_FINGERPRINT_PATH_INVALID")
+    path = raw_path.resolve()
+    try:
+        return _asset_fingerprint(path)
+    except OSError as exc:
+        raise OnboardingError("ASSET_FINGERPRINT_FAILED") from exc
+
+
 def _build_report(repo: Path, options: OnboardingOptions) -> dict[str, object]:
     files, inventory_truncated = _discover_files(repo, max_files=options.max_files)
     dependencies = _discover_dependencies(files, repo)
     entrypoints = _discover_entrypoints(files, repo)
     assets = _discover_assets(files, repo)
-    source_revision = _discover_source_revision(repo)
+    source_revision = _discover_source_revision(repo, files)
     runtime = _discover_runtime(
         repo,
         dependencies,
@@ -186,7 +235,13 @@ def _build_report(repo: Path, options: OnboardingOptions) -> dict[str, object]:
     )
     capabilities = _classify_capabilities(entrypoints, assets, files, repo=repo)
     evaluator_contract = _load_evaluator_contract(options.evaluator_contract)
-    asset_bindings = _discover_asset_bindings(entrypoints, assets)
+    asset_bindings = _discover_asset_bindings(
+        entrypoints,
+        assets,
+        repo=repo,
+        explicit_bindings=options.asset_bindings,
+        evaluator_contract=evaluator_contract,
+    )
     connector = _build_connector(
         repo,
         runtime,
@@ -559,45 +614,83 @@ def _discover_assets(files: Sequence[Path], repo: Path) -> list[dict[str, object
     return rows[:_MAX_ASSETS]
 
 
-def _discover_source_revision(repo: Path) -> dict[str, object]:
+def _discover_source_revision(repo: Path, files: Sequence[Path]) -> dict[str, object]:
     git = shutil.which("git")
-    if git is None:
+    if git is not None:
+        try:
+            result = subprocess.run(
+                [git, "-C", str(repo), "rev-parse", "HEAD"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                env={"PATH": os.environ.get("PATH", ""), "LC_ALL": "C", "LANG": "C"},
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            result = None
+        if result is not None:
+            revision = result.stdout.strip()
+            if result.returncode == 0 and re.fullmatch(r"[0-9a-fA-F]{7,64}", revision):
+                return {
+                    "state": "bound",
+                    "kind": "git_commit",
+                    "revision": revision.lower(),
+                    "detail": "git rev-parse HEAD",
+                }
+    return _source_tree_revision(repo, files)
+
+
+def _source_tree_revision(repo: Path, files: Sequence[Path]) -> dict[str, object]:
+    selected = [path for path in files if _is_source_revision_file(path, repo)]
+    selected.sort(key=lambda path: _relative(path, repo))
+    if not selected or len(selected) > _MAX_SOURCE_REVISION_FILES:
         return {
             "state": "unbound",
             "kind": "none",
             "revision": "SOURCE_REVISION_UNBOUND",
-            "detail": "git is unavailable",
+            "detail": "source tree is empty or exceeds the revision file limit",
         }
+    digest = hashlib.sha256()
     try:
-        result = subprocess.run(
-            [git, "-C", str(repo), "rev-parse", "HEAD"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-            env={"PATH": os.environ.get("PATH", ""), "LC_ALL": "C", "LANG": "C"},
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+        for path in selected:
+            relative = _relative(path, repo).encode("utf-8")
+            payload = path.read_bytes()
+            digest.update(len(relative).to_bytes(4, "big"))
+            digest.update(relative)
+            digest.update(len(payload).to_bytes(8, "big"))
+            digest.update(hashlib.sha256(payload).digest())
+    except OSError as exc:
         return {
             "state": "unbound",
             "kind": "none",
             "revision": "SOURCE_REVISION_UNBOUND",
             "detail": _bounded(str(exc)),
         }
-    revision = result.stdout.strip()
-    if result.returncode == 0 and re.fullmatch(r"[0-9a-fA-F]{7,64}", revision):
-        return {
-            "state": "bound",
-            "kind": "git_commit",
-            "revision": revision.lower(),
-            "detail": "git rev-parse HEAD",
-        }
-    detail = _bounded(result.stderr.strip() or "repository is not a git checkout")
     return {
-        "state": "unbound",
-        "kind": "none",
-        "revision": "SOURCE_REVISION_UNBOUND",
-        "detail": detail,
+        "state": "bound",
+        "kind": "source_tree_sha256",
+        "revision": digest.hexdigest(),
+        "detail": f"content hash over {len(selected)} source and configuration files",
+    }
+
+
+def _is_source_revision_file(path: Path, repo: Path) -> bool:
+    relative = _relative(path, repo).lower()
+    parts = set(re.split(r"[^a-z0-9]+", relative))
+    if parts & {"dataset", "annotation", "trajectory", "videos", "latent_videos"}:
+        return False
+    if path.name.lower() in _DEPENDENCY_FILENAMES:
+        return True
+    return path.suffix.lower() in {
+        ".py",
+        ".pyi",
+        ".sh",
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".json",
+        ".cfg",
+        ".ini",
     }
 
 
@@ -906,7 +999,7 @@ def _load_evaluator_contract(path: Path | None) -> dict[str, object]:
             "missing_fields": [],
             "error": "EVALUATOR_CONTRACT_FIELDS_INVALID:" + ",".join(invalid),
         }
-    return {
+    contract = {
         "state": "ready",
         "source_path": str(resolved),
         "required_fields": required,
@@ -919,6 +1012,28 @@ def _load_evaluator_contract(path: Path | None) -> dict[str, object]:
         "metrics": payload["metrics"],
         "verifier": payload["verifier"],
     }
+    working_directory = payload.get("working_directory", ".")
+    contract["working_directory"] = working_directory
+    contract["conformance_imports"] = list(payload.get("conformance_imports", []))
+    scheduler_template = payload.get("scheduler_template")
+    if scheduler_template is not None:
+        template_path = Path(str(scheduler_template))
+        template_path = (
+            template_path.resolve()
+            if template_path.is_absolute()
+            else (resolved.parent / template_path).resolve()
+        )
+        if not template_path.is_file() or template_path.is_symlink():
+            return {
+                "state": "blocked",
+                "source_path": str(resolved),
+                "required_fields": required,
+                "missing_fields": [],
+                "error": "EVALUATOR_SCHEDULER_TEMPLATE_INVALID",
+            }
+        contract["scheduler_template_path"] = str(template_path)
+        contract["scheduler_template_sha256"] = _sha256_file(template_path)
+    return contract
 
 
 def _invalid_evaluator_fields(payload: Mapping[str, Any]) -> list[str]:
@@ -935,6 +1050,21 @@ def _invalid_evaluator_fields(payload: Mapping[str, Any]) -> list[str]:
             invalid.append(field)
     if not isinstance(payload.get("verifier"), str) or not payload["verifier"].strip():
         invalid.append("verifier")
+    if (
+        not isinstance(payload.get("working_directory", "."), str)
+        or not str(payload.get("working_directory", ".")).strip()
+    ):
+        invalid.append("working_directory")
+    conformance_imports = payload.get("conformance_imports", [])
+    if not isinstance(conformance_imports, list) or not all(
+        isinstance(item, str) and item.strip() for item in conformance_imports
+    ):
+        invalid.append("conformance_imports")
+    scheduler_template = payload.get("scheduler_template")
+    if scheduler_template is not None and (
+        not isinstance(scheduler_template, str) or not scheduler_template.strip()
+    ):
+        invalid.append("scheduler_template")
     return invalid
 
 
@@ -992,7 +1122,12 @@ def _build_connector(
 
 
 def _discover_asset_bindings(
-    entrypoints: Sequence[Mapping[str, object]], assets: Sequence[Mapping[str, object]]
+    entrypoints: Sequence[Mapping[str, object]],
+    assets: Sequence[Mapping[str, object]],
+    *,
+    repo: Path,
+    explicit_bindings: Sequence[tuple[str, Path]],
+    evaluator_contract: Mapping[str, object],
 ) -> list[dict[str, object]]:
     """Resolve input-like CLI paths against discovered repository assets."""
 
@@ -1001,6 +1136,8 @@ def _discover_asset_bindings(
         if entrypoint.get("kinds") == ["unknown"]:
             continue
         flags.update(str(flag) for flag in entrypoint.get("cli_flags", []))
+    overrides = _validate_explicit_asset_bindings(explicit_bindings, flags)
+    required_parameters = _evaluator_asset_parameters(evaluator_contract)
     rows: list[dict[str, object]] = []
     for flag in sorted(flags):
         field = flag.removeprefix("--").replace("-", "_").lower()
@@ -1013,16 +1150,81 @@ def _discover_asset_bindings(
         kind = _binding_kind(field)
         if kind is None:
             continue
-        evidence = _matching_assets(field, kind, assets)
+        explicit = overrides.get(flag)
+        evidence = (
+            [str(explicit)]
+            if explicit is not None
+            else _matching_assets(field, kind, assets)
+        )
+        resolved = explicit or ((repo / evidence[0]).resolve() if evidence else None)
         rows.append(
             {
                 "parameter": flag,
                 "kind": kind,
                 "state": "discovered" if evidence else "binding_required",
                 "evidence": evidence,
+                "binding_source": (
+                    "explicit" if explicit is not None else "repository_discovery"
+                ),
+                "resolved_path": str(resolved) if resolved is not None else None,
+                "asset_fingerprint": (
+                    _asset_fingerprint(resolved) if resolved is not None else None
+                ),
+                "required_for_evaluator": flag in required_parameters,
             }
         )
     return rows
+
+
+def _evaluator_asset_parameters(
+    evaluator_contract: Mapping[str, object],
+) -> set[str]:
+    command = evaluator_contract.get("command")
+    if evaluator_contract.get("state") != "ready" or not isinstance(command, list):
+        return set()
+    parameters: set[str] = set()
+    for token in command:
+        parameters.update(
+            placeholder[len("{asset:") : -1]
+            for placeholder in re.findall(r"\{asset:--[A-Za-z0-9_-]+\}", str(token))
+        )
+    return parameters
+
+
+def _validate_explicit_asset_bindings(
+    values: Sequence[tuple[str, Path]], discovered_flags: set[str]
+) -> dict[str, Path]:
+    bindings: dict[str, Path] = {}
+    for parameter, raw_path in values:
+        normalized = parameter if parameter.startswith("--") else f"--{parameter}"
+        if normalized not in discovered_flags:
+            raise OnboardingError(f"ASSET_BINDING_PARAMETER_UNKNOWN:{normalized}")
+        if normalized in bindings:
+            raise OnboardingError(f"ASSET_BINDING_DUPLICATE:{normalized}")
+        raw = Path(raw_path).expanduser()
+        if not raw.exists() or raw.is_symlink():
+            raise OnboardingError(f"ASSET_BINDING_PATH_INVALID:{normalized}")
+        path = raw.resolve()
+        bindings[normalized] = path
+    return bindings
+
+
+def _asset_fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
+    entries = (
+        [path]
+        if path.is_file()
+        else sorted(
+            item for item in path.rglob("*") if item.is_file() and not item.is_symlink()
+        )
+    )
+    for item in entries[:_MAX_FILES]:
+        stat = item.stat()
+        relative = item.name if path.is_file() else item.relative_to(path).as_posix()
+        digest.update(relative.encode("utf-8"))
+        digest.update(str(stat.st_size).encode("ascii"))
+        digest.update(str(stat.st_mtime_ns).encode("ascii"))
+    return digest.hexdigest()
 
 
 def _binding_kind(field: str) -> str | None:
@@ -1145,7 +1347,10 @@ def _build_blockers(
             }
         )
     for binding in asset_bindings:
-        if binding.get("state") != "discovered":
+        if (
+            binding.get("required_for_evaluator") is True
+            and binding.get("state") != "discovered"
+        ):
             blockers.append(
                 {
                     "code": "MODEL_ASSET_BINDING_REQUIRED",
@@ -1425,24 +1630,40 @@ def main(argv: list[str] | None = None) -> int:
         "--evaluator-contract", type=Path, help="Frozen JSON evaluator contract"
     )
     parser.add_argument(
+        "--asset",
+        action="append",
+        default=[],
+        metavar="PARAMETER=PATH",
+        help="Bind a discovered input parameter to an external asset",
+    )
+    parser.add_argument(
         "--no-import-probe",
         action="store_true",
         help="Only inspect metadata; skip subprocess imports and pip check",
     )
     parser.add_argument("--max-files", type=int, default=_MAX_FILES)
     args = parser.parse_args(argv)
+    asset_bindings = tuple(_parse_asset_argument(value) for value in args.asset)
     manifest = run_onboarding(
         OnboardingOptions(
             repo_root=args.repo_root,
             output_root=args.output_root,
             runtime_python=args.runtime_python,
             evaluator_contract=args.evaluator_contract,
+            asset_bindings=asset_bindings,
             probe_imports=not args.no_import_probe,
             max_files=args.max_files,
         )
     )
     print(json.dumps(manifest, sort_keys=True, ensure_ascii=False))
     return 0
+
+
+def _parse_asset_argument(value: str) -> tuple[str, Path]:
+    parameter, separator, path = value.partition("=")
+    if not separator or not parameter.strip() or not path.strip():
+        raise OnboardingError("ASSET_BINDING_ARGUMENT_INVALID")
+    return parameter.strip(), Path(path.strip())
 
 
 if __name__ == "__main__":  # pragma: no cover

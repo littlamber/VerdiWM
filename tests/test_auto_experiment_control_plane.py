@@ -17,7 +17,12 @@ from wmloop.verify.auto_experiment import verify_auto_experiment_result
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _snapshot(*, memory: int = 0, utilization: int = 0, apps: list[dict[str, object]] | None = None) -> dict[str, object]:
+def _snapshot(
+    *,
+    memory: int = 0,
+    utilization: int = 0,
+    apps: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
     return {
         "gpus": [
             {
@@ -33,12 +38,16 @@ def _snapshot(*, memory: int = 0, utilization: int = 0, apps: list[dict[str, obj
 
 
 def test_gpu_lease_selects_physical_gpu_and_rejects_busy(tmp_path: Path) -> None:
-    manager = GpuLeaseManager(lock_root=tmp_path / "locks", snapshot_provider=lambda: _snapshot())
+    manager = GpuLeaseManager(
+        lock_root=tmp_path / "locks", snapshot_provider=lambda: _snapshot()
+    )
     with manager.acquire([4]) as lease:
         assert lease.index == 4
         assert lease.uuid == "GPU-test-4"
         assert lease.environment()["CUDA_VISIBLE_DEVICES"] == "4"
-        held = GpuLeaseManager(lock_root=tmp_path / "locks", snapshot_provider=lambda: _snapshot())
+        held = GpuLeaseManager(
+            lock_root=tmp_path / "locks", snapshot_provider=lambda: _snapshot()
+        )
         with pytest.raises(GpuLeaseError, match="LEASE_HELD"):
             held.acquire([4])
 
@@ -53,8 +62,20 @@ def test_gpu_lease_selects_physical_gpu_and_rejects_busy(tmp_path: Path) -> None
 def test_verifier_requires_matching_gpu_activity_and_metric_gates() -> None:
     sampling = {
         "samples": [
-            {"status": "ready", "gpu_uuid": "GPU-test-4", "phase": "start", "memory_used_mib": 10, "utilization_gpu_percent": 0},
-            {"status": "ready", "gpu_uuid": "GPU-test-4", "phase": "during", "memory_used_mib": 80, "utilization_gpu_percent": 65},
+            {
+                "status": "ready",
+                "gpu_uuid": "GPU-test-4",
+                "phase": "start",
+                "memory_used_mib": 10,
+                "utilization_gpu_percent": 0,
+            },
+            {
+                "status": "ready",
+                "gpu_uuid": "GPU-test-4",
+                "phase": "during",
+                "memory_used_mib": 80,
+                "utilization_gpu_percent": 65,
+            },
         ]
     }
     result = {
@@ -66,7 +87,9 @@ def test_verifier_requires_matching_gpu_activity_and_metric_gates() -> None:
     }
     verdict = verify_auto_experiment_result(
         result=result,
-        metric_gates=({"metric": "score", "role": "primary", "operator": "gte", "threshold": 0.8},),
+        metric_gates=(
+            {"metric": "score", "role": "primary", "operator": "gte", "threshold": 0.8},
+        ),
         expected_gpu_uuid="GPU-test-4",
         gpu_sampling=sampling,
         stage="smoke",
@@ -76,16 +99,42 @@ def test_verifier_requires_matching_gpu_activity_and_metric_gates() -> None:
 
     mismatch = verify_auto_experiment_result(
         result={**result, "device": {"type": "cuda", "gpu_uuid": "GPU-other"}},
-        metric_gates=({"metric": "score", "role": "primary", "operator": "gte", "threshold": 0.8},),
+        metric_gates=(
+            {"metric": "score", "role": "primary", "operator": "gte", "threshold": 0.8},
+        ),
         expected_gpu_uuid="GPU-test-4",
         gpu_sampling=sampling,
         stage="smoke",
     )
     assert mismatch["verdict"] == "VOID"
-    assert any(blocker["code"] == "RESULT_GPU_UUID_MISMATCH" for blocker in mismatch["blockers"])
+    assert any(
+        blocker["code"] == "RESULT_GPU_UUID_MISMATCH"
+        for blocker in mismatch["blockers"]
+    )
 
 
-def _plan(path: Path, *, trial_id: str = "control-test", command: list[str] | None = None) -> Path:
+def test_runtime_placeholders_expand_in_environment() -> None:
+    substitutions = {
+        "scratch_dir": "/run/scratch",
+        "workspace_root": "/model",
+        "output_root": "/run",
+        "gpu_index": "4",
+        "gpu_uuid": "GPU-test-4",
+    }
+
+    assert (
+        auto_experiment._expand_token("{scratch_dir}/cache/{gpu_uuid}", substitutions)
+        == "/run/scratch/cache/GPU-test-4"
+    )
+
+
+def _plan(
+    path: Path,
+    *,
+    trial_id: str = "control-test",
+    command: list[str] | None = None,
+    environment: dict[str, str] | None = None,
+) -> Path:
     payload = {
         "schema_version": 1,
         "artifact_type": "verdiwm-auto-experiment-plan",
@@ -106,8 +155,10 @@ def _plan(path: Path, *, trial_id: str = "control-test", command: list[str] | No
         "sample_interval_seconds": 0.1,
         "result_path": "result.json",
         "artifacts": ["result.json"],
-        "metric_gates": [{"metric": "score", "role": "primary", "operator": "gte", "threshold": 0.5}],
-        "environment": {},
+        "metric_gates": [
+            {"metric": "score", "role": "primary", "operator": "gte", "threshold": 0.5}
+        ],
+        "environment": environment or {},
         "cleanup_policy": "retain",
     }
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -156,8 +207,20 @@ class _FakeSampler:
             "artifact_type": "wmloop-gpu-sampling-curve",
             "state": "ready",
             "samples": [
-                {"status": "ready", "gpu_uuid": "GPU-test-4", "phase": "start", "memory_used_mib": 0, "utilization_gpu_percent": 0},
-                {"status": "ready", "gpu_uuid": "GPU-test-4", "phase": "during", "memory_used_mib": 128, "utilization_gpu_percent": 80},
+                {
+                    "status": "ready",
+                    "gpu_uuid": "GPU-test-4",
+                    "phase": "start",
+                    "memory_used_mib": 0,
+                    "utilization_gpu_percent": 0,
+                },
+                {
+                    "status": "ready",
+                    "gpu_uuid": "GPU-test-4",
+                    "phase": "during",
+                    "memory_used_mib": 128,
+                    "utilization_gpu_percent": 80,
+                },
             ],
         }
 
@@ -185,6 +248,21 @@ class _TimeoutBackend:
         return CommandExecutionResult(b"", b"timed out\n", -9, True, 10.0)
 
 
+class _EnvironmentAssertingBackend(_FakeBackend):
+    def run(self, *, worktree: Path, command, environment, timeout_seconds: float):
+        scratch = Path(environment["VERDIWM_TRIAL_SCRATCH"])
+        assert environment["RESULT_ROOT"] == str(scratch)
+        assert environment["CACHE_ROOT"] == str(scratch / "cache" / "GPU-test-4" / "4")
+        assert environment["BOUND_WORKSPACE"] == str(ROOT)
+        assert environment["BOUND_OUTPUT"].endswith("/run")
+        return super().run(
+            worktree=worktree,
+            command=command,
+            environment=environment,
+            timeout_seconds=timeout_seconds,
+        )
+
+
 def _patch_success_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(auto_experiment, "GpuLeaseManager", _FakeLeaseManager)
     monkeypatch.setattr(auto_experiment, "GpuSamplingRecorder", _FakeSampler)
@@ -192,7 +270,9 @@ def _patch_success_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     monkeypatch.setattr(
         auto_experiment,
         "run_gpu_exclusivity_audit",
-        lambda **kwargs: {"report_path": str(tmp_path / "audit" / "gpu-exclusivity-audit.json")},
+        lambda **kwargs: {
+            "report_path": str(tmp_path / "audit" / "gpu-exclusivity-audit.json")
+        },
     )
     monkeypatch.setattr(
         auto_experiment,
@@ -201,7 +281,39 @@ def _patch_success_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     )
 
 
-def test_run_auto_experiment_settles_and_is_idempotent(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_runtime_placeholders_reach_executed_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _patch_success_runtime(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        auto_experiment, "LocalSubprocessBackend", _EnvironmentAssertingBackend
+    )
+    plan_path = _plan(
+        tmp_path / "plan.json",
+        trial_id="environment-expansion",
+        environment={
+            "RESULT_ROOT": "{scratch_dir}",
+            "CACHE_ROOT": "{scratch_dir}/cache/{gpu_uuid}/{gpu_index}",
+            "BOUND_WORKSPACE": "{workspace_root}",
+            "BOUND_OUTPUT": "{output_root}",
+        },
+    )
+
+    manifest = auto_experiment.run_auto_experiment(
+        plan_path=plan_path,
+        output_root=tmp_path / "run",
+        workspace_root=ROOT,
+        archive_db=tmp_path / "archive.db",
+        cas_root=tmp_path / "store",
+        lock_root=tmp_path / "locks",
+    )
+
+    assert manifest["verdict"] == "PASS"
+
+
+def test_run_auto_experiment_settles_and_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _patch_success_runtime(monkeypatch, tmp_path)
     plan_path = _plan(tmp_path / "plan.json")
     output = tmp_path / "run"
@@ -219,7 +331,9 @@ def test_run_auto_experiment_settles_and_is_idempotent(monkeypatch: pytest.Monke
     assert (output / "receipts" / "control-test.json").is_file()
     assert ArchiveStore(archive_db).archive_statistics()["settled_trials"] == 1
     (output / "manifest.json").unlink()
-    marker_path = output / "scratch" / "control-test" / "attempt-0001" / ".verdiwm-scratch.json"
+    marker_path = (
+        output / "scratch" / "control-test" / "attempt-0001" / ".verdiwm-scratch.json"
+    )
     marker = json.loads(marker_path.read_text())
     marker.update({"state": "running", "archive_recorded": False})
     marker_path.write_text(json.dumps(marker), encoding="utf-8")
@@ -237,9 +351,15 @@ def test_run_auto_experiment_settles_and_is_idempotent(monkeypatch: pytest.Monke
     assert recovered_marker["archive_recorded"] is True
 
 
-def test_execution_failure_is_archived_as_void(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_execution_failure_is_archived_as_void(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(auto_experiment, "GpuLeaseManager", _FakeLeaseManager)
-    monkeypatch.setattr(auto_experiment, "run_gpu_exclusivity_audit", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("busy")))
+    monkeypatch.setattr(
+        auto_experiment,
+        "run_gpu_exclusivity_audit",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("busy")),
+    )
     plan_path = _plan(tmp_path / "plan.json", trial_id="failed-control-test")
     output = tmp_path / "run"
     manifest = auto_experiment.run_auto_experiment(
@@ -253,11 +373,19 @@ def test_execution_failure_is_archived_as_void(monkeypatch: pytest.MonkeyPatch, 
     )
     assert manifest["verdict"] == "VOID"
     receipt = json.loads((output / "receipts" / "failed-control-test.json").read_text())
-    assert any(blocker["code"] == "EXECUTION_ERROR" for blocker in receipt["verdict"]["blockers"])
-    assert any(blocker["code"] == "REQUIRED_ARTIFACTS_MISSING" for blocker in receipt["verdict"]["blockers"])
+    assert any(
+        blocker["code"] == "EXECUTION_ERROR"
+        for blocker in receipt["verdict"]["blockers"]
+    )
+    assert any(
+        blocker["code"] == "REQUIRED_ARTIFACTS_MISSING"
+        for blocker in receipt["verdict"]["blockers"]
+    )
 
 
-def test_timeout_and_command_failure_are_archived(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_timeout_and_command_failure_are_archived(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _patch_success_runtime(monkeypatch, tmp_path)
     monkeypatch.setattr(auto_experiment, "LocalSubprocessBackend", _TimeoutBackend)
     plan_path = _plan(tmp_path / "plan.json", trial_id="timeout-control-test")
@@ -271,9 +399,15 @@ def test_timeout_and_command_failure_are_archived(monkeypatch: pytest.MonkeyPatc
         lock_root=tmp_path / "locks",
     )
     assert manifest["verdict"] == "VOID"
-    receipt = json.loads((output / "receipts" / "timeout-control-test.json").read_text())
+    receipt = json.loads(
+        (output / "receipts" / "timeout-control-test.json").read_text()
+    )
     codes = {blocker["code"] for blocker in receipt["verdict"]["blockers"]}
-    assert {"EXECUTION_TIMED_OUT", "EXECUTION_FAILED", "REQUIRED_ARTIFACTS_MISSING"} <= codes
+    assert {
+        "EXECUTION_TIMED_OUT",
+        "EXECUTION_FAILED",
+        "REQUIRED_ARTIFACTS_MISSING",
+    } <= codes
 
 
 def test_stale_admission_is_taken_over_with_new_fencing_token(
@@ -286,10 +420,16 @@ def test_stale_admission_is_taken_over_with_new_fencing_token(
     plan = auto_experiment._load_plan(plan_path, workspace_root=ROOT)
     output = tmp_path / "run"
     plan_sha256 = auto_experiment._sha256_bytes(plan_path.read_bytes())
-    auto_experiment._initialize_output(destination=output, plan=plan, plan_sha256=plan_sha256)
-    archive_trial_id = "auto-" + auto_experiment._trial_signature(plan=plan, workspace_root=ROOT)[:32]
+    auto_experiment._initialize_output(
+        destination=output, plan=plan, plan_sha256=plan_sha256
+    )
+    archive_trial_id = (
+        "auto-" + auto_experiment._trial_signature(plan=plan, workspace_root=ROOT)[:32]
+    )
     ledger = BudgetLedger(output / "budget.db", BudgetPolicy(total_gpu_hours=0.05))
-    first = ledger.admit(archive_trial_id, cost_class="very_low", estimated_gpu_hours=0.01)
+    first = ledger.admit(
+        archive_trial_id, cost_class="very_low", estimated_gpu_hours=0.01
+    )
     assert first.fencing_token == 1
     auto_experiment.run_auto_experiment(
         plan_path=plan_path,
@@ -300,7 +440,9 @@ def test_stale_admission_is_taken_over_with_new_fencing_token(
         lock_root=tmp_path / "locks",
         budget_db=output / "budget.db",
     )
-    receipt = json.loads((output / "receipts" / "takeover-control-test.json").read_text())
+    receipt = json.loads(
+        (output / "receipts" / "takeover-control-test.json").read_text()
+    )
     assert receipt["fencing_token"] == 2
 
 

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "verdict",
+    "input_hash",
+    "blocked_stage",
+    "candidate_states",
+    "paths",
+    "error",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"type": "string", "enum": ["verdiwm-autonomous-pipeline-manifest"]},
+    "state": {"type": "string", "enum": ["settled", "blocked", "interrupted"]},
+    "verdict": {"type": ["string", "null"], "enum": ["PASS", "BLOCKED", null]},
+    "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "blocked_stage": {"type": ["string", "null"]},
+    "candidate_states": {"type": "object"},
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["onboarding", "conformance", "compilation", "queue_execution"],
+      "properties": {
+        "onboarding": {"type": "string", "minLength": 1},
+        "conformance": {"type": "string", "minLength": 1},
+        "compilation": {"type": "string", "minLength": 1},
+        "queue_execution": {"type": "string", "minLength": 1}
+      }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "message": {"type": "string"}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

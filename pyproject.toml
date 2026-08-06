@@ -45,6 +45,9 @@ verdiwm-experiment-report = "wmloop.experiments.report:main"
 verdiwm-auto-experiment = "wmloop.execute.auto_experiment:main"
 verdiwm-auto-scheduler = "wmloop.execute.experiment_scheduler:main"
 verdiwm-onboard = "wmloop.control.onboarding:main"
+verdiwm-conformance = "wmloop.control.onboarding_conformance:main"
+verdiwm-compile-candidates = "wmloop.control.onboarding_compiler:main"
+verdiwm-run = "wmloop.execute.autonomous_pipeline:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]

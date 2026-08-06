@@ -35,7 +35,7 @@
       "required": ["state", "kind", "revision", "detail"],
       "properties": {
         "state": {"type": "string", "enum": ["bound", "unbound"]},
-        "kind": {"type": "string", "enum": ["git_commit", "none"]},
+        "kind": {"type": "string", "enum": ["git_commit", "source_tree_sha256", "none"]},
         "revision": {"type": "string", "minLength": 1},
         "detail": {"type": "string"}
       }
@@ -178,7 +178,11 @@
         "input_artifacts": {"type": "array", "items": {"type": "string"}},
         "output_artifacts": {"type": "array", "items": {"type": "string"}},
         "metrics": {"type": "array", "items": {"type": "string"}},
-        "verifier": {"type": "string"}
+        "verifier": {"type": "string"},
+        "working_directory": {"type": "string"},
+        "conformance_imports": {"type": "array", "items": {"type": "string"}},
+        "scheduler_template_path": {"type": "string"},
+        "scheduler_template_sha256": {"type": ["string", "null"]}
       }
     },
     "connector": {
@@ -197,12 +201,16 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["parameter", "kind", "state", "evidence"],
+            "required": ["parameter", "kind", "state", "evidence", "binding_source", "resolved_path", "asset_fingerprint", "required_for_evaluator"],
             "properties": {
               "parameter": {"type": "string"},
               "kind": {"type": "string", "enum": ["checkpoint", "dataset_or_metadata", "model_dependency"]},
               "state": {"type": "string", "enum": ["discovered", "binding_required"]},
-              "evidence": {"type": "array", "items": {"type": "string"}}
+              "evidence": {"type": "array", "items": {"type": "string"}},
+              "binding_source": {"type": "string", "enum": ["explicit", "repository_discovery"]},
+              "resolved_path": {"type": ["string", "null"]},
+              "asset_fingerprint": {"type": ["string", "null"]},
+              "required_for_evaluator": {"type": "boolean"}
             }
           }
         },

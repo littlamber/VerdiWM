@@ -50,5 +50,16 @@
     "environment": {"type": "object"},
     "cleanup_policy": {"enum": ["retain", "archive_then_delete"]},
     "human_approved": {"type": "boolean"}
+    ,
+    "onboarding_admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_path", "receipt_sha256", "onboarding_report_sha256"],
+      "properties": {
+        "receipt_path": {"type": "string", "minLength": 1},
+        "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "onboarding_report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
   }
 }
