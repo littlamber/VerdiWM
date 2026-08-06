@@ -42,6 +42,9 @@ verdiwm-cpbe-materialize = "wmloop.experiments.cpbe_materializer:main"
 verdiwm-cpbe-stage = "wmloop.experiments.cpbe_stage_runner:main"
 verdiwm-experiment-plan = "wmloop.experiments.lobo:main"
 verdiwm-experiment-report = "wmloop.experiments.report:main"
+verdiwm-auto-experiment = "wmloop.execute.auto_experiment:main"
+verdiwm-auto-scheduler = "wmloop.execute.experiment_scheduler:main"
+verdiwm-onboard = "wmloop.control.onboarding:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]

@@ -93,7 +93,7 @@ def _nvidia_smi_sample(gpu_index: int) -> Mapping[str, object]:
         completed = subprocess.run(
             (
                 "nvidia-smi",
-                "--query-gpu=index,memory.used,utilization.gpu,temperature.gpu",
+                "--query-gpu=index,uuid,name,memory.used,utilization.gpu,temperature.gpu,power.draw",
                 "--format=csv,noheader,nounits",
             ),
             check=False,
@@ -110,7 +110,7 @@ def _nvidia_smi_sample(gpu_index: int) -> Mapping[str, object]:
         }
     for line in completed.stdout.splitlines():
         fields = [field.strip() for field in line.split(",")]
-        if len(fields) != 4:
+        if len(fields) != 7:
             continue
         try:
             index = int(fields[0])
@@ -120,9 +120,12 @@ def _nvidia_smi_sample(gpu_index: int) -> Mapping[str, object]:
             continue
         return {
             "status": "ready",
-            "memory_used_mib": _parse_int(fields[1]),
-            "utilization_gpu_percent": _parse_int(fields[2]),
-            "temperature_gpu_c": _parse_int(fields[3]),
+            "gpu_uuid": fields[1],
+            "gpu_name": fields[2],
+            "memory_used_mib": _parse_int(fields[3]),
+            "utilization_gpu_percent": _parse_int(fields[4]),
+            "temperature_gpu_c": _parse_int(fields[5]),
+            "power_draw_watts": _parse_float(fields[6]),
         }
     return {"status": "unavailable", "error": f"gpu index {gpu_index} not found"}
 
@@ -130,5 +133,12 @@ def _nvidia_smi_sample(gpu_index: int) -> Mapping[str, object]:
 def _parse_int(value: str) -> int | None:
     try:
         return int(value)
+    except ValueError:
+        return None
+
+
+def _parse_float(value: str) -> float | None:
+    try:
+        return float(value)
     except ValueError:
         return None

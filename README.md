@@ -38,6 +38,7 @@ its modest savings are retained as a system limitation rather than hidden.
 | Counterexample-Guided Probe Basis Expansion | Probe DSL, residual/mutation/retrieval/LLM candidate synthesis, deterministic materialization, evidence-conditioned acquisition, and hash-bound successive halving implemented; ACWM-Phys r29/r30 are settled negative self-evolution traces with zero admitted candidates |
 | Exact r31 semantic portability | The same typed CPBE action-embedding program compiles and executes on Ctrl-World and Cosmos3; bounded responses are small and mixed, so repair benefit and transfer remain unestablished |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
+| Universal model onboarding | Read-only repository/runtime/entrypoint/asset discovery and declarative sidecar generation implemented; conformance execution is the next admission boundary |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -80,8 +81,23 @@ mapping and current materialization status.
 
 See [Architecture](docs/ARCHITECTURE.md) and
 [Method to code](docs/METHOD_TO_CODE.md) for the detailed mapping. To bring up
-a different model family, follow the fail-closed
-[backbone instantiation guide](docs/BACKBONE_INSTANTIATION.md).
+a different model family, start with read-only
+[universal onboarding](docs/ONBOARDING.md), then follow the fail-closed
+[backbone instantiation guide](docs/BACKBONE_INSTANTIATION.md) for formal
+verdict surfaces.
+
+The generic bounded GPU runner, its admission policy, receipt settlement, and
+safe scratch cleanup are specified in
+[Automatic GPU Experiments](docs/AUTO_EXPERIMENTS.md). It must pass the CUDA
+smoke contract before any model training campaign is admitted.
+
+Candidate discovery is also bounded: `verdiwm-auto-scheduler plan` validates a
+rationale-bearing candidate batch, ranks it with a deterministic utility score,
+and emits a hashed queue by charging screen estimates against the declared
+campaign ceiling. `verdiwm-auto-scheduler run` executes only that queue and
+advances a candidate through `screen -> gate -> confirm` after a prior-stage
+`PASS`; generic receipts remain exploratory until a backbone-specific verifier
+promotes them into optimization memory.
 
 ## Quick start
 
@@ -105,6 +121,25 @@ Run the IRG tests directly:
 ```bash
 uv run pytest -q tests/test_verdiwm_geometry.py tests/test_acwm_unified_irg_assets.py
 ```
+
+Plan the checked-in scheduler canary without launching a GPU process:
+
+```bash
+uv run verdiwm-auto-scheduler plan \
+  --batch configs/smoke/auto_experiment_candidate_batch_cuda_v1.json \
+  --workspace-root /share/project/hywu/wjy/VerdiWM \
+  --output-root /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1
+```
+
+Discover an external model repository without modifying or executing it:
+
+```bash
+uv run verdiwm-onboard /path/to/model \
+  --runtime-python /path/to/environment/bin/python
+```
+
+The sidecar is written next to the model repository. It records blockers and
+keeps `optimization_launch_allowed=false` until conformance passes.
 
 GPU execution is adapter-specific. ACWM-Phys data and checkpoints are not
 redistributed here; follow the upstream projects and then pass their roots to
@@ -333,13 +368,15 @@ docs/                      architecture and reproducibility notes
 ops/                       restricted container runtime assets
 ```
 
-## Backbone adapters
+## Model onboarding and exceptional plugins
 
-ACWM-Phys is the reference instance, not the system boundary. A new backbone
-must declare capabilities and provide goal, data/split, evaluator, hook,
-receipt, and archive adapters. Agent-generated code is staged behind an
-intent-to-code contract and frozen regression harness; implementation
-convenience is not allowed to silently weaken the requested intervention.
+ACWM-Phys is the reference instance, not the system boundary. New repositories
+first pass through the generic onboarding scanner, which discovers dependency,
+entrypoint, asset, runtime, and capability evidence and emits a declarative
+connector outside the source tree. Known capability families therefore do not
+need handwritten per-model adapters. A manual plugin is reserved for behavior
+that cannot be expressed by the versioned connector and evaluator contracts;
+generated code remains staged behind a frozen regression harness.
 
 Ctrl-World and Cosmos3 are instantiated here as action-conditioned world
 models. Their paper-facing verdict uses paired predictive quality,

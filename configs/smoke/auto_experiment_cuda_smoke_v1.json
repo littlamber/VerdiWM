@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-auto-experiment-plan",
+  "campaign_id": "auto-experiment-cuda-smoke-v1",
+  "trial_id": "auto-cuda-smoke-v1",
+  "objective": "Prove the generic VerdiWM loop can select an idle physical GPU, execute real CUDA work, verify it, archive it, and retire scratch state.",
+  "hypothesis": "A bounded CUDA matrix workload completes on the leased GPU with finite output and observable physical GPU activity.",
+  "selection_reason": "This is the cheapest end-to-end runtime canary before any world-model experiment is admitted.",
+  "falsification_criterion": "The command fails, uses a different physical GPU, has no observed GPU activity, emits a malformed result, or exceeds its numerical error gate.",
+  "stage": "smoke",
+  "command": [
+    "/root/miniconda3/envs/multi-world/bin/python",
+    "-m",
+    "wmloop.execute.cuda_smoke_workload"
+  ],
+  "working_directory": ".",
+  "allowed_gpu_indices": [0, 1, 4, 5, 6, 7],
+  "estimated_gpu_hours": 0.01,
+  "total_budget_gpu_hours": 0.05,
+  "timeout_seconds": 120,
+  "gpu_wait_seconds": 30,
+  "sample_interval_seconds": 0.1,
+  "result_path": "result.json",
+  "artifacts": ["result.json"],
+  "metric_gates": [
+    {
+      "metric": "finite_fraction",
+      "role": "primary",
+      "operator": "gte",
+      "threshold": 1.0
+    },
+    {
+      "metric": "max_abs_error",
+      "role": "protected",
+      "operator": "lte",
+      "threshold": 0.05
+    }
+  ],
+  "environment": {
+    "PYTHONUNBUFFERED": "1",
+    "VERDIWM_CUDA_SMOKE_MATRIX_SIZE": "4096",
+    "VERDIWM_CUDA_SMOKE_ITERATIONS": "24"
+  },
+  "cleanup_policy": "archive_then_delete"
+}

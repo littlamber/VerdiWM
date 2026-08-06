@@ -106,6 +106,18 @@ class BudgetLedger:
         finally:
             connection.close()
 
+    def get(self, trial_id: str) -> TrialAdmission | None:
+        """Return the durable admission state without mutating the ledger."""
+
+        if not trial_id:
+            raise BudgetError("TRIAL_ID_INVALID")
+        connection = self._connect()
+        try:
+            row = connection.execute("SELECT * FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
+        finally:
+            connection.close()
+        return _admission_from_row(row) if row is not None else None
+
     def takeover(self, trial_id: str, *, expected_fencing_token: int) -> TrialAdmission:
         connection = self._connect()
         try:
@@ -157,6 +169,7 @@ class BudgetLedger:
     def _initialize(self) -> None:
         connection = self._connect()
         try:
+            connection.execute("BEGIN IMMEDIATE")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS trials (
@@ -171,6 +184,29 @@ class BudgetLedger:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS policy (
+                    singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
+                    total_gpu_hours REAL NOT NULL,
+                    high_trial_limit INTEGER NOT NULL
+                )
+                """
+            )
+            row = connection.execute(
+                "SELECT total_gpu_hours, high_trial_limit FROM policy WHERE singleton = 1"
+            ).fetchone()
+            if row is None:
+                connection.execute(
+                    "INSERT INTO policy(singleton, total_gpu_hours, high_trial_limit) VALUES (1, ?, ?)",
+                    (self._policy.total_gpu_hours, self._policy.high_trial_limit),
+                )
+            elif (
+                float(row["total_gpu_hours"]) != self._policy.total_gpu_hours
+                or int(row["high_trial_limit"]) != self._policy.high_trial_limit
+            ):
+                connection.rollback()
+                raise BudgetError("BUDGET_POLICY_MISMATCH")
             connection.commit()
         finally:
             connection.close()

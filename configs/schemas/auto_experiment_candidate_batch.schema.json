@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "campaign_id",
+    "objective",
+    "selection_reason",
+    "falsification_criterion",
+    "total_budget_gpu_hours",
+    "max_selected_candidates",
+    "scoring",
+    "candidates"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-auto-experiment-candidate-batch"]},
+    "campaign_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "objective": {"type": "string", "minLength": 12},
+    "selection_reason": {"type": "string", "minLength": 12},
+    "falsification_criterion": {"type": "string", "minLength": 12},
+    "total_budget_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+    "max_selected_candidates": {"type": "integer", "minimum": 1},
+    "scoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_gain_weight", "uncertainty_weight", "information_gain_weight", "novelty_weight", "cost_weight"],
+      "properties": {
+        "expected_gain_weight": {"type": "number", "minimum": 0},
+        "uncertainty_weight": {"type": "number", "minimum": 0},
+        "information_gain_weight": {"type": "number", "minimum": 0},
+        "novelty_weight": {"type": "number", "minimum": 0},
+        "cost_weight": {"type": "number", "minimum": 0}
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "hypothesis",
+          "selection_reason",
+          "falsification_criterion",
+          "expected_gain",
+          "uncertainty",
+          "information_gain",
+          "novelty",
+          "stages"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "hypothesis": {"type": "string", "minLength": 12},
+          "selection_reason": {"type": "string", "minLength": 12},
+          "falsification_criterion": {"type": "string", "minLength": 12},
+          "expected_gain": {"type": "number", "minimum": 0, "maximum": 1},
+          "uncertainty": {"type": "number", "minimum": 0, "maximum": 1},
+          "information_gain": {"type": "number", "minimum": 0, "maximum": 1},
+          "novelty": {"type": "number", "minimum": 0, "maximum": 1},
+          "stages": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "stage",
+                "command",
+                "working_directory",
+                "allowed_gpu_indices",
+                "estimated_gpu_hours",
+                "timeout_seconds",
+                "gpu_wait_seconds",
+                "sample_interval_seconds",
+                "result_path",
+                "artifacts",
+                "metric_gates",
+                "environment",
+                "cleanup_policy"
+              ],
+              "properties": {
+                "stage": {"enum": ["screen", "gate", "confirm"]},
+                "command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "working_directory": {"type": "string", "minLength": 1},
+                "allowed_gpu_indices": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 0}},
+                "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+                "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+                "gpu_wait_seconds": {"type": "number", "minimum": 0},
+                "sample_interval_seconds": {"type": "number", "exclusiveMinimum": 0},
+                "result_path": {"type": "string", "minLength": 1},
+                "artifacts": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+                "metric_gates": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+                "environment": {"type": "object"},
+                "cleanup_policy": {"enum": ["retain", "archive_then_delete"]}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

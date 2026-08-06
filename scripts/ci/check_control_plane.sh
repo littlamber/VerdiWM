@@ -7,7 +7,8 @@ trap 'rm -rf "$build_dir"' EXIT
 uv build --wheel --out-dir "$build_dir"
 wheel_path="$(find "$build_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
 test -n "$wheel_path"
-python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/__init__.py" in names; assert "configs/schemas/goal_spec.schema.json" in names; assert "configs/schemas/cross_backbone_experiment.schema.json" in names; assert "configs/schemas/experiment_stage_receipt.schema.json" in names; assert "configs/schemas/backbone_primitive_registry.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/__init__.py" in names; assert "wmloop/execute/experiment_scheduler.py" in names; assert "configs/schemas/goal_spec.schema.json" in names; assert "configs/schemas/cross_backbone_experiment.schema.json" in names; assert "configs/schemas/experiment_stage_receipt.schema.json" in names; assert "configs/schemas/backbone_primitive_registry.schema.json" in names; assert "configs/schemas/auto_experiment_candidate_batch.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/control/onboarding.py" in names; assert "configs/schemas/model_onboarding_report.schema.json" in names' "$wheel_path"
 
 uv run python -m py_compile \
   wmloop/geometry/types.py \
@@ -34,6 +35,8 @@ uv run python -m py_compile \
   wmloop/control/agent_engineering_policy.py \
   wmloop/control/backbone_capability_matrix.py \
   wmloop/control/cosmos3_gpu_runtime_receipt.py \
+  wmloop/control/onboarding.py \
+  wmloop/execute/experiment_scheduler.py \
   wmloop/propose/primitive_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_routing_admission.py \
@@ -82,6 +85,9 @@ uv run python -m py_compile \
   scripts/run_ctrl_world_bounded_smoke.py
 
 uv run pytest -q \
+  tests/test_experiment_scheduler.py \
+  tests/test_auto_experiment_control_plane.py \
+  tests/test_model_onboarding.py \
   tests/test_verdiwm_geometry.py \
   tests/test_verdiwm_public_release.py \
   tests/test_acwm_public_experience_bundle.py \

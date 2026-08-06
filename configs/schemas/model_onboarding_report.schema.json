@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "repo_root",
+    "repo_name",
+    "source_revision",
+    "scan_limits",
+    "dependencies",
+    "entrypoints",
+    "assets",
+    "runtime",
+    "capabilities",
+    "evaluator_contract",
+    "connector",
+    "conformance",
+    "blockers",
+    "state",
+    "optimization_launch_allowed",
+    "side_effects",
+    "next_actions",
+    "limitations"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"type": "string", "enum": ["wmloop-model-onboarding-report"]},
+    "repo_root": {"type": "string", "minLength": 1},
+    "repo_name": {"type": "string", "minLength": 1},
+    "source_revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "kind", "revision", "detail"],
+      "properties": {
+        "state": {"type": "string", "enum": ["bound", "unbound"]},
+        "kind": {"type": "string", "enum": ["git_commit", "none"]},
+        "revision": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"}
+      }
+    },
+    "scan_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_files", "inventory_truncated", "source_parse_bytes"],
+      "properties": {
+        "max_files": {"type": "integer", "minimum": 1},
+        "inventory_truncated": {"type": "boolean"},
+        "source_parse_bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "size_bytes", "declared_packages"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "enum": ["requirements", "environment", "python_project", "lockfile"]},
+          "size_bytes": {"type": "integer"},
+          "declared_packages": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "language", "kinds", "executable", "main_guard", "functions", "imports", "cli_flags", "parse_error"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "language": {"type": "string", "enum": ["python", "shell"]},
+          "kinds": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["training", "evaluation", "rollout", "inference", "unknown"]}},
+          "executable": {"type": "boolean"},
+          "main_guard": {"type": "boolean"},
+          "functions": {"type": "array", "items": {"type": "string"}},
+          "imports": {"type": "array", "items": {"type": "string"}},
+          "cli_flags": {"type": "array", "items": {"type": "string"}},
+          "parse_error": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "size_bytes", "large_file", "hashed"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "kind": {"type": "string", "enum": ["checkpoint", "dataset_or_metadata", "model_dependency"]},
+          "size_bytes": {"type": "integer"},
+          "large_file": {"type": "boolean"},
+          "hashed": {"type": "boolean"}
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "selected_python", "candidates", "required_packages", "import_probes", "pip_check"],
+      "properties": {
+        "state": {"type": "string", "enum": ["ready", "blocked"]},
+        "selected_python": {"type": ["string", "null"]},
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "source", "exists", "version"],
+            "properties": {
+              "path": {"type": "string", "minLength": 1},
+              "source": {"type": "string", "enum": ["explicit", "repository_local", "current_process"]},
+              "exists": {"type": "boolean"},
+              "version": {"type": ["string", "null"]}
+            }
+          }
+        },
+        "required_packages": {"type": "array", "items": {"type": "string"}},
+        "import_probes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["package", "module", "state", "returncode", "detail"],
+            "properties": {
+              "package": {"type": "string"},
+              "module": {"type": "string"},
+              "state": {"type": "string", "enum": ["ok", "failed", "timeout", "error"]},
+              "returncode": {"type": ["integer", "null"]},
+              "detail": {"type": "string"}
+            }
+          }
+        },
+        "pip_check": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "returncode", "detail"],
+          "properties": {
+            "state": {"type": "string", "enum": ["ok", "failed", "not_run", "error"]},
+            "returncode": {"type": ["integer", "null"]},
+            "detail": {"type": "string"}
+          }
+        },
+        "cuda_hidden": {"type": "boolean"},
+        "probe_timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability", "state", "confidence", "evidence"],
+        "properties": {
+          "capability": {"type": "string", "enum": ["training", "evaluation", "rollout", "inference", "action_conditioned", "video_generation"]},
+          "state": {"type": "string", "enum": ["discovered", "not_discovered"]},
+          "confidence": {"type": "string", "enum": ["medium", "none"]},
+          "evidence": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "evaluator_contract": {
+      "type": "object",
+      "required": ["state", "source_path", "required_fields", "missing_fields"],
+      "properties": {
+        "state": {"type": "string", "enum": ["ready", "binding_required", "blocked"]},
+        "source_path": {"type": ["string", "null"]},
+        "required_fields": {"type": "array", "items": {"type": "string"}},
+        "missing_fields": {"type": "array", "items": {"type": "string"}},
+        "error": {"type": "string"},
+        "contract_sha256": {"type": ["string", "null"]},
+        "evaluator_id": {"type": "string"},
+        "command": {"type": "array", "items": {"type": "string"}},
+        "input_artifacts": {"type": "array", "items": {"type": "string"}},
+        "output_artifacts": {"type": "array", "items": {"type": "string"}},
+        "metrics": {"type": "array", "items": {"type": "string"}},
+        "verifier": {"type": "string"}
+      }
+    },
+    "connector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "kind", "source_repo", "runtime_python", "entrypoints_by_kind", "capabilities", "asset_bindings", "source_mutation_allowed", "generated_code", "manual_bindings"],
+      "properties": {
+        "state": {"type": "string", "enum": ["ready", "binding_required"]},
+        "kind": {"type": "string", "enum": ["declarative"]},
+        "source_repo": {"type": "string"},
+        "runtime_python": {"type": ["string", "null"]},
+        "entrypoints_by_kind": {"type": "object"},
+        "capabilities": {"type": "array", "items": {"type": "string"}},
+        "asset_bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["parameter", "kind", "state", "evidence"],
+            "properties": {
+              "parameter": {"type": "string"},
+              "kind": {"type": "string", "enum": ["checkpoint", "dataset_or_metadata", "model_dependency"]},
+              "state": {"type": "string", "enum": ["discovered", "binding_required"]},
+              "evidence": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "source_mutation_allowed": {"type": "boolean"},
+        "generated_code": {"type": "boolean"},
+        "manual_bindings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "conformance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "gpu_execution_started", "checks", "receipt_path"],
+      "properties": {
+        "state": {"type": "string", "enum": ["not_run"]},
+        "gpu_execution_started": {"type": "boolean"},
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "state"],
+            "properties": {
+              "name": {"type": "string"},
+              "state": {"type": "string", "enum": ["pending"]}
+            }
+          }
+        },
+        "receipt_path": {"type": "null"}
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "detail"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "detail": {"type": "string"},
+          "package": {"type": "string"},
+          "parameter": {"type": "string"}
+        }
+      }
+    },
+    "state": {"type": "string", "enum": ["blocked", "binding_required", "ready_for_conformance_smoke"]},
+    "optimization_launch_allowed": {"type": "boolean", "enum": [false]},
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_modified", "dependency_install_started", "model_import_executed", "gpu_execution_started", "source_output_written"],
+      "properties": {
+        "source_modified": {"type": "boolean", "enum": [false]},
+        "dependency_install_started": {"type": "boolean", "enum": [false]},
+        "model_import_executed": {"type": "boolean", "enum": [false]},
+        "gpu_execution_started": {"type": "boolean", "enum": [false]},
+        "source_output_written": {"type": "boolean", "enum": [false]}
+      }
+    },
+    "next_actions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "limitations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  }
+}
