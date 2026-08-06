@@ -73,6 +73,7 @@ def plan_candidate_batch(
     destination.mkdir(mode=0o700, parents=True)
     (destination / "plans").mkdir(mode=0o700)
     ranked = _rank_candidates(batch)
+    routing_blocked = _routing_blocked_candidates(batch)
     selected, deferred = _budget_select(
         ranked,
         total_budget_gpu_hours=float(batch["total_budget_gpu_hours"]),
@@ -121,6 +122,7 @@ def plan_candidate_batch(
         "ranked_candidate_count": len(ranked),
         "selected": selected_records,
         "deferred": deferred,
+        "routing_blocked": routing_blocked,
         "claim_boundary": "Queue order is an exploratory resource decision. It is not evidence of model quality or an optimization-memory update.",
     }
     _write_json_atomic(
@@ -334,6 +336,9 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
     scoring = batch["scoring"]
     rows = []
     for candidate in batch["candidates"]:
+        routing = candidate.get("routing_admission")
+        if isinstance(routing, Mapping) and routing.get("state") == "blocked":
+            continue
         stage = candidate["stages"][0]
         screen_hours = float(stage["estimated_gpu_hours"])
         score = (
@@ -359,6 +364,29 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
     for rank, row in enumerate(rows, start=1):
         row["rank"] = rank
     return rows
+
+
+def _routing_blocked_candidates(
+    batch: Mapping[str, object],
+) -> list[dict[str, object]]:
+    """Project probe-mismatched candidates without admitting them to a queue."""
+
+    blocked: list[dict[str, object]] = []
+    for candidate in batch["candidates"]:
+        routing = candidate.get("routing_admission")
+        if not isinstance(routing, Mapping) or routing.get("state") != "blocked":
+            continue
+        blocked.append(
+            {
+                "candidate_id": str(candidate["candidate_id"]),
+                "reason": str(routing.get("reason") or "ROUTING_ADMISSION_BLOCKED"),
+                "matched_failure_signatures": list(
+                    routing.get("matched_failure_signatures", [])
+                ),
+            }
+        )
+    blocked.sort(key=lambda row: row["candidate_id"])
+    return blocked
 
 
 def _budget_select(
@@ -475,6 +503,7 @@ def _queue_manifest(
         "ranked_candidate_count": queue["ranked_candidate_count"],
         "selected_candidate_count": len(queue["selected"]),
         "deferred_candidate_count": len(queue["deferred"]),
+        "routing_blocked_candidate_count": len(queue["routing_blocked"]),
         "queue_path": str(destination / "queue.json"),
     }
 
@@ -508,6 +537,7 @@ def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
         f"- ranked candidates: `{queue['ranked_candidate_count']}`",
         f"- selected for screen: `{len(queue['selected'])}`",
         f"- deferred: `{len(queue['deferred'])}`",
+        f"- routing blocked: `{len(queue['routing_blocked'])}`",
         "",
         "| Rank | Candidate | Score | Screen GPU hours | Stages |",
         "|---:|---|---:|---:|---|",
@@ -521,7 +551,8 @@ def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
     lines.extend(
         (
             "",
-            "Deferred candidates are retained with a machine-readable reason; no GPU work is implied by this queue.",
+            "Deferred and routing-blocked candidates are retained with a "
+            "machine-readable reason; no GPU work is implied by these records.",
         )
     )
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")

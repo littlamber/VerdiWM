@@ -10,6 +10,7 @@ from wmloop.execute import autonomous_pipeline
 from wmloop.execute.autonomous_pipeline import (
     AutonomousPipelineError,
     AutonomousPipelineOptions,
+    _pipeline_budget_total,
     run_autonomous_pipeline,
 )
 from wmloop.execute.experiment_scheduler import ExperimentSchedulerError
@@ -216,6 +217,22 @@ def test_pipeline_stages_typed_methods_before_compilation(
     assert compilation["literature_method_manifest_path"].endswith(
         "literature-methods/manifest.json"
     )
+
+
+def test_pipeline_derives_one_shared_probe_and_candidate_budget() -> None:
+    root = Path(__file__).resolve().parents[1]
+    total = _pipeline_budget_total(
+        evaluator=(
+            root
+            / "configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json"
+        ),
+        probe_contract=(
+            root / "configs/probes/ctrl_world_predictive_diagnostic_v1.json"
+        ),
+        override=None,
+    )
+
+    assert total == pytest.approx(0.16)
 
 
 def _model_repo(repo: Path) -> Path:

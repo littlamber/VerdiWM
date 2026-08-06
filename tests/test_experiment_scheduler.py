@@ -68,6 +68,28 @@ def test_screen_estimates_are_truncated_against_campaign_ceiling(tmp_path: Path)
     assert queue["deferred"][0]["reason"] == "SCREEN_BUDGET_EXCEEDED"
 
 
+def test_probe_mismatched_candidate_never_enters_gpu_queue(tmp_path: Path) -> None:
+    payload = json.loads(BATCH.read_text(encoding="utf-8"))
+    for candidate in payload["candidates"]:
+        candidate["routing_admission"] = {
+            "state": "blocked",
+            "reason": "candidate_failure_signature_mismatch",
+            "matched_failure_signatures": [],
+        }
+    batch = tmp_path / "routing-blocked.json"
+    batch.write_text(json.dumps(payload), encoding="utf-8")
+
+    queue = scheduler.plan_candidate_batch(
+        batch_path=batch,
+        output_root=tmp_path / "queue",
+        workspace_root=ROOT,
+    )
+
+    assert queue["selected"] == []
+    assert queue["ranked_candidate_count"] == 0
+    assert queue["routing_blocked"][0]["candidate_id"] == "cuda-matmul-balanced"
+
+
 def test_run_promotes_only_after_pass_and_resumes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     queue_root = tmp_path / "queue"
     scheduler.plan_candidate_batch(batch_path=BATCH, output_root=queue_root, workspace_root=ROOT)

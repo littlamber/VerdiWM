@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -34,6 +36,8 @@ class ExternalEvaluatorOptions:
     artifact_index_path: str = "artifact-index.json"
     stdout_path: str = "external-stdout.log"
     stderr_path: str = "external-stderr.log"
+    metrics_path: str | None = None
+    metric_prefix: str = ""
 
 
 def run_external_evaluator(
@@ -114,6 +118,23 @@ def run_external_evaluator(
             }
         )
 
+    external_metrics: dict[str, float] = {}
+    if options.metrics_path is not None:
+        try:
+            metrics_artifact = _inside_scratch(scratch, options.metrics_path)
+            if metrics_artifact not in {target for _, target in specs}:
+                raise ExternalEvaluatorError(
+                    "EXTERNAL_EVALUATOR_METRICS_ARTIFACT_NOT_DECLARED"
+                )
+            external_metrics = _load_external_metrics(
+                metrics_artifact,
+                prefix=options.metric_prefix,
+            )
+        except ExternalEvaluatorError as exc:
+            artifact_errors.append(
+                f"{options.metrics_path}:metrics_invalid:{str(exc)}"
+            )
+
     physical_index = _required_nonnegative_int(
         child_environment, "VERDIWM_PHYSICAL_GPU_INDEX"
     )
@@ -142,6 +163,7 @@ def run_external_evaluator(
             "name": str(observed_gpu.get("name", "unknown")),
         },
         "metrics": {
+            **external_metrics,
             "runtime_ready": 1.0 if runtime_ready else 0.0,
             "external_exit_code": float(exit_code),
             "artifact_count": float(len(materialized)),
@@ -193,6 +215,46 @@ def _inside_scratch(scratch: Path, value: str) -> Path:
     if not _is_inside(scratch, resolved):
         raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_PATH_ESCAPE")
     return resolved
+
+
+_METRIC_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,79}\Z")
+_RESERVED_METRICS = {
+    "runtime_ready",
+    "external_exit_code",
+    "artifact_count",
+    "artifact_error_count",
+    "gpu_identity_match",
+}
+
+
+def _load_external_metrics(path: Path, *, prefix: str) -> dict[str, float]:
+    if not path.is_file() or path.is_symlink():
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRICS_MISSING")
+    if prefix and _METRIC_NAME.fullmatch(prefix) is None:
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_PREFIX_INVALID")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRICS_INVALID") from exc
+    if not isinstance(payload, Mapping):
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRICS_INVALID")
+    metrics = payload.get("metrics")
+    if payload.get("state") != "ready" or not isinstance(metrics, Mapping):
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRICS_INVALID")
+    normalized: dict[str, float] = {}
+    for raw_name, raw_value in metrics.items():
+        name = f"{prefix}{raw_name}"
+        if _METRIC_NAME.fullmatch(name) is None or name in _RESERVED_METRICS:
+            raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_NAME_INVALID")
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+            raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_VALUE_INVALID")
+        value = float(raw_value)
+        if not math.isfinite(value):
+            raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_VALUE_INVALID")
+        normalized[name] = value
+    if not normalized:
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRICS_EMPTY")
+    return normalized
 
 
 def _is_inside(root: Path, candidate: Path) -> bool:
@@ -295,6 +357,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--artifact-index-path", default="artifact-index.json")
     parser.add_argument("--stdout-path", default="external-stdout.log")
     parser.add_argument("--stderr-path", default="external-stderr.log")
+    parser.add_argument("--metrics-artifact")
+    parser.add_argument("--metric-prefix", default="")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = tuple(args.command[1:] if args.command[:1] == ["--"] else args.command)
@@ -313,6 +377,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 artifact_index_path=args.artifact_index_path,
                 stdout_path=args.stdout_path,
                 stderr_path=args.stderr_path,
+                metrics_path=args.metrics_artifact,
+                metric_prefix=args.metric_prefix,
             )
         )
     except ExternalEvaluatorError as exc:

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "input_hash",
+    "pipeline_output_root",
+    "daemon_state_root",
+    "cycle",
+    "max_cycles",
+    "poll_seconds",
+    "max_attempts",
+    "attempt_count",
+    "error_count",
+    "deferral_count",
+    "last_outcome",
+    "last_error",
+    "last_deferral",
+    "pipeline_manifest_path",
+    "pipeline_state",
+    "pipeline_verdict",
+    "blocked_stage",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-pipeline-daemon-manifest"]},
+    "state": {
+      "enum": ["running", "stopped", "completed", "interrupted", "blocked", "exhausted"]
+    },
+    "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "pipeline_output_root": {"type": "string", "minLength": 1},
+    "daemon_state_root": {"type": "string", "minLength": 1},
+    "cycle": {"type": "integer", "minimum": 0},
+    "max_cycles": {"type": "integer", "minimum": 1},
+    "poll_seconds": {"type": "number", "minimum": 0},
+    "max_attempts": {"type": "integer", "minimum": 1},
+    "attempt_count": {"type": "integer", "minimum": 0},
+    "error_count": {"type": "integer", "minimum": 0},
+    "deferral_count": {"type": "integer", "minimum": 0},
+    "last_outcome": {
+      "type": ["string", "null"],
+      "enum": [null, "deferred", "error", "completed", "blocked"]
+    },
+    "last_error": {"type": ["object", "null"]},
+    "last_deferral": {"type": ["string", "null"]},
+    "pipeline_manifest_path": {"type": ["string", "null"]},
+    "pipeline_state": {"type": ["string", "null"]},
+    "pipeline_verdict": {
+      "type": ["string", "null"],
+      "enum": [null, "PASS", "BLOCKED"]
+    },
+    "blocked_stage": {"type": ["string", "null"]},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

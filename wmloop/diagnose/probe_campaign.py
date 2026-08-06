@@ -41,6 +41,7 @@ def run_diagnostic_probe(
     cas_root: Path,
     lock_root: Path,
     budget_db: Path | None = None,
+    budget_total_gpu_hours: float | None = None,
     retrieval_db: Path | None = None,
 ) -> dict[str, object]:
     """Run or resume one probe, then optionally publish it to retrieval."""
@@ -84,6 +85,7 @@ def run_diagnostic_probe(
         cas_root=Path(cas_root),
         lock_root=Path(lock_root),
         budget_db=Path(budget_db) if budget_db is not None else None,
+        budget_total_gpu_hours=budget_total_gpu_hours,
     )
     receipt_path = Path(str(execution["receipt_path"])).resolve(strict=True)
     receipt = _load_json(receipt_path, "DIAGNOSTIC_PROBE_RECEIPT_INVALID")
@@ -100,7 +102,7 @@ def run_diagnostic_probe(
         _write_json_atomic(manifest_path, manifest)
         return manifest
 
-    result_ref = _result_ref(receipt)
+    result_ref = _result_ref(receipt, contract=contract)
     cas = ContentAddressedStore(Path(cas_root))
     result = _json_object(cas.read_bytes(result_ref), "DIAGNOSTIC_PROBE_RESULT_INVALID")
     _validate_probe_result(result, contract)
@@ -113,6 +115,9 @@ def run_diagnostic_probe(
             archive_db=Path(archive_db),
             cas_root=Path(cas_root),
             asset_fingerprint=asset_fingerprint,
+            result_artifact_path=str(
+                contract.get("diagnostic_result_path") or "result.json"
+            ),
         )
     manifest = _manifest(
         contract=contract,
@@ -184,7 +189,9 @@ def _materialization_values(report: Mapping[str, object]) -> dict[str, str]:
         raise DiagnosticProbeError("DIAGNOSTIC_PROBE_RUNTIME_INVALID")
     values = {
         "{python}": str(runtime["selected_python"]),
-        "{verdiwm_python}": str(Path(__import__("sys").executable).resolve()),
+        # Preserve a virtual-environment entrypoint symlink. Resolving it to
+        # the base interpreter drops the environment's site-packages.
+        "{verdiwm_python}": str(Path(__import__("sys").executable).absolute()),
         "{repo_root}": str(Path(str(report["repo_root"])).resolve()),
     }
     connector = report.get("connector")
@@ -258,14 +265,23 @@ def _load_contract(path: Path) -> dict[str, object]:
         raise DiagnosticProbeError("DIAGNOSTIC_PROBE_ESTIMATE_EXCEEDS_BUDGET")
     if len(set(payload["allowed_gpu_indices"])) != len(payload["allowed_gpu_indices"]):
         raise DiagnosticProbeError("DIAGNOSTIC_PROBE_GPU_ALLOWLIST_DUPLICATE")
+    diagnostic_result_path = payload.get("diagnostic_result_path")
+    if diagnostic_result_path is not None:
+        if not isinstance(diagnostic_result_path, str) or not diagnostic_result_path:
+            raise DiagnosticProbeError("DIAGNOSTIC_PROBE_RESULT_PATH_INVALID")
+        if diagnostic_result_path not in payload["artifacts"]:
+            raise DiagnosticProbeError("DIAGNOSTIC_PROBE_RESULT_ARTIFACT_NOT_DECLARED")
     return payload
 
 
-def _result_ref(receipt: Mapping[str, object]) -> str:
+def _result_ref(
+    receipt: Mapping[str, object], *, contract: Mapping[str, object] | None = None
+) -> str:
     refs = receipt.get("artifact_refs")
-    if not isinstance(refs, Mapping) or not isinstance(refs.get("result.json"), str):
+    result_name = str((contract or {}).get("diagnostic_result_path") or "result.json")
+    if not isinstance(refs, Mapping) or not isinstance(refs.get(result_name), str):
         raise DiagnosticProbeError("DIAGNOSTIC_PROBE_RESULT_REF_MISSING")
-    return str(refs["result.json"])
+    return str(refs[result_name])
 
 
 def _manifest(

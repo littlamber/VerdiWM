@@ -8,7 +8,12 @@ import sys
 import pytest
 
 from wmloop.control.onboarding import OnboardingOptions, run_onboarding
-from wmloop.control.onboarding_compiler import OnboardingCompilerError, compile_and_plan
+from wmloop.control.onboarding_compiler import (
+    OnboardingCompilerError,
+    _apply_diagnostic_routing,
+    _settle_queue_admission,
+    compile_and_plan,
+)
 from wmloop.control.onboarding_conformance import (
     ConformanceOptions,
     ModelConformanceError,
@@ -65,6 +70,51 @@ def test_passing_conformance_compiles_a_hash_bound_queue(tmp_path: Path) -> None
         )
     )
     assert plan["onboarding_admission"] == batch["onboarding_admission"]
+
+
+def test_diagnostic_routing_blocks_candidates_without_signature_overlap() -> None:
+    batch = {
+        "candidates": [
+            {
+                "candidate_id": "unrouted",
+                "retrieval_keys": {"failure_signatures": ["action_binding"]},
+            },
+            {
+                "candidate_id": "matched",
+                "retrieval_keys": {"failure_signatures": ["horizon_drift"]},
+            },
+        ]
+    }
+
+    _apply_diagnostic_routing(
+        batch, probe={"failure_signatures": ["horizon_drift"]}
+    )
+
+    assert batch["candidates"][0]["routing_admission"]["state"] == "blocked"
+    assert batch["candidates"][1]["routing_admission"] == {
+        "state": "eligible",
+        "reason": "candidate_declares_observed_failure_signature",
+        "matched_failure_signatures": ["horizon_drift"],
+    }
+
+
+def test_compilation_disables_launch_when_every_route_is_blocked(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "compiled"
+    destination.mkdir()
+    settled = _settle_queue_admission(
+        destination,
+        manifest={"state": "ready", "optimization_launch_allowed": True},
+        queue={
+            "selected": [],
+            "routing_blocked": [{"candidate_id": "unrouted"}],
+        },
+    )
+
+    assert settled["state"] == "blocked"
+    assert settled["optimization_launch_allowed"] is False
+    assert settled["blockers"] == ["NO_CANDIDATE_ROUTING_ELIGIBLE"]
 
 
 def test_blocked_conformance_cannot_compile(tmp_path: Path) -> None:

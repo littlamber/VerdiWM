@@ -68,6 +68,7 @@ def index_probe_experience(
     archive_db: Path,
     cas_root: Path,
     asset_fingerprint: str | None = None,
+    result_artifact_path: str = "result.json",
 ) -> int:
     """Index every signature from one settled probe result.
 
@@ -82,7 +83,7 @@ def index_probe_experience(
     if archive_trial_id not in archive.visible_settled_trials():
         raise ProbeRetrievalError("PROBE_RETRIEVAL_ARCHIVE_SETTLEMENT_MISSING")
     receipt_ref = str(receipt["receipt_ref"])
-    result_ref = _result_ref(receipt)
+    result_ref = _result_ref(receipt, artifact_path=result_artifact_path)
     cas = ContentAddressedStore(Path(cas_root))
     receipt_bytes = cas.read_bytes(receipt_ref)
     if hashlib.sha256(receipt_bytes).hexdigest() != str(receipt["receipt_hash"]):
@@ -292,11 +293,17 @@ def _validate_receipt(receipt: Mapping[str, Any]) -> None:
             raise ProbeRetrievalError(f"PROBE_RETRIEVAL_RECEIPT_FIELD_INVALID:{field}")
 
 
-def _result_ref(receipt: Mapping[str, Any]) -> str:
+def _result_ref(
+    receipt: Mapping[str, Any], *, artifact_path: str = "result.json"
+) -> str:
     refs = receipt.get("artifact_refs")
-    if not isinstance(refs, Mapping) or not isinstance(refs.get("result.json"), str):
+    if (
+        not artifact_path
+        or not isinstance(refs, Mapping)
+        or not isinstance(refs.get(artifact_path), str)
+    ):
         raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_REF_MISSING")
-    return str(refs["result.json"])
+    return str(refs[artifact_path])
 
 
 def _metric_outcome(metrics: object) -> float | None:

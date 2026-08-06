@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 from wmloop.archive.store import ArchiveStore, BaselineRecord, ContentAddressedStore, SettledTrialRecord
 from wmloop.diagnose.probe_campaign import _build_plan, _validate_probe_result
@@ -17,7 +18,7 @@ def test_probe_plan_preserves_runtime_placeholders() -> None:
         "hypothesis": "The model exposes a long horizon drift signature.",
         "selection_reason": "A cheap paired probe is required before retrieval.",
         "falsification_criterion": "Missing signature output blocks the campaign.",
-        "command": ["/env/python", "probe.py", "{scratch_dir}/result.json"],
+        "command": ["{verdiwm_python}", "probe.py", "{scratch_dir}/result.json"],
         "working_directory": ".",
         "allowed_gpu_indices": [0],
         "estimated_gpu_hours": 0.01,
@@ -37,6 +38,7 @@ def test_probe_plan_preserves_runtime_placeholders() -> None:
         "connector": {"asset_bindings": []},
     }
     plan = _build_plan(contract, report=report, admission={"receipt_path": "r", "receipt_sha256": "a" * 64, "onboarding_report_sha256": "b" * 64})
+    assert plan["command"][0] == str(Path(sys.executable).absolute())
     assert plan["command"][-1] == "{scratch_dir}/result.json"
     assert plan["stage"] == "screen"
     assert plan["environment"]["VERDIWM_PROBE_RESULT_PATH"] == "{scratch_dir}/result.json"
@@ -71,6 +73,10 @@ def test_retrieval_returns_only_settled_cas_bound_rows(tmp_path: Path) -> None:
         "metrics": {"probe_score": 0.8},
     }
     result_ref = cas.put_bytes(json.dumps(result).encode(), media_type="application/json").uri
+    runtime_result_ref = cas.put_bytes(
+        json.dumps({"artifact_type": "verdiwm-auto-experiment-result"}).encode(),
+        media_type="application/json",
+    ).uri
     verdict_ref = cas.put_bytes(b"{}", media_type="application/json").uri
     context_ref = cas.put_bytes(b"{}", media_type="application/json").uri
     receipt_core = {
@@ -88,7 +94,10 @@ def test_retrieval_returns_only_settled_cas_bound_rows(tmp_path: Path) -> None:
         "trial_id": "probe-v1",
         "receipt_ref": receipt_ref,
         "receipt_hash": receipt_hash,
-        "artifact_refs": {"result.json": result_ref},
+        "artifact_refs": {
+            "result.json": runtime_result_ref,
+            "diagnostic-output.json": result_ref,
+        },
         "failure_context_ref": context_ref,
         "verdict_ref": verdict_ref,
     }
@@ -117,6 +126,7 @@ def test_retrieval_returns_only_settled_cas_bound_rows(tmp_path: Path) -> None:
         archive_db=tmp_path / "archive.db",
         cas_root=tmp_path / "cas-root",
         asset_fingerprint="d" * 64,
+        result_artifact_path="diagnostic-output.json",
     )
     assert inserted == 2
     rows = retrieve_probe_experiences(

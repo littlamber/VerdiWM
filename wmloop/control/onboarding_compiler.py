@@ -134,12 +134,12 @@ def compile_and_plan(
 
     if destination.exists() or destination.is_symlink():
         manifest = _resume(destination, input_hash=input_hash)
-        plan_candidate_batch(
+        queue = plan_candidate_batch(
             batch_path=destination / "candidate-batch.json",
             output_root=destination / "queue",
             workspace_root=repo,
         )
-        return manifest
+        return _settle_queue_admission(destination, manifest=manifest, queue=queue)
 
     values = _materialization_values(report, repo=repo)
     batch = _materialize(template, values)
@@ -192,12 +192,40 @@ def compile_and_plan(
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)
         raise
-    plan_candidate_batch(
+    queue = plan_candidate_batch(
         batch_path=destination / "candidate-batch.json",
         output_root=destination / "queue",
         workspace_root=repo,
     )
-    return manifest
+    return _settle_queue_admission(destination, manifest=manifest, queue=queue)
+
+
+def _settle_queue_admission(
+    destination: Path,
+    *,
+    manifest: Mapping[str, object],
+    queue: Mapping[str, object],
+) -> dict[str, object]:
+    selected = queue.get("selected")
+    routing_blocked = queue.get("routing_blocked")
+    selected_count = len(selected) if isinstance(selected, list) else 0
+    blocked_count = len(routing_blocked) if isinstance(routing_blocked, list) else 0
+    settled = dict(manifest)
+    settled["eligible_candidate_count"] = selected_count
+    settled["routing_blocked_candidate_count"] = blocked_count
+    settled["optimization_launch_allowed"] = selected_count > 0
+    settled["state"] = "ready" if selected_count > 0 else "blocked"
+    settled["blockers"] = (
+        []
+        if selected_count > 0
+        else [
+            "NO_CANDIDATE_ROUTING_ELIGIBLE"
+            if blocked_count > 0
+            else "NO_CANDIDATE_SELECTED"
+        ]
+    )
+    _write_json(destination / "manifest.json", settled)
+    return settled
 
 
 def _apply_retrieval_context(
@@ -231,6 +259,7 @@ def _apply_retrieval_context(
         if literature_methods is not None
         else []
     )
+    _apply_diagnostic_routing(batch, probe=probe)
     if method_rows:
         batch["literature_method_sources"] = method_rows
     ranking_method_rows = [
@@ -298,6 +327,59 @@ def _apply_retrieval_context(
         prior = min(1.0, ((0.2 + 0.1 * positive) if candidate_matches else 0.1) + method_bonus)
         candidate["retrieval_prior"] = prior
         candidate["retrieval_matches"] = [*candidate_matches, *candidate_papers, *candidate_methods]
+
+
+def _apply_diagnostic_routing(
+    batch: dict[str, object], *, probe: Mapping[str, object] | None
+) -> None:
+    """Require every post-probe candidate to name the failure it addresses.
+
+    A candidate without an explicit signature route is retained in the
+    immutable compiled batch for auditability, but marked blocked so it cannot
+    consume GPU budget or create an unconnected experiment receipt.
+    """
+
+    if probe is None:
+        return
+    observed = {
+        str(value)
+        for value in probe.get("failure_signatures", [])
+        if isinstance(value, str) and value
+    }
+    candidates = batch.get("candidates")
+    if not isinstance(candidates, list):
+        return
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        keys = candidate.get("retrieval_keys")
+        declared = (
+            {
+                str(value)
+                for value in keys.get("failure_signatures", [])
+                if isinstance(value, str) and value
+            }
+            if isinstance(keys, Mapping)
+            else set()
+        )
+        matched = sorted(observed & declared)
+        if matched:
+            candidate["routing_admission"] = {
+                "state": "eligible",
+                "reason": "candidate_declares_observed_failure_signature",
+                "matched_failure_signatures": matched,
+            }
+        else:
+            reason = (
+                "candidate_missing_failure_signature_route"
+                if not declared
+                else "candidate_failure_signature_mismatch"
+            )
+            candidate["routing_admission"] = {
+                "state": "blocked",
+                "reason": reason,
+                "matched_failure_signatures": [],
+            }
 
 
 def _materialization_values(

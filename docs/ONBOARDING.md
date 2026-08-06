@@ -36,9 +36,9 @@ verdiwm-run /path/to/model \
 
 The fixed order is conformance, diagnostic probe, receipt-bound experience
 retrieval, optional read-only literature staging, typed method staging, then
-candidate compilation and `screen -> gate -> confirm`. A probe `result.json` must include
-`probe_id`, `model_family`, `runtime_capability`, and non-empty
-`failure_signatures` in addition to the generic CUDA result contract. Retrieval
+candidate compilation and `screen -> gate -> confirm`. The declared probe result
+(`result.json` by default, or `diagnostic_result_path`) must include `probe_id`,
+`model_family`, `runtime_capability`, and non-empty `failure_signatures`. Retrieval
 changes candidate order only. Literature is stored as `shadow_only` data and
 cannot provide a command, modify source code, bypass a typed candidate
 contract, or enter formal verdict evidence. Registered method matches are
@@ -48,6 +48,23 @@ contract, or enter formal verdict evidence. Registered method matches are
 `AgentRepairSession` to the current source revision and registry digest, and
 requires a new registry version plus all admission receipts. An empty compatible index is
 recorded as `cold_start`, so the declared batch remains runnable.
+
+For video-producing models, a probe can keep the model repository untouched and
+declare a generic paired-video workload. The command runs the external
+rollout, then `wmloop.diagnose.external_video_probe` measures a declared
+vertical or horizontal reference/prediction layout and emits
+`diagnostic_result_path` (for example, `diagnostic-output.json`). Its
+pre-registered thresholds produce receipt-bound signatures such as
+`short_horizon_observed`, `horizon_drift`, and `paired_rollout_error_high`.
+The utility is not a model adapter: the repository contributes only the
+declared command, artifact glob, layout, and thresholds.
+
+Once a diagnostic probe is present, candidate compilation is fail-closed for
+routing. Every candidate must declare `retrieval_keys.failure_signatures` and
+overlap at least one observed signature. Candidates with no matching route
+remain in the immutable batch with `routing_admission.state=blocked`; they are
+not materialized into GPU plans, charged budget, or allowed to create an
+experiment receipt.
 
 The method staging transaction can also be inspected separately:
 
@@ -62,6 +79,14 @@ verdiwm-literature-method-stage /path/to/literature/manifest.json \
 When `--retrieval-db` is shared, keep its archive and CAS shared as well. The
 runner derives sibling defaults when those flags are omitted; this is required
 for cross-campaign receipt verification.
+
+Unless `--budget-total-gpu-hours` is supplied, the full runner derives one
+shared ceiling by adding the probe's declared `estimated_gpu_hours` to the
+candidate batch's `total_budget_gpu_hours`. The probe and all later candidate
+stages settle against the same budget database. This prevents a diagnostic
+probe and its follow-up screen from each assuming that it owns the full
+campaign budget. For the checked-in Ctrl-World predictive contracts, the bound
+is `0.08 + 0.08 = 0.16 GPU-hours`.
 
 For discovery only, run:
 
@@ -161,6 +186,47 @@ uv run verdiwm-run /share/project/hywu/wjy/Ctrl-World \
 `--no-import-probe` skips the onboarding metadata probe only. The isolated
 conformance stage still performs the declared real imports and evaluator help
 check before it can authorize compilation.
+
+## Running the full pipeline in the background
+
+Use `verdiwm-run-daemon` when the diagnostic probe may need to wait for GPU
+capacity. It invokes the same resumable pipeline transaction as `verdiwm-run`;
+it does not introduce a second evaluator or experiment path.
+
+```bash
+nohup uv run verdiwm-run-daemon /share/project/hywu/wjy/Ctrl-World \
+  --output-root /share/project/hywu/wjy/verdiwm-runs/ctrl-world-predictive-v1 \
+  --daemon-state-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/daemon \
+  --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
+  --evaluator-contract /share/project/hywu/wjy/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
+  --probe-contract /share/project/hywu/wjy/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
+  --retrieval-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/retrieval.db \
+  --archive-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/archive.db \
+  --cas-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/cas \
+  --budget-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/budget.db \
+  --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
+  --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
+  --asset=--ckpt_path=/share/project/hywu/wjy/Ctrl-World/checkpoint-10000.pt \
+  --asset=--dataset_root_path=/share/project/hywu/wjy/Ctrl-World/dataset_example \
+  --asset=--dataset_meta_info_path=/share/project/hywu/wjy/Ctrl-World/dataset_meta_info \
+  --no-import-probe --poll-seconds 60 --max-cycles 1440 --max-attempts 3 \
+  > /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/daemon.log 2>&1 &
+```
+
+The daemon's `status.json` separates `deferral_count` from `error_count`.
+`GPU_LEASE_UNAVAILABLE` waits do not consume `--max-attempts`, create receipts,
+or charge budget. Other failures use the finite attempt bound. `SIGTERM` and
+`SIGINT` stop after the current pipeline call, and the identical command resumes
+from the pipeline's persisted stage, Archive, CAS, and budget ledger. If the
+cycle limit is reached while capacity remains unavailable, the state is
+`exhausted`; increasing only `--max-cycles` resumes the same immutable run.
+Changing the model, evaluator, probe, assets, or retry policy requires a new
+daemon state root.
+
+When no explicit `--literature-query` is supplied, a successful probe with no
+compatible receipt-bound experience automatically derives a network literature
+query from its model family and failure signatures. A matched experience index
+skips that cold-start query.
 
 ## Moving an admitted queue to the background
 

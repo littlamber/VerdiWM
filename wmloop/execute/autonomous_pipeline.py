@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +65,7 @@ class AutonomousPipelineOptions:
     cas_root: Path | None = None
     lock_root: Path = Path("/tmp/verdiwm-gpu-leases")
     budget_db: Path | None = None
+    budget_total_gpu_hours: float | None = None
     probe_contract: Path | None = None
     retrieval_db: Path | None = None
     literature_query: str | None = None
@@ -107,6 +109,11 @@ def run_autonomous_pipeline(
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_LIMIT_INVALID")
     if options.literature_timeout_seconds <= 0 or options.literature_timeout_seconds > 60:
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_TIMEOUT_INVALID")
+    budget_total_gpu_hours = _pipeline_budget_total(
+        evaluator=evaluator,
+        probe_contract=probe_contract,
+        override=options.budget_total_gpu_hours,
+    )
     for output in (archive_db, cas_root, lock_root, budget_db, retrieval_db):
         if _overlaps(output, repo):
             raise AutonomousPipelineError(
@@ -125,6 +132,7 @@ def run_autonomous_pipeline(
         budget_db=budget_db,
         retrieval_db=retrieval_db,
         probe_contract=probe_contract,
+        budget_total_gpu_hours=budget_total_gpu_hours,
     )
     input_hash = _sha256(_canonical_json(input_document))
     _bind_output_root(destination, input_document=input_document, input_hash=input_hash)
@@ -197,6 +205,7 @@ def run_autonomous_pipeline(
                 cas_root=cas_root,
                 lock_root=lock_root,
                 budget_db=budget_db,
+                budget_total_gpu_hours=budget_total_gpu_hours,
                 retrieval_db=retrieval_db,
             )
             if probe_manifest.get("verdict") != "PASS":
@@ -315,6 +324,7 @@ def run_autonomous_pipeline(
             cas_root=cas_root,
             lock_root=lock_root,
             budget_db=budget_db,
+            budget_total_gpu_hours=budget_total_gpu_hours,
         )
         candidate_states = execution.get("candidate_states")
         passed = (
@@ -352,6 +362,54 @@ def run_autonomous_pipeline(
         raise
 
 
+def _pipeline_budget_total(
+    *,
+    evaluator: Path,
+    probe_contract: Path | None,
+    override: float | None,
+) -> float:
+    if override is not None:
+        if not math.isfinite(override) or override <= 0:
+            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_BUDGET_TOTAL_INVALID")
+        return float(override)
+    evaluator_payload = _load_json(
+        evaluator, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
+    )
+    template_value = evaluator_payload.get("scheduler_template")
+    if not isinstance(template_value, str) or not template_value:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID")
+    template_path = Path(template_value)
+    template_path = (
+        template_path.resolve()
+        if template_path.is_absolute()
+        else (evaluator.parent / template_path).resolve()
+    )
+    template = _load_json(
+        template_path, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
+    )
+    try:
+        validate_document("auto_experiment_candidate_batch", template)
+    except ContractValidationError as exc:
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
+        ) from exc
+    total = float(template["total_budget_gpu_hours"])
+    if probe_contract is not None:
+        probe = _load_json(
+            probe_contract, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
+        )
+        try:
+            validate_document("diagnostic_probe_contract", probe)
+        except ContractValidationError as exc:
+            raise AutonomousPipelineError(
+                "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
+            ) from exc
+        total += float(probe["estimated_gpu_hours"])
+    if not math.isfinite(total) or total <= 0:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_BUDGET_TOTAL_INVALID")
+    return total
+
+
 def _input_document(
     options: AutonomousPipelineOptions,
     *,
@@ -363,6 +421,7 @@ def _input_document(
     budget_db: Path,
     retrieval_db: Path,
     probe_contract: Path | None,
+    budget_total_gpu_hours: float,
 ) -> dict[str, object]:
     bindings: list[dict[str, str]] = []
     parameters: set[str] = set()
@@ -413,6 +472,7 @@ def _input_document(
         "cas_root": str(cas_root),
         "lock_root": str(lock_root),
         "budget_db": str(budget_db),
+        "budget_total_gpu_hours": budget_total_gpu_hours,
         "retrieval_db": str(retrieval_db),
         "probe_contract": str(probe_contract) if probe_contract is not None else None,
         "probe_contract_sha256": (
@@ -594,6 +654,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
     )
     parser.add_argument("--budget-db", type=Path)
+    parser.add_argument("--budget-total-gpu-hours", type=float)
     parser.add_argument("--probe-contract", type=Path)
     parser.add_argument("--retrieval-db", type=Path)
     parser.add_argument("--literature-query")
@@ -615,6 +676,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cas_root=args.cas_root,
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
+                budget_total_gpu_hours=args.budget_total_gpu_hours,
                 probe_contract=args.probe_contract,
                 retrieval_db=args.retrieval_db,
                 literature_query=args.literature_query,
