@@ -22,6 +22,26 @@
     "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "blocked_stage": {"type": ["string", "null"]},
     "candidate_states": {"type": "object"},
+    "diagnostic_probe": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "retrieval": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "literature": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "literature_methods": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "literature_method_prompts": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
     "paths": {
       "type": "object",
       "additionalProperties": false,

@@ -12,6 +12,8 @@ python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist(
 python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/control/onboarding_conformance.py" in names; assert "configs/schemas/model_conformance_receipt.schema.json" in names' "$wheel_path"
 python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/control/onboarding_admission.py" in names; assert "wmloop/control/onboarding_compiler.py" in names; assert "wmloop/execute/external_evaluator_workload.py" in names; assert "configs/onboarding/ctrl_world_replay_evaluator_v1.json" in names' "$wheel_path"
 python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/execute/autonomous_pipeline.py" in names; assert "configs/schemas/autonomous_pipeline_manifest.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/diagnose/probe_campaign.py" in names; assert "wmloop/retrieve/index.py" in names; assert "wmloop/retrieve/literature.py" in names; assert "wmloop/retrieve/method_staging.py" in names; assert "configs/schemas/diagnostic_probe_contract.schema.json" in names; assert "configs/schemas/literature_method_candidate.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/execute/campaign_daemon.py" in names; assert "configs/schemas/campaign_daemon_manifest.schema.json" in names' "$wheel_path"
 
 uv run python -m py_compile \
   wmloop/geometry/types.py \
@@ -45,6 +47,11 @@ uv run python -m py_compile \
   wmloop/execute/experiment_scheduler.py \
   wmloop/execute/external_evaluator_workload.py \
   wmloop/execute/autonomous_pipeline.py \
+  wmloop/execute/campaign_daemon.py \
+  wmloop/diagnose/probe_campaign.py \
+  wmloop/retrieve/index.py \
+  wmloop/retrieve/literature.py \
+  wmloop/retrieve/method_staging.py \
   wmloop/propose/primitive_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_routing_admission.py \
@@ -100,6 +107,9 @@ uv run pytest -q \
   tests/test_onboarding_compiler.py \
   tests/test_external_evaluator_workload.py \
   tests/test_autonomous_pipeline.py \
+  tests/test_probe_retrieval.py \
+  tests/test_literature_method_staging.py \
+  tests/test_campaign_daemon.py \
   tests/test_verdiwm_geometry.py \
   tests/test_verdiwm_public_release.py \
   tests/test_acwm_public_experience_bundle.py \

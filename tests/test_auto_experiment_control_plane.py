@@ -194,6 +194,14 @@ class _FakeLeaseManager:
         return _FakeLease()
 
 
+class _UnavailableLeaseManager:
+    def __init__(self, **_: object) -> None:
+        pass
+
+    def acquire(self, *_: object, **__: object) -> _FakeLease:
+        raise GpuLeaseError("GPU_LEASE_UNAVAILABLE:4:COMPUTE_APP_PRESENT")
+
+
 class _FakeSampler:
     def __init__(self, **_: object) -> None:
         pass
@@ -306,9 +314,11 @@ def test_runtime_placeholders_reach_executed_environment(
         archive_db=tmp_path / "archive.db",
         cas_root=tmp_path / "store",
         lock_root=tmp_path / "locks",
+        budget_total_gpu_hours=0.1,
     )
 
     assert manifest["verdict"] == "PASS"
+    assert manifest["budget"]["ledger_total_gpu_hours"] == 0.1
 
 
 def test_run_auto_experiment_settles_and_is_idempotent(
@@ -325,6 +335,7 @@ def test_run_auto_experiment_settles_and_is_idempotent(
         archive_db=archive_db,
         cas_root=tmp_path / "store",
         lock_root=tmp_path / "locks",
+        budget_total_gpu_hours=0.1,
     )
     assert manifest["settlement_state"] == "settled"
     assert manifest["verdict"] == "PASS"
@@ -344,6 +355,7 @@ def test_run_auto_experiment_settles_and_is_idempotent(
         archive_db=archive_db,
         cas_root=tmp_path / "store",
         lock_root=tmp_path / "locks",
+        budget_total_gpu_hours=0.1,
     )
     assert second["receipt_ref"] == manifest["receipt_ref"]
     recovered_marker = json.loads(marker_path.read_text())
@@ -381,6 +393,46 @@ def test_execution_failure_is_archived_as_void(
         blocker["code"] == "REQUIRED_ARTIFACTS_MISSING"
         for blocker in receipt["verdict"]["blockers"]
     )
+
+
+def test_gpu_capacity_contention_is_deferred_without_receipt_or_budget_charge(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from wmloop.execute.budget import BudgetLedger, BudgetPolicy
+
+    monkeypatch.setattr(
+        auto_experiment,
+        "GpuLeaseManager",
+        _UnavailableLeaseManager,
+    )
+    plan_path = _plan(tmp_path / "plan.json", trial_id="deferred-control-test")
+    output = tmp_path / "run"
+    archive_db = tmp_path / "archive.db"
+    budget_db = tmp_path / "budget.db"
+
+    with pytest.raises(GpuLeaseError, match="GPU_LEASE_UNAVAILABLE"):
+        auto_experiment.run_auto_experiment(
+            plan_path=plan_path,
+            output_root=output,
+            workspace_root=ROOT,
+            archive_db=archive_db,
+            cas_root=tmp_path / "store",
+            lock_root=tmp_path / "locks",
+            budget_db=budget_db,
+        )
+
+    assert not (output / "receipts" / "deferred-control-test.json").exists()
+    assert not (output / "manifest.json").exists()
+    assert not list((output / "scratch" / "deferred-control-test").glob("attempt-*"))
+    assert ArchiveStore(archive_db).archive_statistics()["settled_trials"] == 0
+    ledger = BudgetLedger(budget_db, BudgetPolicy(total_gpu_hours=0.05))
+    assert ledger.visible_settled_trial_ids() == ()
+    assert ledger.admit(
+        "replacement-trial",
+        cost_class="very_low",
+        estimated_gpu_hours=0.05,
+    ).state == "admitted"
 
 
 def test_timeout_and_command_failure_are_archived(
@@ -464,6 +516,30 @@ def test_campaign_budget_is_shared_and_policy_is_immutable(tmp_path: Path) -> No
         reopened.admit("trial-two", cost_class="very_low", estimated_gpu_hours=0.01)
     with pytest.raises(BudgetError, match="BUDGET_POLICY_MISMATCH"):
         BudgetLedger(database, BudgetPolicy(total_gpu_hours=1.0))
+
+
+def test_budget_release_requires_current_fencing_token(tmp_path: Path) -> None:
+    from wmloop.execute.budget import BudgetError, BudgetLedger, BudgetPolicy
+
+    ledger = BudgetLedger(
+        tmp_path / "campaign-budget.db",
+        BudgetPolicy(total_gpu_hours=0.05),
+    )
+    admission = ledger.admit(
+        "deferred-trial",
+        cost_class="very_low",
+        estimated_gpu_hours=0.05,
+    )
+    with pytest.raises(BudgetError, match="STALE_FENCING_TOKEN"):
+        ledger.release(
+            "deferred-trial",
+            fencing_token=admission.fencing_token + 1,
+        )
+    ledger.release(
+        "deferred-trial",
+        fencing_token=admission.fencing_token,
+    )
+    assert ledger.get("deferred-trial") is None
 
 
 def test_cleanup_requires_independent_durable_proof(tmp_path: Path) -> None:

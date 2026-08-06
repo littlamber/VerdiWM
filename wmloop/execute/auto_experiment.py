@@ -60,6 +60,7 @@ def run_auto_experiment(
     cas_root: Path,
     lock_root: Path = Path("/tmp/verdiwm-gpu-leases"),
     budget_db: Path | None = None,
+    budget_total_gpu_hours: float | None = None,
 ) -> dict[str, object]:
     """Run or resume one bounded plan and return its durable manifest."""
 
@@ -84,9 +85,18 @@ def run_auto_experiment(
         if budget_db is not None
         else _campaign_budget_path(destination.parent, str(plan["campaign_id"]))
     )
+    if budget_total_gpu_hours is not None:
+        budget_total = _finite_float(
+            budget_total_gpu_hours,
+            "AUTO_EXPERIMENT_BUDGET_TOTAL_INVALID",
+        )
+        if budget_total <= 0:
+            raise AutoExperimentError("AUTO_EXPERIMENT_BUDGET_TOTAL_INVALID")
+    else:
+        budget_total = float(plan["total_budget_gpu_hours"])
     budget = BudgetLedger(
         budget_path,
-        BudgetPolicy(total_gpu_hours=float(plan["total_budget_gpu_hours"])),
+        BudgetPolicy(total_gpu_hours=budget_total),
     )
 
     if archive_trial_id in archive.visible_settled_trials():
@@ -169,46 +179,21 @@ def run_auto_experiment(
                 lock_root=Path(lock_root),
                 fencing_token=admission.fencing_token,
             )
+        except GpuLeaseError as exc:
+            if str(exc).startswith("GPU_LEASE_UNAVAILABLE"):
+                # Capacity contention is a scheduling deferral, not scientific
+                # evidence. No child process has started at this boundary.
+                budget.release(
+                    archive_trial_id,
+                    fencing_token=admission.fencing_token,
+                )
+                shutil.rmtree(scratch)
+                raise
+            execution = _execution_failure(plan=plan, scratch=scratch, error=exc)
         except Exception as exc:
             # An admitted attempt must not remain invisible when preflight or
             # process launch fails before the normal execution receipt exists.
-            _write_json_atomic(
-                scratch / "gpu-sampling.json",
-                {
-                    "schema_version": 1,
-                    "artifact_type": "wmloop-gpu-sampling-curve",
-                    "state": "empty",
-                    "gpu_index": None,
-                    "sample_count": 0,
-                    "samples": [],
-                },
-            )
-            (scratch / "stdout.log").write_bytes(b"")
-            (scratch / "stderr.log").write_text(
-                f"{type(exc).__name__}: {exc}\n", encoding="utf-8"
-            )
-            execution = {
-                "lease": {
-                    "index": None,
-                    "uuid": "",
-                    "name": "unavailable",
-                    "lock_path": "",
-                },
-                "authorization": {"state": "unavailable"},
-                "command": list(plan["command"]),
-                "environment_keys": sorted(plan["environment"]),
-                "exit_code": None,
-                "timed_out": False,
-                "duration_seconds": 0.0,
-                "gpu_sampling": _load_json_object(
-                    scratch / "gpu-sampling.json",
-                    "AUTO_EXPERIMENT_GPU_SAMPLING_INVALID",
-                ),
-                "execution_error": {
-                    "type": type(exc).__name__,
-                    "message": str(exc)[:500],
-                },
-            }
+            execution = _execution_failure(plan=plan, scratch=scratch, error=exc)
         receipt = _settle_trial(
             plan=plan,
             plan_sha256=plan_sha256,
@@ -221,6 +206,7 @@ def run_auto_experiment(
             cas=cas,
             archive=archive,
             budget_db=budget_path,
+            budget_total_gpu_hours=budget_total,
         )
         _write_json_atomic(receipt_path, receipt)
         _write_json_atomic(verdict_path, receipt["verdict"])
@@ -256,6 +242,48 @@ def run_auto_experiment(
     finally:
         if running_marker.exists() and not running_marker.is_symlink():
             running_marker.unlink()
+
+
+def _execution_failure(
+    *, plan: Mapping[str, Any], scratch: Path, error: Exception
+) -> dict[str, object]:
+    _write_json_atomic(
+        scratch / "gpu-sampling.json",
+        {
+            "schema_version": 1,
+            "artifact_type": "wmloop-gpu-sampling-curve",
+            "state": "empty",
+            "gpu_index": None,
+            "sample_count": 0,
+            "samples": [],
+        },
+    )
+    (scratch / "stdout.log").write_bytes(b"")
+    (scratch / "stderr.log").write_text(
+        f"{type(error).__name__}: {error}\n", encoding="utf-8"
+    )
+    return {
+        "lease": {
+            "index": None,
+            "uuid": "",
+            "name": "unavailable",
+            "lock_path": "",
+        },
+        "authorization": {"state": "unavailable"},
+        "command": list(plan["command"]),
+        "environment_keys": sorted(plan["environment"]),
+        "exit_code": None,
+        "timed_out": False,
+        "duration_seconds": 0.0,
+        "gpu_sampling": _load_json_object(
+            scratch / "gpu-sampling.json",
+            "AUTO_EXPERIMENT_GPU_SAMPLING_INVALID",
+        ),
+        "execution_error": {
+            "type": type(error).__name__,
+            "message": str(error)[:500],
+        },
+    }
 
 
 def _execute_trial(
@@ -365,6 +393,7 @@ def _settle_trial(
     cas: ContentAddressedStore,
     archive: ArchiveStore,
     budget_db: Path,
+    budget_total_gpu_hours: float,
 ) -> dict[str, object]:
     result_path = _resolve_inside(
         scratch, str(plan["result_path"]), "AUTO_EXPERIMENT_RESULT_PATH_INVALID"
@@ -465,6 +494,7 @@ def _settle_trial(
         "budget": {
             "ledger_path": str(budget_db),
             "campaign_total_gpu_hours": float(plan["total_budget_gpu_hours"]),
+            "ledger_total_gpu_hours": budget_total_gpu_hours,
         },
         "artifact_refs": artifact_refs,
         "support_refs": support_refs,
@@ -1118,6 +1148,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
     )
     run_parser.add_argument("--budget-db", type=Path)
+    run_parser.add_argument("--budget-total-gpu-hours", type=float)
     cleanup_parser = subparsers.add_parser(
         "cleanup", help="dry-run or apply proven scratch cleanup"
     )
@@ -1144,6 +1175,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cas_root=cas_root,
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
+                budget_total_gpu_hours=args.budget_total_gpu_hours,
             )
         else:
             manifest = cleanup_auto_experiment_scratch(

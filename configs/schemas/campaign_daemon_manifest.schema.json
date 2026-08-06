@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "input_hash",
+    "queue_paths",
+    "output_root",
+    "cycle",
+    "max_cycles",
+    "max_parallel",
+    "poll_seconds",
+    "budget_total_gpu_hours",
+    "candidate_states",
+    "launch_count",
+    "error_count",
+    "cleanup",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-campaign-daemon-manifest"]},
+    "state": {"enum": ["running", "stopped", "completed", "interrupted", "blocked"]},
+    "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "queue_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "output_root": {"type": "string", "minLength": 1},
+    "cycle": {"type": "integer", "minimum": 0},
+    "max_cycles": {"type": "integer", "minimum": 1},
+    "max_parallel": {"type": "integer", "minimum": 1, "maximum": 64},
+    "poll_seconds": {"type": "number", "minimum": 0},
+    "budget_total_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+    "candidate_states": {"type": "object"},
+    "launch_count": {"type": "integer", "minimum": 0},
+    "error_count": {"type": "integer", "minimum": 0},
+    "cleanup": {"type": "object"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

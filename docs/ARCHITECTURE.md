@@ -108,6 +108,55 @@ Primary code:
 - `wmloop/geometry/evolution.py`
 - `wmloop/experiments/cpbe.py`
 
+Cold start has two evidence sources. The receipt-bound retrieval index searches
+settled probe/trial experience first. When it has no compatible record, an
+optional bounded arXiv lookup stages paper methods as untrusted data-only
+records. `wmloop/retrieve/method_staging.py` converts each staged record into a
+strict method candidate with a source identity, target failure signatures,
+hook, bounded dose, applicability conditions, invariants, falsifiable
+prediction, and cost estimates. Explicit matches to the frozen registry can
+affect ranking only. Unknown mechanisms become prompt-compatible materialization
+work orders with no command or GPU authority. The autonomous runner renders
+guarded prompt packets and binds the future patch to `AgentRepairSession`
+source-revision, registry-digest, and required-check receipts. It does not run a
+coding agent in the active model checkout. A candidate can enter a live queue
+only after static, offline, canary, shadow-replay, and next-version approval gates.
+The safety language therefore stays fixed while the set of admissible
+capabilities can grow across version boundaries.
+
+### Background campaign execution
+
+`wmloop.execute.campaign_daemon` is the durable coordinator for draining one or
+more admitted candidate queues. It does not create hypotheses, edit model code,
+or bypass conformance. It projects each candidate into a stable isolated worker
+queue and delegates execution to `run_selected_queue`, which remains the only
+`screen -> gate -> confirm` transition owner.
+
+All workers share the same campaign budget database, Archive, CAS, and GPU lease
+namespace. `max_parallel`, the queue's declared GPU-hour ceiling, per-trial cost
+caps, and GPU leases are independent limits: a launch must satisfy all of them.
+For multiple queues, one daemon-level ledger ceiling is either declared with
+`--budget-total-gpu-hours` or derived as the sum of the immutable queue ceilings;
+that same policy is passed to every worker and bound in each execution record.
+The daemon persists input hashes, candidate attempts, cycle records, and terminal
+state using atomic file replacement. A restart therefore resumes the same worker
+root and scheduler receipt projection instead of replaying a settled trial.
+
+The daemon periodically calls the executor's proof-checking cleanup routine.
+Scratch remains retained unless its marker is terminal and settled, its receipt
+is content addressed, every required artifact is present in CAS, and the trial
+is visible in Archive. Worker failures are retried only up to the configured
+candidate attempt limit; cycle exhaustion and terminal candidate failures are
+reported as `blocked`, never converted into evidence.
+
+Failure and capacity are separate states. `GPU_LEASE_UNAVAILABLE` occurs before
+a child process starts, so the executor removes the unlaunched scratch attempt,
+releases its fenced budget reservation, and raises a scheduling deferral. The
+daemon records the deferral count and retries it without incrementing scientific
+failure attempts. Commands that launch and then fail still settle as terminal
+negative evidence; temporary lack of GPU capacity creates neither a receipt nor
+an Archive trial.
+
 ## Legal state ordering
 
 One research round follows this order:

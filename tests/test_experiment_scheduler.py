@@ -204,3 +204,45 @@ def test_resume_rejects_a_different_shared_budget_path(monkeypatch: pytest.Monke
             lock_root=tmp_path / "locks",
             budget_db=tmp_path / "budget-b.db",
         )
+
+
+def test_scheduler_binds_and_forwards_daemon_global_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    queue_root = tmp_path / "queue"
+    scheduler.plan_candidate_batch(
+        batch_path=BATCH,
+        output_root=queue_root,
+        workspace_root=ROOT,
+    )
+    observed: list[float] = []
+
+    def fake_run(**kwargs: object) -> dict[str, object]:
+        observed.append(float(kwargs["budget_total_gpu_hours"]))
+        return {"verdict": "VOID", "evidence_level": "runtime_verified"}
+
+    monkeypatch.setattr(scheduler, "run_auto_experiment", fake_run)
+    scheduler.run_selected_queue(
+        queue_path=queue_root / "queue.json",
+        workspace_root=ROOT,
+        archive_db=tmp_path / "archive.db",
+        cas_root=tmp_path / "store",
+        lock_root=tmp_path / "locks",
+        budget_db=tmp_path / "budget.db",
+        budget_total_gpu_hours=0.5,
+    )
+
+    assert observed == [0.5]
+    execution = json.loads((queue_root / "execution.json").read_text())
+    assert execution["budget_total_gpu_hours"] == 0.5
+    with pytest.raises(ExperimentSchedulerError, match="BUDGET_TOTAL_MISMATCH"):
+        scheduler.run_selected_queue(
+            queue_path=queue_root / "queue.json",
+            workspace_root=ROOT,
+            archive_db=tmp_path / "archive.db",
+            cas_root=tmp_path / "store",
+            lock_root=tmp_path / "locks",
+            budget_db=tmp_path / "budget.db",
+            budget_total_gpu_hours=0.6,
+        )

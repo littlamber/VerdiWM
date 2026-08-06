@@ -148,6 +148,7 @@ def run_selected_queue(
     cas_root: Path,
     lock_root: Path,
     budget_db: Path | None = None,
+    budget_total_gpu_hours: float | None = None,
 ) -> dict[str, object]:
     """Run selected candidates sequentially and promote only on ``PASS``."""
 
@@ -166,6 +167,12 @@ def run_selected_queue(
     )
     if execution and execution.get("budget_db") != str(shared_budget):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_PATH_MISMATCH")
+    if budget_total_gpu_hours is not None and (
+        not math.isfinite(budget_total_gpu_hours) or budget_total_gpu_hours <= 0
+    ):
+        raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_TOTAL_INVALID")
+    if execution and execution.get("budget_total_gpu_hours") != budget_total_gpu_hours:
+        raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_TOTAL_MISMATCH")
     results = (
         execution.get("results", {})
         if isinstance(execution.get("results"), Mapping)
@@ -207,6 +214,7 @@ def run_selected_queue(
                     cas_root=cas_root,
                     lock_root=lock_root,
                     budget_db=shared_budget,
+                    budget_total_gpu_hours=budget_total_gpu_hours,
                 )
             except Exception as exc:
                 results[result_key] = {
@@ -214,7 +222,13 @@ def run_selected_queue(
                     "error": {"type": type(exc).__name__, "message": str(exc)[:500]},
                 }
                 _write_json_atomic(
-                    execution_path, _execution_document(queue, results, shared_budget)
+                    execution_path,
+                    _execution_document(
+                        queue,
+                        results,
+                        shared_budget,
+                        budget_total_gpu_hours=budget_total_gpu_hours,
+                    ),
                 )
                 raise
             verdict = manifest.get("verdict")
@@ -227,13 +241,24 @@ def run_selected_queue(
                 "manifest_path": str(run_root / "manifest.json"),
             }
             _write_json_atomic(
-                execution_path, _execution_document(queue, results, shared_budget)
+                execution_path,
+                _execution_document(
+                    queue,
+                    results,
+                    shared_budget,
+                    budget_total_gpu_hours=budget_total_gpu_hours,
+                ),
             )
             if not passed:
                 candidate_state = "blocked"
                 break
         candidate_states[candidate_id] = candidate_state
-    document = _execution_document(queue, results, shared_budget)
+    document = _execution_document(
+        queue,
+        results,
+        shared_budget,
+        budget_total_gpu_hours=budget_total_gpu_hours,
+    )
     document["candidate_states"] = candidate_states
     _write_json_atomic(execution_path, document)
     return document
@@ -318,6 +343,9 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
             )
             - float(scoring["cost_weight"]) * screen_hours
         )
+        retrieval_prior = float(candidate.get("retrieval_prior", 0.0))
+        retrieval_weight = float(scoring.get("retrieval_weight", 0.25))
+        score += retrieval_weight * retrieval_prior
         rows.append(
             {
                 "candidate": candidate,
@@ -452,9 +480,13 @@ def _queue_manifest(
 
 
 def _execution_document(
-    queue: Mapping[str, object], results: Mapping[str, object], budget_db: Path
+    queue: Mapping[str, object],
+    results: Mapping[str, object],
+    budget_db: Path,
+    *,
+    budget_total_gpu_hours: float | None,
 ) -> dict[str, object]:
-    return {
+    document = {
         "schema_version": 1,
         "artifact_type": "verdiwm-auto-experiment-queue-execution",
         "state": "ready",
@@ -463,6 +495,9 @@ def _execution_document(
         "budget_db": str(budget_db),
         "results": dict(results),
     }
+    if budget_total_gpu_hours is not None:
+        document["budget_total_gpu_hours"] = budget_total_gpu_hours
+    return document
 
 
 def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
@@ -561,6 +596,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
     )
     run_parser.add_argument("--budget-db", type=Path)
+    run_parser.add_argument("--budget-total-gpu-hours", type=float)
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -577,6 +613,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cas_root=args.cas_root,
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
+                budget_total_gpu_hours=args.budget_total_gpu_hours,
             )
         print(json.dumps(output, ensure_ascii=True, sort_keys=True))
         return 0

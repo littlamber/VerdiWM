@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "candidate_id",
+    "source",
+    "target_failure_signatures",
+    "primitive_reference",
+    "proposed_primitive",
+    "required_hook",
+    "dose",
+    "applicability_conditions",
+    "invariants",
+    "falsifiable_prediction",
+    "estimated_implementation_hours",
+    "estimated_gpu_hours",
+    "execution_authority",
+    "state"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["wmloop-literature-method-candidate"]},
+    "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arxiv_id", "title", "source_url", "paper_candidate_path", "paper_candidate_sha256"],
+      "properties": {
+        "arxiv_id": {"type": "string", "pattern": "^(?:arXiv:)?[0-9]{4}\\.[0-9]{4,5}(?:v[0-9]+)?$"},
+        "title": {"type": "string", "minLength": 1},
+        "source_url": {"type": "string", "minLength": 1},
+        "paper_candidate_path": {"type": "string", "minLength": 1},
+        "paper_candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "target_failure_signatures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "primitive_reference": {"type": ["string", "null"]},
+    "proposed_primitive": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["name", "family", "rationale"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+        "family": {"type": "string", "minLength": 1},
+        "rationale": {"type": "string", "minLength": 12}
+      }
+    },
+    "required_hook": {"enum": ["H1", "H2", "H3", "H4", "H5"]},
+    "dose": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "steps", "gpu_hours"],
+      "properties": {
+        "mode": {"enum": ["inference", "data", "training"]},
+        "steps": {"type": "integer", "minimum": 1, "maximum": 1000000},
+        "gpu_hours": {"type": "number", "exclusiveMinimum": 0, "maximum": 48}
+      }
+    },
+    "applicability_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "invariants": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "falsifiable_prediction": {"type": "string", "minLength": 12},
+    "estimated_implementation_hours": {"type": "number", "exclusiveMinimum": 0, "maximum": 160},
+    "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0, "maximum": 48},
+    "execution_authority": {"enum": ["shadow_only", "ranking_only", "materialization_required"]},
+    "state": {"enum": ["validated", "blocked"]}
+  }
+}

@@ -32,7 +32,8 @@
         "uncertainty_weight": {"type": "number", "minimum": 0},
         "information_gain_weight": {"type": "number", "minimum": 0},
         "novelty_weight": {"type": "number", "minimum": 0},
-        "cost_weight": {"type": "number", "minimum": 0}
+        "cost_weight": {"type": "number", "minimum": 0},
+        "retrieval_weight": {"type": "number", "minimum": 0}
       }
     },
     "onboarding_admission": {
@@ -44,6 +45,25 @@
         "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "onboarding_report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
       }
+    },
+    "diagnostic_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_path", "manifest_sha256", "failure_signatures", "retrieval_state"],
+      "properties": {
+        "manifest_path": {"type": "string", "minLength": 1},
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "failure_signatures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "retrieval_state": {"enum": ["matched", "cold_start", "literature_only"]}
+      }
+    },
+    "literature_sources": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "literature_method_sources": {
+      "type": "array",
+      "items": {"type": "object"}
     },
     "candidates": {
       "type": "array",
@@ -71,6 +91,18 @@
           "uncertainty": {"type": "number", "minimum": 0, "maximum": 1},
           "information_gain": {"type": "number", "minimum": 0, "maximum": 1},
           "novelty": {"type": "number", "minimum": 0, "maximum": 1},
+          "retrieval_prior": {"type": "number", "minimum": 0, "maximum": 1},
+          "retrieval_matches": {"type": "array", "items": {"type": "object"}},
+          "literature_arxiv_ids": {"type": "array", "items": {"type": "string"}},
+          "retrieval_keys": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "failure_signatures": {"type": "array", "items": {"type": "string"}},
+              "primitive": {"type": "string"},
+              "stage": {"type": "string"}
+            }
+          },
           "stages": {
             "type": "array",
             "minItems": 1,

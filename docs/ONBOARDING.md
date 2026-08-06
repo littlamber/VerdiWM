@@ -20,6 +20,49 @@ assets, budgets, and output stores. Repeating the same command resumes atomic
 stages and already settled trials. Changing any locked input requires a new run
 root; it never silently reuses old evidence.
 
+For the paper-aligned diagnostic-first path, add a declarative probe contract:
+
+```bash
+verdiwm-run /path/to/model \
+  --output-root /path/to/runs/model-campaign-v1 \
+  --runtime-python /path/to/environment/bin/python \
+  --evaluator-contract /path/to/evaluator.json \
+  --probe-contract /path/to/diagnostic-probe.json \
+  --retrieval-db /path/to/shared/verdiwm-retrieval.db \
+  --archive-db /path/to/shared/verdiwm-archive.db \
+  --cas-root /path/to/shared/verdiwm-cas \
+  --literature-query "action conditioned world model long horizon drift"
+```
+
+The fixed order is conformance, diagnostic probe, receipt-bound experience
+retrieval, optional read-only literature staging, typed method staging, then
+candidate compilation and `screen -> gate -> confirm`. A probe `result.json` must include
+`probe_id`, `model_family`, `runtime_capability`, and non-empty
+`failure_signatures` in addition to the generic CUDA result contract. Retrieval
+changes candidate order only. Literature is stored as `shadow_only` data and
+cannot provide a command, modify source code, bypass a typed candidate
+contract, or enter formal verdict evidence. Registered method matches are
+`ranking_only`; unknown methods produce guarded work orders under
+`literature-methods/work-orders/` and prompt packets under
+`literature-method-prompts/`. Each work order binds the future isolated
+`AgentRepairSession` to the current source revision and registry digest, and
+requires a new registry version plus all admission receipts. An empty compatible index is
+recorded as `cold_start`, so the declared batch remains runnable.
+
+The method staging transaction can also be inspected separately:
+
+```bash
+verdiwm-literature-method-stage /path/to/literature/manifest.json \
+  --repo-root /path/to/model \
+  --output-root /path/to/literature-methods \
+  --failure-signature train_infer_mismatch \
+  --model-family ctrl-world
+```
+
+When `--retrieval-db` is shared, keep its archive and CAS shared as well. The
+runner derives sibling defaults when those flags are omitted; this is required
+for cross-campaign receipt verification.
+
 For discovery only, run:
 
 ```bash
@@ -118,3 +161,40 @@ uv run verdiwm-run /share/project/hywu/wjy/Ctrl-World \
 `--no-import-probe` skips the onboarding metadata probe only. The isolated
 conformance stage still performs the declared real imports and evaluator help
 check before it can authorize compilation.
+
+## Moving an admitted queue to the background
+
+After conformance and candidate compilation have produced
+`compiled/queue/queue.json`, the queue can be drained by the generic campaign
+daemon. No model-family-specific background adapter is required: model-specific
+behavior stays in the declarative evaluator contract and generated experiment
+plans.
+
+```bash
+nohup uv run verdiwm-campaign-daemon \
+  --queue /path/to/pipeline/compiled/queue/queue.json \
+  --output-root /path/to/runs/campaigns/model-v1 \
+  --workspace-root /path/to/model \
+  --archive-db /path/to/verdiwm-state/archive.db \
+  --cas-root /path/to/verdiwm-state/cas \
+  --budget-db /path/to/verdiwm-state/budgets/model-v1.db \
+  --budget-total-gpu-hours 0.03 \
+  --lock-root /tmp/verdiwm-gpu-leases \
+  --max-parallel 1 --max-attempts-per-candidate 3 \
+  --poll-seconds 60 --max-cycles 1440 \
+  > /path/to/logs/model-v1.log 2>&1 &
+```
+
+The log path, Archive, CAS, and an explicitly supplied budget ledger must be
+outside the daemon output root. Inspect `status.json` for the current campaign
+state and `cycles/cycle-*.json` for per-worker outcomes. Sending `SIGTERM` or
+`SIGINT` stops admission of new work after in-flight workers return and persists
+`state=stopped`; rerunning the identical command resumes unfinished candidates.
+Changing a queue or durable input requires a new daemon output root so evidence
+from different immutable inputs cannot be mixed.
+
+When all allowed GPUs are occupied, the candidate appears as `deferred` rather
+than `blocked` inside `candidate_states`. Deferral does not create an experiment
+receipt, charge the GPU-hour budget, or consume `--max-attempts-per-candidate`.
+The daemon checks again after `--poll-seconds` until capacity appears or
+`--max-cycles` provides the campaign-level stop bound.

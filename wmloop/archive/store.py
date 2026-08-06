@@ -458,8 +458,9 @@ class ArchiveStore:
         os.chmod(self._path, 0o600)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._path, isolation_level=None)
+        connection = sqlite3.connect(self._path, isolation_level=None, timeout=60.0)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=60000")
         connection.execute("PRAGMA journal_mode=DELETE")
         connection.execute("PRAGMA synchronous=FULL")
         connection.execute("PRAGMA foreign_keys=ON")

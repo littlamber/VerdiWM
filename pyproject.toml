@@ -48,6 +48,9 @@ verdiwm-onboard = "wmloop.control.onboarding:main"
 verdiwm-conformance = "wmloop.control.onboarding_conformance:main"
 verdiwm-compile-candidates = "wmloop.control.onboarding_compiler:main"
 verdiwm-run = "wmloop.execute.autonomous_pipeline:main"
+verdiwm-literature-search = "wmloop.retrieve.literature:main"
+verdiwm-literature-method-stage = "wmloop.retrieve.method_staging:main"
+verdiwm-campaign-daemon = "wmloop.execute.campaign_daemon:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]

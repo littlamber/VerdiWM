@@ -28,12 +28,20 @@ from wmloop.control.onboarding_conformance import (
     ModelConformanceError,
     run_conformance,
 )
+from wmloop.diagnose.probe_campaign import DiagnosticProbeError, run_diagnostic_probe
 from wmloop.execute.auto_experiment import AutoExperimentError
 from wmloop.execute.experiment_scheduler import (
     ExperimentSchedulerError,
     run_selected_queue,
 )
 from wmloop.execute.gpu_lease import GpuLeaseError
+from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
+from wmloop.retrieve.literature import LiteratureRetrievalError, run_literature_retrieval
+from wmloop.retrieve.method_staging import (
+    LiteratureMethodStagingError,
+    run_literature_method_prompt_batch,
+    run_literature_method_staging,
+)
 
 
 class AutonomousPipelineError(RuntimeError):
@@ -56,6 +64,11 @@ class AutonomousPipelineOptions:
     cas_root: Path | None = None
     lock_root: Path = Path("/tmp/verdiwm-gpu-leases")
     budget_db: Path | None = None
+    probe_contract: Path | None = None
+    retrieval_db: Path | None = None
+    literature_query: str | None = None
+    literature_max_results: int = 8
+    literature_timeout_seconds: float = 10.0
 
 
 def run_autonomous_pipeline(
@@ -73,17 +86,34 @@ def run_autonomous_pipeline(
     if _overlaps(destination, repo):
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_OUTPUT_OVERLAPS_SOURCE")
 
-    archive_db = _resolved(options.archive_db, destination / "archive.db")
-    cas_root = _resolved(options.cas_root, destination / "cas")
+    retrieval_db = _resolved(options.retrieval_db, destination / "retrieval.db")
+    shared_store_root = (
+        retrieval_db.parent if options.retrieval_db is not None else destination
+    )
+    archive_db = _resolved(options.archive_db, shared_store_root / "archive.db")
+    cas_root = _resolved(options.cas_root, shared_store_root / "cas")
     lock_root = Path(options.lock_root).expanduser().resolve()
     budget_db = _resolved(
         options.budget_db, destination / "compiled" / "queue" / "budget.db"
     )
-    for output in (archive_db, cas_root, lock_root, budget_db):
+    probe_contract = (
+        Path(options.probe_contract).expanduser().resolve()
+        if options.probe_contract is not None
+        else None
+    )
+    if probe_contract is not None and (not probe_contract.is_file() or probe_contract.is_symlink()):
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_PROBE_CONTRACT_INVALID")
+    if options.literature_max_results < 1 or options.literature_max_results > 50:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_LIMIT_INVALID")
+    if options.literature_timeout_seconds <= 0 or options.literature_timeout_seconds > 60:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_TIMEOUT_INVALID")
+    for output in (archive_db, cas_root, lock_root, budget_db, retrieval_db):
         if _overlaps(output, repo):
             raise AutonomousPipelineError(
                 "AUTONOMOUS_PIPELINE_PERSISTENT_OUTPUT_OVERLAPS_SOURCE"
             )
+    if probe_contract is not None and _overlaps(probe_contract, repo):
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_PROBE_CONTRACT_OVERLAPS_SOURCE")
 
     input_document = _input_document(
         options,
@@ -93,12 +123,18 @@ def run_autonomous_pipeline(
         cas_root=cas_root,
         lock_root=lock_root,
         budget_db=budget_db,
+        retrieval_db=retrieval_db,
+        probe_contract=probe_contract,
     )
     input_hash = _sha256(_canonical_json(input_document))
     _bind_output_root(destination, input_document=input_document, input_hash=input_hash)
 
     sidecar = destination / "onboarding"
     conformance = destination / "conformance"
+    diagnostic_probe_root = destination / "diagnostic-probe"
+    literature_root = destination / "literature"
+    literature_method_root = destination / "literature-methods"
+    literature_method_prompt_root = destination / "literature-method-prompts"
     compiled = destination / "compiled"
     stage = "onboarding"
     try:
@@ -144,11 +180,130 @@ def run_autonomous_pipeline(
                 blocked_stage="conformance",
             )
 
+        probe_manifest: dict[str, object] | None = None
+        retrieval_context: dict[str, object] = {"state": "cold_start", "matches": []}
+        literature_manifest: dict[str, object] | None = None
+        literature_method_manifest: dict[str, object] | None = None
+        literature_method_prompt_manifest: dict[str, object] | None = None
+        if probe_contract is not None:
+            stage = "diagnostic_probe"
+            probe_manifest = run_diagnostic_probe(
+                contract_path=probe_contract,
+                sidecar_root=sidecar,
+                conformance_root=conformance,
+                output_root=diagnostic_probe_root,
+                workspace_root=repo,
+                archive_db=archive_db,
+                cas_root=cas_root,
+                lock_root=lock_root,
+                budget_db=budget_db,
+                retrieval_db=retrieval_db,
+            )
+            if probe_manifest.get("verdict") != "PASS":
+                return _settle_pipeline(
+                    destination,
+                    input_hash=input_hash,
+                    state="blocked",
+                    verdict="BLOCKED",
+                    blocked_stage="diagnostic_probe",
+                    diagnostic_probe=probe_manifest,
+                )
+            signatures = [
+                str(value)
+                for value in probe_manifest.get("failure_signatures", [])
+                if isinstance(value, str)
+            ]
+            matches = retrieve_probe_experiences(
+                database_path=retrieval_db,
+                model_family=str(probe_manifest["model_family"]),
+                runtime_capability=str(probe_manifest["runtime_capability"]),
+                failure_signatures=signatures,
+                archive_db=archive_db,
+                cas_root=cas_root,
+                exclude_archive_trial_id=(
+                    str(probe_manifest.get("archive_trial_id") or "") or None
+                ),
+            )
+            retrieval_context = {
+                "state": "matched" if matches else "cold_start",
+                "query": {
+                    "model_family": probe_manifest["model_family"],
+                    "runtime_capability": probe_manifest["runtime_capability"],
+                    "failure_signatures": signatures,
+                },
+                "matches": [row.to_dict() for row in matches],
+                "index_path": str(retrieval_db),
+            }
+        literature_query = options.literature_query
+        if (
+            literature_query is None
+            and probe_manifest is not None
+            and retrieval_context.get("state") == "cold_start"
+        ):
+            auto_signatures = " ".join(
+                str(value).replace("_", " ")
+                for value in probe_manifest.get("failure_signatures", [])
+                if isinstance(value, str)
+            )
+            literature_query = " ".join(
+                value
+                for value in (
+                    str(probe_manifest.get("model_family") or "world model"),
+                    "world model",
+                    auto_signatures,
+                )
+                if value
+            )
+        if literature_query:
+            stage = "literature_retrieval"
+            literature_manifest = run_literature_retrieval(
+                query=literature_query,
+                output_root=literature_root,
+                max_results=options.literature_max_results,
+                timeout_seconds=options.literature_timeout_seconds,
+            )
+            stage = "literature_method_staging"
+            literature_method_manifest = run_literature_method_staging(
+                literature_manifest=literature_root / "manifest.json",
+                output_root=literature_method_root,
+                repo_root=repo,
+                failure_signatures=(
+                    tuple(
+                        str(value)
+                        for value in (probe_manifest or {}).get("failure_signatures", [])
+                        if isinstance(value, str)
+                    )
+                ),
+                model_family=(
+                    str((probe_manifest or {}).get("model_family"))
+                    if (probe_manifest or {}).get("model_family")
+                    else None
+                ),
+            )
+            stage = "literature_method_prompts"
+            literature_method_prompt_manifest = run_literature_method_prompt_batch(
+                method_staging_manifest=literature_method_root / "manifest.json",
+                output_root=literature_method_prompt_root,
+                repo_root=Path(__file__).resolve().parents[2],
+                archive_db=archive_db,
+                cas_root=cas_root,
+            )
+
         stage = "compilation"
         compilation_manifest = compile_and_plan(
             sidecar_root=sidecar,
             conformance_root=conformance,
             output_root=compiled,
+            diagnostic_probe_manifest=(diagnostic_probe_root / "manifest.json")
+            if probe_manifest is not None
+            else None,
+            retrieval_context=retrieval_context,
+            literature_manifest=(literature_root / "manifest.json")
+            if literature_manifest is not None
+            else None,
+            literature_method_manifest=(literature_method_root / "manifest.json")
+            if literature_method_manifest is not None
+            else None,
         )
         queue_path = Path(str(compilation_manifest["queue_path"]))
 
@@ -176,6 +331,11 @@ def run_autonomous_pipeline(
             candidate_states=(
                 dict(candidate_states) if isinstance(candidate_states, Mapping) else {}
             ),
+            diagnostic_probe=probe_manifest,
+            retrieval=retrieval_context,
+            literature=literature_manifest,
+            literature_methods=literature_method_manifest,
+            literature_method_prompts=literature_method_prompt_manifest,
         )
     except Exception as exc:
         _write_json_atomic(
@@ -201,6 +361,8 @@ def _input_document(
     cas_root: Path,
     lock_root: Path,
     budget_db: Path,
+    retrieval_db: Path,
+    probe_contract: Path | None,
 ) -> dict[str, object]:
     bindings: list[dict[str, str]] = []
     parameters: set[str] = set()
@@ -251,6 +413,14 @@ def _input_document(
         "cas_root": str(cas_root),
         "lock_root": str(lock_root),
         "budget_db": str(budget_db),
+        "retrieval_db": str(retrieval_db),
+        "probe_contract": str(probe_contract) if probe_contract is not None else None,
+        "probe_contract_sha256": (
+            _sha256(probe_contract.read_bytes()) if probe_contract is not None else None
+        ),
+        "literature_query": options.literature_query,
+        "literature_max_results": options.literature_max_results,
+        "literature_timeout_seconds": options.literature_timeout_seconds,
     }
 
 
@@ -288,6 +458,11 @@ def _settle_pipeline(
     verdict: str,
     blocked_stage: str | None,
     candidate_states: Mapping[str, object] | None = None,
+    diagnostic_probe: Mapping[str, object] | None = None,
+    retrieval: Mapping[str, object] | None = None,
+    literature: Mapping[str, object] | None = None,
+    literature_methods: Mapping[str, object] | None = None,
+    literature_method_prompts: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = _manifest(
         destination,
@@ -296,6 +471,11 @@ def _settle_pipeline(
         verdict=verdict,
         blocked_stage=blocked_stage,
         candidate_states=candidate_states,
+        diagnostic_probe=diagnostic_probe,
+        retrieval=retrieval,
+        literature=literature,
+        literature_methods=literature_methods,
+        literature_method_prompts=literature_method_prompts,
     )
     _write_json_atomic(destination / "pipeline-manifest.json", manifest)
     return manifest
@@ -310,6 +490,11 @@ def _manifest(
     blocked_stage: str | None,
     candidate_states: Mapping[str, object] | None = None,
     error: Mapping[str, str] | None = None,
+    diagnostic_probe: Mapping[str, object] | None = None,
+    retrieval: Mapping[str, object] | None = None,
+    literature: Mapping[str, object] | None = None,
+    literature_methods: Mapping[str, object] | None = None,
+    literature_method_prompts: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = {
         "schema_version": 1,
@@ -319,6 +504,15 @@ def _manifest(
         "input_hash": input_hash,
         "blocked_stage": blocked_stage,
         "candidate_states": dict(candidate_states or {}),
+        "diagnostic_probe": dict(diagnostic_probe) if diagnostic_probe is not None else None,
+        "retrieval": dict(retrieval) if retrieval is not None else None,
+        "literature": dict(literature) if literature is not None else None,
+        "literature_methods": dict(literature_methods) if literature_methods is not None else None,
+        "literature_method_prompts": (
+            dict(literature_method_prompts)
+            if literature_method_prompts is not None
+            else None
+        ),
         "paths": {
             "onboarding": str(destination / "onboarding" / "manifest.json"),
             "conformance": str(destination / "conformance" / "manifest.json"),
@@ -400,6 +594,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
     )
     parser.add_argument("--budget-db", type=Path)
+    parser.add_argument("--probe-contract", type=Path)
+    parser.add_argument("--retrieval-db", type=Path)
+    parser.add_argument("--literature-query")
+    parser.add_argument("--literature-max-results", type=int, default=8)
+    parser.add_argument("--literature-timeout-seconds", type=float, default=10.0)
     args = parser.parse_args(argv)
     try:
         manifest = run_autonomous_pipeline(
@@ -416,6 +615,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cas_root=args.cas_root,
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
+                probe_contract=args.probe_contract,
+                retrieval_db=args.retrieval_db,
+                literature_query=args.literature_query,
+                literature_max_results=args.literature_max_results,
+                literature_timeout_seconds=args.literature_timeout_seconds,
             )
         )
     except (
@@ -426,6 +630,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         ModelConformanceError,
         OnboardingCompilerError,
         OnboardingError,
+        DiagnosticProbeError,
+        LiteratureRetrievalError,
+        LiteratureMethodStagingError,
+        ProbeRetrievalError,
     ) as exc:
         print(str(exc), file=__import__("sys").stderr)
         return 2

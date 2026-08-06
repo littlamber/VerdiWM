@@ -158,6 +158,21 @@ class BudgetLedger:
         finally:
             connection.close()
 
+    def release(self, trial_id: str, *, fencing_token: int) -> None:
+        """Release a reservation only when no experiment process was launched."""
+
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            _require_active_row(connection, trial_id, fencing_token)
+            connection.execute(
+                "DELETE FROM trials WHERE trial_id = ? AND fencing_token = ?",
+                (trial_id, fencing_token),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
     def visible_settled_trial_ids(self) -> tuple[str, ...]:
         connection = self._connect()
         try:
@@ -213,8 +228,9 @@ class BudgetLedger:
         os.chmod(self._path, 0o600)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._path, isolation_level=None)
+        connection = sqlite3.connect(self._path, isolation_level=None, timeout=60.0)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout=60000")
         connection.execute("PRAGMA journal_mode=DELETE")
         connection.execute("PRAGMA synchronous=FULL")
         return connection

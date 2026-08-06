@@ -46,6 +46,10 @@ def compile_and_plan(
     sidecar_root: Path,
     conformance_root: Path,
     output_root: Path,
+    diagnostic_probe_manifest: Path | None = None,
+    retrieval_context: Mapping[str, object] | None = None,
+    literature_manifest: Path | None = None,
+    literature_method_manifest: Path | None = None,
 ) -> dict[str, object]:
     """Materialize a frozen template and produce its deterministic queue."""
 
@@ -83,8 +87,49 @@ def compile_and_plan(
         "ONBOARDING_COMPILER_TEMPLATE_HASH_MISMATCH",
     )
     template = _decode_object(template_bytes, "ONBOARDING_COMPILER_TEMPLATE_INVALID")
+    probe_bytes = b""
+    probe = None
+    if diagnostic_probe_manifest is not None:
+        probe_path = Path(diagnostic_probe_manifest).resolve(strict=True)
+        probe_bytes = probe_path.read_bytes()
+        probe = _decode_object(
+            probe_bytes, "ONBOARDING_COMPILER_PROBE_MANIFEST_INVALID"
+        )
+        if probe.get("state") != "settled" or probe.get("verdict") != "PASS":
+            raise OnboardingCompilerError("ONBOARDING_COMPILER_PROBE_NOT_SETTLED")
+    literature_bytes = b""
+    literature = None
+    if literature_manifest is not None:
+        literature_path = Path(literature_manifest).resolve(strict=True)
+        literature_bytes = literature_path.read_bytes()
+        literature = _decode_object(
+            literature_bytes, "ONBOARDING_COMPILER_LITERATURE_MANIFEST_INVALID"
+        )
+    literature_method_bytes = b""
+    literature_methods = None
+    if literature_method_manifest is not None:
+        literature_method_path = Path(literature_method_manifest).resolve(strict=True)
+        literature_method_bytes = literature_method_path.read_bytes()
+        literature_methods = _decode_object(
+            literature_method_bytes, "ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID"
+        )
+        if literature_methods.get("artifact_type") != "wmloop-literature-method-staging-manifest":
+            raise OnboardingCompilerError("ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID")
+    retrieval = dict(retrieval_context or {"state": "cold_start", "matches": []})
     input_hash = _sha256(
-        report_bytes + b"\0" + _canonical_json(receipt) + b"\0" + template_bytes
+        report_bytes
+        + b"\0"
+        + _canonical_json(receipt)
+        + b"\0"
+        + template_bytes
+        + b"\0"
+        + probe_bytes
+        + b"\0"
+        + literature_bytes
+        + b"\0"
+        + literature_method_bytes
+        + b"\0"
+        + _canonical_json(retrieval)
     )
 
     if destination.exists() or destination.is_symlink():
@@ -101,6 +146,14 @@ def compile_and_plan(
     if not isinstance(batch, dict):
         raise OnboardingCompilerError("ONBOARDING_COMPILER_TEMPLATE_OBJECT_REQUIRED")
     batch["onboarding_admission"] = admission
+    _apply_retrieval_context(
+        batch,
+        probe=probe,
+        retrieval=retrieval,
+        literature=literature,
+        literature_methods=literature_methods,
+        probe_manifest_path=diagnostic_probe_manifest,
+    )
     try:
         validate_document("auto_experiment_candidate_batch", batch)
         _validate_batch_semantics(batch, workspace_root=repo)
@@ -128,6 +181,11 @@ def compile_and_plan(
             "admission_receipt_sha256": admission["receipt_sha256"],
             "queue_path": str(destination / "queue" / "queue.json"),
             "optimization_launch_allowed": True,
+            "literature_method_manifest_path": (
+                str(Path(literature_method_manifest).resolve())
+                if literature_method_manifest is not None
+                else None
+            ),
         }
         _write_json(temporary / "manifest.json", manifest)
         os.replace(temporary, destination)
@@ -140,6 +198,106 @@ def compile_and_plan(
         workspace_root=repo,
     )
     return manifest
+
+
+def _apply_retrieval_context(
+    batch: dict[str, object],
+    *,
+    probe: Mapping[str, object] | None,
+    retrieval: Mapping[str, object],
+    literature: Mapping[str, object] | None,
+    literature_methods: Mapping[str, object] | None,
+    probe_manifest_path: Path | None,
+) -> None:
+    """Attach provenance and a bounded ordering prior to a candidate batch."""
+
+    matches = [row for row in retrieval.get("matches", []) if isinstance(row, Mapping)]
+    literature_rows = (
+        [row for row in literature.get("rows", []) if isinstance(row, Mapping)]
+        if literature is not None
+        else []
+    )
+    if probe is not None and probe_manifest_path is not None:
+        batch["diagnostic_probe"] = {
+            "manifest_path": str(probe_manifest_path.resolve()),
+            "manifest_sha256": _sha256(probe_manifest_path.read_bytes()),
+            "failure_signatures": list(probe.get("failure_signatures", [])),
+            "retrieval_state": str(retrieval.get("state") or "cold_start"),
+        }
+    if literature is not None:
+        batch["literature_sources"] = literature_rows
+    method_rows = (
+        [row for row in literature_methods.get("records", []) if isinstance(row, Mapping)]
+        if literature_methods is not None
+        else []
+    )
+    if method_rows:
+        batch["literature_method_sources"] = method_rows
+    ranking_method_rows = [
+        row
+        for row in method_rows
+        if isinstance(row.get("primitive_reference"), str)
+        and row.get("execution_authority") == "ranking_only"
+    ]
+    if not matches and not literature_rows and not method_rows:
+        return
+    scoring = batch.get("scoring")
+    if isinstance(scoring, dict):
+        scoring.setdefault("retrieval_weight", 0.25)
+    candidates = batch.get("candidates")
+    if not isinstance(candidates, list):
+        return
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        keys = candidate.get("retrieval_keys")
+        key_signatures = (
+            {
+                str(value)
+                for value in keys.get("failure_signatures", [])
+                if isinstance(value, str)
+            }
+            if isinstance(keys, Mapping)
+            else set()
+        )
+        key_primitive = keys.get("primitive") if isinstance(keys, Mapping) else None
+        candidate_matches = []
+        for row in matches:
+            signature = str(row.get("failure_signature") or "")
+            primitive = row.get("primitive")
+            signature_match = not key_signatures or signature in key_signatures
+            primitive_match = key_primitive is None or primitive == key_primitive
+            if signature_match and primitive_match:
+                candidate_matches.append(dict(row))
+        paper_ids = {
+            str(value)
+            for value in candidate.get("literature_arxiv_ids", [])
+            if isinstance(value, str)
+        }
+        candidate_papers = [
+            dict(row)
+            for row in literature_rows
+            if not paper_ids or str(row.get("arxiv_id") or "") in paper_ids
+        ]
+        candidate_methods = [
+            dict(row)
+            for row in ranking_method_rows
+            if (
+                (key_primitive is not None and row.get("primitive_reference") == key_primitive)
+                or (
+                    bool(paper_ids)
+                    and isinstance(row.get("source"), Mapping)
+                    and str(row["source"].get("arxiv_id") or "") in paper_ids
+                )
+            )
+        ]
+        if not candidate_matches and not candidate_papers and not candidate_methods:
+            continue
+        positive = sum(str(row.get("verdict")) == "PASS" for row in candidate_matches)
+        method_bonus = min(0.3, 0.1 * len(candidate_methods))
+        prior = min(1.0, ((0.2 + 0.1 * positive) if candidate_matches else 0.1) + method_bonus)
+        candidate["retrieval_prior"] = prior
+        candidate["retrieval_matches"] = [*candidate_matches, *candidate_papers, *candidate_methods]
 
 
 def _materialization_values(

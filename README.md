@@ -53,6 +53,13 @@ validation.
 2. **Diagnose and fingerprint.** Outcome/verdict diagnostics measure horizon,
    action following, appearance drift, and OoD gaps. Separately, semantic
    intervention probes perturb the model to estimate an IRG response chart.
+   The universal runner makes this diagnostic step explicit before retrieval
+   and candidate compilation. A shared SQLite index retrieves only settled
+   receipt/CAS pairs; an optional bounded arXiv lookup stages untrusted
+   cold-start papers as `shadow_only` candidates. A strict method compiler then
+   maps explicit registry matches to ranking-only evidence and every unknown
+   mechanism to a guarded next-version materialization work order and prompt
+   packet bound to the isolated agent-staging contract.
 3. **Compile an intervention.** A semantic primitive is admitted only when the
    target backbone exposes the required hook and all invariants are checked.
 4. **Test progressively.** Cheap screens precede the frozen official gate and
@@ -98,6 +105,37 @@ campaign ceiling. `verdiwm-auto-scheduler run` executes only that queue and
 advances a candidate through `screen -> gate -> confirm` after a prior-stage
 `PASS`; generic receipts remain exploratory until a backbone-specific verifier
 promotes them into optimization memory.
+
+For a queue that must remain active on a shared GPU server, use the resumable
+campaign daemon. It gives every candidate a stable worker directory, shares one
+budget ledger across all workers, limits parallel launches, records cycle and
+candidate state atomically, takes over stale daemon locks, and invokes the same
+receipt-first scheduler used by the foreground command:
+
+```bash
+uv run verdiwm-campaign-daemon \
+  --queue /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1/queue.json \
+  --output-root /share/project/hywu/wjy/verdiwm-runs/campaigns/cuda-v1 \
+  --workspace-root /share/project/hywu/wjy/VerdiWM \
+  --archive-db /share/project/hywu/wjy/verdiwm-state/archive/experience.db \
+  --cas-root /share/project/hywu/wjy/verdiwm-state/cas \
+  --budget-db /share/project/hywu/wjy/verdiwm-state/budgets/cuda-v1.db \
+  --budget-total-gpu-hours 0.03 \
+  --max-parallel 2 --max-attempts-per-candidate 3 \
+  --poll-seconds 60 --max-cycles 1440
+```
+
+Keep the daemon log and durable archive/CAS outside `--output-root`. A daemon
+only deletes scratch directories after the executor has settled a terminal
+receipt, published all required artifacts to CAS and Archive, and the cleanup
+proof still validates. `status.json` and `cycles/` are restart checkpoints; a
+completed stage is never launched again.
+
+GPU capacity contention is scheduling state, not experimental evidence. If all
+admitted physical GPUs are busy, the executor releases the reservation without
+starting a child process; the daemon records `deferred`, does not consume the
+candidate failure-attempt allowance, and retries on a later bounded cycle. No
+receipt or Archive trial is created until an experiment actually launches.
 
 ## Quick start
 

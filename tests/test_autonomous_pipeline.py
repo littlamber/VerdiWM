@@ -150,6 +150,74 @@ def test_pipeline_persists_interruption_and_can_resume(
     assert run_autonomous_pipeline(options)["verdict"] == "PASS"
 
 
+def test_pipeline_stages_typed_methods_before_compilation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _model_repo(tmp_path / "model")
+    evaluator = _evaluator_contract(
+        tmp_path / "evaluator.json",
+        template=_candidate_template(tmp_path / "candidate.json"),
+    )
+
+    def fake_literature_retrieval(**kwargs: object) -> dict[str, object]:
+        destination = Path(str(kwargs["output_root"]))
+        manifest = {
+            "artifact_type": "verdiwm-literature-retrieval-manifest",
+            "state": "network",
+            "rows": [],
+        }
+        destination.mkdir(parents=True)
+        (destination / "manifest.json").write_text(json.dumps(manifest))
+        return manifest
+
+    def fake_method_staging(**kwargs: object) -> dict[str, object]:
+        destination = Path(str(kwargs["output_root"]))
+        manifest = {
+                "artifact_type": "wmloop-literature-method-staging-manifest",
+                "state": "ready",
+                "records": [],
+                "work_order_paths": {},
+        }
+        destination.mkdir(parents=True)
+        (destination / "manifest.json").write_text(json.dumps(manifest))
+        return manifest
+
+    monkeypatch.setattr(
+        autonomous_pipeline,
+        "run_literature_retrieval",
+        fake_literature_retrieval,
+    )
+    monkeypatch.setattr(
+        autonomous_pipeline,
+        "run_literature_method_staging",
+        fake_method_staging,
+    )
+    monkeypatch.setattr(
+        autonomous_pipeline,
+        "run_selected_queue",
+        lambda **_: {"candidate_states": {"external-smoke": "completed"}},
+    )
+    result = run_autonomous_pipeline(
+        AutonomousPipelineOptions(
+            repo_root=repo,
+            output_root=tmp_path / "pipeline",
+            evaluator_contract=evaluator,
+            runtime_python=Path(sys.executable),
+            probe_imports=False,
+            literature_query="world model drift",
+        )
+    )
+
+    assert result["verdict"] == "PASS"
+    assert result["literature_methods"]["state"] == "ready"
+    compilation = json.loads(
+        (tmp_path / "pipeline" / "compiled" / "manifest.json").read_text()
+    )
+    assert compilation["literature_method_manifest_path"].endswith(
+        "literature-methods/manifest.json"
+    )
+
+
 def _model_repo(repo: Path) -> Path:
     (repo / "scripts").mkdir(parents=True)
     (repo / "requirements.txt").write_text("\n", encoding="utf-8")
