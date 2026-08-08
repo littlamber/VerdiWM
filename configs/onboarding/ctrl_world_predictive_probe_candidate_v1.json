@@ -148,6 +148,7 @@
           ],
           "environment": {
             "PYTHONUNBUFFERED": "1",
+            "VERDIWM_PROBE_ID": "ctrl-world-paired-video-diagnostic-v1",
             "HF_HUB_OFFLINE": "1",
             "TRANSFORMERS_OFFLINE": "1",
             "TOKENIZERS_PARALLELISM": "false",
