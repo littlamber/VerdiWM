@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-auto-experiment-candidate-batch",
+  "campaign_id": "ctrl-world-predictive-diagnostic-v2",
+  "objective": "Quantify whether the admitted Ctrl-World replay exhibits a bounded predictive-video failure signature before any intervention is proposed.",
+  "selection_reason": "The follow-up screen extends the already admitted replay by one interaction and keeps the frozen checkpoint, assets, and evaluator unchanged.",
+  "falsification_criterion": "The candidate is void unless the declared runtime exits cleanly, the paired rollout artifact is archived, and the physical GPU activity receipt is verified.",
+  "total_budget_gpu_hours": 0.08,
+  "max_selected_candidates": 1,
+  "scoring": {
+    "expected_gain_weight": 0.2,
+    "uncertainty_weight": 0.3,
+    "information_gain_weight": 0.5,
+    "novelty_weight": 0.1,
+    "cost_weight": 0.5
+  },
+  "candidates": [
+    {
+      "candidate_id": "ctrl-world-horizon-calibration-v2",
+      "hypothesis": "The observed Ctrl-World paired rollout error or short-horizon signature persists when the same admitted runtime generates two interactions.",
+      "selection_reason": "This is the cheapest falsifiable follow-up for distinguishing a one-step artifact from a reproducible predictive failure.",
+      "falsification_criterion": "The screen is void if the external evaluator exits nonzero, GPU identity does not match, or the declared rollout artifact is missing.",
+      "expected_gain": 0.2,
+      "uncertainty": 0.8,
+      "information_gain": 0.95,
+      "novelty": 0.2,
+      "retrieval_keys": {
+        "failure_signatures": [
+          "paired_rollout_error_high",
+          "short_horizon_observed",
+          "predicted_temporal_collapse",
+          "horizon_drift"
+        ],
+        "stage": "screen"
+      },
+      "stages": [
+        {
+          "stage": "screen",
+          "command": [
+            "{verdiwm_python}",
+            "-m",
+            "wmloop.execute.external_evaluator_workload",
+            "--artifact",
+            "external-output/**/*.mp4=rollout.mp4",
+            "--artifact",
+            "diagnostic-output.json=diagnostic-output.json",
+            "--metrics-artifact",
+            "diagnostic-output.json",
+            "--metric-prefix",
+            "diagnostic.",
+            "--",
+            "{verdiwm_python}",
+            "-m",
+            "wmloop.diagnose.external_video_probe",
+            "--video-pattern",
+            "external-output/**/*.mp4",
+            "--output-path",
+            "diagnostic-output.json",
+            "--model-family",
+            "ctrl-world",
+            "--runtime-capability",
+            "predictive-video",
+            "--layout",
+            "vertical",
+            "--max-frames",
+            "64",
+            "--min-frames",
+            "8",
+            "--max-pair-l1",
+            "10.0",
+            "--min-pred-temporal-change",
+            "1.0",
+            "--max-horizon-drift-slope",
+            "0.5",
+            "--fallback-signature",
+            "no_declared_failure_detected",
+            "--",
+            "{python}",
+            "-c",
+            "import os,runpy; from config import wm_args; original=wm_args.__post_init__; wm_args.__post_init__=lambda self:(original(self),setattr(self,'val_id',self.val_id[:1]),setattr(self,'start_idx',self.start_idx[:1]),setattr(self,'instruction',self.instruction[:1]),setattr(self,'interact_num',2),setattr(self,'num_inference_steps',2),setattr(self,'save_dir',os.path.join(os.environ['VERDIWM_TRIAL_SCRATCH'],'external-output'))); runpy.run_path('scripts/rollout_replay_traj.py',run_name='__main__')",
+            "--dataset_root_path",
+            "{asset:--dataset_root_path}",
+            "--dataset_meta_info_path",
+            "{asset:--dataset_meta_info_path}",
+            "--dataset_names",
+            "droid_subset",
+            "--svd_model_path",
+            "{asset:--svd_model_path}",
+            "--clip_model_path",
+            "{asset:--clip_model_path}",
+            "--ckpt_path",
+            "{asset:--ckpt_path}",
+            "--task_type",
+            "replay"
+          ],
+          "working_directory": ".",
+          "allowed_gpu_indices": [0, 1, 4, 5, 6, 7],
+          "estimated_gpu_hours": 0.08,
+          "timeout_seconds": 600,
+          "gpu_wait_seconds": 20,
+          "sample_interval_seconds": 0.2,
+          "result_path": "result.json",
+          "artifacts": [
+            "result.json",
+            "artifact-index.json",
+            "diagnostic-output.json",
+            "rollout.mp4",
+            "external-stdout.log",
+            "external-stderr.log"
+          ],
+          "metric_gates": [
+            {
+              "metric": "runtime_ready",
+              "role": "primary",
+              "operator": "gte",
+              "threshold": 1.0
+            },
+            {
+              "metric": "diagnostic.probe_ready",
+              "role": "protected",
+              "operator": "gte",
+              "threshold": 1.0
+            },
+            {
+              "metric": "diagnostic.frame_count",
+              "role": "protected",
+              "operator": "gte",
+              "threshold": 8.0
+            },
+            {
+              "metric": "external_exit_code",
+              "role": "protected",
+              "operator": "lte",
+              "threshold": 0.0
+            },
+            {
+              "metric": "artifact_count",
+              "role": "protected",
+              "operator": "gte",
+              "threshold": 2.0
+            },
+            {
+              "metric": "gpu_identity_match",
+              "role": "protected",
+              "operator": "gte",
+              "threshold": 1.0
+            }
+          ],
+          "environment": {
+            "PYTHONUNBUFFERED": "1",
+            "VERDIWM_PROBE_ID": "ctrl-world-paired-video-diagnostic-v2",
+            "HF_HUB_OFFLINE": "1",
+            "TRANSFORMERS_OFFLINE": "1",
+            "TOKENIZERS_PARALLELISM": "false",
+            "WANDB_MODE": "disabled",
+            "HF_HOME": "{scratch_dir}/cache/huggingface",
+            "XDG_CACHE_HOME": "{scratch_dir}/cache"
+          },
+          "cleanup_policy": "archive_then_delete"
+        }
+      ]
+    }
+  ]
+}

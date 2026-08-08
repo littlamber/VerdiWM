@@ -1,0 +1,53 @@
+{
+  "evaluator_id": "ctrl_world_predictive_probe_runtime_v2",
+  "command": [
+    "{python}",
+    "{repo_root}/scripts/rollout_replay_traj.py",
+    "--dataset_root_path",
+    "{asset:--dataset_root_path}",
+    "--dataset_meta_info_path",
+    "{asset:--dataset_meta_info_path}",
+    "--dataset_names",
+    "droid_subset",
+    "--svd_model_path",
+    "{asset:--svd_model_path}",
+    "--clip_model_path",
+    "{asset:--clip_model_path}",
+    "--ckpt_path",
+    "{asset:--ckpt_path}",
+    "--task_type",
+    "replay"
+  ],
+  "input_artifacts": [
+    "stable_video_diffusion",
+    "clip_text_encoder",
+    "ctrl_world_checkpoint",
+    "droid_replay_subset",
+    "droid_metadata"
+  ],
+  "output_artifacts": [
+    "result.json",
+    "artifact-index.json",
+    "diagnostic-output.json",
+    "rollout.mp4",
+    "external-stdout.log",
+    "external-stderr.log"
+  ],
+  "metrics": [
+    "runtime_ready",
+    "external_exit_code",
+    "artifact_count",
+    "gpu_identity_match"
+  ],
+  "verifier": "verdiwm_external_runtime_v1",
+  "conformance_imports": [
+    "torch",
+    "diffusers",
+    "transformers",
+    "accelerate",
+    "decord",
+    "mediapy",
+    "models.ctrl_world"
+  ],
+  "scheduler_template": "ctrl_world_predictive_probe_candidate_v2.json"
+}
