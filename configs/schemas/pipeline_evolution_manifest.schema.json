@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "state", "input_hash", "output_root",
+    "state_root", "iteration", "max_iterations", "poll_seconds",
+    "total_budget_gpu_hours", "max_failures", "max_no_information",
+    "failure_count", "no_information_count", "settled_iterations",
+    "deferral_count", "last_outcome", "last_error", "last_signatures",
+    "last_signature_hash", "current_iteration_path", "stop_reason",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-evolution-daemon-manifest"]},
+    "state": {"enum": ["running", "stopped", "completed", "blocked", "interrupted", "exhausted"]},
+    "input_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "output_root": {"type": "string", "minLength": 1},
+    "state_root": {"type": "string", "minLength": 1},
+    "iteration": {"type": "integer", "minimum": 0},
+    "max_iterations": {"type": "integer", "minimum": 0},
+    "poll_seconds": {"type": "number", "minimum": 0},
+    "total_budget_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+    "max_failures": {"type": "integer", "minimum": 1},
+    "max_no_information": {"type": "integer", "minimum": 1},
+    "failure_count": {"type": "integer", "minimum": 0},
+    "no_information_count": {"type": "integer", "minimum": 0},
+    "settled_iterations": {"type": "integer", "minimum": 0},
+    "deferral_count": {"type": "integer", "minimum": 0},
+    "last_outcome": {"type": ["string", "null"]},
+    "last_error": {"type": ["object", "null"]},
+    "last_signatures": {"type": "array", "items": {"type": "string"}},
+    "last_signature_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "current_iteration_path": {"type": ["string", "null"]},
+    "stop_reason": {"type": ["string", "null"]},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

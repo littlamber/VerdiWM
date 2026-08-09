@@ -228,6 +228,42 @@ compatible receipt-bound experience automatically derives a network literature
 query from its model family and failure signatures. A matched experience index
 skips that cold-start query.
 
+## Continuous immutable evolution
+
+For unattended iteration, use `verdiwm-evolution-daemon`. It materializes a new
+`iteration-XXXXXX/inputs/` directory before every pipeline call. The generated
+probe, evaluator, campaign, candidate, and trial identities are never reused;
+the shared Archive/CAS/retrieval index and one global budget ledger remain the
+authoritative memory and resource boundary.
+
+```bash
+nohup uv run verdiwm-evolution-daemon /share/project/hywu/wjy/Ctrl-World \
+  --output-root /share/project/hywu/wjy/verdiwm-runs/ctrl-world-evolution \
+  --state-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution \
+  --evaluator-contract /share/project/hywu/wjy/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
+  --probe-contract /share/project/hywu/wjy/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
+  --retrieval-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/retrieval.db \
+  --archive-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/archive.db \
+  --cas-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/cas \
+  --budget-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/budget.db \
+  --total-budget-gpu-hours 24 \
+  --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
+  --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
+  --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
+  --asset=--ckpt_path=/share/project/hywu/wjy/Ctrl-World/checkpoint-10000.pt \
+  --asset=--dataset_root_path=/share/project/hywu/wjy/Ctrl-World/dataset_example \
+  --asset=--dataset_meta_info_path=/share/project/hywu/wjy/Ctrl-World/dataset_meta_info \
+  --no-import-probe --poll-seconds 60 --max-iterations 0 \
+  --max-failures 3 --max-no-information 3 \
+  > /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/daemon.log 2>&1 &
+```
+
+`--max-iterations 0` means long-running, not unbounded resource usage: the
+global GPU-hour ledger, consecutive-failure limit, and no-new-information limit
+are hard stop conditions. A stopped or exhausted controller resumes the current
+immutable iteration with the same command and state root. Use a new state root
+when changing contracts, assets, retry policy, or the global budget.
+
 ## Moving an admitted queue to the background
 
 After conformance and candidate compilation have produced
