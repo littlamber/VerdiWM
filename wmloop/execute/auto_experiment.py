@@ -61,6 +61,9 @@ def run_auto_experiment(
     lock_root: Path = Path("/tmp/verdiwm-gpu-leases"),
     budget_db: Path | None = None,
     budget_total_gpu_hours: float | None = None,
+    budget_max_trial_gpu_hours: float = 120.0,
+    budget_high_trial_limit: int = 2,
+    budget_require_high_cost_approval: bool = True,
 ) -> dict[str, object]:
     """Run or resume one bounded plan and return its durable manifest."""
 
@@ -96,7 +99,12 @@ def run_auto_experiment(
         budget_total = float(plan["total_budget_gpu_hours"])
     budget = BudgetLedger(
         budget_path,
-        BudgetPolicy(total_gpu_hours=budget_total),
+        BudgetPolicy(
+            total_gpu_hours=budget_total,
+            max_trial_gpu_hours=budget_max_trial_gpu_hours,
+            high_trial_limit=budget_high_trial_limit,
+            require_high_cost_approval=budget_require_high_cost_approval,
+        ),
     )
 
     if archive_trial_id in archive.visible_settled_trials():
@@ -207,6 +215,9 @@ def run_auto_experiment(
             archive=archive,
             budget_db=budget_path,
             budget_total_gpu_hours=budget_total,
+            budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
+            budget_high_trial_limit=budget_high_trial_limit,
+            budget_require_high_cost_approval=budget_require_high_cost_approval,
         )
         _write_json_atomic(receipt_path, receipt)
         _write_json_atomic(verdict_path, receipt["verdict"])
@@ -394,6 +405,9 @@ def _settle_trial(
     archive: ArchiveStore,
     budget_db: Path,
     budget_total_gpu_hours: float,
+    budget_max_trial_gpu_hours: float,
+    budget_high_trial_limit: int,
+    budget_require_high_cost_approval: bool,
 ) -> dict[str, object]:
     result_path = _resolve_inside(
         scratch, str(plan["result_path"]), "AUTO_EXPERIMENT_RESULT_PATH_INVALID"
@@ -495,6 +509,11 @@ def _settle_trial(
             "ledger_path": str(budget_db),
             "campaign_total_gpu_hours": float(plan["total_budget_gpu_hours"]),
             "ledger_total_gpu_hours": budget_total_gpu_hours,
+            "resource_policy": {
+                "max_trial_gpu_hours": budget_max_trial_gpu_hours,
+                "high_trial_limit": budget_high_trial_limit,
+                "require_high_cost_approval": budget_require_high_cost_approval,
+            },
         },
         "artifact_refs": artifact_refs,
         "support_refs": support_refs,
@@ -1128,7 +1147,7 @@ def _cost_class(estimated_gpu_hours: float) -> str:
     for cap, name in _COST_CAPS:
         if estimated_gpu_hours <= cap:
             return name
-    raise AutoExperimentError("AUTO_EXPERIMENT_COST_CLASS_UNSUPPORTED")
+    return "high"
 
 
 def _utc_now() -> str:
@@ -1149,6 +1168,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     run_parser.add_argument("--budget-db", type=Path)
     run_parser.add_argument("--budget-total-gpu-hours", type=float)
+    run_parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)
+    run_parser.add_argument("--budget-high-trial-limit", type=int, default=2)
+    run_parser.add_argument("--auto-approve-high-cost", action="store_true")
     cleanup_parser = subparsers.add_parser(
         "cleanup", help="dry-run or apply proven scratch cleanup"
     )
@@ -1176,6 +1198,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
                 budget_total_gpu_hours=args.budget_total_gpu_hours,
+                budget_max_trial_gpu_hours=args.budget_max_trial_gpu_hours,
+                budget_high_trial_limit=args.budget_high_trial_limit,
+                budget_require_high_cost_approval=not args.auto_approve_high_cost,
             )
         else:
             manifest = cleanup_auto_experiment_scratch(

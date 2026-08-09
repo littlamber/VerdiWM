@@ -106,6 +106,7 @@ def plan_candidate_batch(
                     float(stage["estimated_gpu_hours"]) for stage in candidate["stages"]
                 ),
                 "stages": stage_records,
+                "promotion_policy": candidate.get("promotion_policy"),
             }
         )
     queue = {
@@ -151,6 +152,9 @@ def run_selected_queue(
     lock_root: Path,
     budget_db: Path | None = None,
     budget_total_gpu_hours: float | None = None,
+    budget_max_trial_gpu_hours: float = 120.0,
+    budget_high_trial_limit: int = 2,
+    budget_require_high_cost_approval: bool = True,
 ) -> dict[str, object]:
     """Run selected candidates sequentially and promote only on ``PASS``."""
 
@@ -173,8 +177,16 @@ def run_selected_queue(
         not math.isfinite(budget_total_gpu_hours) or budget_total_gpu_hours <= 0
     ):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_TOTAL_INVALID")
+    policy = _resource_policy_document(
+        budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
+        budget_high_trial_limit=budget_high_trial_limit,
+        budget_require_high_cost_approval=budget_require_high_cost_approval,
+    )
     if execution and execution.get("budget_total_gpu_hours") != budget_total_gpu_hours:
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_TOTAL_MISMATCH")
+    existing_policy = execution.get("resource_policy", policy) if execution else policy
+    if existing_policy != policy:
+        raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_RESOURCE_POLICY_MISMATCH")
     results = (
         execution.get("results", {})
         if isinstance(execution.get("results"), Mapping)
@@ -217,6 +229,11 @@ def run_selected_queue(
                     lock_root=lock_root,
                     budget_db=shared_budget,
                     budget_total_gpu_hours=budget_total_gpu_hours,
+                    budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
+                    budget_high_trial_limit=budget_high_trial_limit,
+                    budget_require_high_cost_approval=(
+                        budget_require_high_cost_approval
+                    ),
                 )
             except Exception as exc:
                 results[result_key] = {
@@ -230,6 +247,7 @@ def run_selected_queue(
                         results,
                         shared_budget,
                         budget_total_gpu_hours=budget_total_gpu_hours,
+                        resource_policy=policy,
                     ),
                 )
                 raise
@@ -249,6 +267,7 @@ def run_selected_queue(
                     results,
                     shared_budget,
                     budget_total_gpu_hours=budget_total_gpu_hours,
+                    resource_policy=policy,
                 ),
             )
             if not passed:
@@ -260,8 +279,15 @@ def run_selected_queue(
         results,
         shared_budget,
         budget_total_gpu_hours=budget_total_gpu_hours,
+        resource_policy=policy,
     )
     document["candidate_states"] = candidate_states
+    document["promotion_decisions"] = _promotion_decisions(
+        queue=queue,
+        candidate_states=candidate_states,
+        results=results,
+        queue_root=root,
+    )
     _write_json_atomic(execution_path, document)
     return document
 
@@ -514,6 +540,7 @@ def _execution_document(
     budget_db: Path,
     *,
     budget_total_gpu_hours: float | None,
+    resource_policy: Mapping[str, object],
 ) -> dict[str, object]:
     document = {
         "schema_version": 1,
@@ -523,10 +550,132 @@ def _execution_document(
         "batch_sha256": queue["batch_sha256"],
         "budget_db": str(budget_db),
         "results": dict(results),
+        "resource_policy": dict(resource_policy),
     }
     if budget_total_gpu_hours is not None:
         document["budget_total_gpu_hours"] = budget_total_gpu_hours
     return document
+
+
+def _resource_policy_document(
+    *,
+    budget_max_trial_gpu_hours: float,
+    budget_high_trial_limit: int,
+    budget_require_high_cost_approval: bool,
+) -> dict[str, object]:
+    if (
+        not math.isfinite(budget_max_trial_gpu_hours)
+        or budget_max_trial_gpu_hours <= 0
+        or budget_high_trial_limit < 0
+    ):
+        raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_RESOURCE_POLICY_INVALID")
+    return {
+        "max_trial_gpu_hours": budget_max_trial_gpu_hours,
+        "high_trial_limit": budget_high_trial_limit,
+        "require_high_cost_approval": budget_require_high_cost_approval,
+    }
+
+
+def _promotion_decisions(
+    *,
+    queue: Mapping[str, object],
+    candidate_states: Mapping[str, str],
+    results: Mapping[str, object],
+    queue_root: Path,
+) -> dict[str, dict[str, object]]:
+    """Separate scientific-promotion eligibility from resource execution.
+
+    GPU cost, queue rank, and resource policy intentionally do not enter this
+    decision. A candidate must explicitly opt in with a confirm-stage quality
+    policy before an external backbone-specific promoter can consider it.
+    """
+
+    decisions: dict[str, dict[str, object]] = {}
+    selected = queue.get("selected")
+    if not isinstance(selected, list):
+        return decisions
+    for row in selected:
+        if not isinstance(row, Mapping):
+            continue
+        candidate_id = str(row.get("candidate_id") or "")
+        policy = row.get("promotion_policy")
+        if not isinstance(policy, Mapping):
+            decisions[candidate_id] = {
+                "state": "not_requested",
+                "reason": "SCIENTIFIC_PROMOTION_POLICY_MISSING",
+                "claim_boundary": (
+                    "Execution completion is not a model-quality promotion."
+                ),
+            }
+            continue
+        required_stage = str(policy.get("required_stage") or "")
+        required_metrics = [
+            str(value)
+            for value in policy.get("required_quality_metrics", [])
+            if isinstance(value, str)
+        ]
+        result = results.get(f"{candidate_id}:{required_stage}")
+        if candidate_states.get(candidate_id) != "completed" or not isinstance(
+            result, Mapping
+        ) or result.get("verdict") != "PASS":
+            decisions[candidate_id] = {
+                "state": "rejected",
+                "reason": "REQUIRED_CONFIRM_STAGE_NOT_PASSED",
+                "claim_boundary": (
+                    "A failed or incomplete execution cannot enter scientific "
+                    "promotion."
+                ),
+            }
+            continue
+        stage = _stage_record(row, required_stage)
+        if stage is None:
+            decisions[candidate_id] = {
+                "state": "rejected",
+                "reason": "REQUIRED_CONFIRM_STAGE_MISSING",
+                "claim_boundary": "The declared promotion stage is absent.",
+            }
+            continue
+        plan_path = _resolve_inside(
+            queue_root,
+            str(stage["plan_path"]),
+            "EXPERIMENT_SCHEDULER_PLAN_PATH_INVALID",
+        )
+        plan = _load_json_object(plan_path, "EXPERIMENT_SCHEDULER_PLAN_INVALID")
+        primary_metrics = {
+            str(gate.get("metric"))
+            for gate in plan.get("metric_gates", [])
+            if isinstance(gate, Mapping) and gate.get("role") == "primary"
+        }
+        missing = sorted(set(required_metrics) - primary_metrics)
+        decisions[candidate_id] = {
+            "state": "eligible" if not missing else "rejected",
+            "reason": (
+                "QUALITY_METRICS_CONFIRMED"
+                if not missing
+                else "REQUIRED_QUALITY_METRICS_NOT_PRIMARY_GATES"
+            ),
+            "required_stage": required_stage,
+            "required_quality_metrics": required_metrics,
+            "missing_quality_metrics": missing,
+            "claim_boundary": (
+                "Eligibility is a scientific evidence handoff. It does not "
+                "modify a checkpoint or baseline without a backbone-specific "
+                "promotion transaction."
+            ),
+        }
+    return decisions
+
+
+def _stage_record(
+    selected: Mapping[str, object], stage_name: str
+) -> Mapping[str, object] | None:
+    stages = selected.get("stages")
+    if not isinstance(stages, list):
+        return None
+    for stage in stages:
+        if isinstance(stage, Mapping) and stage.get("stage") == stage_name:
+            return stage
+    return None
 
 
 def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
@@ -628,6 +777,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     run_parser.add_argument("--budget-db", type=Path)
     run_parser.add_argument("--budget-total-gpu-hours", type=float)
+    run_parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)
+    run_parser.add_argument("--budget-high-trial-limit", type=int, default=2)
+    run_parser.add_argument("--auto-approve-high-cost", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.command == "plan":
@@ -645,6 +797,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
                 budget_total_gpu_hours=args.budget_total_gpu_hours,
+                budget_max_trial_gpu_hours=args.budget_max_trial_gpu_hours,
+                budget_high_trial_limit=args.budget_high_trial_limit,
+                budget_require_high_cost_approval=not args.auto_approve_high_cost,
             )
         print(json.dumps(output, ensure_ascii=True, sort_keys=True))
         return 0

@@ -111,6 +111,10 @@ def test_run_promotes_only_after_pass_and_resumes(monkeypatch: pytest.MonkeyPatc
     assert calls == ["screen", "gate"]
     assert first["candidate_states"]["cuda-matmul-balanced"] == "blocked"
     assert first["results"]["cuda-matmul-balanced:gate"]["verdict"] == "VOID"
+    execution_path = queue_root / "execution.json"
+    legacy_execution = json.loads(execution_path.read_text(encoding="utf-8"))
+    legacy_execution.pop("resource_policy")
+    execution_path.write_text(json.dumps(legacy_execution), encoding="utf-8")
 
     calls.clear()
     second = scheduler.run_selected_queue(
@@ -143,6 +147,46 @@ def test_run_all_passes_through_confirm(monkeypatch: pytest.MonkeyPatch, tmp_pat
     )
     assert calls == ["screen", "gate", "confirm"]
     assert result["candidate_states"]["cuda-matmul-balanced"] == "completed"
+    assert result["promotion_decisions"]["cuda-matmul-balanced"]["state"] == "not_requested"
+
+
+def test_scientific_promotion_is_explicit_and_cost_independent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    payload = json.loads(BATCH.read_text(encoding="utf-8"))
+    candidate = payload["candidates"][0]
+    candidate["promotion_policy"] = {
+        "required_stage": "confirm",
+        "required_quality_metrics": ["finite_fraction"],
+    }
+    batch = tmp_path / "promotion-batch.json"
+    batch.write_text(json.dumps(payload), encoding="utf-8")
+    queue_root = tmp_path / "queue"
+    scheduler.plan_candidate_batch(
+        batch_path=batch, output_root=queue_root, workspace_root=ROOT
+    )
+
+    monkeypatch.setattr(
+        scheduler,
+        "run_auto_experiment",
+        lambda **_: {"verdict": "PASS", "evidence_level": "runtime_verified"},
+    )
+    result = scheduler.run_selected_queue(
+        queue_path=queue_root / "queue.json",
+        workspace_root=ROOT,
+        archive_db=tmp_path / "archive.db",
+        cas_root=tmp_path / "store",
+        lock_root=tmp_path / "locks",
+        budget_total_gpu_hours=500.0,
+        budget_max_trial_gpu_hours=400.0,
+        budget_high_trial_limit=8,
+        budget_require_high_cost_approval=False,
+    )
+
+    decision = result["promotion_decisions"]["cuda-matmul-balanced"]
+    assert decision["state"] == "eligible"
+    assert decision["reason"] == "QUALITY_METRICS_CONFIRMED"
+    assert "cost" not in decision
 
 
 def test_queue_plan_path_cannot_escape_queue_root(tmp_path: Path) -> None:

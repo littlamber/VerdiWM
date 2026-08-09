@@ -56,6 +56,9 @@ class CampaignDaemonOptions:
     lock_root: Path = Path("/tmp/verdiwm-gpu-leases")
     budget_db: Path | None = None
     budget_total_gpu_hours: float | None = None
+    budget_max_trial_gpu_hours: float = 120.0
+    budget_high_trial_limit: int = 2
+    budget_require_high_cost_approval: bool = True
     poll_seconds: float = 30.0
     max_cycles: int = 720
     max_parallel: int = 1
@@ -156,6 +159,11 @@ def run_campaign_daemon(
                         lock_root=Path(options.lock_root).resolve(),
                         budget_db=shared_budget,
                         budget_total_gpu_hours=budget_total,
+                        budget_max_trial_gpu_hours=options.budget_max_trial_gpu_hours,
+                        budget_high_trial_limit=options.budget_high_trial_limit,
+                        budget_require_high_cost_approval=(
+                            options.budget_require_high_cost_approval
+                        ),
                     )] = (f"{queue_path}::{candidate_id}", candidate_id, worker_queue)
                     state["launch_count"] = int(state["launch_count"]) + 1
                 for future in as_completed(futures):
@@ -271,6 +279,12 @@ def _validate_options(options: CampaignDaemonOptions, *, queue_paths: Sequence[P
         or options.budget_total_gpu_hours <= 0
     ):
         raise CampaignDaemonError("CAMPAIGN_DAEMON_BUDGET_TOTAL_INVALID")
+    if (
+        not math.isfinite(options.budget_max_trial_gpu_hours)
+        or options.budget_max_trial_gpu_hours <= 0
+        or options.budget_high_trial_limit < 0
+    ):
+        raise CampaignDaemonError("CAMPAIGN_DAEMON_RESOURCE_POLICY_INVALID")
     output = Path(options.output_root).resolve()
     for path in (
         options.workspace_root,
@@ -301,11 +315,32 @@ def _input_hash(
         "lock_root": str(Path(options.lock_root).resolve()),
         "budget_db": str(Path(options.budget_db).resolve()) if options.budget_db else None,
         "budget_total_gpu_hours": budget_total_gpu_hours,
+        **_nondefault_resource_policy(options),
         "max_parallel": options.max_parallel,
         "max_attempts_per_candidate": options.max_attempts_per_candidate,
         "retention_hours": options.retention_hours,
     }
     return _sha256(_canonical_json(payload))
+
+
+def _nondefault_resource_policy(
+    options: CampaignDaemonOptions,
+) -> dict[str, object]:
+    if (
+        options.budget_max_trial_gpu_hours == 120.0
+        and options.budget_high_trial_limit == 2
+        and options.budget_require_high_cost_approval
+    ):
+        return {}
+    return {
+        "resource_policy": {
+            "max_trial_gpu_hours": options.budget_max_trial_gpu_hours,
+            "high_trial_limit": options.budget_high_trial_limit,
+            "require_high_cost_approval": (
+                options.budget_require_high_cost_approval
+            ),
+        }
+    }
 
 
 def _budget_total(
@@ -712,6 +747,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases"))
     parser.add_argument("--budget-db", type=Path)
     parser.add_argument("--budget-total-gpu-hours", type=float)
+    parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)
+    parser.add_argument("--budget-high-trial-limit", type=int, default=2)
+    parser.add_argument("--auto-approve-high-cost", action="store_true")
     parser.add_argument("--poll-seconds", type=float, default=30.0)
     parser.add_argument("--max-cycles", type=int, default=720)
     parser.add_argument("--max-parallel", type=int, default=1)
@@ -730,6 +768,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
                 budget_total_gpu_hours=args.budget_total_gpu_hours,
+                budget_max_trial_gpu_hours=args.budget_max_trial_gpu_hours,
+                budget_high_trial_limit=args.budget_high_trial_limit,
+                budget_require_high_cost_approval=(
+                    not args.auto_approve_high_cost
+                ),
                 poll_seconds=args.poll_seconds,
                 max_cycles=args.max_cycles,
                 max_parallel=args.max_parallel,

@@ -10,6 +10,7 @@ import pytest
 from wmloop.archive.store import ArchiveStore
 from wmloop.execute import auto_experiment
 from wmloop.execute.auto_experiment import AutoExperimentError
+from wmloop.execute.budget import BudgetError, BudgetLedger, BudgetPolicy
 from wmloop.execute.gpu_lease import GpuLeaseError, GpuLeaseManager
 from wmloop.verify.auto_experiment import verify_auto_experiment_result
 
@@ -111,6 +112,47 @@ def test_verifier_requires_matching_gpu_activity_and_metric_gates() -> None:
         blocker["code"] == "RESULT_GPU_UUID_MISMATCH"
         for blocker in mismatch["blockers"]
     )
+
+
+def test_long_trial_uses_configurable_resource_policy(tmp_path: Path) -> None:
+    ledger = BudgetLedger(
+        tmp_path / "long-trial-budget.db",
+        BudgetPolicy(
+            total_gpu_hours=800.0,
+            max_trial_gpu_hours=500.0,
+            high_trial_limit=4,
+            require_high_cost_approval=False,
+        ),
+    )
+
+    admission = ledger.admit(
+        "long-training-method",
+        cost_class="high",
+        estimated_gpu_hours=300.0,
+    )
+
+    assert admission.state == "admitted"
+    assert auto_experiment._cost_class(300.0) == "high"
+
+
+def test_long_trial_policy_remains_resource_admission_only(
+    tmp_path: Path,
+) -> None:
+    ledger = BudgetLedger(
+        tmp_path / "bounded-long-trial.db",
+        BudgetPolicy(
+            total_gpu_hours=800.0,
+            max_trial_gpu_hours=250.0,
+            require_high_cost_approval=False,
+        ),
+    )
+
+    with pytest.raises(BudgetError, match="TRIAL_COST_CAP_EXCEEDED"):
+        ledger.admit(
+            "too-large-for-declared-resource-policy",
+            cost_class="high",
+            estimated_gpu_hours=300.0,
+        )
 
 
 def test_runtime_placeholders_expand_in_environment() -> None:

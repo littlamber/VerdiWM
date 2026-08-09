@@ -247,6 +247,8 @@ nohup uv run verdiwm-evolution-daemon /share/project/hywu/wjy/Ctrl-World \
   --cas-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/cas \
   --budget-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/budget.db \
   --total-budget-gpu-hours 24 \
+  --budget-max-trial-gpu-hours 240 \
+  --budget-high-trial-limit 8 --auto-approve-high-cost \
   --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
   --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
   --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
@@ -263,6 +265,14 @@ global GPU-hour ledger, consecutive-failure limit, and no-new-information limit
 are hard stop conditions. A stopped or exhausted controller resumes the current
 immutable iteration with the same command and state root. Use a new state root
 when changing contracts, assets, retry policy, or the global budget.
+
+The resource flags are admission controls, not scientific quality gates. A
+method estimated at 80 GPU-hours is classified as `high` and can run when the
+declared policy allows it; its quality promotion still depends only on the
+declared confirm-stage metrics. Set `--budget-max-trial-gpu-hours` above the
+longest stage and use a sufficiently large `--total-budget-gpu-hours`. The
+`--auto-approve-high-cost` flag is an explicit operator policy choice for
+unattended campaigns, not evidence that the method is scientifically valid.
 
 ## Moving an admitted queue to the background
 

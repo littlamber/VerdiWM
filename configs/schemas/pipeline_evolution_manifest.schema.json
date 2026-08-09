@@ -22,6 +22,16 @@
     "max_iterations": {"type": "integer", "minimum": 0},
     "poll_seconds": {"type": "number", "minimum": 0},
     "total_budget_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+    "resource_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_trial_gpu_hours", "high_trial_limit", "require_high_cost_approval"],
+      "properties": {
+        "max_trial_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+        "high_trial_limit": {"type": "integer", "minimum": 0},
+        "require_high_cost_approval": {"type": "boolean"}
+      }
+    },
     "max_failures": {"type": "integer", "minimum": 1},
     "max_no_information": {"type": "integer", "minimum": 1},
     "failure_count": {"type": "integer", "minimum": 0},

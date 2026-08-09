@@ -42,6 +42,9 @@ def run_diagnostic_probe(
     lock_root: Path,
     budget_db: Path | None = None,
     budget_total_gpu_hours: float | None = None,
+    budget_max_trial_gpu_hours: float = 120.0,
+    budget_high_trial_limit: int = 2,
+    budget_require_high_cost_approval: bool = True,
     retrieval_db: Path | None = None,
 ) -> dict[str, object]:
     """Run or resume one probe, then optionally publish it to retrieval."""
@@ -86,6 +89,9 @@ def run_diagnostic_probe(
         lock_root=Path(lock_root),
         budget_db=Path(budget_db) if budget_db is not None else None,
         budget_total_gpu_hours=budget_total_gpu_hours,
+        budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
+        budget_high_trial_limit=budget_high_trial_limit,
+        budget_require_high_cost_approval=budget_require_high_cost_approval,
     )
     receipt_path = Path(str(execution["receipt_path"])).resolve(strict=True)
     receipt = _load_json(receipt_path, "DIAGNOSTIC_PROBE_RECEIPT_INVALID")

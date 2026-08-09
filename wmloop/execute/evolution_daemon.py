@@ -67,6 +67,9 @@ class EvolutionDaemonOptions:
     lock_root: Path = Path("/tmp/verdiwm-gpu-leases")
     budget_db: Path | None = None
     total_budget_gpu_hours: float = 1.0
+    budget_max_trial_gpu_hours: float = 120.0
+    budget_high_trial_limit: int = 2
+    budget_require_high_cost_approval: bool = True
     retrieval_db: Path | None = None
     literature_query: str | None = None
     literature_max_results: int = 8
@@ -158,6 +161,11 @@ def run_evolution_daemon(
                 lock_root=options.lock_root,
                 budget_db=options.budget_db,
                 budget_total_gpu_hours=options.total_budget_gpu_hours,
+                budget_max_trial_gpu_hours=options.budget_max_trial_gpu_hours,
+                budget_high_trial_limit=options.budget_high_trial_limit,
+                budget_require_high_cost_approval=(
+                    options.budget_require_high_cost_approval
+                ),
                 probe_contract=materialized["probe_contract"],
                 retrieval_db=options.retrieval_db,
                 literature_query=options.literature_query,
@@ -511,6 +519,9 @@ def _validate_options(options: EvolutionDaemonOptions) -> None:
         or options.batch_size < 1
         or options.inner_max_cycles < 1
         or options.inner_max_attempts < 1
+        or not math.isfinite(options.budget_max_trial_gpu_hours)
+        or options.budget_max_trial_gpu_hours <= 0
+        or options.budget_high_trial_limit < 0
     ):
         raise EvolutionDaemonError("EVOLUTION_ARGUMENT_INVALID")
 
@@ -590,12 +601,33 @@ def _input_document(options: EvolutionDaemonOptions) -> dict[str, object]:
         "literature_max_results": options.literature_max_results,
         "literature_timeout_seconds": options.literature_timeout_seconds,
         "total_budget_gpu_hours": options.total_budget_gpu_hours,
+        **_nondefault_resource_policy(options),
         "poll_seconds": options.poll_seconds,
         "max_iterations": options.max_iterations,
         "max_failures": options.max_failures,
         "max_no_information": options.max_no_information,
         "batch_size": options.batch_size,
         "inner_max_attempts": options.inner_max_attempts,
+    }
+
+
+def _nondefault_resource_policy(
+    options: EvolutionDaemonOptions,
+) -> dict[str, object]:
+    if (
+        options.budget_max_trial_gpu_hours == 120.0
+        and options.budget_high_trial_limit == 2
+        and options.budget_require_high_cost_approval
+    ):
+        return {}
+    return {
+        "resource_policy": {
+            "max_trial_gpu_hours": options.budget_max_trial_gpu_hours,
+            "high_trial_limit": options.budget_high_trial_limit,
+            "require_high_cost_approval": (
+                options.budget_require_high_cost_approval
+            ),
+        }
     }
 
 
@@ -650,6 +682,13 @@ def _load_state(
         "max_iterations": options.max_iterations,
         "poll_seconds": options.poll_seconds,
         "total_budget_gpu_hours": options.total_budget_gpu_hours,
+        "resource_policy": {
+            "max_trial_gpu_hours": options.budget_max_trial_gpu_hours,
+            "high_trial_limit": options.budget_high_trial_limit,
+            "require_high_cost_approval": (
+                options.budget_require_high_cost_approval
+            ),
+        },
         "max_failures": options.max_failures,
         "max_no_information": options.max_no_information,
         "failure_count": 0,
@@ -815,6 +854,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases"))
     parser.add_argument("--budget-db", type=Path)
     parser.add_argument("--total-budget-gpu-hours", type=float, required=True)
+    parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)
+    parser.add_argument("--budget-high-trial-limit", type=int, default=2)
+    parser.add_argument("--auto-approve-high-cost", action="store_true")
     parser.add_argument("--retrieval-db", type=Path)
     parser.add_argument("--literature-query")
     parser.add_argument("--poll-seconds", type=float, default=60.0)
@@ -841,6 +883,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
                 total_budget_gpu_hours=args.total_budget_gpu_hours,
+                budget_max_trial_gpu_hours=args.budget_max_trial_gpu_hours,
+                budget_high_trial_limit=args.budget_high_trial_limit,
+                budget_require_high_cost_approval=(
+                    not args.auto_approve_high_cost
+                ),
                 retrieval_db=args.retrieval_db,
                 literature_query=args.literature_query,
                 poll_seconds=args.poll_seconds,

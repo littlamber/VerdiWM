@@ -254,6 +254,7 @@ def _input_document(
         "lock_root": str(Path(options.lock_root).expanduser().resolve()),
         "budget_db": _optional_path(options.budget_db),
         "budget_total_gpu_hours": options.budget_total_gpu_hours,
+        **_nondefault_resource_policy(options),
         "probe_contract": str(probe) if probe is not None else None,
         "probe_contract_sha256": (
             _sha256(probe.read_bytes()) if probe is not None else None
@@ -263,6 +264,26 @@ def _input_document(
         "literature_max_results": options.literature_max_results,
         "literature_timeout_seconds": options.literature_timeout_seconds,
         "max_attempts": max_attempts,
+    }
+
+
+def _nondefault_resource_policy(
+    options: AutonomousPipelineOptions,
+) -> dict[str, object]:
+    if (
+        options.budget_max_trial_gpu_hours == 120.0
+        and options.budget_high_trial_limit == 2
+        and options.budget_require_high_cost_approval
+    ):
+        return {}
+    return {
+        "resource_policy": {
+            "max_trial_gpu_hours": options.budget_max_trial_gpu_hours,
+            "high_trial_limit": options.budget_high_trial_limit,
+            "require_high_cost_approval": (
+                options.budget_require_high_cost_approval
+            ),
+        }
     }
 
 
@@ -519,6 +540,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--budget-db", type=Path)
     parser.add_argument("--budget-total-gpu-hours", type=float)
+    parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)
+    parser.add_argument("--budget-high-trial-limit", type=int, default=2)
+    parser.add_argument("--auto-approve-high-cost", action="store_true")
     parser.add_argument("--probe-contract", type=Path)
     parser.add_argument("--retrieval-db", type=Path)
     parser.add_argument("--literature-query")
@@ -545,6 +569,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     lock_root=args.lock_root,
                     budget_db=args.budget_db,
                     budget_total_gpu_hours=args.budget_total_gpu_hours,
+                    budget_max_trial_gpu_hours=args.budget_max_trial_gpu_hours,
+                    budget_high_trial_limit=args.budget_high_trial_limit,
+                    budget_require_high_cost_approval=(
+                        not args.auto_approve_high_cost
+                    ),
                     probe_contract=args.probe_contract,
                     retrieval_db=args.retrieval_db,
                     literature_query=args.literature_query,
