@@ -39,6 +39,8 @@ its modest savings are retained as a system limitation rather than hidden.
 | Exact r31 semantic portability | The same typed CPBE action-embedding program compiles and executes on Ctrl-World and Cosmos3; bounded responses are small and mixed, so repair benefit and transfer remain unestablished |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Universal model onboarding | Read-only repository/runtime/entrypoint/asset discovery and declarative sidecar generation implemented; conformance execution is the next admission boundary |
+| Evidence graph projection | Read-only deterministic graph of campaigns, models, probes, primitives, trials, receipts, verdicts, certificates, and provenance implemented |
+| Controlled self-evolution daemon | Candidate strategies, literature staging, bounded iterations, budget/lease gates, no-information stop, and resumable execution implemented; autonomous quality promotion remains prohibited |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |
 | Autonomous atlas evolution validated on new backbones | Research work in progress |
@@ -105,6 +107,49 @@ campaign ceiling. `verdiwm-auto-scheduler run` executes only that queue and
 advances a candidate through `screen -> gate -> confirm` after a prior-stage
 `PASS`; generic receipts remain exploratory until a backbone-specific verifier
 promotes them into optimization memory.
+
+The controlled self-evolution loop can actively generate new hypotheses from
+diagnostic signatures, bounded strategy mutations, prior retrieval, and the
+optional literature staging layer. It materializes immutable iteration inputs,
+runs the normal onboarding/conformance/diagnostic/screen/gate/confirm chain,
+and stops on budget exhaustion, repeated failures, or no new diagnostic
+information. It can be resumed after interruption:
+
+```bash
+uv run verdiwm-evolution-daemon /path/to/model \
+  --output-root /path/to/verdiwm-runs/evolution \
+  --state-root /path/to/verdiwm-state/evolution \
+  --evaluator-contract /path/to/evaluator.json \
+  --probe-contract /path/to/probe.json \
+  --total-budget-gpu-hours 10 \
+  --batch-size 2 --max-iterations 20 \
+  --literature-query "world model temporal consistency"
+```
+
+This is deliberately controlled self-evolution: generated ideas are
+shadow/canary candidates until their receipts and frozen verifiers settle.
+The daemon cannot edit the active model checkout, bypass protected metrics, or
+turn an unverified idea into a transfer claim.
+
+To build a queryable evidence-graph projection from any run root (including
+evolution and campaign outputs):
+
+```bash
+uv run verdiwm-evidence-graph /path/to/verdiwm-runs /path/to/verdiwm-state/evidence-graph
+```
+
+The resulting `graph.json` is rebuildable and provenance-bound; source
+receipts/CAS objects remain authoritative.
+
+To consume confirmed execution requests from the Campaign API, run the
+dispatcher alongside the API. It atomically claims pending manifests and then
+delegates to the existing evolution or campaign daemon:
+
+```bash
+uv run verdiwm-campaign-dispatcher \
+  --state-root /path/to/verdiwm-state/campaign-api \
+  --poll-seconds 10 --max-cycles 1440
+```
 
 For a queue that must remain active on a shared GPU server, use the resumable
 campaign daemon. It gives every candidate a stable worker directory, shares one
@@ -178,6 +223,19 @@ uv run verdiwm-onboard /path/to/model \
 
 The sidecar is written next to the model repository. It records blockers and
 keeps `optimization_launch_allowed=false` until conformance passes.
+
+For integrations that need a service boundary, the dependency-free Campaign
+API exposes the same durable control-plane intent used by the CLI. It records
+requests under a separate state root and never launches GPU work directly:
+
+```bash
+uv run verdiwm-campaign-api --state-root /path/to/verdiwm-state/campaigns
+```
+
+The initial endpoints are `POST /v1/campaigns`, `GET /v1/campaigns/{id}`,
+`POST /v1/campaigns/{id}/confirm`, `POST /v1/campaigns/{id}/cancel`, and
+`POST /v1/campaigns/{id}/reproduce`. See `wmloop/control/campaign_api.py` for
+the versioned request and state contract.
 
 GPU execution is adapter-specific. ACWM-Phys data and checkpoints are not
 redistributed here; follow the upstream projects and then pass their roots to

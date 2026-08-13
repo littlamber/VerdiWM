@@ -53,6 +53,9 @@ verdiwm-evolution-daemon = "wmloop.execute.evolution_daemon:main"
 verdiwm-literature-search = "wmloop.retrieve.literature:main"
 verdiwm-literature-method-stage = "wmloop.retrieve.method_staging:main"
 verdiwm-campaign-daemon = "wmloop.execute.campaign_daemon:main"
+verdiwm-campaign-api = "wmloop.control.campaign_api:main"
+verdiwm-evidence-graph = "wmloop.experiments.evidence_graph:main"
+verdiwm-campaign-dispatcher = "wmloop.control.campaign_dispatcher:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]
