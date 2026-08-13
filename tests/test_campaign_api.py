@@ -53,6 +53,20 @@ def test_campaign_rejects_invalid_requests(tmp_path: Path):
         thread.join(timeout=2)
 
 
+def test_campaign_list_filters_status(tmp_path: Path):
+    server, thread = _server(tmp_path)
+    try:
+        _request(server, "POST", "/v1/campaigns", {"campaign_id": "a", "goal": "one"})
+        _request(server, "POST", "/v1/campaigns", {"campaign_id": "b", "goal": "two"})
+        _request(server, "POST", "/v1/campaigns/a/confirm", {})
+        status, payload = _request(server, "GET", "/v1/campaigns?status=confirmed")
+        assert status == 200
+        assert [item["campaign_id"] for item in payload["items"]] == ["a"]
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+
 def test_confirm_with_execution_contract_creates_durable_dispatch(tmp_path: Path):
     server, thread = _server(tmp_path)
     try:

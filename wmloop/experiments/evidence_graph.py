@@ -11,7 +11,9 @@ import argparse
 import hashlib
 import json
 import os
+import sqlite3
 import tempfile
+from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -74,6 +76,8 @@ class EvidenceGraph:
             if isinstance(item.get("evidence"), set):
                 item["evidence"] = sorted(item["evidence"])
             edges.append(item)
+        kind_counts = Counter(str(item["kind"]) for item in nodes)
+        relation_counts = Counter(str(item["relation"]) for item in edges)
         return {
             "schema_version": 1,
             "artifact_type": "verdiwm-evidence-graph",
@@ -82,6 +86,8 @@ class EvidenceGraph:
             "source_count": source_count,
             "node_count": len(nodes),
             "edge_count": len(edges),
+            "node_kind_counts": dict(sorted(kind_counts.items())),
+            "relation_counts": dict(sorted(relation_counts.items())),
             "claim_boundary": (
                 "This is a provenance-preserving projection. Only source artifacts that "
                 "declare settled or verified state can create verified evidence edges."
@@ -91,7 +97,11 @@ class EvidenceGraph:
         }
 
 
-def build_evidence_graph(input_root: Path) -> dict[str, Any]:
+def build_evidence_graph(
+    input_root: Path,
+    *,
+    archive_db: Path | None = None,
+) -> dict[str, Any]:
     root = Path(input_root).expanduser().resolve()
     if not root.is_dir() or root.is_symlink():
         raise EvidenceGraphError("EVIDENCE_GRAPH_INPUT_INVALID")
@@ -109,7 +119,48 @@ def build_evidence_graph(input_root: Path) -> dict[str, Any]:
                 continue
             source_count += 1
             _project_document(graph, payload, source=str(path), ordinal=index)
+    if archive_db is not None:
+        source_count += _project_archive(graph, Path(archive_db).expanduser().resolve())
     return graph.document(input_root=root, source_count=source_count)
+
+
+def _project_archive(graph: EvidenceGraph, archive_db: Path) -> int:
+    if not archive_db.is_file() or archive_db.is_symlink():
+        raise EvidenceGraphError("EVIDENCE_GRAPH_ARCHIVE_INVALID")
+    source = str(archive_db)
+    try:
+        connection = sqlite3.connect(f"file:{archive_db}?mode=ro", uri=True)
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            "SELECT trial_id, proposal_id, goal_id, library_version, failure_context_ref, verdict_ref, receipt_ref, settlement_json FROM trials ORDER BY trial_id"
+        ).fetchall()
+    except sqlite3.Error as exc:
+        raise EvidenceGraphError("EVIDENCE_GRAPH_ARCHIVE_READ_FAILED") from exc
+    finally:
+        try:
+            connection.close()
+        except (NameError, UnboundLocalError):
+            pass
+    for ordinal, row in enumerate(rows):
+        payload: dict[str, Any] = {
+            "artifact_type": "verdiwm-archive-settled-trial",
+            "trial_id": row["trial_id"],
+            "proposal_id": row["proposal_id"],
+            "goal_id": row["goal_id"],
+            "library_version": row["library_version"],
+            "failure_context_ref": row["failure_context_ref"],
+            "verdict_ref": row["verdict_ref"],
+            "receipt_ref": row["receipt_ref"],
+            "settlement_state": "settled",
+        }
+        try:
+            settlement = json.loads(str(row["settlement_json"]))
+        except (TypeError, json.JSONDecodeError):
+            settlement = {}
+        if isinstance(settlement, Mapping):
+            payload["settlement"] = settlement
+        _project_document(graph, payload, source=source, ordinal=ordinal)
+    return len(rows)
 
 
 def _load_payloads(path: Path) -> list[Any]:
@@ -172,10 +223,19 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
             "certificate_status": "has_certificate",
         }[field]
         graph.edge(root, relation, child, evidence=source)
-    if payload.get("settlement_state") == "settled" or payload.get("state") in {"settled", "verified", "ready"}:
+    settlement = payload.get("settlement")
+    settlement_state = settlement.get("state") if isinstance(settlement, Mapping) else None
+    if payload.get("settlement_state") == "settled" or settlement_state == "settled" or payload.get("verification_state") in {"settled", "verified"}:
         verified = graph.node("verified_evidence", f"{artifact}:{identity}:{ordinal}", source=source, artifact_type=artifact)
         graph.edge(root, "provides_verified_evidence", verified, evidence=source)
-    if payload.get("certificate_status") == "licensed" or payload.get("status") == "licensed":
+    licensed_certificate = (
+        payload.get("certificate_status") == "licensed"
+        and payload.get("stage") == "confirm"
+    ) or (
+        payload.get("artifact_type") == "verdiwm-transfer-certificate"
+        and payload.get("status") == "licensed"
+    )
+    if licensed_certificate:
         licensed = graph.node("transfer_license", f"{artifact}:{identity}:{ordinal}", source=source, status="licensed")
         graph.edge(root, "licenses_transfer", licensed, evidence=source)
     for field, relation in (("evidence_refs", "cites_evidence"), ("source_map_ids", "derived_from"), ("parent_campaign_id", "reproduces")):
@@ -190,15 +250,24 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
                 graph.edge(root, relation, child, evidence=source)
 
 
-def write_evidence_graph(*, input_root: Path, output_root: Path) -> dict[str, Any]:
+def write_evidence_graph(
+    *,
+    input_root: Path,
+    output_root: Path,
+    archive_db: Path | None = None,
+) -> dict[str, Any]:
     destination = Path(output_root).expanduser().resolve()
+    source_root = Path(input_root).expanduser().resolve()
+    if destination == source_root or source_root in destination.parents:
+        raise EvidenceGraphError("EVIDENCE_GRAPH_OUTPUT_OVERLAPS_INPUT")
     destination.mkdir(mode=0o700, parents=True, exist_ok=True)
-    report = build_evidence_graph(input_root)
+    report = build_evidence_graph(input_root, archive_db=archive_db)
     temporary = Path(tempfile.mkdtemp(prefix=".evidence-graph-", dir=destination))
     try:
         (temporary / "graph.json").write_bytes(_canonical(report) + b"\n")
         (temporary / "manifest.json").write_bytes(_canonical({k: report[k] for k in ("schema_version", "artifact_type", "state", "source_count", "node_count", "edge_count", "claim_boundary")}) + b"\n")
-        for name in ("graph.json", "manifest.json"):
+        _write_index(temporary / "graph.db", report)
+        for name in ("graph.json", "graph.db", "manifest.json"):
             os.replace(temporary / name, destination / name)
     finally:
         try:
@@ -206,6 +275,73 @@ def write_evidence_graph(*, input_root: Path, output_root: Path) -> dict[str, An
         except OSError:
             pass
     return report
+
+
+def _write_index(path: Path, report: Mapping[str, Any]) -> None:
+    connection = sqlite3.connect(path)
+    try:
+        connection.execute("PRAGMA journal_mode=DELETE")
+        connection.execute("PRAGMA synchronous=FULL")
+        connection.executescript(
+            """
+            CREATE TABLE nodes (
+                id TEXT PRIMARY KEY NOT NULL,
+                kind TEXT NOT NULL,
+                key TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            );
+            CREATE INDEX nodes_kind_key ON nodes(kind, key);
+            CREATE TABLE edges (
+                id TEXT PRIMARY KEY NOT NULL,
+                source TEXT NOT NULL,
+                relation TEXT NOT NULL,
+                target TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            );
+            CREATE INDEX edges_relation ON edges(relation);
+            CREATE INDEX edges_source ON edges(source);
+            CREATE INDEX edges_target ON edges(target);
+            CREATE TABLE metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+            """
+        )
+        connection.executemany(
+            "INSERT INTO nodes(id, kind, key, payload_json) VALUES (?, ?, ?, ?)",
+            [
+                (
+                    str(row["id"]),
+                    str(row["kind"]),
+                    str(row["key"]),
+                    _canonical(row).decode(),
+                )
+                for row in report["nodes"]
+            ],
+        )
+        connection.executemany(
+            "INSERT INTO edges(id, source, relation, target, payload_json) VALUES (?, ?, ?, ?, ?)",
+            [
+                (
+                    str(row["id"]),
+                    str(row["source"]),
+                    str(row["relation"]),
+                    str(row["target"]),
+                    _canonical(row).decode(),
+                )
+                for row in report["edges"]
+            ],
+        )
+        connection.executemany(
+            "INSERT INTO metadata(key, value) VALUES (?, ?)",
+            [
+                ("schema_version", str(report["schema_version"])),
+                ("artifact_type", str(report["artifact_type"])),
+                ("node_count", str(report["node_count"])),
+                ("edge_count", str(report["edge_count"])),
+            ],
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    os.chmod(path, 0o600)
 
 
 def query_evidence_graph(
@@ -222,6 +358,9 @@ def query_evidence_graph(
 
     path = Path(graph_path).expanduser().resolve()
     if path.is_dir():
+        index_path = path / "graph.db"
+        if index_path.is_file() and not index_path.is_symlink():
+            return _query_index(index_path, entity=entity, filters=filters)
         path = path / "graph.json"
     if not path.is_file() or path.is_symlink():
         raise EvidenceGraphError("EVIDENCE_GRAPH_NOT_FOUND")
@@ -257,10 +396,74 @@ def query_evidence_graph(
     }
 
 
+def _query_index(
+    path: Path,
+    *,
+    entity: str,
+    filters: Mapping[str, str] | None,
+) -> dict[str, Any]:
+    if entity not in {"nodes", "edges"}:
+        raise EvidenceGraphError("EVIDENCE_GRAPH_ENTITY_INVALID")
+    allowed = (
+        {"id", "kind", "key"}
+        if entity == "nodes"
+        else {"id", "source", "relation", "target"}
+    )
+    supplied = filters or {}
+    normalized = {
+        str(key): str(value)
+        for key, value in supplied.items()
+        if key not in {"limit", "offset"}
+    }
+    unsupported = sorted(set(normalized) - allowed)
+    if unsupported:
+        raise EvidenceGraphError(
+            f"EVIDENCE_GRAPH_FILTER_INVALID:{','.join(unsupported)}"
+        )
+    try:
+        offset = max(0, int(supplied.get("offset", "0")))
+        limit = min(1000, max(1, int(supplied.get("limit", "100"))))
+    except (TypeError, ValueError) as exc:
+        raise EvidenceGraphError("EVIDENCE_GRAPH_PAGING_INVALID") from exc
+    clauses = [f"{name} = ?" for name in sorted(normalized)]
+    values = [normalized[name] for name in sorted(normalized)]
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    try:
+        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        total = int(
+            connection.execute(
+                f"SELECT COUNT(*) FROM {entity}{where}", values
+            ).fetchone()[0]
+        )
+        rows = connection.execute(
+            f"SELECT payload_json FROM {entity}{where} ORDER BY id LIMIT ? OFFSET ?",
+            [*values, limit, offset],
+        ).fetchall()
+    except sqlite3.Error as exc:
+        raise EvidenceGraphError("EVIDENCE_GRAPH_INDEX_READ_FAILED") from exc
+    finally:
+        try:
+            connection.close()
+        except (NameError, UnboundLocalError):
+            pass
+    return {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-evidence-graph-query",
+        "entity": entity,
+        "filters": normalized,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "items": [json.loads(str(row[0])) for row in rows],
+        "query_backend": "sqlite",
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build a VerdiWM evidence graph projection")
     parser.add_argument("input_root", type=Path)
     parser.add_argument("output_root", type=Path)
+    parser.add_argument("--archive-db", type=Path)
     args = parser.parse_args()
-    print(json.dumps(write_evidence_graph(input_root=args.input_root, output_root=args.output_root), sort_keys=True))
+    print(json.dumps(write_evidence_graph(input_root=args.input_root, output_root=args.output_root, archive_db=args.archive_db), sort_keys=True))
     return 0

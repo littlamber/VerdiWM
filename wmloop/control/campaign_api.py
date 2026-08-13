@@ -112,6 +112,23 @@ class CampaignStore:
             raise CampaignAPIError("CAMPAIGN_NOT_FOUND")
         return json.loads(path.read_text(encoding="utf-8"))
 
+    def list(self, *, status: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        if limit < 1 or limit > 1000:
+            raise CampaignAPIError("CAMPAIGN_LIMIT_INVALID")
+        if status is not None and status not in _TRANSITIONS:
+            raise CampaignAPIError("STATUS_INVALID")
+        rows: list[dict[str, Any]] = []
+        for path in sorted(self.root.glob("*.json")):
+            if path.is_symlink() or not path.is_file():
+                continue
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(record, dict) and (status is None or record.get("status") == status):
+                rows.append(record)
+        return rows[:limit]
+
     def transition(self, campaign_id: str, status: str) -> dict[str, Any]:
         if status not in _TRANSITIONS:
             raise CampaignAPIError("STATUS_INVALID")
@@ -287,6 +304,22 @@ class _Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         parts = parsed.path.rstrip("/").split("/")
+        if parsed.path == "/v1/campaigns":
+            try:
+                query = parse_qs(parsed.query)
+                limit = int(query.get("limit", ["100"])[-1])
+                status = query.get("status", [None])[-1]
+                self._json(
+                    HTTPStatus.OK,
+                    {
+                        "schema_version": SCHEMA_VERSION,
+                        "artifact_type": "verdiwm-campaign-list",
+                        "items": self.store.list(status=status, limit=limit),
+                    },
+                )
+            except (CampaignAPIError, ValueError) as exc:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
         if len(parts) == 4 and parts[1:3] == ["v1", "campaigns"]:
             try:
                 self._json(HTTPStatus.OK, self.store.get(parts[3]))
