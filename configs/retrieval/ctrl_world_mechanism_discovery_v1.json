@@ -1,0 +1,44 @@
+{
+  "symptom_description": "Ctrl-World shows context-local sign reversals in the effect of old visual anchors: retaining the first frame helps some rollout contexts, harms others, and should be abstained from in a third group. The official training path uses uniformly corrupted teacher history and does not learn state-dependent history trust under generated-history exposure.",
+  "failure_signatures": [
+    "context_local_anchor_sign_flip",
+    "train_infer_history_mismatch",
+    "long_horizon_visual_drift"
+  ],
+  "target_metrics": [
+    "heldout_long_horizon_prediction_quality",
+    "action_following",
+    "task_success"
+  ],
+  "protected_metrics": [
+    "short_horizon_prediction_quality",
+    "background_stability",
+    "action_sensitivity"
+  ],
+  "available_hooks": [
+    "history_latent_input",
+    "first_frame_condition_latent",
+    "action_cross_attention",
+    "diffusion_training_objective",
+    "generated_rollout_history"
+  ],
+  "model_family": "Ctrl-World action-conditioned spatiotemporal U-Net latent video diffusion",
+  "seed_arxiv_ids": [
+    "2506.08009v2",
+    "2407.01392v4",
+    "2502.06764v2",
+    "1610.09038v1",
+    "2408.14837v2",
+    "2107.10043v3",
+    "2309.03058v4",
+    "2312.00752v2",
+    "1410.5401v2"
+  ],
+  "cross_domain_lenses": [
+    "belief state estimation confidence gated signed innovation update",
+    "adaptive memory retention forgetting state dependent routing",
+    "online system identification uncertainty and regime switching",
+    "robust control observation trust and estimator correction",
+    "recurrent neural memory selective write erase update"
+  ]
+}

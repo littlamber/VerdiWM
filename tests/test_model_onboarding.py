@@ -101,6 +101,47 @@ class ModelOnboardingTests(unittest.TestCase):
             )
             self.assertEqual(report["runtime"]["state"], "ready")
 
+    def test_declared_candidate_asset_is_bound_without_relaxing_unknown_flags(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            repo = _model_repo(parent / "model")
+            data_stat = parent / "stat.json"
+            data_stat.write_text('{"count": 1}\n', encoding="utf-8")
+
+            report = scan_repository(
+                OnboardingOptions(
+                    repo_root=repo,
+                    runtime_python=Path(sys.executable),
+                    asset_bindings=(("--data-stat-path", data_stat),),
+                    additional_asset_parameters=("--data-stat-path",),
+                    probe_imports=False,
+                )
+            )
+
+            binding = next(
+                row
+                for row in report["connector"]["asset_bindings"]
+                if row["parameter"] == "--data-stat-path"
+            )
+            self.assertEqual(binding["state"], "discovered")
+            self.assertEqual(binding["resolved_path"], str(data_stat))
+            self.assertFalse(binding["required_for_evaluator"])
+
+            with self.assertRaisesRegex(
+                OnboardingError,
+                "ASSET_BINDING_PARAMETER_UNKNOWN:--undeclared-path",
+            ):
+                scan_repository(
+                    OnboardingOptions(
+                        repo_root=repo,
+                        asset_bindings=(("--undeclared-path", data_stat),),
+                        additional_asset_parameters=("--data-stat-path",),
+                        probe_imports=False,
+                    )
+                )
+
     def test_complete_bindings_stop_at_conformance_boundary(self) -> None:
         with TemporaryDirectory() as temporary:
             parent = Path(temporary)

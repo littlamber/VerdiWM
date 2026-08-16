@@ -1,0 +1,63 @@
+{
+  "symptom_description": "A frozen multiscale Ctrl-World adapter learned useful nonzero corrections, but its point-valued local route alternated between all-abstain collapse and harmful execution when coverage was forced. Mean rollout error improved while terminal interaction error and the long-horizon slope regressed. The next trainable mechanism must represent the distribution and uncertainty of each local arm's future regret, preserve zero correction as a baseline policy, and update the adapter only when a nonzero arm has conservative evidence of improvement.",
+  "failure_signatures": [
+    "point_value_counterfactual_route_miscalibration",
+    "all_abstain_or_harmful_overexecution_collapse",
+    "coverage_constraint_without_safe_policy_improvement",
+    "mean_return_gain_with_terminal_tail_regression",
+    "local_arm_value_uncertainty_not_represented",
+    "zero_identity_arm_not_used_as_uncertain_state_baseline"
+  ],
+  "target_metrics": [
+    "heldout_final_interaction_l1",
+    "heldout_horizon_l1_slope",
+    "counterfactual_policy_value",
+    "harmful_route_rate",
+    "risk_coverage_curve",
+    "arm_value_quantile_calibration",
+    "local_route_precision_recall"
+  ],
+  "protected_metrics": [
+    "heldout_mean_l1",
+    "official_checkpoint_predictive_function",
+    "zero_route_identity",
+    "action_sensitivity",
+    "short_horizon_prediction_quality"
+  ],
+  "available_hooks": [
+    "frozen_unet_multiscale_features",
+    "zero_initialized_multiscale_side_residuals",
+    "paired_negative_zero_positive_counterfactual_rollouts",
+    "per_interaction_future_regret_targets",
+    "terminal_interaction_loss",
+    "horizon_error_slope",
+    "adapter_only_gradient_path",
+    "development_context_calibration_split"
+  ],
+  "model_family": "Ctrl-World action-conditioned spatiotemporal U-Net latent video diffusion with a frozen official backbone, a trainable multiscale history side adapter, and an interaction-local counterfactual correction policy",
+  "seed_arxiv_ids": [
+    "1612.01474v2",
+    "1707.06887v6",
+    "1710.10044v2",
+    "1712.06924v2",
+    "1910.02600v2",
+    "2006.04779v3",
+    "2208.02814v4",
+    "2212.13629v1",
+    "2506.07469v1",
+    "2202.03673v2",
+    "2502.01459v2",
+    "1702.02896v6",
+    "2407.01392v4"
+  ],
+  "cross_domain_lenses": [
+    "distributional return modeling quantile regression tail risk",
+    "predictive epistemic uncertainty deep ensembles value routing",
+    "safe policy improvement baseline bootstrapping under uncertainty",
+    "conservative offline value learning prevent action value overestimation",
+    "individual treatment effect prediction interval sign confidence",
+    "conformal expected and quantile risk control",
+    "partial sequence local execution over frozen predictor",
+    "terminal weighted temporal credit assignment"
+  ]
+}

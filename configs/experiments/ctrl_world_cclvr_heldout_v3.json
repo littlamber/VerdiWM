@@ -1,0 +1,244 @@
+{
+  "action_jobs": [
+    {
+      "cell_id": "d4",
+      "gpu": 0,
+      "id": "d4-seed-101",
+      "output_rel": "action_sensitivity/d4/seed-101",
+      "seed": 101
+    },
+    {
+      "cell_id": "d4",
+      "gpu": 1,
+      "id": "d4-seed-202",
+      "output_rel": "action_sensitivity/d4/seed-202",
+      "seed": 202
+    },
+    {
+      "cell_id": "d4",
+      "gpu": 2,
+      "id": "d4-seed-303",
+      "output_rel": "action_sensitivity/d4/seed-303",
+      "seed": 303
+    }
+  ],
+  "artifact_type": "verdiwm-ctrl-world-cclvr-heldout-plan-v2",
+  "cells": [
+    {
+      "cclvr_policy_temperature": 0.1,
+      "cclvr_value_hidden_dim": 128,
+      "checkpoint": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/ablation-screen-64-v2/screen/d1-episode_level_three_arm_value_policy/checkpoint-64.pt",
+      "checkpoint_sha256": "55b51f1c9ab795139783ca3d786ad685da140bd9d75904bd61b4f97352e71724",
+      "id": "d1",
+      "name": "episode_level_three_arm_value_policy",
+      "route_scope": "episode",
+      "supervision_bank": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/direct-local-value-ablation-banks-v2/episode_suffix_mean.json",
+      "supervision_bank_sha256": "c0fafe269cf7e255d5b1ada0fb4a7bca11c32a4e272e2c9f5944ac4c7b212bb5",
+      "supervision_variant": "episode_suffix_mean"
+    },
+    {
+      "cclvr_policy_temperature": 0.1,
+      "cclvr_value_hidden_dim": 128,
+      "checkpoint": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/ablation-screen-64-v2/screen/d2-episode_level_value_policy_with_coverage_dual/checkpoint-64.pt",
+      "checkpoint_sha256": "a34add841bac76d314352ffcec2e86ee2dba2f9275b2492c9192735cc0cde08e",
+      "id": "d2",
+      "name": "episode_level_value_policy_with_coverage_dual",
+      "route_scope": "episode",
+      "supervision_bank": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/direct-local-value-ablation-banks-v2/episode_suffix_mean.json",
+      "supervision_bank_sha256": "c0fafe269cf7e255d5b1ada0fb4a7bca11c32a4e272e2c9f5944ac4c7b212bb5",
+      "supervision_variant": "episode_suffix_mean"
+    },
+    {
+      "cclvr_policy_temperature": 0.1,
+      "cclvr_value_hidden_dim": 128,
+      "checkpoint": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/ablation-screen-64-v2/screen/d3-interaction_local_value_policy_with_coverage_dual/checkpoint-64.pt",
+      "checkpoint_sha256": "dcd07d6b2e10616a1b2f5fcf7c5971095f50b5ad03c99572ac8db2cae6c747fb",
+      "id": "d3",
+      "name": "interaction_local_value_policy_with_coverage_dual",
+      "route_scope": "interaction",
+      "supervision_bank": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/direct-local-value-ablation-banks-v2/interaction_suffix_mean.json",
+      "supervision_bank_sha256": "56079ee0729567b73ccff75c67420e84dad2df12ffb52b989e20862cf1f16c27",
+      "supervision_variant": "interaction_suffix_mean"
+    },
+    {
+      "cclvr_policy_temperature": 0.1,
+      "cclvr_value_hidden_dim": 128,
+      "checkpoint": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/ablation-screen-64-v2/screen/d4-interaction_local_terminal_horizon_value_policy/checkpoint-64.pt",
+      "checkpoint_sha256": "d2027aa616fc341d5379907eaa3b7e5f7d74dab645130adaf56c007666d590d5",
+      "id": "d4",
+      "name": "interaction_local_terminal_horizon_value_policy",
+      "route_scope": "interaction",
+      "supervision_bank": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/direct-local-value-ablation-banks-v2/interaction_terminal_horizon.json",
+      "supervision_bank_sha256": "5bf8c371a2e299b85f6bd12f53ce334a8ba25f017e469fc1e8c9767b77a94369",
+      "supervision_variant": "interaction_terminal_horizon"
+    }
+  ],
+  "claim_boundary": "One independently held-out episode with three paired seeds supports local mechanism screening only. It does not establish dataset-wide generalization, publication-level novelty, or RSI.",
+  "confirmation_authorized": false,
+  "context_id": "droid-1799-start-8",
+  "contexts_json": "/path/to/VerdiWM/configs/probes/ctrl_world_fshc_heldout_contexts_v1.json",
+  "contexts_sha256": "42081e63d030b8499391e2de3e588a9592019fcf4a789d21b08af9721a6240bc",
+  "dependencies": {
+    "adapter_source": "/path/to/Ctrl-World/models/multiscale_history_adapter.py",
+    "adapter_source_sha256": "50e9fdba825871a7767afc3d00e58ded5d66f12b6c1902fd2d0a22622d7fcf43",
+    "aggregator": "/path/to/VerdiWM/scripts/aggregate_ctrl_world_cclvr_heldout_v1.py",
+    "aggregator_sha256": "d480f58167b3793ef57d76cc2c141f6f355d82f77187b416608316a7a259dd71",
+    "base_evaluator": "/path/to/VerdiWM/scripts/run_ctrl_world_local_fingerprint_probe.py",
+    "base_evaluator_sha256": "6ffdb197b335e98f80c5c06bce5fbcd849144256bb8d7c3ca353db6d920edc79",
+    "clip_model_path": "/path/to/model/ctrl-world/clip-vit-base-patch32",
+    "ctrl_world_root": "/path/to/Ctrl-World",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "evaluator": "/path/to/VerdiWM/scripts/evaluate_ctrl_world_cclvr_heldout_v1.py",
+    "evaluator_sha256": "2c18e651de8ae9b62f595c570a8ec17b01d8372d321d722ed133ee3bd9e87eec",
+    "launcher": "/path/to/VerdiWM/scripts/run_ctrl_world_cclvr_heldout_v1.py",
+    "launcher_sha256": "25f5b464f8a835b955411e960286bd958e704a6bb69356c8b7b010c553fb8de5",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "svd_model_path": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid"
+  },
+  "experiment_id": "ctrl-world-cclvr-heldout-screen-64-v3",
+  "local_return": {
+    "definition": "For interaction i and arm a, loss_i(a) is weighted suffix mean L1 plus terminal final-frame L1 plus suffix horizon-L1 slope. Value_i(a) is loss_i(zero)-loss_i(a).",
+    "minimum_benefit": 0.01,
+    "prefix_identity_tolerance": 1e-06,
+    "suffix_horizon_l1_slope_weight": 2.0,
+    "suffix_mean_l1_weight": 1.0,
+    "terminal_interaction_l1_weight": 2.0
+  },
+  "objective": "Test whether the repaired complete-residual CCLVR mechanism improves held-out autoregressive replay through cached hard negative-zero-positive multiscale routing.",
+  "operator_repair": "Route times signed dose scales the complete projected residual, including projection bias; zero dose is exact identity and signed endpoints are exact opposites.",
+  "output_root": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/heldout-screen-64-v3",
+  "promotion_episode": "1799",
+  "promotion_episode_usage": "evaluation_only_forbidden_from_training_labels_coverage_calibration_and_method_selection",
+  "promotion_gate": {
+    "fail_action": "Do not extend CCLVR training. Settle the failed axis and return to mechanism retrieval or redesign.",
+    "maximum_harmful_routing_rate": 0.1,
+    "maximum_policy_brier": 0.15579411994527886,
+    "minimum_action_sensitivity_ratio": 0.9,
+    "minimum_paired_seed_wins": 2,
+    "pass_action": "Retain D4 as the current local mechanism primitive only. Do not create or launch a 512-step confirmation plan.",
+    "quality_thresholds": {
+      "final_interaction_l1": 7.532397111256917,
+      "horizon_l1_slope": 0.9482283910115566,
+      "mean_l1": 6.308339913686116
+    },
+    "required_cross_cell_checks": [
+      "D4 final interaction L1 and horizon slope both beat D3",
+      "D2 coverage calibration beats D1 without increasing harmful routing"
+    ],
+    "zero_identity_tolerance": 1e-06
+  },
+  "protocol": {
+    "action_definition": "D4 learned cached routing is held fixed while action-encoder embeddings are scaled by -0.1, 0, and 0.1.",
+    "action_doses": [
+      -0.1,
+      0.0,
+      0.1
+    ],
+    "arm_doses": [
+      -0.99,
+      0.0,
+      0.99
+    ],
+    "endpoint_definition": "Fixed local endpoints pass adapter_scale_override directly. Negative and positive affect only the selected interaction; zero directly forces all multiscale residuals to zero.",
+    "interact_num": 4,
+    "num_inference_steps": 4,
+    "route_definition": "Select the hard arm on the first denoising invocation and cache its canonical dose for the route scope. D1-D2 cache once per episode; D3-D4 cache once per interaction.",
+    "routing_rollouts_per_seed_cell": 10
+  },
+  "references": {
+    "a0_action_result": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/action_sensitivity/a0/result.json",
+    "a0_action_result_sha256": "4122f756347216510d29f15bd6c7514fdbdbc4eec0e4a4a02031734af7d02284",
+    "cbma_report": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/heldout-evaluation-report.json",
+    "cbma_report_sha256": "b634ca908afba0c44acf3c1ba3756a28a72bf50136396072016e9686dd53e5c9"
+  },
+  "routing_jobs": [
+    {
+      "cell_id": "d1",
+      "gpu": 0,
+      "id": "d1-shard-a",
+      "output_rel": "routing/d1/shard-a",
+      "seeds": [
+        101,
+        202
+      ]
+    },
+    {
+      "cell_id": "d1",
+      "gpu": 1,
+      "id": "d1-shard-b",
+      "output_rel": "routing/d1/shard-b",
+      "seeds": [
+        303
+      ]
+    },
+    {
+      "cell_id": "d2",
+      "gpu": 2,
+      "id": "d2-shard-a",
+      "output_rel": "routing/d2/shard-a",
+      "seeds": [
+        101,
+        202
+      ]
+    },
+    {
+      "cell_id": "d2",
+      "gpu": 3,
+      "id": "d2-shard-b",
+      "output_rel": "routing/d2/shard-b",
+      "seeds": [
+        303
+      ]
+    },
+    {
+      "cell_id": "d3",
+      "gpu": 4,
+      "id": "d3-shard-a",
+      "output_rel": "routing/d3/shard-a",
+      "seeds": [
+        101,
+        202
+      ]
+    },
+    {
+      "cell_id": "d3",
+      "gpu": 5,
+      "id": "d3-shard-b",
+      "output_rel": "routing/d3/shard-b",
+      "seeds": [
+        303
+      ]
+    },
+    {
+      "cell_id": "d4",
+      "gpu": 6,
+      "id": "d4-shard-a",
+      "output_rel": "routing/d4/shard-a",
+      "seeds": [
+        101,
+        202
+      ]
+    },
+    {
+      "cell_id": "d4",
+      "gpu": 7,
+      "id": "d4-shard-b",
+      "output_rel": "routing/d4/shard-b",
+      "seeds": [
+        303
+      ]
+    }
+  ],
+  "schema_version": 2,
+  "seeds": [
+    101,
+    202,
+    303
+  ],
+  "source_training_plan": "/path/to/Ctrl-World/configs/cclvr_ablation_screen_v2.json",
+  "source_training_plan_sha256": "146890461a7fee5ae08e16c00d82e40d8908482a1ecea84ec0de6924bbacaddf",
+  "source_training_settlement": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/ablation-screen-64-v2/TRAINING_SETTLEMENT.json",
+  "source_training_settlement_sha256": "9822e6a13d239114aee186a89217adcdc5d9ae0d595ae2d28fb970c526ea8c16",
+  "state": "frozen_before_execution"
+}

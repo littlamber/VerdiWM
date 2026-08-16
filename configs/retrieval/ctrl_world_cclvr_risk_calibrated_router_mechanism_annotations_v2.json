@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-reviewed-mechanism-annotations",
+  "annotations": {
+    "1612.01474v3": {
+      "axes": {
+        "state_representation": ["ensemble_predictive_distribution", "epistemic_uncertainty"],
+        "conditioning_path": ["parallel_predictor_ensemble"],
+        "update_operator": ["independently_initialized_ensemble_training"],
+        "reliability_routing": ["predictive_uncertainty_estimation"],
+        "training_distribution": ["shared_supervised_examples_across_ensemble"],
+        "learning_signal": ["proper_predictive_scoring_rule"],
+        "gradient_path": ["independent_model_gradients"],
+        "inference_transition": ["ensemble_predictive_aggregation"]
+      },
+      "evidence_excerpts": [
+        "We propose an alternative to Bayesian NNs that is simple to implement, readily parallelizable, requires very little hyperparameter tuning, and yields high quality predictive uncertainty estimates."
+      ],
+      "requirements": [
+        "Ctrl-World must train independently initialized or bootstrapped local arm-value predictors rather than duplicate a deterministic head after training.",
+        "Ensemble disagreement must be calibrated against held-out paired arm outcomes before it can gate execution."
+      ],
+      "failure_boundaries": [
+        "An ensemble estimates epistemic uncertainty but does not by itself define an asymmetric harmful-routing objective or improve the adapter residual."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly presents independently trainable, parallelizable predictors as a practical source of predictive uncertainty."
+    },
+    "1707.06887v1": {
+      "axes": {
+        "state_representation": ["return_distribution"],
+        "conditioning_path": ["state_action_value_distribution_head"],
+        "update_operator": ["distributional_value_update"],
+        "reliability_routing": ["risk_sensitive_return_route"],
+        "training_distribution": ["stochastic_transition_returns"],
+        "learning_signal": ["distributional_return_loss"],
+        "gradient_path": ["value_distribution_head"],
+        "inference_transition": ["action_selection_from_return_distribution"]
+      },
+      "evidence_excerpts": [
+        "In this paper we argue for the fundamental importance of the value distribution : the distribution of the random return received by a reinforcement learning agent.",
+        "This is in contrast to the common approach to reinforcement learning which models the expectation of this return, or value ."
+      ],
+      "requirements": [
+        "Each negative, zero, and positive Ctrl-World correction arm needs multiple future-regret observations or a justified empirical return distribution.",
+        "The routing rule must state which part of the return distribution represents harmful terminal and horizon risk."
+      ],
+      "failure_boundaries": [
+        "Distributional value learning can be unstable in control and is not a finite-sample safety guarantee for an unseen rollout context."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly replaces expected return with the full return distribution and connects that representation to risk-aware behavior."
+    },
+    "1710.10044v1": {
+      "axes": {
+        "state_representation": ["return_quantiles"],
+        "conditioning_path": ["quantile_value_head"],
+        "update_operator": ["quantile_distribution_projection"],
+        "reliability_routing": ["risk_sensitive_quantile_route"],
+        "training_distribution": ["sampled_long_term_returns"],
+        "learning_signal": ["quantile_regression_loss"],
+        "gradient_path": ["value_distribution_head"],
+        "inference_transition": ["action_selection_from_quantile_return"]
+      },
+      "evidence_excerpts": [
+        "Traditionally, reinforcement learning algorithms average over this randomness to estimate the value function.",
+        "In this paper, we build on recent work advocating a distributional approach to reinforcement learning in which the distribution over returns is modeled explicitly instead of only estimating the mean."
+      ],
+      "requirements": [
+        "The local value bank must retain per-seed or bootstrap future-regret samples instead of collapsing them into one mean label.",
+        "Quantiles must be evaluated for calibration and ordering separately for every correction arm."
+      ],
+      "failure_boundaries": [
+        "Quantile regression models observed return variability but requires an additional treatment-specific uncertainty or calibration rule under context shift."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines quantile regression as a way to model a long-term return distribution instead of its mean."
+    },
+    "1712.06924v5": {
+      "axes": {
+        "state_representation": ["baseline_policy", "state_action_uncertainty"],
+        "conditioning_path": ["baseline_bootstrap_gate"],
+        "update_operator": ["uncertainty_constrained_policy_update"],
+        "reliability_routing": ["fallback_to_baseline_under_uncertainty"],
+        "training_distribution": ["fixed_offline_transition_dataset"],
+        "learning_signal": ["safe_policy_improvement_bound"],
+        "gradient_path": ["batch_policy_optimizer"],
+        "inference_transition": ["learned_policy_or_baseline"]
+      },
+      "evidence_excerpts": [
+        "This paper considers Safe Policy Improvement (SPI) in Batch Reinforcement Learning (Batch RL): from a fixed dataset and without direct access to the true environment, train a policy that is guaranteed to perform at least as well as the baseline policy used to collect the data.",
+        "Our approach, called SPI with Baseline Bootstrapping (SPIBB), is inspired by the knows-what-it-knows paradigm: it bootstraps the trained policy with the baseline when the uncertainty is high."
+      ],
+      "requirements": [
+        "Zero correction must be the explicit baseline arm and remain exactly identical to the official Ctrl-World predictor.",
+        "The uncertainty set and minimum support rule must be frozen from development-only local arm outcomes."
+      ],
+      "failure_boundaries": [
+        "SPIBB guarantees rely on a batch-RL setting and cannot be transferred as a theorem to a finite, non-Markov video-rollout bank; target-side promotion remains empirical."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines a trainable batch policy that falls back to its data-collection baseline in high-uncertainty states."
+    },
+    "2212.13629v1": {
+      "axes": {
+        "state_representation": ["loss_quantile", "high_loss_event"],
+        "conditioning_path": ["heldout_quantile_calibration"],
+        "update_operator": ["quantile_risk_calibration"],
+        "reliability_routing": ["high_loss_probability_bound"],
+        "training_distribution": ["heldout_calibration_examples"],
+        "learning_signal": ["tail_probability_constraint"],
+        "gradient_path": ["posthoc_calibration_only"],
+        "inference_transition": ["tail_risk_bounded_selection"]
+      },
+      "evidence_excerpts": [
+        "Rigorous guarantees about the performance of predictive algorithms are necessary in order to ensure their responsible use.",
+        "Previous work has largely focused on bounding the expected loss of a predictor, but this is not sufficient in many risk-sensitive applications where the distribution of errors is important."
+      ],
+      "requirements": [
+        "The high-loss event must be defined by terminal interaction regression, harmful local routing, or horizon-slope regression rather than mean L1 alone.",
+        "Quantile-risk calibration data must remain development-only and preserve per-context grouping."
+      ],
+      "failure_boundaries": [
+        "Tail-risk calibration certifies a selection rule but does not supply gradients that make the corrector's nonzero arms more useful."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly argues that expected-loss bounds are inadequate for high-loss events and motivates quantile risk control."
+    }
+  }
+}

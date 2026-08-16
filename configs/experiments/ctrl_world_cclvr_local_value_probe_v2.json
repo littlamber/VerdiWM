@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-cclvr-local-value-campaign",
+  "state": "frozen_before_execution",
+  "campaign_id": "ctrl_world_cclvr_direct_local_value_probe_v2",
+  "candidate": {
+    "path": "configs/primitives/ctrl_world_coverage_constrained_local_value_router_v1.json",
+    "sha256": "df332d0eb5c2dd1acaec1038014e74ddd8342bbca188d9372866cc83783b59a2"
+  },
+  "objective": "Re-measure interaction-local negative, zero, and positive values with direct post-projection adapter scaling after the zero-arm semantics repair.",
+  "hypothesis": "The repaired direct operator retains non-degenerate negative, zero, and positive development support without projection-bias leakage through the zero arm.",
+  "falsification_criterion": "Training remains blocked if any arm has fewer than four best-arm labels, any zero route emits a nonzero residual, any negative endpoint is not the signed counterpart of the positive operator, or any local intervention changes a pre-target interaction.",
+  "checkpoint": {
+    "role": "Frozen C3 multiscale adapter weights interpreted by the repaired complete-residual scale operator",
+    "path": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/ablation-screen-64-v2/screen/c3-multiscale_adapter_counterfactual_benefit_route/checkpoint-64.pt",
+    "sha256": "91bdc308eea7d5bcde63303cb4e47475536197a4208998f0d450653f9ef87b62"
+  },
+  "contexts": {
+    "path": "configs/probes/ctrl_world_cclvr_development_contexts_v1.json",
+    "sha256": "da964e6184992ffdc871593ed3a554ff05fac5c37333f1d37e796c25253f0b2e",
+    "context_count": 16,
+    "identity_count": 48,
+    "promotion_episode_forbidden": "1799"
+  },
+  "protocol": {
+    "mode": "frozen_replay_with_direct_post_projection_interaction_local_multiscale_dose",
+    "interact_num": 4,
+    "num_inference_steps": 4,
+    "paired_seeds_per_context": 3,
+    "doses": [-0.99, 0.0, 0.99],
+    "target_interactions": [0, 1, 2, 3],
+    "fshc_dose_mode": "normalized_mechanism",
+    "zero_reference_mode": "probe-zero",
+    "expected_local_decision_count": 192,
+    "expected_rollouts_per_identity": 9,
+    "operator_source": "/path/to/Ctrl-World/models/multiscale_history_adapter.py",
+    "operator_source_sha256": "50e9fdba825871a7767afc3d00e58ded5d66f12b6c1902fd2d0a22622d7fcf43",
+    "invariants": [
+      "scale is applied to the complete projected residual, including projection bias and future-frame bias",
+      "zero dose produces exact zero residuals on every invocation",
+      "negative and positive direct endpoints are signed operator counterparts",
+      "negative and positive doses activate only at the selected interaction",
+      "all pre-target interaction L1 values remain equal to the zero trajectory",
+      "runtime features come only from the direct zero-dose trajectory",
+      "episode 1799 is absent from features, labels, calibration, coverage selection, and training"
+    ]
+  },
+  "local_return": {
+    "definition": "For interaction i and arm a, loss_i(a) is weighted suffix mean L1 plus terminal-interaction final-frame L1 plus suffix horizon-L1 slope. Value_i(a) is loss_i(zero)-loss_i(a).",
+    "suffix_mean_l1_weight": 1.0,
+    "terminal_interaction_l1_weight": 2.0,
+    "suffix_horizon_l1_slope_weight": 2.0,
+    "minimum_benefit": 0.01,
+    "target_rule": "Choose the higher-value nonzero arm only when its value is at least 0.01; otherwise choose zero."
+  },
+  "data_admission": {
+    "required_before_training": true,
+    "prefix_identity_tolerance": 1e-6,
+    "minimum_best_arm_support": {
+      "negative": 4,
+      "zero": 4,
+      "positive": 4
+    },
+    "coverage_definition": "Fraction of repaired direct local decisions whose oracle target is a nonzero arm.",
+    "coverage_interval": "two-sided Wilson score interval",
+    "coverage_wilson_z": 1.96,
+    "failure_action": "Do not retrain D1-D4. Return to mechanism redesign or expand development-only endpoints."
+  },
+  "execution": {
+    "gpus": 8,
+    "contexts_per_gpu": 2,
+    "gpu_assignments": [
+      {"gpu": 0, "context_ids": ["droid-199-start-0", "droid-199-start-4"]},
+      {"gpu": 1, "context_ids": ["droid-199-start-8", "droid-899-start-12"]},
+      {"gpu": 2, "context_ids": ["droid-899-start-0", "droid-899-start-52"]},
+      {"gpu": 3, "context_ids": ["droid-899-start-32", "droid-899-start-80"]},
+      {"gpu": 4, "context_ids": ["droid-899-start-64", "droid-18599-start-8"]},
+      {"gpu": 5, "context_ids": ["droid-18599-start-0", "droid-18599-start-12"]},
+      {"gpu": 6, "context_ids": ["droid-18599-start-14", "droid-18599-start-20"]},
+      {"gpu": 7, "context_ids": ["droid-18599-start-40", "droid-18599-start-28"]}
+    ]
+  },
+  "dependencies": {
+    "ctrl_world_root": "/path/to/Ctrl-World",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "svd_model_path": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid",
+    "clip_model_path": "/path/to/model/ctrl-world/clip-vit-base-patch32",
+    "evaluator": "scripts/run_ctrl_world_direct_local_value_probe_v2.py",
+    "evaluator_sha256": "90e6e4b2b4f2667f99c27e1df5f51ea6ae62bc70ab5a2a8dba125f32d028534c",
+    "launcher": "scripts/run_ctrl_world_cclvr_local_value_probe.py",
+    "launcher_sha256": "da8189b30c154dd0ced347823fbcd3e0183a99e2793af40f8b780c74530cf144",
+    "materializer": "scripts/materialize_ctrl_world_cclvr_value_bank.py",
+    "materializer_sha256": "b188f65020cb32968348eaab85da1ca1059cc2937eb3187908a63dd3e7482750"
+  },
+  "artifact_policy": "Never overwrite outputs. Retain identity-bearing development shards only for audit and emit a separate anonymous training bank.",
+  "training_authority": "blocked_until_repaired_direct_data_admission_state_admitted",
+  "post_admission_authority": "Create and run a new D1-D4 64-step screen only. No 512-step confirmation is authorized.",
+  "claim_boundary": "Development-only operator repair and local counterfactual admission. It makes no held-out or dataset-level improvement claim."
+}

@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-reviewed-mechanism-annotations",
+  "annotations": {
+    "2302.05543v3": {
+      "axes": {
+        "state_representation": ["pretrained_diffusion_features", "external_control_condition"],
+        "conditioning_path": ["parallel_control_branch", "multi_depth_residual_injection"],
+        "update_operator": ["zero_initialized_residual_control"],
+        "reliability_routing": ["zero_initialized_coupling"],
+        "training_distribution": ["paired_control_condition_training"],
+        "learning_signal": ["diffusion_reconstruction_loss"],
+        "gradient_path": ["frozen_pretrained_backbone", "trainable_control_branch"],
+        "inference_transition": ["additive_conditioned_feature_residual"]
+      },
+      "evidence_excerpts": [
+        "ControlNet locks the production-ready large diffusion models, and reuses their deep and robust encoding layers pretrained with billions of images as a strong backbone to learn a diverse set of conditional controls. The neural architecture is connected with \u201czero convolutions\u201d (zero-initialized convolution layers) that progressively grow the parameters from zero and ensure that no harmful noise could affect the finetuning."
+      ],
+      "requirements": [
+        "The target diffusion backbone must expose intermediate features for a parallel residual branch.",
+        "The new branch must be trainable while the pretrained backbone remains frozen."
+      ],
+      "failure_boundaries": [
+        "Zero initialization protects the initial function but does not calibrate whether a history correction should be used in each rollout state."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly binds a locked diffusion backbone, a trainable control path, and zero-initialized residual coupling."
+    },
+    "2302.08453v2": {
+      "axes": {
+        "state_representation": ["pretrained_diffusion_features", "external_control_features"],
+        "conditioning_path": ["condition_specific_adapter_path"],
+        "update_operator": ["learned_adapter_feature_injection"],
+        "reliability_routing": ["none"],
+        "training_distribution": ["condition_specific_adapter_training"],
+        "learning_signal": ["conditional_generation_loss"],
+        "gradient_path": ["frozen_pretrained_backbone", "adapter_only"],
+        "inference_transition": ["composable_control_adapter"]
+      },
+      "evidence_excerpts": [
+        "Specifically, we propose to learn simple and lightweight T2I-Adapters to align internal knowledge in T2I models with external control signals, while freezing the original large T2I models."
+      ],
+      "requirements": [
+        "The target model must expose a feature interface where a lightweight adapter can inject external control information."
+      ],
+      "failure_boundaries": [
+        "A frozen control adapter isolates gradients but does not by itself define a signed history innovation or abstention target."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly states lightweight adapter training against a frozen generative backbone and external control signals."
+    },
+    "1912.13503v4": {
+      "axes": {
+        "state_representation": ["pretrained_base_output", "side_network_output"],
+        "conditioning_path": ["additive_side_network"],
+        "update_operator": ["base_side_output_summation"],
+        "reliability_routing": ["fixed_additive_fusion"],
+        "training_distribution": ["downstream_adaptation_data"],
+        "learning_signal": ["target_task_loss"],
+        "gradient_path": ["frozen_pretrained_base", "side_network_only"],
+        "inference_transition": ["additive_base_side_prediction"]
+      },
+      "evidence_excerpts": [
+        "Side-tuning adapts a pre-trained network by training a lightweight \u201cside\u201d network that is fused with the (unchanged) pre-trained network via summation."
+      ],
+      "requirements": [
+        "The pretrained predictor and a trainable side predictor must expose compatible outputs for additive fusion."
+      ],
+      "failure_boundaries": [
+        "Fixed summation does not provide context-dependent trust or guarantee that the side prediction improves a long-horizon rollout."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines an unchanged base network, a lightweight side network, and summation as the adaptation operator."
+    },
+    "1802.01483v2": {
+      "axes": {
+        "state_representation": ["pretrained_parameters", "adapted_parameters"],
+        "conditioning_path": ["none"],
+        "update_operator": ["start_point_proximal_finetuning"],
+        "reliability_routing": ["fixed_regularization_strength"],
+        "training_distribution": ["downstream_finetuning_data"],
+        "learning_signal": ["target_task_loss", "parameter_distance_to_pretrained"],
+        "gradient_path": ["full_model_with_pretrained_parameter_anchor"],
+        "inference_transition": ["proximally_adapted_backbone"]
+      },
+      "evidence_excerpts": [
+        "In this paper, we investigate several regularization schemes that explicitly promote the similarity of the final solution with the initial model."
+      ],
+      "requirements": [
+        "The exact pretrained parameter state must remain available as the proximal reference during adaptation."
+      ],
+      "failure_boundaries": [
+        "A parameter-space distance does not directly bound diffusion outputs and may protect irrelevant weights more strongly than important functions."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The paper explicitly defines adaptation regularizers around the pretrained starting point rather than ordinary weight decay."
+    },
+    "1606.09282v3": {
+      "axes": {
+        "state_representation": ["frozen_original_outputs", "adapted_model_outputs"],
+        "conditioning_path": ["teacher_output_targets"],
+        "update_operator": ["output_distillation_anti_forgetting"],
+        "reliability_routing": ["fixed_distillation_weight"],
+        "training_distribution": ["new_task_data_without_old_task_data"],
+        "learning_signal": ["new_task_loss", "original_output_preservation_loss"],
+        "gradient_path": ["frozen_original_teacher", "adapted_model"],
+        "inference_transition": ["single_adapted_model"]
+      },
+      "evidence_excerpts": [
+        "We propose our Learning without Forgetting method, which uses only new task data to train the network while preserving the original capabilities."
+      ],
+      "requirements": [
+        "The original frozen model must produce preservation targets on the adaptation data."
+      ],
+      "failure_boundaries": [
+        "Preserving old outputs can conflict with a desired correction unless the protected and improvable function regions are separated."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly states learning from new data while preserving the original model capabilities."
+    },
+    "2109.01903v3": {
+      "axes": {
+        "state_representation": ["pretrained_weights", "finetuned_weights"],
+        "conditioning_path": ["none"],
+        "update_operator": ["weight_space_interpolation"],
+        "reliability_routing": ["fixed_interpolation_coefficient"],
+        "training_distribution": ["target_distribution_finetuning"],
+        "learning_signal": ["target_task_loss"],
+        "gradient_path": ["finetuned_model"],
+        "inference_transition": ["interpolated_pretrained_finetuned_weights"]
+      },
+      "evidence_excerpts": [
+        "We address this tension by introducing a simple and effective method for improving robustness while fine-tuning: ensembling the weights of the zero-shot and fine-tuned models (WiSE-FT)."
+      ],
+      "requirements": [
+        "The pretrained and fine-tuned checkpoints must share an identical parameterization for weight interpolation."
+      ],
+      "failure_boundaries": [
+        "Post-hoc weight interpolation is a conservative deployment baseline, not a learned modular correction mechanism."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines robustness preservation through pretrained and fine-tuned weight ensembling."
+    },
+    "2106.09685v2": {
+      "axes": {
+        "state_representation": ["frozen_pretrained_weights", "low_rank_parameter_delta"],
+        "conditioning_path": ["layerwise_low_rank_weight_path"],
+        "update_operator": ["additive_low_rank_parameter_update"],
+        "reliability_routing": ["none"],
+        "training_distribution": ["downstream_adaptation_data"],
+        "learning_signal": ["target_task_loss"],
+        "gradient_path": ["low_rank_matrices_only"],
+        "inference_transition": ["pretrained_weights_plus_low_rank_delta"]
+      },
+      "evidence_excerpts": [
+        "which freezes the pre-trained model weights and injects trainable rank decomposition matrices into each layer of the Transformer architecture"
+      ],
+      "requirements": [
+        "The target layers must admit an additive low-rank parameterization."
+      ],
+      "failure_boundaries": [
+        "Low rank limits trainable capacity but does not guarantee preservation of the pretrained predictive function."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly states frozen pretrained weights and trainable low-rank matrices inserted into each layer."
+    },
+    "1902.00751v2": {
+      "axes": {
+        "state_representation": ["pretrained_hidden_state", "adapter_bottleneck_state"],
+        "conditioning_path": ["layerwise_adapter_path"],
+        "update_operator": ["residual_bottleneck_adaptation"],
+        "reliability_routing": ["none"],
+        "training_distribution": ["downstream_task_data"],
+        "learning_signal": ["target_task_loss"],
+        "gradient_path": ["frozen_original_network", "adapter_only"],
+        "inference_transition": ["adapter_augmented_hidden_transition"]
+      },
+      "evidence_excerpts": [
+        "Adapter modules yield a compact and extensible model; they add only a few trainable parameters per task, and new tasks can be added without revisiting previous ones. The parameters of the original network remain fixed, yielding a high degree of parameter sharing."
+      ],
+      "requirements": [
+        "The target network must expose layer interfaces for compact residual adapter modules."
+      ],
+      "failure_boundaries": [
+        "Generic adapters isolate gradients but do not specify generated-history supervision, signed correction, or route calibration."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly states adapter-only trainable parameters with the original network fixed."
+    }
+  }
+}

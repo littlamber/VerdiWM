@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-cclvr-local-value-campaign",
+  "state": "frozen_before_execution",
+  "campaign_id": "ctrl_world_cclvr_local_value_probe_v1",
+  "candidate": {
+    "path": "configs/primitives/ctrl_world_coverage_constrained_local_value_router_v1.json",
+    "sha256": "df332d0eb5c2dd1acaec1038014e74ddd8342bbca188d9372866cc83783b59a2"
+  },
+  "objective": "Measure interaction-local negative, zero, and positive normalized multiscale correction values on all 16 frozen development contexts before any CCLVR optimizer step.",
+  "hypothesis": "The C3 multiscale adapter contains at least four interaction decisions best served by each of the negative, zero, and positive arms, allowing a non-degenerate three-arm local value policy to be trained.",
+  "falsification_criterion": "Training remains blocked if any arm has fewer than four best-arm interaction labels after the frozen 0.01 minimum-benefit rule, if any local intervention changes a pre-target interaction, or if any identity, source hash, hook, or zero-dose check fails.",
+  "checkpoint": {
+    "role": "frozen C3 multiscale adapter and failed nearest router mechanism",
+    "path": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/ablation-screen-64-v2/screen/c3-multiscale_adapter_counterfactual_benefit_route/checkpoint-64.pt",
+    "sha256": "91bdc308eea7d5bcde63303cb4e47475536197a4208998f0d450653f9ef87b62"
+  },
+  "contexts": {
+    "path": "configs/probes/ctrl_world_cclvr_development_contexts_v1.json",
+    "sha256": "da964e6184992ffdc871593ed3a554ff05fac5c37333f1d37e796c25253f0b2e",
+    "context_count": 16,
+    "identity_count": 48,
+    "promotion_episode_forbidden": "1799"
+  },
+  "protocol": {
+    "mode": "frozen_action_conditioned_replay_with_interaction_local_counterfactual_multiscale_dose",
+    "interact_num": 4,
+    "num_inference_steps": 4,
+    "paired_seeds_per_context": 3,
+    "doses": [-0.99, 0.0, 0.99],
+    "target_interactions": [0, 1, 2, 3],
+    "fshc_dose_mode": "normalized_mechanism",
+    "zero_reference_mode": "probe-zero",
+    "expected_local_decision_count": 192,
+    "expected_rollouts_per_identity": 10,
+    "invariants": [
+      "same C3 checkpoint, episode start, action trajectory, and seed across all paired arms",
+      "zero dose captured once per identity and reused as the explicit abstain arm for every interaction",
+      "negative and positive doses activate only at the selected interaction",
+      "all pre-target interaction L1 values remain equal to the zero trajectory",
+      "runtime features come only from the zero-dose trajectory",
+      "episode 1799 is absent from feature extraction, labels, calibration, coverage selection, and training"
+    ]
+  },
+  "local_return": {
+    "definition": "For interaction i and arm a, loss_i(a) is the weighted suffix mean L1 plus terminal-interaction final-frame L1 plus suffix horizon-L1 slope. Value_i(a) is loss_i(zero)-loss_i(a).",
+    "suffix_mean_l1_weight": 1.0,
+    "terminal_interaction_l1_weight": 2.0,
+    "suffix_horizon_l1_slope_weight": 2.0,
+    "minimum_benefit": 0.01,
+    "target_rule": "Choose the higher-value nonzero arm only when its value is at least 0.01; otherwise choose zero."
+  },
+  "data_admission": {
+    "required_before_training": true,
+    "prefix_identity_tolerance": 1e-6,
+    "minimum_best_arm_support": {
+      "negative": 4,
+      "zero": 4,
+      "positive": 4
+    },
+    "coverage_definition": "Fraction of admitted local decisions whose oracle target is a nonzero arm.",
+    "coverage_interval": "two-sided Wilson score interval",
+    "coverage_wilson_z": 1.96,
+    "failure_action": "Do not implement or train D1-D4. Expand development-only local probes or return to retrieval and mechanism redesign."
+  },
+  "execution": {
+    "gpus": 8,
+    "contexts_per_gpu": 2,
+    "gpu_assignments": [
+      {"gpu": 0, "context_ids": ["droid-199-start-0", "droid-199-start-4"]},
+      {"gpu": 1, "context_ids": ["droid-199-start-8", "droid-899-start-12"]},
+      {"gpu": 2, "context_ids": ["droid-899-start-0", "droid-899-start-52"]},
+      {"gpu": 3, "context_ids": ["droid-899-start-32", "droid-899-start-80"]},
+      {"gpu": 4, "context_ids": ["droid-899-start-64", "droid-18599-start-8"]},
+      {"gpu": 5, "context_ids": ["droid-18599-start-0", "droid-18599-start-12"]},
+      {"gpu": 6, "context_ids": ["droid-18599-start-14", "droid-18599-start-20"]},
+      {"gpu": 7, "context_ids": ["droid-18599-start-40", "droid-18599-start-28"]}
+    ]
+  },
+  "dependencies": {
+    "ctrl_world_root": "/path/to/Ctrl-World",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "svd_model_path": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid",
+    "clip_model_path": "/path/to/model/ctrl-world/clip-vit-base-patch32",
+    "evaluator": "scripts/run_ctrl_world_local_fingerprint_probe.py",
+    "evaluator_sha256": "6ffdb197b335e98f80c5c06bce5fbcd849144256bb8d7c3ca353db6d920edc79",
+    "launcher": "scripts/run_ctrl_world_cclvr_local_value_probe.py",
+    "launcher_sha256": "da8189b30c154dd0ced347823fbcd3e0183a99e2793af40f8b780c74530cf144",
+    "materializer": "scripts/materialize_ctrl_world_cclvr_value_bank.py",
+    "materializer_sha256": "b188f65020cb32968348eaab85da1ca1059cc2937eb3187908a63dd3e7482750"
+  },
+  "artifact_policy": "Never overwrite an output root. Retain identity-bearing shards only for audit. Emit a separate training bank with no context_id, episode_id, seed, or start_idx keys and hash all raw shards into the admission manifest.",
+  "training_authority": "blocked_until_data_admission_settlement_state_admitted",
+  "post_admission_authority": "Implement and run D1-D4 at 64 steps on eight GPUs only. No 512-step confirmation plan is authorized.",
+  "claim_boundary": "Development-only local counterfactual data admission. Passing licenses the frozen 64-step ablation screen; it does not establish held-out improvement, dataset-level generalization, publication-level novelty, or RSI."
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-fingerprint-campaign",
+  "campaign_id": "ctrl_world_fshc_signed_gain_probe_v1",
+  "objective": "Measure the local signed response of the exact FSHC inference operator on frozen Ctrl-World development replays and materialize direction or abstention evidence for training.",
+  "hypothesis": "Across three fixed seeds per development context, at least one context has a locally coherent nonzero FSHC signed-gain response whose weighted gain lower confidence bound supports a direction label; contexts that fail locality or confidence must abstain.",
+  "selection_reason": "The earlier one-seed canary proved hook identity and activation only. This is the minimum frozen multi-context, multi-seed frame that can estimate local response covariance without reading the held-out context.",
+  "falsification_criterion": "The campaign is invalid if any identity, zero-dose reference, hook activation, fixed action trajectory, checkpoint binding, dose symmetry, or seed repeat is missing; its direction hypothesis is rejected per context when locality or the predeclared gain lower bound fails.",
+  "estimated_gpu_hours": 1.2,
+  "dependencies": {
+    "ctrl_world_source": "/path/to/Ctrl-World",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "svd_model": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid",
+    "clip_model": "/path/to/model/ctrl-world/clip-vit-base-patch32"
+  },
+  "artifact_policy": "Retain every immutable identity shard, stdout/stderr log, GPU runtime receipt, merged result, input SHA256, zero-dose video, and response atlas; never overwrite an existing campaign directory.",
+  "context_set_ref": "configs/probes/ctrl_world_local_fingerprint_contexts_v1.json",
+  "checkpoint": "/path/to/model/ctrl-world/Ctrl-World/checkpoint-10000.pt",
+  "protocol": {
+    "mode": "frozen_action_conditioned_replay",
+    "interact_num": 4,
+    "num_inference_steps": 2,
+    "minimum_seed_repeats": 3,
+    "candidate_radius": 0.025,
+    "minimum_predicted_gain_lcb": 0.0,
+    "selector_confidence_distribution": "student_t_two_sided_95_percent_df_2",
+    "selector_confidence_critical_value": 4.303,
+    "threshold_freeze_timing": "Frozen after 2 of 9 development identity shards completed but before aggregation. Labels are development supervision only and are not preregistered effect evidence.",
+    "invariants": [
+      "same_official_checkpoint",
+      "same_episode_and_replay_start",
+      "same_action_trajectory",
+      "same_seed_per_paired_dose",
+      "same_decoder_and_predictive_metric",
+      "exact_fshc_operator_used_at_every_denoising_step",
+      "zero_dose_matches_unwrapped_reference"
+    ]
+  },
+  "probe_paths": [
+    {
+      "probe_id": "fshc_signed_history_gain",
+      "base_probe_family": "trainable_signed_history_correction",
+      "semantic_variable": "bounded_signed_history_correction_gain",
+      "transformation": "apply fixed gain d through h_i'=h_i+d*(current-h_i) using the exact norm-bounded FSHC operator",
+      "doses": [-0.025, 0.0, 0.025]
+    }
+  ],
+  "outcomes": [
+    {"name": "negative_mean_l1", "weight": 1.0, "description": "Negative mean RGB L1 over all replay interactions."},
+    {"name": "negative_final_interaction_l1", "weight": 2.0, "description": "Negative final interaction RGB L1."},
+    {"name": "negative_horizon_l1_slope", "weight": 2.0, "description": "Negative slope of interaction-level RGB L1; higher means less autoregressive drift."},
+    {"name": "mean_psnr", "weight": 1.0, "description": "Mean replay PSNR."},
+    {"name": "final_psnr", "weight": 1.0, "description": "Final interaction PSNR."}
+  ],
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "emit_abstain_label_for_context"
+  },
+  "claim_scope": "Mechanism-aligned fixed-dose FSHC response measurement on development contexts. It creates direction or abstention labels only; it is not trained-model improvement evidence.",
+  "formal_next_gate": "Freeze direction labels, train without episode IDs, and evaluate only on independently held-out contexts."
+}

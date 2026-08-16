@@ -15,7 +15,12 @@ from wmloop.geometry.evolution import (
 )
 from wmloop.geometry.assets import IRGChartSource, compose_irg_asset, validate_irg_asset
 from wmloop.geometry.irg import ResponseChart, estimate_response_chart, irg_distance
-from wmloop.geometry.memory import EffectContext, EffectMemory, EffectRecord
+from wmloop.geometry.memory import (
+    EffectContext,
+    EffectMemory,
+    EffectRecord,
+    build_transferable_experience,
+)
 from wmloop.geometry.transfer import TransferCertificate, evaluate_transfer_certificate
 from wmloop.geometry.types import (
     CapabilityProfile,
@@ -32,6 +37,7 @@ __all__ = [
     "EffectContext",
     "EffectMemory",
     "EffectRecord",
+    "build_transferable_experience",
     "GeometryValidationError",
     "InterventionDescriptor",
     "IRGChartSource",

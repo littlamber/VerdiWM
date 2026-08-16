@@ -5,6 +5,7 @@ __pycache__/
 .coverage
 .DS_Store
 .pytest_cache/
+.hypothesis/
 .ruff_cache/
 build/
 dist/

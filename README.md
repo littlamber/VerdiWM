@@ -1,5 +1,7 @@
 # VerdiWM
 
+[中文说明](README_zh.md)
+
 VerdiWM is an evidence-grounded research loop for diagnosing and repairing
 world models. It turns a user goal into a frozen evaluation contract, probes a
 model for failure mechanisms, compiles bounded intervention primitives into
@@ -20,6 +22,51 @@ operational closed-loop example.
 The release also includes a receipt-derived progressive-fidelity cost audit;
 its modest savings are retained as a system limitation rather than hidden.
 
+## Install and verify
+
+VerdiWM requires Python 3.10. The default CPU setup does not install the
+optional Torch runtime tests and does not require model weights or a GPU:
+
+```bash
+python -m pip install uv
+uv sync --group dev
+uv run verdiwm doctor
+uv run python scripts/export/validate_public_example.py \
+  examples/acwm_minimal_loop_cloth_next_forcing_v2
+```
+
+`doctor` fails closed when the Python version, packaged schemas, adapter
+profile, or lightweight mechanism ontology is missing or malformed. The
+public example validator verifies its complete immutable evidence manifest.
+
+## Run a campaign
+
+The user-facing entry point keeps the required request to model, data, goal,
+and budget. A versioned adapter profile resolves the evaluator, probe,
+runtime, assets, Archive, CAS, and scheduler contract:
+
+```bash
+uv run verdiwm run \
+  --model /path/to/model-checkout \
+  --data /path/to/data \
+  --goal "improve long-horizon action-conditioned prediction" \
+  --budget 8gpu-hour
+```
+
+`run` executes the confirmed campaign in the foreground. Use `--queue-only`
+when a separate dispatcher owns execution. The same state root supports:
+
+```bash
+uv run verdiwm status CAMPAIGN_ID
+uv run verdiwm cancel CAMPAIGN_ID
+uv run verdiwm reproduce CAMPAIGN_ID
+```
+
+Ctrl-World uses the checked-in `ctrl-world-predictive-v2` profile. Its local
+asset layout is discovered from relative paths or the documented
+`VERDIWM_CTRL_WORLD_*` environment bindings; no shared-host absolute path is
+embedded in the profile.
+
 ## What is implemented
 
 | Surface | Release status |
@@ -38,7 +85,7 @@ its modest savings are retained as a system limitation rather than hidden.
 | Counterexample-Guided Probe Basis Expansion | Probe DSL, residual/mutation/retrieval/LLM candidate synthesis, deterministic materialization, evidence-conditioned acquisition, and hash-bound successive halving implemented; ACWM-Phys r29/r30 are settled negative self-evolution traces with zero admitted candidates |
 | Exact r31 semantic portability | The same typed CPBE action-embedding program compiles and executes on Ctrl-World and Cosmos3; bounded responses are small and mixed, so repair benefit and transfer remain unestablished |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
-| Universal model onboarding | Read-only repository/runtime/entrypoint/asset discovery and declarative sidecar generation implemented; conformance execution is the next admission boundary |
+| Universal model onboarding | Four-field CLI, versioned adapter-profile resolution, read-only discovery, conformance, Campaign dispatch, cancellation, and reproduction implemented for the Ctrl-World golden path |
 | Evidence graph projection | Read-only deterministic graph of campaigns, models, probes, primitives, trials, receipts, verdicts, certificates, and provenance implemented |
 | Controlled self-evolution daemon | Candidate strategies, literature staging, bounded iterations, budget/lease gates, no-information stop, and resumable execution implemented; autonomous quality promotion remains prohibited |
 | Multi-seed causal replication of the bundled effect | Not established |
@@ -62,6 +109,10 @@ validation.
    maps explicit registry matches to ranking-only evidence and every unknown
    mechanism to a guarded next-version materialization work order and prompt
    packet bound to the isolated agent-staging contract.
+   The runtime path records a bounded evidence capsule; the full Evidence Graph
+   remains an on-demand audit projection rather than required loop state.
+   Mechanism discovery defaults to a recorded `light` complexity budget; the
+   broader cross-domain search is an explicit `full` mode.
 3. **Compile an intervention.** A semantic primitive is admitted only when the
    target backbone exposes the required hook and all invariants are checked.
 4. **Test progressively.** Cheap screens precede the frozen official gate and
@@ -141,6 +192,35 @@ uv run verdiwm-evidence-graph /path/to/verdiwm-runs /path/to/verdiwm-state/evide
 The resulting `graph.json` is rebuildable and provenance-bound; source
 receipts/CAS objects remain authoritative.
 
+Terminal Ctrl-World mechanism screens can be imported without upgrading them
+to promoted evidence:
+
+```bash
+uv run verdiwm import-settlements \
+  --input-root /path/to/ctrl-world-runs \
+  --archive-db /path/to/state/archive.db \
+  --cas-root /path/to/state/cas \
+  --output-root /path/to/state/settlement-import \
+  --allowed-root /path/to/Ctrl-World \
+  --allowed-root /path/to/VerdiWM \
+  --dry-run
+```
+
+Remove `--dry-run` only after every referenced report, plan, and receipt hash
+passes. Imported rows remain `exploratory`, never populate promoted cell
+priors, and retain their context-local claim boundary in the Evidence Graph.
+
+For adapter-backed campaigns, the method candidate compiler joins observed
+diagnostic signatures, typed literature methods, and imported terminal
+settlements before scheduling. Exact candidates that previously settled as
+not promoted remain negative constraints and cannot be silently replayed.
+Known methods enter the queue only when the adapter catalog binds every
+required hook, file, and bounded execution recipe; all other methods appear in
+`compiled/method-candidates/manifest.json` as explicit capability gaps. The
+Ctrl-World v2 profile currently compiles the frozen, inference-only anchor
+repair confirmation recipe and reports the conservative distributional
+residual policy as `ADAPTER_RECIPE_NOT_IMPLEMENTED`.
+
 To consume confirmed execution requests from the Campaign API, run the
 dispatcher alongside the API. It atomically claims pending manifests and then
 delegates to the existing evolution or campaign daemon:
@@ -159,12 +239,12 @@ receipt-first scheduler used by the foreground command:
 
 ```bash
 uv run verdiwm-campaign-daemon \
-  --queue /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1/queue.json \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/campaigns/cuda-v1 \
-  --workspace-root /share/project/hywu/wjy/VerdiWM \
-  --archive-db /share/project/hywu/wjy/verdiwm-state/archive/experience.db \
-  --cas-root /share/project/hywu/wjy/verdiwm-state/cas \
-  --budget-db /share/project/hywu/wjy/verdiwm-state/budgets/cuda-v1.db \
+  --queue /path/to/verdiwm-runs/auto-scheduler-cuda-plan-v1/queue.json \
+  --output-root /path/to/verdiwm-runs/campaigns/cuda-v1 \
+  --workspace-root /path/to/VerdiWM \
+  --archive-db /path/to/verdiwm-state/archive/experience.db \
+  --cas-root /path/to/verdiwm-state/cas \
+  --budget-db /path/to/verdiwm-state/budgets/cuda-v1.db \
   --budget-total-gpu-hours 0.03 \
   --max-parallel 2 --max-attempts-per-candidate 3 \
   --poll-seconds 60 --max-cycles 1440
@@ -182,13 +262,11 @@ starting a child process; the daemon records `deferred`, does not consume the
 candidate failure-attempt allowance, and retries on a later bounded cycle. No
 receipt or Archive trial is created until an experiment actually launches.
 
-## Quick start
+## CPU checks and onboarding
 
-VerdiWM's CPU control plane requires Python 3.10.
+Run the complete CPU control-plane gate before connecting model assets:
 
 ```bash
-python -m pip install uv
-uv sync --all-groups
 bash scripts/ci/check_control_plane.sh
 ```
 
@@ -210,8 +288,8 @@ Plan the checked-in scheduler canary without launching a GPU process:
 ```bash
 uv run verdiwm-auto-scheduler plan \
   --batch configs/smoke/auto_experiment_candidate_batch_cuda_v1.json \
-  --workspace-root /share/project/hywu/wjy/VerdiWM \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1
+  --workspace-root /path/to/VerdiWM \
+  --output-root /path/to/verdiwm-runs/auto-scheduler-cuda-plan-v1
 ```
 
 Discover an external model repository without modifying or executing it:
@@ -463,6 +541,18 @@ examples/                  small public evidence bundles
 docs/                      architecture and reproducibility notes
 ops/                       restricted container runtime assets
 ```
+
+## Release preflight
+
+From a clean, fully tracked checkout, build and audit the ModelScope/GitHub
+repository plus Python artifacts with:
+
+```bash
+scripts/ci/release_preflight.sh --output-dir dist/verdiwm-release
+```
+
+The release gate and post-upload clone check are documented in
+[the release checklist](docs/RELEASE_CHECKLIST.md).
 
 ## Model onboarding and exceptional plugins
 

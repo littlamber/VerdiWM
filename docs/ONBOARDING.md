@@ -171,15 +171,15 @@ The checked-in declarative contract and candidate template onboard Ctrl-World
 without a handwritten Python adapter:
 
 ```bash
-uv run verdiwm-run /share/project/hywu/wjy/Ctrl-World \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/ctrl-world-universal-loop-v3 \
-  --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
+uv run verdiwm-run /path/to/Ctrl-World \
+  --output-root /path/to/verdiwm-runs/ctrl-world-universal-loop-v3 \
+  --runtime-python /path/to/ctrl-world-env/bin/python \
   --evaluator-contract configs/onboarding/ctrl_world_replay_evaluator_v1.json \
-  --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
-  --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
-  --asset=--ckpt_path=/share/project/hywu/wjy/Ctrl-World/checkpoint-10000.pt \
-  --asset=--dataset_root_path=/share/project/hywu/wjy/Ctrl-World/dataset_example \
-  --asset=--dataset_meta_info_path=/share/project/hywu/wjy/Ctrl-World/dataset_meta_info \
+  --asset=--svd_model_path=/path/to/models/stable-video-diffusion-img2vid \
+  --asset=--clip_model_path=/path/to/models/clip-vit-base-patch32 \
+  --asset=--ckpt_path=/path/to/Ctrl-World/checkpoint-10000.pt \
+  --asset=--dataset_root_path=/path/to/Ctrl-World/dataset_example \
+  --asset=--dataset_meta_info_path=/path/to/Ctrl-World/dataset_meta_info \
   --no-import-probe
 ```
 
@@ -194,23 +194,23 @@ capacity. It invokes the same resumable pipeline transaction as `verdiwm-run`;
 it does not introduce a second evaluator or experiment path.
 
 ```bash
-nohup uv run verdiwm-run-daemon /share/project/hywu/wjy/Ctrl-World \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/ctrl-world-predictive-v1 \
-  --daemon-state-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/daemon \
-  --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
-  --evaluator-contract /share/project/hywu/wjy/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
-  --probe-contract /share/project/hywu/wjy/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
-  --retrieval-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/retrieval.db \
-  --archive-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/archive.db \
-  --cas-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/cas \
-  --budget-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/budget.db \
-  --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
-  --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
-  --asset=--ckpt_path=/share/project/hywu/wjy/Ctrl-World/checkpoint-10000.pt \
-  --asset=--dataset_root_path=/share/project/hywu/wjy/Ctrl-World/dataset_example \
-  --asset=--dataset_meta_info_path=/share/project/hywu/wjy/Ctrl-World/dataset_meta_info \
+nohup uv run verdiwm-run-daemon /path/to/Ctrl-World \
+  --output-root /path/to/verdiwm-runs/ctrl-world-predictive-v1 \
+  --daemon-state-root /path/to/verdiwm-state/ctrl-world-predictive-v1/daemon \
+  --runtime-python /path/to/ctrl-world-env/bin/python \
+  --evaluator-contract /path/to/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
+  --probe-contract /path/to/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
+  --retrieval-db /path/to/verdiwm-state/ctrl-world-predictive-v1/retrieval.db \
+  --archive-db /path/to/verdiwm-state/ctrl-world-predictive-v1/archive.db \
+  --cas-root /path/to/verdiwm-state/ctrl-world-predictive-v1/cas \
+  --budget-db /path/to/verdiwm-state/ctrl-world-predictive-v1/budget.db \
+  --asset=--svd_model_path=/path/to/models/stable-video-diffusion-img2vid \
+  --asset=--clip_model_path=/path/to/models/clip-vit-base-patch32 \
+  --asset=--ckpt_path=/path/to/Ctrl-World/checkpoint-10000.pt \
+  --asset=--dataset_root_path=/path/to/Ctrl-World/dataset_example \
+  --asset=--dataset_meta_info_path=/path/to/Ctrl-World/dataset_meta_info \
   --no-import-probe --poll-seconds 60 --max-cycles 1440 --max-attempts 3 \
-  > /share/project/hywu/wjy/verdiwm-state/ctrl-world-predictive-v1/daemon.log 2>&1 &
+  > /path/to/verdiwm-state/ctrl-world-predictive-v1/daemon.log 2>&1 &
 ```
 
 The daemon's `status.json` separates `deferral_count` from `error_count`.
@@ -237,27 +237,27 @@ the shared Archive/CAS/retrieval index and one global budget ledger remain the
 authoritative memory and resource boundary.
 
 ```bash
-nohup uv run verdiwm-evolution-daemon /share/project/hywu/wjy/Ctrl-World \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/ctrl-world-evolution \
-  --state-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution \
-  --evaluator-contract /share/project/hywu/wjy/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
-  --probe-contract /share/project/hywu/wjy/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
-  --retrieval-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/retrieval.db \
-  --archive-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/archive.db \
-  --cas-root /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/cas \
-  --budget-db /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/budget.db \
+nohup uv run verdiwm-evolution-daemon /path/to/Ctrl-World \
+  --output-root /path/to/verdiwm-runs/ctrl-world-evolution \
+  --state-root /path/to/verdiwm-state/ctrl-world-evolution \
+  --evaluator-contract /path/to/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
+  --probe-contract /path/to/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
+  --retrieval-db /path/to/verdiwm-state/ctrl-world-evolution/retrieval.db \
+  --archive-db /path/to/verdiwm-state/ctrl-world-evolution/archive.db \
+  --cas-root /path/to/verdiwm-state/ctrl-world-evolution/cas \
+  --budget-db /path/to/verdiwm-state/ctrl-world-evolution/budget.db \
   --total-budget-gpu-hours 24 \
   --budget-max-trial-gpu-hours 240 \
   --budget-high-trial-limit 8 --auto-approve-high-cost \
-  --runtime-python /root/miniconda3/envs/ctrl-world/bin/python3.11 \
-  --asset=--svd_model_path=/share/project/hywu/kyy/models/stable-video-diffusion-img2vid \
-  --asset=--clip_model_path=/share/project/hywu/kyy/models/clip-vit-base-patch32 \
-  --asset=--ckpt_path=/share/project/hywu/wjy/Ctrl-World/checkpoint-10000.pt \
-  --asset=--dataset_root_path=/share/project/hywu/wjy/Ctrl-World/dataset_example \
-  --asset=--dataset_meta_info_path=/share/project/hywu/wjy/Ctrl-World/dataset_meta_info \
+  --runtime-python /path/to/ctrl-world-env/bin/python \
+  --asset=--svd_model_path=/path/to/models/stable-video-diffusion-img2vid \
+  --asset=--clip_model_path=/path/to/models/clip-vit-base-patch32 \
+  --asset=--ckpt_path=/path/to/Ctrl-World/checkpoint-10000.pt \
+  --asset=--dataset_root_path=/path/to/Ctrl-World/dataset_example \
+  --asset=--dataset_meta_info_path=/path/to/Ctrl-World/dataset_meta_info \
   --no-import-probe --poll-seconds 60 --max-iterations 0 \
   --max-failures 3 --max-no-information 3 \
-  > /share/project/hywu/wjy/verdiwm-state/ctrl-world-evolution/daemon.log 2>&1 &
+  > /path/to/verdiwm-state/ctrl-world-evolution/daemon.log 2>&1 &
 ```
 
 `--max-iterations 0` means long-running, not unbounded resource usage: the

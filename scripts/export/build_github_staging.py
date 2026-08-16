@@ -33,11 +33,28 @@ ROOT_FILES = (
     ".gitignore",
     "CONTRIBUTING.md",
     "LICENSE",
+    "README_zh.md",
     "SECURITY.md",
     "pyproject.toml",
     "uv.lock",
 )
 PUBLIC_TREES = ("wmloop", "scripts", ".github", "ops")
+PUBLIC_DOC_FILES = (
+    "ARCHITECTURE.md",
+    "AUTO_EXPERIMENTS.md",
+    "BACKBONE_INSTANTIATION.md",
+    "COSMOS3_FORWARD_DYNAMICS.md",
+    "CPBE.md",
+    "EVIDENCE_CAPSULE.md",
+    "MECHANISM_DISCOVERY.md",
+    "METHOD_CANDIDATE_COMPILATION.md",
+    "METHOD_TO_CODE.md",
+    "ONBOARDING.md",
+    "RELEASE_CHECKLIST.md",
+    "REPRODUCIBILITY.md",
+    "TRANSFERABLE_EXPERIENCE.md",
+    "acwm_probe_evolution_r1.md",
+)
 PUBLIC_TEST_FILES = (
     "test_verdiwm_geometry.py",
     "test_acwm_unified_irg_assets.py",
@@ -127,6 +144,9 @@ PUBLIC_TEST_FILES = (
     "test_acwm_cloth_move_surface_fold_diagnostic_v1.py",
     "test_acwm_cloth_move_cloth_identity_drift_diagnostic_v1.py",
     "test_acwm_cloth_move_deformable_memory_diagnostic_v1.py",
+    "test_evidence_capsule.py",
+    "test_mechanism_discovery.py",
+    "test_transferable_experience.py",
 )
 COSMOS3_PUBLIC_EXAMPLES = (
     "cosmos3_target_local_irg_wide_v1",
@@ -138,7 +158,22 @@ COSMOS3_DIRECTIONAL_PUBLIC_EXAMPLE = "cosmos3_directional_probe_split_reversal_v
 COSMOS3_TRANSLATION_PUBLIC_EXAMPLE = "cosmos3_translation_locality_counterexample_v1"
 COSMOS3_TRANSLATION_NARROW_PUBLIC_EXAMPLE = "cosmos3_translation_narrow_split_reversal_v2"
 COSMOS3_INTERACTION_PUBLIC_EXAMPLE = "cosmos3_action_dimension_interaction_split_reversal_v4"
-CONFIG_TREES = ("constitution", "diagnose", "envs", "experiments", "goal", "loop", "probes", "references", "schemas", "smoke")
+CONFIG_TREES = (
+    "adapters",
+    "constitution",
+    "diagnose",
+    "envs",
+    "experiments",
+    "goal",
+    "loop",
+    "methods",
+    "primitives",
+    "probes",
+    "references",
+    "retrieval",
+    "schemas",
+    "smoke",
+)
 TEXT_SUFFIXES = {
     ".csv", ".json", ".jsonl", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
 }
@@ -158,7 +193,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
 
     temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
     try:
-        _copy_file(source / "README_PUBLIC.md", temporary / "README.md")
+        release_readme = source / "README_PUBLIC.md"
+        if not release_readme.is_file():
+            release_readme = source / "README.md"
+        _copy_file(release_readme, temporary / "README.md")
         for relative in ROOT_FILES:
             _copy_file(source / relative, temporary / relative)
         for tree in PUBLIC_TREES:
@@ -195,15 +233,27 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
         ):
             _copy_file(source / "configs" / name, temporary / "configs" / name)
         _copy_file(
-            source / "configs" / "backbones" / "acwm_phys_g1_long_horizon_ladder_public_v1.json",
+            _public_source(
+                source,
+                "configs/backbones/acwm_phys_g1_long_horizon_ladder_public_v1.json",
+                "configs/backbones/acwm_phys_g1_long_horizon_ladder_v1.json",
+            ),
             temporary / "configs" / "backbones" / "acwm_phys_g1_long_horizon_ladder_v1.json",
         )
         _copy_file(
-            source / "configs" / "backbones" / "ctrl_world_predictive_quality_public_v1.json",
+            _public_source(
+                source,
+                "configs/backbones/ctrl_world_predictive_quality_public_v1.json",
+                "configs/backbones/ctrl_world_predictive_quality_pilot_v1.json",
+            ),
             temporary / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v1.json",
         )
         _copy_file(
-            source / "configs" / "backbones" / "ctrl_world_g2_action_success_public_v1.json",
+            _public_source(
+                source,
+                "configs/backbones/ctrl_world_g2_action_success_public_v1.json",
+                "configs/backbones/ctrl_world_g2_action_success_pilot_v1.json",
+            ),
             temporary / "configs" / "backbones" / "ctrl_world_g2_action_success_pilot_v1.json",
         )
         _copy_file(
@@ -211,14 +261,22 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             temporary / "configs" / "backbones" / "ctrl_world_g2_dataset_freeze.json",
         )
         _copy_file(
-            source / "configs" / "backbones" / "cosmos3_forward_dynamics_predictive_public_v1.json",
+            _public_source(
+                source,
+                "configs/backbones/cosmos3_forward_dynamics_predictive_public_v1.json",
+                "configs/backbones/cosmos3_forward_dynamics_predictive_pilot_v1.json",
+            ),
             temporary / "configs" / "backbones" / "cosmos3_forward_dynamics_predictive_pilot_v1.json",
         )
         _copy_file(
             source / "configs" / "backbones" / "cosmos3_droid_lerobot_dataset_freeze_v1.json",
             temporary / "configs" / "backbones" / "cosmos3_droid_lerobot_dataset_freeze_v1.json",
         )
-        _copy_tree(source / "docs" / "public", temporary / "docs")
+        public_docs = source / "docs" / "public"
+        if public_docs.is_dir():
+            _copy_tree(public_docs, temporary / "docs")
+        for name in PUBLIC_DOC_FILES:
+            _copy_file(source / "docs" / name, temporary / "docs" / name)
         _copy_tree(source / "figures", temporary / "figures")
         _copy_tree(
             source / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2",
@@ -400,7 +458,9 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
 
 def audit_release_tree(root: Path) -> list[str]:
     findings: list[str] = []
-    host_prefixes = ("/" + "mnt" + "/", "/" + "root" + "/")
+    host_prefixes = tuple(
+        "/" + part + "/" for part in ("home", "mnt", "root", "Users")
+    ) + ("/" + "share" + "/project/",)
     secret_patterns = (
         re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
         re.compile(r"AKIA[0-9A-Z]{16}"),
@@ -557,6 +617,13 @@ def _copy_tree(source: Path, destination: Path) -> None:
             raise GithubStagingError(f"GITHUB_STAGING_SOURCE_SYMLINK:{source.name}/{relative}")
         if path.is_file():
             _copy_file(path, destination / relative)
+
+
+def _public_source(source_root: Path, preferred: str, released: str) -> Path:
+    preferred_path = source_root / preferred
+    if preferred_path.is_file():
+        return preferred_path
+    return source_root / released
 
 
 def _copy_file(source: Path, destination: Path) -> None:

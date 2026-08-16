@@ -72,6 +72,105 @@ def test_passing_conformance_compiles_a_hash_bound_queue(tmp_path: Path) -> None
     assert plan["onboarding_admission"] == batch["onboarding_admission"]
 
 
+def test_method_catalog_is_compiled_into_a_durable_batch(tmp_path: Path) -> None:
+    repo = _model_repo(tmp_path / "model")
+    template = _candidate_template(tmp_path / "template.json")
+    template_payload = json.loads(template.read_text(encoding="utf-8"))
+    template_payload["candidates"][0]["retrieval_keys"] = {
+        "failure_signatures": ["horizon_drift"]
+    }
+    template.write_text(json.dumps(template_payload), encoding="utf-8")
+    evaluator = _evaluator_contract(tmp_path / "evaluator.json", template=template)
+    sidecar = tmp_path / "sidecar"
+    run_onboarding(
+        OnboardingOptions(
+            repo_root=repo,
+            output_root=sidecar,
+            runtime_python=Path(sys.executable),
+            evaluator_contract=evaluator,
+            probe_imports=False,
+        )
+    )
+    conformance = tmp_path / "conformance"
+    assert run_conformance(
+        ConformanceOptions(sidecar_root=sidecar, output_root=conformance)
+    )["verdict"] == "PASS"
+    source_candidate = json.loads(template.read_text(encoding="utf-8"))["candidates"][0]
+    source_candidate["candidate_id"] = "compiled-method"
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_type": "verdiwm-method-candidate-catalog",
+                "catalog_id": "synthetic-methods-v1",
+                "model_family": "synthetic",
+                "candidates": [
+                    {
+                        "candidate_id": "compiled-method",
+                        "primitive_reference": "first_frame_anchor",
+                        "source": "synthetic_test",
+                        "mechanism_hypothesis": "A compiled synthetic method exercises the durable candidate boundary.",
+                        "required_hooks": ["H1"],
+                        "failure_signatures": ["horizon_drift"],
+                        "applicability_conditions": ["The admitted model exposes the test hook."],
+                        "failure_boundaries": ["The test method has no scientific promotion authority."],
+                        "estimated_gpu_hours": 0.005,
+                        "historical_candidate_ids": [],
+                        "required_files": [],
+                        "candidate_template": source_candidate,
+                    }
+                ],
+                "capability_gaps": [],
+                "claim_boundary": "The synthetic catalog tests compilation only and grants no effect claim.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = tmp_path / "compiled"
+    probe = tmp_path / "diagnostic-probe.json"
+    probe.write_text(
+        json.dumps(
+            {
+                "state": "settled",
+                "verdict": "PASS",
+                "failure_signatures": ["horizon_drift"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = compile_and_plan(
+        sidecar_root=sidecar,
+        conformance_root=conformance,
+        output_root=output,
+        diagnostic_probe_manifest=probe,
+        candidate_catalog=catalog,
+    )
+
+    assert manifest["compiled_method_candidate_count"] == 1
+    report = json.loads(
+        (output / "method-candidates" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert report["compiled_candidates"][0]["candidate_id"] == "compiled-method"
+    batch = json.loads((output / "candidate-batch.json").read_text(encoding="utf-8"))
+    assert batch["method_candidate_compilation"]["compiled_candidate_ids"] == [
+        "compiled-method"
+    ]
+    assert {row["candidate_id"] for row in batch["candidates"]} == {
+        "external-smoke",
+        "compiled-method",
+    }
+    fallback = next(
+        row for row in batch["candidates"] if row["candidate_id"] == "external-smoke"
+    )
+    assert fallback["routing_admission"]["reason"] == (
+        "superseded_by_compiled_method_candidate"
+    )
+    queue = json.loads((output / "queue" / "queue.json").read_text(encoding="utf-8"))
+    assert [row["candidate_id"] for row in queue["selected"]] == ["compiled-method"]
+
+
 def test_diagnostic_routing_blocks_candidates_without_signature_overlap() -> None:
     batch = {
         "candidates": [

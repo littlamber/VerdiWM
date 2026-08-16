@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-reviewed-mechanism-annotations",
+  "annotations": {
+    "2405.20222v3": {
+      "axes": {
+        "state_representation": ["sparse_motion_control", "dense_motion_flow", "multiscale_image_features"],
+        "conditioning_path": ["domain_aware_motion_field_adapter", "multiscale_guided_feature_injection"],
+        "update_operator": ["sparse_to_dense_motion_warp"],
+        "reliability_routing": ["domain_specific_adapter_composition"],
+        "training_distribution": ["sparse_control_video_pairs"],
+        "learning_signal": [],
+        "gradient_path": ["motion_adapters"],
+        "inference_transition": ["motion_field_guided_video_diffusion"]
+      },
+      "evidence_excerpts": [
+        "To achieve our goal, we design several domain-aware motion field adapters (\\ie, MOFA-Adapters) to control the generated motions in the video generation pipeline. For MOFA-Adapters, we consider the temporal motion consistency of the video and generate the dense motion flow from the given sparse control conditions first, and then, the multi-scale features of the given image are wrapped as a guided feature for stable video diffusion generation."
+      ],
+      "requirements": [
+        "The target video diffusion model must expose feature scales that can receive motion-guided residuals.",
+        "Sparse history evidence must be convertible into dense spatiotemporal guidance."
+      ],
+      "failure_boundaries": [
+        "Motion-field guidance does not by itself estimate whether a correction improves a particular rollout."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly describes sparse-to-dense motion flow, multi-scale guided features, and composable domain-aware motion adapters."
+    },
+    "2312.00845v1": {
+      "axes": {
+        "state_representation": ["consecutive_frame_residual_motion", "low_frequency_motion_trajectory"],
+        "conditioning_path": ["temporal_attention_adaptation"],
+        "update_operator": ["motion_residual_distillation"],
+        "reliability_routing": ["frequency_separated_motion_filter"],
+        "training_distribution": ["one_shot_target_motion_video"],
+        "learning_signal": ["motion_distillation_objective"],
+        "gradient_path": ["temporal_attention_layers"],
+        "inference_transition": ["customized_temporal_attention"]
+      },
+      "evidence_excerpts": [
+        "To tackle this, here we present the Video Motion Customization (VMC) framework, a novel one-shot tuning approach crafted to adapt temporal attention layers within video diffusion models. Our approach introduces a novel motion distillation objective using residual vectors between consecutive frames as a motion reference. The diffusion process then preserves low-frequency motion trajectories while mitigating high-frequency motion-unrelated noise in image space."
+      ],
+      "requirements": [
+        "Temporal attention layers must be independently adaptable.",
+        "Consecutive-frame residuals must expose the motion component that should be preserved."
+      ],
+      "failure_boundaries": [
+        "A one-shot motion objective can over-specialize and does not provide an execute-or-abstain benefit label."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract binds temporal-attention adaptation to residual-vector motion distillation and frequency-separated trajectory preservation."
+    },
+    "2404.09967v2": {
+      "axes": {
+        "state_representation": ["pretrained_controlnet_features", "target_backbone_features", "multiple_control_conditions"],
+        "conditioning_path": ["cross_backbone_control_adapter", "patch_level_multicondition_path"],
+        "update_operator": ["feature_space_control_adaptation"],
+        "reliability_routing": ["mixture_of_experts_router"],
+        "training_distribution": ["image_video_sparse_frame_controls"],
+        "learning_signal": ["control_fidelity_objective"],
+        "gradient_path": ["adapter_only_over_pretrained_controlnet"],
+        "inference_transition": ["adapted_control_residual_injection"]
+      },
+      "evidence_excerpts": [
+        "To address these challenges, we introduce Ctrl-Adapter, an efficient and versatile framework that adds diverse controls to any image/video diffusion model through the adaptation of pretrained ControlNets. Ctrl-Adapter offers strong and diverse capabilities, including image and video control, sparse-frame video control, fine-grained patch-level multi-condition control (via an MoE router), zero-shot adaptation to unseen conditions"
+      ],
+      "requirements": [
+        "Source control features and target Ctrl-World features need an explicit alignment adapter.",
+        "The router must operate below whole-example granularity if correction benefit is spatially localized."
+      ],
+      "failure_boundaries": [
+        "An MoE router over control conditions is not automatically calibrated to predictive benefit or abstention."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly states cross-model control adaptation, sparse-frame video control, and patch-level multi-condition routing with an MoE."
+    },
+    "2312.06573v2": {
+      "axes": {
+        "state_representation": ["generation_feedback_features", "corrective_control_features"],
+        "conditioning_path": ["high_frequency_high_bandwidth_feedback"],
+        "update_operator": ["iterative_corrective_feedback"],
+        "reliability_routing": ["feedback_control_loop"],
+        "training_distribution": ["spatial_guidance_pairs"],
+        "learning_signal": ["generation_quality_and_control_fidelity"],
+        "gradient_path": ["compact_control_network"],
+        "inference_transition": ["dense_interleaved_feature_correction"]
+      },
+      "evidence_excerpts": [
+        "Understanding this process from a control system perspective shows that it forms a feedback-control system, where the control module receives a feedback signal from the generation process and sends a corrective signal back.",
+        "In this work, we take an existing controlling network (ControlNet) and change the communication between the controlling network and the generation process to be of high-frequency and with large-bandwidth. By doing so, we are able to considerably improve the quality of the generated images, as well as the fidelity of the control."
+      ],
+      "requirements": [
+        "The frozen generator and corrector must exchange intermediate features at multiple depths or timesteps.",
+        "Corrective communication must not be delayed until a single terminal history-latent gain."
+      ],
+      "failure_boundaries": [
+        "Dense feedback increases corrective bandwidth but can amplify harmful corrections without a selective benefit gate."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly frames control as feedback and attributes gains to higher-frequency, higher-bandwidth corrective communication."
+    },
+    "1709.07871v2": {
+      "axes": {
+        "state_representation": ["conditioning_information", "network_features"],
+        "conditioning_path": ["featurewise_modulation"],
+        "update_operator": ["conditional_affine_feature_transform"],
+        "reliability_routing": ["condition_generated_scale_and_shift"],
+        "training_distribution": ["conditioned_task_examples"],
+        "learning_signal": ["task_loss"],
+        "gradient_path": ["conditioning_generator_and_modulated_network"],
+        "inference_transition": ["featurewise_affine_conditioning"]
+      },
+      "evidence_excerpts": [
+        "We introduce a general-purpose conditioning method for neural networks called FiLM: Feature-wise Linear Modulation. FiLM layers influence neural network computation via a simple, feature-wise affine transformation based on conditioning information."
+      ],
+      "requirements": [
+        "The correction context must produce stable per-feature scale and shift parameters."
+      ],
+      "failure_boundaries": [
+        "Feature-wise modulation is expressive but does not define a counterfactual benefit target."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract gives an explicit feature-wise affine conditioning operator."
+    },
+    "1901.09192v4": {
+      "axes": {
+        "state_representation": ["prediction", "selection_probability"],
+        "conditioning_path": ["integrated_selection_head"],
+        "update_operator": ["joint_prediction_rejection_optimization"],
+        "reliability_routing": ["learned_reject_option", "risk_coverage_tradeoff"],
+        "training_distribution": ["covered_and_rejected_examples"],
+        "learning_signal": ["prediction_loss", "coverage_constrained_selection_loss"],
+        "gradient_path": ["predictor_and_selector"],
+        "inference_transition": ["predict_or_abstain"]
+      },
+      "evidence_excerpts": [
+        "In contrast, SelectiveNet is trained to optimize both classification (or regression) and rejection simultaneously, end-to-end. The result is a deep neural network that is optimized over the covered domain. In our experiments, we show a consistently improved risk-coverage trade-off"
+      ],
+      "requirements": [
+        "Training data must contain enough examples where abstention and execution have distinguishable risk.",
+        "Coverage must be measured separately from correction direction."
+      ],
+      "failure_boundaries": [
+        "End-to-end selective prediction can collapse to abstention or over-coverage without an explicit coverage policy and paired benefit evidence."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly describes joint prediction and rejection training with a risk-coverage objective."
+    },
+    "1803.09050v3": {
+      "axes": {
+        "state_representation": ["per_example_gradient_direction", "clean_validation_loss"],
+        "conditioning_path": ["validation_meta_objective"],
+        "update_operator": ["meta_learned_example_reweighting"],
+        "reliability_routing": ["gradient_alignment_weight"],
+        "training_distribution": ["biased_training_data_with_clean_validation_subset"],
+        "learning_signal": ["validation_loss_meta_gradient"],
+        "gradient_path": ["bilevel_example_weight_gradient"],
+        "inference_transition": ["base_model_without_weighting_module"]
+      },
+      "evidence_excerpts": [
+        "we propose a novel meta-learning algorithm that learns to assign weights to training examples based on their gradient directions. To determine the example weights, our method performs a meta gradient descent step on the current mini-batch example weights (which are initialized from zero) to minimize the loss on a clean unbiased validation set."
+      ],
+      "requirements": [
+        "A clean target-local validation frame must be isolated from the training minibatch.",
+        "The training system must support a bounded bilevel or first-order meta-gradient."
+      ],
+      "failure_boundaries": [
+        "Validation-driven reweighting can overfit a tiny held-out context and must remain nested inside a separate promotion holdout."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines gradient-direction example weights optimized by a clean validation meta-loss."
+    },
+    "1812.06298v2": {
+      "axes": {
+        "state_representation": ["nominal_controller_action", "learned_residual_action"],
+        "conditioning_path": ["residual_policy_path"],
+        "update_operator": ["additive_residual_control"],
+        "reliability_routing": ["fixed_residual_composition"],
+        "training_distribution": ["controller_induced_robot_rollouts"],
+        "learning_signal": ["reinforcement_learning_return"],
+        "gradient_path": ["residual_policy_only"],
+        "inference_transition": ["nominal_plus_residual_action"]
+      },
+      "evidence_excerpts": [
+        "We present Residual Policy Learning (RPL): a simple method for improving nondifferentiable policies using model-free deep reinforcement learning. RPL thrives in complex robotic manipulation tasks where good but imperfect controllers are available. In these tasks, reinforcement learning from scratch remains data-inefficient or intractable, but learning a residual on top of the initial controller can yield substantial improvements."
+      ],
+      "requirements": [
+        "A strong nominal predictor must remain available as the function-preserving base.",
+        "The residual objective must measure sequence-level improvement rather than only local reconstruction."
+      ],
+      "failure_boundaries": [
+        "A fixed additive residual can degrade a strong nominal model when execution is not selective."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly defines learning a residual on top of a strong but imperfect nominal controller."
+    },
+    "1606.03976v5": {
+      "axes": {
+        "state_representation": ["balanced_context_representation", "treated_and_control_outcomes"],
+        "conditioning_path": ["treatment_conditioned_outcome_heads"],
+        "update_operator": ["individual_treatment_effect_estimation"],
+        "reliability_routing": ["predicted_individual_effect"],
+        "training_distribution": ["treated_control_observational_data"],
+        "learning_signal": ["factual_outcome_loss", "representation_balance_penalty"],
+        "gradient_path": ["shared_balanced_encoder_and_outcome_heads"],
+        "inference_transition": ["choose_treatment_from_predicted_effect"]
+      },
+      "evidence_excerpts": [
+        "We give a new theoretical analysis and family of algorithms for predicting individual treatment effect (ITE) from observational data, under the assumption known as strong ignorability. The algorithms learn a \"balanced\" representation such that the induced treated and control distributions look similar."
+      ],
+      "requirements": [
+        "Correction and no-correction examples must be paired or balanced well enough to estimate conditional benefit.",
+        "The treatment-effect estimate must be evaluated against unseen rollout contexts."
+      ],
+      "failure_boundaries": [
+        "Strong ignorability does not automatically hold for adaptively generated world-model rollouts; randomized perturbation pairs are preferable."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines individual treatment-effect prediction with a representation balancing treated and control distributions."
+    },
+    "2405.19014v3": {
+      "axes": {
+        "state_representation": ["local_model_uncertainty", "rollout_state"],
+        "conditioning_path": ["uncertainty_conditioned_rollout_control"],
+        "update_operator": ["adaptive_rollout_extent"],
+        "reliability_routing": ["local_where_to_trust_gate"],
+        "training_distribution": ["model_based_actor_critic_rollouts"],
+        "learning_signal": ["actor_critic_objective_with_model_rollouts"],
+        "gradient_path": ["model_based_actor_critic"],
+        "inference_transition": ["uncertainty_adapted_rollout"]
+      },
+      "evidence_excerpts": [
+        "Instead, we propose asking the question 'Where to trust your model?'. Using inherent model uncertainty to consider local accuracy, we obtain the Model-Based Actor-Critic with Uncertainty-Aware Rollout Adaption (MACURA) algorithm."
+      ],
+      "requirements": [
+        "The corrector must expose a local uncertainty or disagreement estimate tied to rollout state.",
+        "Trust decisions must be calibrated against actual local predictive benefit."
+      ],
+      "failure_boundaries": [
+        "Uncertainty is not equivalent to correction benefit; a confident residual can still be directionally harmful."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly replaces a global trust schedule with local uncertainty-aware rollout adaptation."
+    },
+    "1610.09038v1": {
+      "axes": {
+        "state_representation": ["teacher_forced_dynamics", "free_running_dynamics"],
+        "conditioning_path": ["train_sample_domain_discriminator"],
+        "update_operator": ["adversarial_dynamics_alignment"],
+        "reliability_routing": ["discriminator_feedback"],
+        "training_distribution": ["teacher_forced_and_free_running_sequences"],
+        "learning_signal": ["sequence_likelihood", "adversarial_domain_loss"],
+        "gradient_path": ["recurrent_generator_and_discriminator"],
+        "inference_transition": ["free_running_sequence_generation"]
+      },
+      "evidence_excerpts": [
+        "We introduce the Professor Forcing algorithm, which uses adversarial domain adaptation to encourage the dynamics of the recurrent network to be the same when training the network and when sampling from the network over multiple time steps."
+      ],
+      "requirements": [
+        "Teacher-history and generated-history trajectories must be represented in a shared dynamics feature space."
+      ],
+      "failure_boundaries": [
+        "Matching train and sample dynamics does not guarantee that the aligned dynamics are more accurate."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly states adversarial alignment between teacher-forced training dynamics and free-running sampling dynamics."
+    },
+    "2506.08009v2": {
+      "axes": {
+        "state_representation": ["self_generated_history", "rolling_key_value_cache", "full_generated_video"],
+        "conditioning_path": ["autoregressive_self_conditioning"],
+        "update_operator": ["self_forced_video_rollout"],
+        "reliability_routing": ["stochastic_gradient_truncation"],
+        "training_distribution": ["free_running_generated_history"],
+        "learning_signal": ["holistic_video_level_loss"],
+        "gradient_path": ["truncated_autoregressive_rollout_gradient"],
+        "inference_transition": ["rolling_cache_video_extrapolation"]
+      },
+      "evidence_excerpts": [
+        "Unlike prior methods that denoise future frames based on ground-truth context frames, Self Forcing conditions each frame's generation on previously self-generated outputs by performing autoregressive rollout with key-value (KV) caching during training. This strategy enables supervision through a holistic loss at the video level that directly evaluates the quality of the entire generated sequence, rather than relying solely on traditional frame-wise objectives. To ensure training efficiency, we employ a few-step diffusion model along with a stochastic gradient truncation strategy"
+      ],
+      "requirements": [
+        "Training must support generated-history rollouts and a sequence-level quality objective.",
+        "Gradient truncation must keep the rollout budget compatible with eight-card screening."
+      ],
+      "failure_boundaries": [
+        "Self-forced full-model training can reintroduce backbone drift unless gradients are isolated to the new correction module."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly binds generated-history training, holistic video-level supervision, rolling cache state, and truncated rollout gradients."
+    }
+  }
+}

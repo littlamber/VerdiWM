@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-reviewed-mechanism-annotations",
+  "annotations": {
+    "1610.09038v1": {
+      "axes": {
+        "state_representation": ["generated_history", "recurrent_dynamics_trajectory"],
+        "conditioning_path": ["autoregressive_conditioning", "teacher_and_free_running_modes"],
+        "update_operator": ["generated_state_rollout", "adversarial_dynamics_alignment"],
+        "reliability_routing": ["domain_discriminator"],
+        "training_distribution": ["free_running_history", "teacher_and_free_running_history"],
+        "learning_signal": ["adversarial_domain_loss"],
+        "gradient_path": ["world_model", "dynamics_discriminator"],
+        "inference_transition": ["rolling_generated_history", "free_running_recurrence"]
+      },
+      "evidence_excerpts": [
+        "We introduce the Professor Forcing algorithm, which uses adversarial domain adaptation to encourage the dynamics of the recurrent network to be the same when training the network and when sampling from the network over multiple time steps."
+      ],
+      "requirements": [
+        "The training path must expose teacher-forced and free-running internal trajectories.",
+        "A discriminator or equivalent distribution-alignment objective must be trainable."
+      ],
+      "failure_boundaries": [
+        "Dynamics alignment alone does not specify which visual history frames should be trusted in each context."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines the two execution modes, the aligned object, and the adversarial learning signal."
+    },
+    "2107.10043v3": {
+      "axes": {
+        "state_representation": ["latent_belief_state", "structural_state_space_model"],
+        "conditioning_path": ["prediction_innovation_conditioning"],
+        "update_operator": ["learned_filter_gain", "state_correction"],
+        "reliability_routing": ["data_driven_innovation_gain"],
+        "training_distribution": ["partially_known_dynamics"],
+        "learning_signal": ["state_estimation_loss"],
+        "gradient_path": ["recurrent_gain_module"],
+        "inference_transition": ["predict_correct_state_update"]
+      },
+      "evidence_excerpts": [
+        "Here, we present KalmanNet, a real-time state estimator that learns from data to carry out Kalman filtering under non-linear dynamics with partial information."
+      ],
+      "requirements": [
+        "A prediction residual or innovation signal must be observable during training.",
+        "The state update must expose a trainable gain module."
+      ],
+      "failure_boundaries": [
+        "KalmanNet learns a corrective gain for state estimation; it does not define visual diffusion history conditioning or generated-history exposure."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The paper contributes a learned state estimator that preserves a predict-correct structure under partially known dynamics."
+    },
+    "2309.03058v4": {
+      "axes": {
+        "state_representation": ["latent_belief_state", "error_covariance"],
+        "conditioning_path": ["prediction_innovation_conditioning"],
+        "update_operator": ["stochastic_learned_filter_gain", "state_correction"],
+        "reliability_routing": ["predicted_uncertainty"],
+        "training_distribution": ["partially_known_dynamics"],
+        "learning_signal": ["state_estimation_loss", "uncertainty_calibration_loss"],
+        "gradient_path": ["stochastic_gain_module"],
+        "inference_transition": ["uncertainty_aware_predict_correct_update"]
+      },
+      "evidence_excerpts": [
+        "This architecture employs sampling techniques to predict error covariance reliably without requiring additional domain knowledge, while retaining KalmanNet's ability to accurately track in partially known dynamics."
+      ],
+      "requirements": [
+        "The training target must support uncertainty or consistency calibration.",
+        "Multiple stochastic predictions or another covariance estimator are required."
+      ],
+      "failure_boundaries": [
+        "Predictive uncertainty estimates confidence but does not by itself identify whether an old visual anchor should contribute with positive or negative signed correction."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly adds learned error covariance to a trainable Kalman-style state estimator."
+    },
+    "2312.00752v2": {
+      "axes": {
+        "state_representation": ["selective_recurrent_state"],
+        "conditioning_path": ["input_dependent_state_space_conditioning"],
+        "update_operator": ["selective_state_propagation", "selective_forgetting"],
+        "reliability_routing": ["input_dependent_selection"],
+        "training_distribution": ["sequence_training"],
+        "learning_signal": ["sequence_prediction_loss"],
+        "gradient_path": ["selective_state_space_module"],
+        "inference_transition": ["input_conditioned_recurrence"]
+      },
+      "evidence_excerpts": [
+        "First, simply letting the SSM parameters be functions of the input addresses their weakness with discrete modalities, allowing the model to selectively propagate or forget information along the sequence length dimension depending on the current token."
+      ],
+      "requirements": [
+        "The recurrent update parameters must be conditioned on the current input or state."
+      ],
+      "failure_boundaries": [
+        "Selective propagation and forgetting are unsigned retention operations and do not specify generated-history training or diffusion objectives."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly defines input-dependent propagation and forgetting as the central selection mechanism."
+    },
+    "2407.01392v4": {
+      "axes": {
+        "state_representation": ["history_latents", "sequence_tokens_with_noise_levels"],
+        "conditioning_path": ["history_conditioning", "causal_noisy_sequence_conditioning"],
+        "update_operator": ["conditioning_corruption", "independent_per_token_denoising"],
+        "reliability_routing": ["fixed_noise_schedule", "per_token_noise_level"],
+        "training_distribution": ["corrupted_teacher_history", "heterogeneous_noise_sequence"],
+        "learning_signal": ["diffusion_reconstruction", "subsequence_variational_bound"],
+        "gradient_path": ["world_model", "causal_diffusion_model"],
+        "inference_transition": ["variable_horizon_rollout"]
+      },
+      "evidence_excerpts": [
+        "This paper presents Diffusion Forcing, a new training paradigm where a diffusion model is trained to denoise a set of tokens with independent per-token noise levels."
+      ],
+      "requirements": [
+        "The model and objective must accept distinct noise levels for temporal tokens.",
+        "Causal sequence conditioning must be materializable in the target architecture."
+      ],
+      "failure_boundaries": [
+        "Independent token noise is not itself a state-dependent signed decision to retain or oppose an old anchor."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract directly specifies heterogeneous per-token noise and causal sequence generation."
+    },
+    "2408.14837v2": {
+      "axes": {
+        "state_representation": ["history_latents", "action_embedding"],
+        "conditioning_path": ["history_conditioning", "action_cross_attention"],
+        "update_operator": ["conditioning_corruption", "conditioning_augmentation"],
+        "reliability_routing": ["fixed_noise_schedule", "fixed_augmentation_distribution"],
+        "training_distribution": ["corrupted_teacher_history", "augmented_teacher_history"],
+        "learning_signal": ["diffusion_reconstruction", "next_frame_diffusion_loss"],
+        "gradient_path": ["world_model"],
+        "inference_transition": ["rolling_generated_history", "autoregressive_frame_rollout"]
+      },
+      "evidence_excerpts": [
+        "Conditioning augmentations help ensure stable auto-regressive generation over long trajectories, and decoder fine-tuning improves the fidelity of visual details and text."
+      ],
+      "requirements": [
+        "Training must expose the past-frame conditioning path to controlled augmentation."
+      ],
+      "failure_boundaries": [
+        "A fixed augmentation distribution does not resolve context-local sign reversals in history usefulness."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract binds long-rollout stability to conditioning augmentation in an action-conditioned diffusion simulator."
+    },
+    "2502.06764v2": {
+      "axes": {
+        "state_representation": ["history_latents", "variable_length_history_frames"],
+        "conditioning_path": ["history_conditioning", "history_guidance"],
+        "update_operator": ["guidance_interpolation", "conditional_unconditional_history_guidance"],
+        "reliability_routing": ["time_frequency_guidance"],
+        "training_distribution": ["variable_history_conditioning"],
+        "learning_signal": ["diffusion_reconstruction"],
+        "gradient_path": ["world_model", "diffusion_forcing_transformer"],
+        "inference_transition": ["guided_long_video_rollout"]
+      },
+      "evidence_excerpts": [
+        "To address this, we propose the Diffusion Forcing Transformer (DFoT), a video diffusion architecture and theoretically grounded training objective that jointly enable conditioning on a flexible number of history frames."
+      ],
+      "requirements": [
+        "The target model must support conditional and history-reduced prediction branches or an equivalent guidance decomposition."
+      ],
+      "failure_boundaries": [
+        "History guidance improves the use of available context but does not train a context-local signed memory update from diagnostic response."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract defines flexible history conditioning and a family of history-dependent guidance transitions."
+    },
+    "2506.08009v2": {
+      "axes": {
+        "state_representation": ["generated_history"],
+        "conditioning_path": ["autoregressive_conditioning"],
+        "update_operator": ["generated_state_rollout"],
+        "reliability_routing": ["none"],
+        "training_distribution": ["free_running_history"],
+        "learning_signal": ["sequence_generation_loss"],
+        "gradient_path": ["truncated_rollout_gradient", "world_model"],
+        "inference_transition": ["rolling_generated_history"]
+      },
+      "evidence_excerpts": [
+        "Unlike prior methods that denoise future frames based on ground-truth context frames, Self Forcing conditions each frame's generation on previously self-generated outputs by performing autoregressive rollout with key-value (KV) caching during training."
+      ],
+      "requirements": [
+        "The target world model must support a bounded generated-history rollout during training.",
+        "Gradient truncation or an equivalent memory bound is required for practical training."
+      ],
+      "failure_boundaries": [
+        "Generated-history exposure reduces train-test mismatch but does not decide whether an old visual anchor is helpful, harmful, or irrelevant in a particular context."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly states generated-history conditioning, video-level supervision, and stochastic gradient truncation."
+    },
+    "1410.5401v2": {
+      "axes": {
+        "state_representation": ["external_memory_slots"],
+        "conditioning_path": ["attention_memory_access"],
+        "update_operator": ["differentiable_memory_read_write"],
+        "reliability_routing": ["content_addressed_attention"],
+        "training_distribution": ["sequence_training"],
+        "learning_signal": ["task_loss"],
+        "gradient_path": ["memory_controller", "memory_access"],
+        "inference_transition": ["persistent_external_memory"]
+      },
+      "evidence_excerpts": [
+        "We extend the capabilities of neural networks by coupling them to external memory resources, which they can interact with by attentional processes."
+      ],
+      "requirements": [
+        "A differentiable memory interface and controller are required."
+      ],
+      "failure_boundaries": [
+        "Generic external memory does not define which visual history errors require retention, forgetting, or signed correction."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract establishes differentiable attention-based access to external memory as the trainable mechanism."
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-mechanism-reference-profiles",
+  "profiles": {
+    "ctrl_world_frozen_signed_corrector_decoupled_route": {
+      "reference_kind": "settled_target_experiment",
+      "state": "settled_not_promoted",
+      "evidence_path": "/path/to/verdiwm-runs/ctrl-world/fpshc-v1/heldout-screen-v1/SETTLEMENT.json",
+      "axes": {
+        "state_representation": ["history_latents", "action_embedding", "local_model_uncertainty"],
+        "conditioning_path": ["history_conditioning"],
+        "update_operator": ["bounded_signed_history_residual"],
+        "reliability_routing": ["decoupled_direction_confidence_use", "learned_reject_option"],
+        "training_distribution": ["teacher_history", "free_running_history", "paired_counterfactual_correction"],
+        "learning_signal": ["diffusion_reconstruction", "counterfactual_route_calibration", "teacher_student_consistency"],
+        "gradient_path": ["frozen_pretrained_backbone", "history_corrector_only"],
+        "inference_transition": ["corrected_history_input", "predict_or_abstain"]
+      }
+    },
+    "ctrl_world_counterfactual_benefit_multiscale_adapter": {
+      "reference_kind": "settled_target_experiment",
+      "state": "settled_not_promoted",
+      "evidence_path": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/SETTLEMENT.json",
+      "axes": {
+        "state_representation": ["history_latents", "action_embedding", "multiscale_temporal_residual_features", "paired_counterfactual_rollout_benefit"],
+        "conditioning_path": ["multiscale_unet_residual_injection"],
+        "update_operator": ["zero_initialized_multiscale_history_side_residual"],
+        "reliability_routing": ["decoupled_direction_confidence_use", "learned_reject_option"],
+        "training_distribution": ["teacher_history", "free_running_history", "paired_counterfactual_correction", "balanced_benefit_classes"],
+        "learning_signal": ["diffusion_reconstruction", "counterfactual_direction_calibration", "counterfactual_use_calibration", "paired_benefit_ranking"],
+        "gradient_path": ["frozen_pretrained_backbone", "history_corrector_only"],
+        "inference_transition": ["multiscale_residual_injection", "predict_or_abstain"]
+      }
+    },
+    "ctrl_world_coverage_constrained_local_value_router": {
+      "reference_kind": "settled_target_experiment",
+      "state": "settled_not_promoted",
+      "evidence_path": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/heldout-screen-64-v3/SETTLEMENT.json",
+      "axes": {
+        "state_representation": ["history_latents", "action_embedding", "multiscale_temporal_residual_features", "paired_counterfactual_rollout_benefit", "per_interaction_return_to_go", "three_arm_treatment_values", "recent_route_coverage"],
+        "conditioning_path": ["multiscale_unet_residual_injection", "interaction_local_policy_head", "coverage_dual_bias"],
+        "update_operator": ["zero_initialized_multiscale_history_side_residual", "three_arm_counterfactual_policy_optimization", "temporal_return_to_go_value_update", "non_gradient_coverage_dual_update"],
+        "reliability_routing": ["calibrated_arm_value_route", "constrained_treatment_assignment_policy", "interaction_local_rejector", "coverage_band_control"],
+        "training_distribution": ["teacher_history", "free_running_history", "paired_counterfactual_correction", "balanced_benefit_classes", "per_interaction_counterfactual_outcomes"],
+        "learning_signal": ["diffusion_reconstruction", "per_arm_value_calibration", "counterfactual_policy_value", "terminal_weighted_return_to_go", "horizon_slope_regularization", "policy_regret"],
+        "gradient_path": ["frozen_pretrained_backbone", "history_corrector_only", "router_and_value_heads", "non_gradient_coverage_dual"],
+        "inference_transition": ["multiscale_residual_injection", "choose_best_positive_value_arm", "interaction_local_execute_or_abstain"]
+      }
+    }
+  }
+}

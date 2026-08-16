@@ -1,0 +1,77 @@
+{
+  "symptom_description": "A frozen multiscale Ctrl-World adapter learned counterfactual correction directions whose fixed nonzero doses were beneficial, yet its learned use route abstained on every held-out context. Forcing coverage activated harmful corrections. The candidate improved mean rollout error without transferring the gain to terminal interaction error or the long-horizon error slope. The next mechanism must learn a calibrated local treatment value with an explicit zero identity arm, estimate uncertainty or a lower confidence bound, and assign credit to future terminal quality without changing the frozen official predictor.",
+  "failure_signatures": [
+    "positive_counterfactual_value_with_zero_route_collapse",
+    "harmful_nonzero_execution_when_coverage_is_forced",
+    "counterfactual_treatment_value_miscalibration",
+    "selective_router_overexecution_under_asymmetric_harm",
+    "mean_rollout_gain_without_terminal_or_horizon_transfer",
+    "whole_rollout_credit_hides_local_interaction_benefit",
+    "coverage_dual_collapse_between_all_abstain_and_harmful_execution",
+    "frozen_backbone_must_preserve_zero_arm_identity"
+  ],
+  "target_metrics": [
+    "heldout_final_interaction_l1",
+    "heldout_horizon_l1_slope",
+    "counterfactual_policy_value",
+    "risk_coverage_curve",
+    "harmful_route_rate",
+    "local_route_precision_recall",
+    "arm_value_calibration_error",
+    "paired_seed_quality_wins"
+  ],
+  "protected_metrics": [
+    "heldout_mean_l1",
+    "official_checkpoint_predictive_function",
+    "zero_route_identity",
+    "action_sensitivity",
+    "short_horizon_prediction_quality",
+    "bounded_harmful_routing"
+  ],
+  "available_hooks": [
+    "frozen_unet_multiscale_features",
+    "zero_initialized_multiscale_side_residuals",
+    "paired_negative_zero_positive_counterfactual_rollouts",
+    "per_interaction_and_per_frame_rollout_returns",
+    "terminal_interaction_loss",
+    "horizon_error_slope",
+    "generated_rollout_history",
+    "adapter_only_gradient_path",
+    "posthoc_local_route_point",
+    "development_context_calibration_split"
+  ],
+  "model_family": "Ctrl-World action-conditioned spatiotemporal U-Net latent video diffusion with a frozen official backbone, a trainable multiscale history side adapter, and a selective counterfactual correction policy",
+  "seed_arxiv_ids": [
+    "1901.09192v4",
+    "1907.00208v2",
+    "2202.03673v2",
+    "2502.01459v2",
+    "1702.02896v6",
+    "2408.15664v1",
+    "1612.01474v2",
+    "1806.01768v2",
+    "1707.06887v6",
+    "1710.10044v2",
+    "1806.06923v4",
+    "2006.04779v3",
+    "1606.01122v2",
+    "2106.01345v2",
+    "2407.01392v4"
+  ],
+  "cross_domain_lenses": [
+    "selective prediction risk coverage calibrated rejection with asymmetric harmful cost",
+    "conformal risk control selective prediction finite sample coverage guarantee",
+    "learning to defer calibrated actor correctness and abstention",
+    "individual treatment effect uncertainty lower confidence bound treatment policy",
+    "safe policy improvement conservative offline reinforcement learning lower confidence bound",
+    "distributional value prediction quantile regression CVaR tail risk long horizon",
+    "deep ensemble evidential uncertainty calibration for treatment value or policy selection",
+    "partial sequence or suffix deferral local execution over frozen predictor",
+    "interaction level return to go temporal credit terminal weighted sequence loss",
+    "per position diffusion noise all subsequence variable horizon supervision",
+    "generated rollout training exposure bias scheduled sampling self forcing",
+    "adaptive computation routing uncertainty gated residual module zero identity",
+    "mixture of experts routing collapse non gradient load or coverage bias",
+    "counterfactual policy learning doubly robust value under explicit harm constraints"
+  ]
+}

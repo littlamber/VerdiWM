@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "candidate_id", "source", "mechanism", "comparison", "execution_authority"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["wmloop-mechanism-atlas-entry"]},
+    "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arxiv_id", "title", "source_url", "full_text_url", "full_text_state", "full_text_sha256", "citation_depth", "discovered_from", "local_source_path", "local_source_sha256"],
+      "properties": {
+        "arxiv_id": {"type": "string", "pattern": "^[0-9]{4}\\.[0-9]{4,5}(?:v[0-9]+)?$"},
+        "title": {"type": "string", "minLength": 1},
+        "source_url": {"type": "string", "minLength": 1},
+        "full_text_url": {"type": "string", "minLength": 1},
+        "full_text_state": {"enum": ["network", "cached", "local", "unavailable"]},
+        "full_text_sha256": {"type": ["string", "null"]},
+        "citation_depth": {"type": "integer", "minimum": 0, "maximum": 2},
+        "discovered_from": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "local_source_path": {"type": ["string", "null"]},
+        "local_source_sha256": {"type": ["string", "null"]}
+      }
+    },
+    "mechanism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axes", "evidence_excerpts", "requirements", "failure_boundaries", "extraction_state", "extraction_rationale"],
+      "properties": {
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state_representation", "conditioning_path", "update_operator", "reliability_routing", "training_distribution", "learning_signal", "gradient_path", "inference_transition"],
+          "properties": {
+            "state_representation": {"type": "array", "items": {"type": "string"}},
+            "conditioning_path": {"type": "array", "items": {"type": "string"}},
+            "update_operator": {"type": "array", "items": {"type": "string"}},
+            "reliability_routing": {"type": "array", "items": {"type": "string"}},
+            "training_distribution": {"type": "array", "items": {"type": "string"}},
+            "learning_signal": {"type": "array", "items": {"type": "string"}},
+            "gradient_path": {"type": "array", "items": {"type": "string"}},
+            "inference_transition": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "evidence_excerpts": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "requirements": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "failure_boundaries": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "extraction_state": {"enum": ["unresolved", "evidence_supported"]},
+        "extraction_rationale": {"type": "string", "minLength": 12}
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["novelty_state", "nearest_primitives", "novel_axes", "novelty_basis"],
+      "properties": {
+        "novelty_state": {"enum": ["unresolved", "equivalent", "extension", "composition", "structural_candidate"]},
+        "nearest_primitives": {"type": "array", "items": {"type": "object"}},
+        "novel_axes": {"type": "array", "items": {"type": "string"}},
+        "novelty_basis": {"type": "string", "minLength": 12}
+      }
+    },
+    "execution_authority": {"enum": ["shadow_only"]}
+  }
+}

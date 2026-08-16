@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-fingerprint-campaign",
+  "campaign_id": "ctrl_world_context_local_fingerprint_accept_narrow_v1",
+  "context_set_ref": "configs/probes/ctrl_world_local_fingerprint_accept_contexts_v1.json",
+  "checkpoint": "/path/to/model/ctrl-world/Ctrl-World/checkpoint-10000.pt",
+  "protocol": {
+    "mode": "frozen_action_conditioned_replay",
+    "interact_num": 4,
+    "num_inference_steps": 2,
+    "minimum_seed_repeats": 3,
+    "minimum_predicted_gain_lcb": 0.0,
+    "selector_confidence_z": 1.96,
+    "invariants": [
+      "same_checkpoint",
+      "same_episode_and_replay_start",
+      "same_action_trajectory",
+      "same_seed_per_paired_dose",
+      "same_decoder_and_predictive_metric",
+      "source_isolated_temporary_hook",
+      "zero_dose_matches_unwrapped_reference",
+      "accept_context_excluded_from_development_atlas"
+    ]
+  },
+  "probe_paths": [
+    {"probe_id": "action_conditioning_scale", "base_probe_family": "action_scaling", "semantic_variable": "action_encoder_output_magnitude", "transformation": "multiply the frozen action encoder output by 1+d after the recorded action trajectory is fixed", "doses": [-0.0125, 0.0, 0.0125]},
+    {"probe_id": "history_retention_gain", "base_probe_family": "controlled_context_retention", "semantic_variable": "historical_latent_variation_relative_to_newest_retained_state", "transformation": "multiply historical variation around the newest retained history slot by 1+d while retaining the fixed-width history slots", "doses": [-0.0125, 0.0, 0.0125]},
+    {"probe_id": "first_frame_anchor_blend", "base_probe_family": "first_frame_anchoring_strength", "semantic_variable": "observed_first_latent_gain_in_current_image_condition", "transformation": "replace current image condition c with c+d*(first_observed_latent-c)", "doses": [-0.0125, 0.0, 0.0125]},
+    {"probe_id": "sampler_initial_noise_gain", "base_probe_family": "sampler_noise_stress", "semantic_variable": "initial_diffusion_latent_noise_magnitude", "transformation": "multiply initial sampled diffusion latents by 1+d before the frozen denoising schedule", "doses": [-0.0125, 0.0, 0.0125]}
+  ],
+  "outcomes": [
+    {"name": "negative_mean_l1", "weight": 1.0, "description": "Negative mean RGB L1 over all replay interactions."},
+    {"name": "negative_final_interaction_l1", "weight": 2.0, "description": "Negative final interaction RGB L1."},
+    {"name": "negative_horizon_l1_slope", "weight": 2.0, "description": "Negative slope of interaction-level RGB L1; higher means less autoregressive drift."},
+    {"name": "mean_psnr", "weight": 1.0, "description": "Mean replay PSNR."},
+    {"name": "final_psnr", "weight": 1.0, "description": "Final interaction PSNR."}
+  ],
+  "locality_admission": {"maximum_residual": 0.5, "failure_policy": "mark_path_unsupported_and_exclude_it_from_accept_selector"},
+  "claim_scope": "Independently frozen narrow-radius accept fingerprint for directional selector evaluation. No accept-side probe, dose, metric, or threshold tuning is allowed.",
+  "formal_next_gate": "Use only locality-admitted paths whose predicted weighted-gain lower confidence bound is positive, then compare the selected 0.025 direction with frozen paired effects."
+}

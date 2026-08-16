@@ -9,7 +9,7 @@
   "falsification_criterion": "The command fails, uses a different physical GPU, has no observed GPU activity, emits a malformed result, or exceeds its numerical error gate.",
   "stage": "smoke",
   "command": [
-    "/root/miniconda3/envs/multi-world/bin/python",
+    "python",
     "-m",
     "wmloop.execute.cuda_smoke_workload"
   ],

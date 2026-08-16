@@ -1,0 +1,60 @@
+{
+  "symptom_description": "On an independently held-out Ctrl-World replay, every 64-step end-to-end fine-tuned variant degraded the official checkpoint. Full FSHC retained action sensitivity and learned the beneficial signed correction direction, but joint optimization of the pretrained video-diffusion backbone dominated the modular correction gain with harmful function drift.",
+  "failure_signatures": [
+    "pretrained_backbone_function_drift",
+    "short_finetune_quality_regression",
+    "useful_residual_module_masked_by_backbone_updates",
+    "router_confidence_stuck_near_half"
+  ],
+  "target_metrics": [
+    "heldout_long_horizon_prediction_quality",
+    "signed_history_correction_gain",
+    "routing_direction_accuracy",
+    "abstention_calibration"
+  ],
+  "protected_metrics": [
+    "official_checkpoint_predictive_function",
+    "short_horizon_prediction_quality",
+    "action_sensitivity",
+    "background_stability"
+  ],
+  "available_hooks": [
+    "frozen_unet_features",
+    "history_latent_input",
+    "signed_history_corrector",
+    "router_logits",
+    "diffusion_training_objective",
+    "teacher_prediction_outputs",
+    "generated_rollout_history"
+  ],
+  "model_family": "Ctrl-World action-conditioned spatiotemporal U-Net latent video diffusion with a trainable residual history corrector",
+  "seed_arxiv_ids": [
+    "2302.05543",
+    "2302.08453",
+    "1912.13503",
+    "1705.08045",
+    "1802.01483",
+    "1606.09282",
+    "2202.10054",
+    "2109.01903",
+    "2106.09685",
+    "1902.00751",
+    "2506.08009v2",
+    "2407.01392v4",
+    "2107.10043v3",
+    "2309.03058v4"
+  ],
+  "cross_domain_lenses": [
+    "locked pretrained backbone trainable residual control branch zero initialized coupling",
+    "function space trust region teacher output anchoring conservative adaptation",
+    "continual learning anti forgetting knowledge distillation protected function",
+    "parameter efficient residual adapters isolated gradient path",
+    "robust control nominal model residual dynamics correction",
+    "selective prediction confidence calibration abstention separate from direction"
+  ],
+  "experiment_evidence": {
+    "settlement": "/path/to/verdiwm-runs/ctrl-world/fshc-v1/heldout-screen-v2/SETTLEMENT.json",
+    "heldout_report": "/path/to/verdiwm-runs/ctrl-world/fshc-v1/heldout-screen-v2/heldout-evaluation-report.json",
+    "observed_failure": "A9 mean L1 regressed 23.07 percent versus A0 and had zero paired seed wins versus every trained comparator, while its signed route matched the beneficial positive endpoint on all three seeds."
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-fingerprint-campaign",
+  "campaign_id": "ctrl_world_fshc_balanced_direction_probe_v2",
+  "objective": "Expand development-only signed-benefit coverage after v1 produced only one positive-direction context.",
+  "hypothesis": "Motion- and gripper-transition-stratified replay starts contain at least one additional locality-admitted positive-benefit history-correction context.",
+  "selection_reason": "V1 froze eight starts and returned class counts {-1: 2, 0: 5, +1: 1}. This second immutable batch targets untested action phases while retaining episode and start diversity; it is combined with v1 only by a hash-bound admission settlement.",
+  "falsification_criterion": "Keep training blocked if the combined v1 and v2 frozen selectors still contain fewer than two contexts in any signed-benefit class. Do not synthesize, relabel, or tune the confidence threshold after execution.",
+  "estimated_gpu_hours": 2.5,
+  "dependencies": {
+    "ctrl_world_source": "/path/to/Ctrl-World",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "svd_model": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid",
+    "clip_model": "/path/to/model/ctrl-world/clip-vit-base-patch32",
+    "prior_selector": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/balanced-direction-probe-v1/selector/frozen-directional-selector.json",
+    "prior_selector_sha256": "eae7a795959f01a6c45542f897db5ef2fc6a5e26d5cdcca9ade8823b89c17892"
+  },
+  "artifact_policy": "Retain every context result, log, zero-dose video, input hash, merge receipt, atlas, selector, and combined settlement. Never overwrite an existing output directory.",
+  "context_set_ref": "configs/probes/ctrl_world_fshc_balanced_development_contexts_v2.json",
+  "checkpoint": "/path/to/model/ctrl-world/Ctrl-World/checkpoint-10000.pt",
+  "protocol": {
+    "mode": "frozen_action_conditioned_replay",
+    "interact_num": 4,
+    "num_inference_steps": 2,
+    "minimum_seed_repeats": 3,
+    "candidate_radius": 0.025,
+    "minimum_predicted_gain_lcb": 0.0,
+    "selector_confidence_distribution": "student_t_two_sided_95_percent_df_2",
+    "selector_confidence_critical_value": 4.303,
+    "threshold_freeze_timing": "Inherited unchanged from v1 and frozen before all v2 context jobs launch.",
+    "invariants": [
+      "same_official_checkpoint",
+      "same_episode_start_action_trajectory_and_seed_per_paired_dose",
+      "exact_fshc_operator_at_every_denoising_step",
+      "zero_dose_matches_unwrapped_reference",
+      "promotion_episode_1799_absent",
+      "no_context_overlap_with_v1"
+    ]
+  },
+  "probe_paths": [
+    {
+      "probe_id": "fshc_signed_history_gain",
+      "base_probe_family": "trainable_signed_history_correction",
+      "semantic_variable": "bounded_signed_history_correction_gain",
+      "transformation": "apply fixed gain d through h_i'=h_i+d*(current-h_i) using the exact norm-bounded FSHC operator",
+      "doses": [-0.025, 0.0, 0.025]
+    }
+  ],
+  "outcomes": [
+    {"name": "negative_mean_l1", "weight": 1.0},
+    {"name": "negative_final_interaction_l1", "weight": 2.0},
+    {"name": "negative_horizon_l1_slope", "weight": 2.0},
+    {"name": "mean_psnr", "weight": 1.0},
+    {"name": "final_psnr", "weight": 1.0}
+  ],
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "emit_abstain_label_for_context"
+  },
+  "data_admission_gate": {
+    "minimum_contexts_per_class": 2,
+    "classes": [-1, 0, 1],
+    "fail_action": "Do not train the multiscale candidate; expand development probes or return to mechanism redesign."
+  },
+  "claim_scope": "Second-batch development-only paired-dose class discovery. It is not repair-effect or promotion evidence."
+}

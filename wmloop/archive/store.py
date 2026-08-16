@@ -82,7 +82,11 @@ class SettledTrialRecord:
                 "impl_diff_hash": self.impl_diff_hash,
                 "evaluator_hash": self.evaluator_hash,
             },
-            "settlement": {"state": self.settlement_state, "receipt_hash": self.receipt_hash},
+            "settlement": {
+                "state": self.settlement_state,
+                "receipt_hash": self.receipt_hash,
+                "evidence_scope": "exploratory" if self.exploratory else "verified",
+            },
         }
 
 

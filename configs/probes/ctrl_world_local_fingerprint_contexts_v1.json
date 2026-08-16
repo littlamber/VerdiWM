@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-context-set",
+  "context_set_id": "ctrl_world_droid_subset_contexts_v1",
+  "dataset": {
+    "name": "DROID subset distributed with the Ctrl-World checkout",
+    "root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "split": "annotation/val"
+  },
+  "selection_policy": "Frozen before probe execution. Contexts span three validation episodes and replay starts; each context uses the same three fixed inference seeds for every probe and dose.",
+  "contexts": [
+    {
+      "context_id": "droid-899-start-8",
+      "episode_id": "899",
+      "start_idx": 8,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-14",
+      "episode_id": "18599",
+      "start_idx": 14,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-199-start-8",
+      "episode_id": "199",
+      "start_idx": 8,
+      "seeds": [101, 202, 303]
+    }
+  ],
+  "claim_boundary": "This context set supports frozen replay diagnostics only. It is not a training split, a task-success evaluator, or a repair-selection result."
+}

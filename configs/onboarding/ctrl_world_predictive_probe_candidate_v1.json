@@ -147,7 +147,7 @@
             }
           ],
           "environment": {
-            "PATH": "/root/miniconda3/envs/fastwam/bin:/usr/local/bin:/usr/bin:/bin",
+            "PATH": "/path/to/fastwam/bin:/usr/local/bin:/usr/bin:/bin",
             "PYTHONUNBUFFERED": "1",
             "VERDIWM_PROBE_ID": "ctrl-world-paired-video-diagnostic-v1",
             "HF_HUB_OFFLINE": "1",

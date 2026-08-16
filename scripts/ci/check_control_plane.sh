@@ -14,6 +14,9 @@ python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist(
 python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/execute/autonomous_pipeline.py" in names; assert "configs/schemas/autonomous_pipeline_manifest.schema.json" in names' "$wheel_path"
 python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/diagnose/probe_campaign.py" in names; assert "wmloop/retrieve/index.py" in names; assert "wmloop/retrieve/literature.py" in names; assert "wmloop/retrieve/method_staging.py" in names; assert "configs/schemas/diagnostic_probe_contract.schema.json" in names; assert "configs/schemas/literature_method_candidate.schema.json" in names' "$wheel_path"
 python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/execute/campaign_daemon.py" in names; assert "wmloop/execute/pipeline_daemon.py" in names; assert "configs/schemas/campaign_daemon_manifest.schema.json" in names; assert "configs/schemas/pipeline_daemon_manifest.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/cli.py" in names; assert "wmloop/control/adapter_profiles.py" in names; assert "wmloop/control/campaign_api.py" in names; assert "wmloop/control/campaign_dispatcher.py" in names; assert "wmloop/experiments/ctrl_world_settlement_import.py" in names; assert "configs/adapters/ctrl_world_predictive_v2.json" in names; assert "configs/schemas/adapter_profile.schema.json" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/control/method_candidate_compiler.py" in names; assert "configs/methods/ctrl_world_predictive_v1.json" in names; assert "configs/schemas/method_candidate_catalog.schema.json" in names; assert "configs/schemas/method_candidate_compilation.schema.json" in names; assert "scripts/run_ctrl_world_anchor_repair_candidate.py" in names; assert "scripts/run_ctrl_world_anchor_repair_screen.py" in names; assert "scripts/run_ctrl_world_local_fingerprint_probe.py" in names' "$wheel_path"
+python -c 'import sys, zipfile; names=set(zipfile.ZipFile(sys.argv[1]).namelist()); assert "wmloop/retrieve/evidence_capsule.py" in names; assert "wmloop/retrieve/mechanism_discovery.py" in names; assert "wmloop/geometry/memory.py" in names; assert "configs/retrieval/mechanism_tag_ontology_v1.json" in names; assert "configs/retrieval/primitive_mechanism_profiles_v1.json" in names' "$wheel_path"
 
 uv run python -m py_compile \
   wmloop/geometry/types.py \
@@ -33,6 +36,8 @@ uv run python -m py_compile \
   wmloop/experiments/probe_semantic_compile.py \
   wmloop/experiments/certificate_ablation.py \
   wmloop/experiments/cross_backbone_reuse_audit.py \
+  wmloop/experiments/evidence_graph.py \
+  wmloop/experiments/ctrl_world_settlement_import.py \
   wmloop/evaluate/adapters/ctrl_world.py \
   wmloop/primitives/adapters/backbone_registry.py \
   wmloop/primitives/adapters/ctrl_world_hooks.py \
@@ -44,6 +49,11 @@ uv run python -m py_compile \
   wmloop/control/onboarding_conformance.py \
   wmloop/control/onboarding_admission.py \
   wmloop/control/onboarding_compiler.py \
+  wmloop/control/method_candidate_compiler.py \
+  wmloop/control/adapter_profiles.py \
+  wmloop/control/campaign_api.py \
+  wmloop/control/campaign_dispatcher.py \
+  wmloop/cli.py \
   wmloop/execute/experiment_scheduler.py \
   wmloop/execute/external_evaluator_workload.py \
   wmloop/execute/autonomous_pipeline.py \
@@ -53,6 +63,8 @@ uv run python -m py_compile \
   wmloop/retrieve/index.py \
   wmloop/retrieve/literature.py \
   wmloop/retrieve/method_staging.py \
+  wmloop/retrieve/evidence_capsule.py \
+  wmloop/retrieve/mechanism_discovery.py \
   wmloop/propose/primitive_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_materialization_prompt.py \
   wmloop/diagnose/diagnostic_probe_routing_admission.py \
@@ -98,7 +110,14 @@ uv run python -m py_compile \
   scripts/integrations/run_cosmos3_droid_lerobot_fd.py \
   scripts/integrations/run_cosmos3_inference_with_r31_probe.py \
   scripts/export/r31_cross_backbone_runtime_bundle.py \
-  scripts/run_ctrl_world_bounded_smoke.py
+  scripts/run_ctrl_world_bounded_smoke.py \
+  scripts/run_ctrl_world_anchor_repair_candidate.py \
+  scripts/run_ctrl_world_anchor_repair_screen.py \
+  scripts/run_ctrl_world_local_fingerprint_probe.py \
+  scripts/aggregate_ctrl_world_local_fingerprint.py \
+  scripts/freeze_ctrl_world_directional_selector.py \
+  scripts/evaluate_ctrl_world_anchor_repair_confirm.py \
+  scripts/settle_ctrl_world_anchor_repair_screen.py
 
 uv run pytest -q \
   tests/test_experiment_scheduler.py \
@@ -106,10 +125,18 @@ uv run pytest -q \
   tests/test_model_onboarding.py \
   tests/test_onboarding_conformance.py \
   tests/test_onboarding_compiler.py \
+  tests/test_method_candidate_compiler.py \
   tests/test_external_evaluator_workload.py \
   tests/test_autonomous_pipeline.py \
   tests/test_probe_retrieval.py \
   tests/test_literature_method_staging.py \
+  tests/test_evidence_capsule.py \
+  tests/test_mechanism_discovery.py \
+  tests/test_transferable_experience.py \
+  tests/test_campaign_api.py \
+  tests/test_campaign_dispatcher.py \
+  tests/test_verdiwm_cli.py \
+  tests/test_ctrl_world_settlement_import.py \
   tests/test_campaign_daemon.py \
   tests/test_pipeline_daemon.py \
   tests/test_verdiwm_geometry.py \
@@ -120,6 +147,7 @@ uv run pytest -q \
   tests/test_backbone_instance.py \
   tests/test_cross_backbone_experiments.py \
   tests/test_ctrl_world_instance_adapters.py \
+  tests/test_ctrl_world_predictive_instance.py \
   tests/test_ctrl_world_fingerprint.py \
   tests/test_ctrl_world_predictive_campaign_runner.py \
   tests/test_ctrl_world_receipt_merge.py \

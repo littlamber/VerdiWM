@@ -33,6 +33,39 @@ def test_plan_is_deterministic_budget_bounded_and_idempotent(tmp_path: Path) -> 
     assert second == first
 
 
+def test_trial_identity_changes_when_plan_contract_changes(tmp_path: Path) -> None:
+    first_batch = json.loads(BATCH.read_text(encoding="utf-8"))
+    second_batch = json.loads(BATCH.read_text(encoding="utf-8"))
+    second_batch["candidates"][0]["stages"][0]["environment"][
+        "VERDIWM_PLAN_REVISION"
+    ] = "v2"
+    first_path = tmp_path / "first.json"
+    second_path = tmp_path / "second.json"
+    first_path.write_text(json.dumps(first_batch), encoding="utf-8")
+    second_path.write_text(json.dumps(second_batch), encoding="utf-8")
+
+    scheduler.plan_candidate_batch(
+        batch_path=first_path,
+        output_root=tmp_path / "first-queue",
+        workspace_root=ROOT,
+    )
+    scheduler.plan_candidate_batch(
+        batch_path=second_path,
+        output_root=tmp_path / "second-queue",
+        workspace_root=ROOT,
+    )
+    filename = "auto-cuda-matmul-balanced-screen.json"
+    first_plan = json.loads(
+        (tmp_path / "first-queue" / "plans" / filename).read_text(encoding="utf-8")
+    )
+    second_plan = json.loads(
+        (tmp_path / "second-queue" / "plans" / filename).read_text(encoding="utf-8")
+    )
+
+    assert first_plan["trial_id"] != second_plan["trial_id"]
+    assert first_plan["trial_id"].startswith("auto-cuda-matmul-balanced-screen-")
+
+
 def test_invalid_stage_ladder_fails_before_materialization(tmp_path: Path) -> None:
     payload = json.loads(BATCH.read_text(encoding="utf-8"))
     payload["candidates"][0]["stages"] = [payload["candidates"][0]["stages"][1]]

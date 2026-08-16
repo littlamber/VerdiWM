@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-adapter-profile",
+  "profile_id": "ctrl-world-predictive-v2",
+  "aliases": [
+    "ctrl-world",
+    "ctrl-world-predictive",
+    "ctrl_world_predictive_quality_pilot_v2"
+  ],
+  "model_family": "ctrl_world",
+  "capability_level": "L2",
+  "execution_kind": "pipeline",
+  "repo_markers": [
+    "models/ctrl_world.py",
+    "scripts/rollout_replay_traj.py"
+  ],
+  "goal_keywords": [
+    "predict",
+    "prediction",
+    "long horizon",
+    "action condition",
+    "预测",
+    "长时域",
+    "动作条件"
+  ],
+  "evaluator_contract": "configs/onboarding/ctrl_world_predictive_probe_evaluator_v2.json",
+  "probe_contract": "configs/probes/ctrl_world_predictive_diagnostic_v2.json",
+  "candidate_catalog": "configs/methods/ctrl_world_predictive_v1.json",
+  "settlement_manifest_candidates": [
+    "{env:VERDIWM_CTRL_WORLD_SETTLEMENT_MANIFEST}",
+    "{model_parent}/verdiwm-runs/ctrl-world/state/settlement-import-v1/manifest.json"
+  ],
+  "constitution_freeze": "configs/constitution/ctrl_world_predictive_quality_pilot_v2.freeze.json",
+  "runtime_candidates": [
+    "{env:VERDIWM_CTRL_WORLD_PYTHON}",
+    "{model}/.venv/bin/python",
+    "{model_parent}/verdiwm-runs/ctrl-world/runtime-probe-v1/bin/python"
+  ],
+  "asset_bindings": [
+    {
+      "parameter": "--dataset_root_path",
+      "candidates": ["{data}"]
+    },
+    {
+      "parameter": "--dataset_meta_info_path",
+      "candidates": [
+        "{env:VERDIWM_CTRL_WORLD_DATASET_META}",
+        "{data_parent}/dataset_meta_info",
+        "{model}/dataset_meta_info"
+      ]
+    },
+    {
+      "parameter": "--droid_subset_path",
+      "candidates": [
+        "{env:VERDIWM_CTRL_WORLD_DROID_SUBSET}",
+        "{data}/droid_subset",
+        "{data}"
+      ]
+    },
+    {
+      "parameter": "--data_stat_path",
+      "candidates": [
+        "{env:VERDIWM_CTRL_WORLD_DATA_STAT}",
+        "{data_parent}/dataset_meta_info/droid_subset/stat.json",
+        "{model}/dataset_meta_info/droid_subset/stat.json"
+      ]
+    },
+    {
+      "parameter": "--ckpt_path",
+      "candidates": [
+        "{env:VERDIWM_CTRL_WORLD_CHECKPOINT}",
+        "{model}/checkpoint-10000.pt",
+        "{model_parent}/model/ctrl-world/Ctrl-World/checkpoint-10000.pt"
+      ]
+    },
+    {
+      "parameter": "--svd_model_path",
+      "candidates": [
+        "{env:VERDIWM_CTRL_WORLD_SVD_MODEL}",
+        "{model_parent}/model/ctrl-world/stable-video-diffusion-img2vid"
+      ]
+    },
+    {
+      "parameter": "--clip_model_path",
+      "candidates": [
+        "{env:VERDIWM_CTRL_WORLD_CLIP_MODEL}",
+        "{model_parent}/model/ctrl-world/clip-vit-base-patch32"
+      ]
+    }
+  ],
+  "probe_imports": false
+}

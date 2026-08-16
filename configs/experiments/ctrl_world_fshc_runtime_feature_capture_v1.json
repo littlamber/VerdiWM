@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-fingerprint-campaign",
+  "campaign_id": "ctrl_world_fshc_runtime_feature_capture_v1",
+  "objective": "Capture the identity-free runtime feature vectors seen by the exact FSHC gate on the frozen development replay frame.",
+  "hypothesis": "The exact FSHC zero-dose path emits finite fixed-shape runtime features for every denoising invocation without changing the baseline outcome.",
+  "selection_reason": "The direction atlas contains context labels but the runtime gate cannot consume context identity. A separately hashed anonymous feature bank is required to supervise the gate without broadcasting one context label to all training windows.",
+  "falsification_criterion": "The capture is invalid if any identity, invocation, runtime feature, zero-dose equality, source hash, or physical GPU receipt is missing or non-finite.",
+  "estimated_gpu_hours": 1.2,
+  "context_set_ref": "configs/probes/ctrl_world_local_fingerprint_contexts_v1.json",
+  "checkpoint": "/path/to/model/ctrl-world/Ctrl-World/checkpoint-10000.pt",
+  "protocol": {
+    "mode": "frozen_action_conditioned_replay",
+    "interact_num": 4,
+    "num_inference_steps": 2,
+    "minimum_seed_repeats": 3,
+    "invariants": [
+      "same_official_checkpoint",
+      "same_episode_and_replay_start",
+      "same_action_trajectory",
+      "same_seed_per_paired_dose",
+      "same_decoder_and_predictive_metric",
+      "exact_fshc_runtime_feature_builder",
+      "zero_dose_matches_unwrapped_reference",
+      "runtime_feature_contains_no_episode_or_context_identity"
+    ]
+  },
+  "probe_paths": [
+    {
+      "probe_id": "fshc_signed_history_gain",
+      "base_probe_family": "trainable_signed_history_correction",
+      "semantic_variable": "bounded_signed_history_correction_gain",
+      "transformation": "apply fixed gain d through the exact norm-bounded FSHC operator and record its pre-gate runtime feature",
+      "doses": [-0.025, 0.0, 0.025]
+    }
+  ],
+  "outcomes": [
+    {"name": "negative_mean_l1", "weight": 1.0},
+    {"name": "negative_final_interaction_l1", "weight": 2.0},
+    {"name": "negative_horizon_l1_slope", "weight": 2.0},
+    {"name": "mean_psnr", "weight": 1.0},
+    {"name": "final_psnr", "weight": 1.0}
+  ],
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "capture_only_no_new_direction_decision"
+  },
+  "dependencies": {
+    "ctrl_world_source": "/path/to/Ctrl-World",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "svd_model": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid",
+    "clip_model": "/path/to/model/ctrl-world/clip-vit-base-patch32",
+    "direction_labels": "/path/to/verdiwm-runs/ctrl-world/fshc-v1/signed-gain-probe-v1/labels/fshc-direction-labels.json",
+    "direction_labels_sha256": "47e94a489584b28cdd32a0ca33b872b0acbdb4b3480bf193f782d6f3e8a64fd7"
+  },
+  "artifact_policy": "Retain all identity shards and logs for audit, but emit a separate training payload containing only runtime feature tensors and signed or abstain targets.",
+  "claim_scope": "Feature capture only. It introduces no new effect estimate, direction decision, or model improvement claim.",
+  "formal_next_gate": "Materialize an anonymous hash-bound feature bank and pass gate overfit, leakage, gradient, and counterfactual tests."
+}

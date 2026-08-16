@@ -6,6 +6,11 @@ from wmloop.retrieve.index import (
     index_probe_experience,
     retrieve_probe_experiences,
 )
+from wmloop.retrieve.evidence_capsule import (
+    EvidenceCapsuleError,
+    build_evidence_capsule,
+    write_evidence_capsule,
+)
 from wmloop.retrieve.literature import (
     LiteratureRecord,
     LiteratureRetrievalError,
@@ -20,8 +25,20 @@ from wmloop.retrieve.method_staging import (
     run_literature_method_prompt_batch,
     run_literature_method_staging,
 )
+from wmloop.retrieve.mechanism_discovery import (
+    AnnotationMechanismExtractor,
+    DiscoveryRequest,
+    EvidenceOnlyMechanismExtractor,
+    MechanismDiscoveryError,
+    build_multiview_queries,
+    compare_mechanism_signature,
+    run_mechanism_discovery,
+)
 
 __all__ = [
+    "EvidenceCapsuleError",
+    "build_evidence_capsule",
+    "write_evidence_capsule",
     "ProbeExperience",
     "ProbeRetrievalError",
     "index_probe_experience",
@@ -36,4 +53,11 @@ __all__ = [
     "MethodSynthesisClient",
     "run_literature_method_prompt_batch",
     "run_literature_method_staging",
+    "AnnotationMechanismExtractor",
+    "DiscoveryRequest",
+    "EvidenceOnlyMechanismExtractor",
+    "MechanismDiscoveryError",
+    "build_multiview_queries",
+    "compare_mechanism_signature",
+    "run_mechanism_discovery",
 ]

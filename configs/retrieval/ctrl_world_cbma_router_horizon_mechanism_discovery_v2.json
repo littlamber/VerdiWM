@@ -1,0 +1,70 @@
+{
+  "symptom_description": "A frozen counterfactual-benefit-trained multiscale Ctrl-World adapter achieved the best held-out mean L1 and beneficial fixed endpoints on all three paired seeds, but its use head abstained on every seed and the candidate narrowly missed terminal-interaction and horizon-slope gates. The next mechanism must convert positive counterfactual benefit into calibrated local execution while assigning more learning credit to terminal and long-horizon rollout quality.",
+  "failure_signatures": [
+    "beneficial_correction_all_abstain_collapse",
+    "use_probability_below_execution_threshold_despite_positive_treatment_effect",
+    "counterfactual_direction_and_activation_miscalibration",
+    "whole_rollout_route_hides_local_benefit",
+    "average_quality_gain_without_terminal_interaction_win",
+    "horizon_slope_not_improved_beyond_scalar_router"
+  ],
+  "target_metrics": [
+    "heldout_final_interaction_l1",
+    "heldout_horizon_l1_slope",
+    "counterfactual_policy_value",
+    "routing_risk_coverage",
+    "beneficial_route_activation_rate",
+    "local_route_precision_recall",
+    "paired_seed_quality_wins"
+  ],
+  "protected_metrics": [
+    "heldout_mean_l1",
+    "official_checkpoint_predictive_function",
+    "action_sensitivity",
+    "short_horizon_prediction_quality",
+    "bounded_harmful_routing"
+  ],
+  "available_hooks": [
+    "frozen_unet_multiscale_features",
+    "multiscale_side_residuals",
+    "direction_confidence_use_logits",
+    "paired_fixed_dose_counterfactual_outcomes",
+    "per_frame_and_interaction_rollout_metrics",
+    "terminal_interaction_loss",
+    "horizon_error_slope",
+    "generated_rollout_history",
+    "adapter_only_gradient_path"
+  ],
+  "model_family": "Ctrl-World action-conditioned spatiotemporal U-Net latent video diffusion with a frozen official backbone, trainable multiscale history side adapter, and selective counterfactual-benefit router",
+  "seed_arxiv_ids": [
+    "1901.09192v4",
+    "1907.00208v2",
+    "2202.03673v2",
+    "2505.10160v2",
+    "2502.01459v2",
+    "1702.02896v6",
+    "2408.15664v1",
+    "1803.09050v3",
+    "1506.03099v3",
+    "1610.09038v1",
+    "2506.08009v2",
+    "2407.01392v4"
+  ],
+  "cross_domain_lenses": [
+    "selective prediction constrained coverage prevent reject all collapse",
+    "learning to defer calibrated actor correctness and reject option",
+    "partial deferral token frame span or suffix routing for sequences",
+    "uplift modeling individual treatment effect policy learning counterfactual benefit",
+    "offline policy learning doubly robust treatment assignment under constraints",
+    "mixture of experts routing collapse load balancing without interference gradient",
+    "cost sensitive adaptive top k execution under asymmetric harm",
+    "long horizon sequence prediction terminal loss temporal credit assignment",
+    "per position diffusion noise and all subsequence objectives",
+    "deep supervision per horizon rollout value and error slope"
+  ],
+  "experiment_evidence": {
+    "settlement": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/SETTLEMENT.json",
+    "heldout_report": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/heldout-evaluation-report.json",
+    "observed_failure": "C3 had the best mean L1 and passed paired wins and action retention, but failed final-interaction L1, horizon slope, and routing calibration versus B3. Every fixed multiscale positive endpoint was beneficial, while mean use probability stayed near 0.393 and active rate was zero."
+  }
+}

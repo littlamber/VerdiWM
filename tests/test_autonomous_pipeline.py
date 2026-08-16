@@ -10,6 +10,7 @@ from wmloop.execute import autonomous_pipeline
 from wmloop.execute.autonomous_pipeline import (
     AutonomousPipelineError,
     AutonomousPipelineOptions,
+    _candidate_asset_parameters,
     _pipeline_budget_total,
     run_autonomous_pipeline,
 )
@@ -233,6 +234,18 @@ def test_pipeline_derives_one_shared_probe_and_candidate_budget() -> None:
     )
 
     assert total == pytest.approx(0.16)
+
+
+def test_ctrl_world_catalog_declares_candidate_only_asset_parameters() -> None:
+    root = Path(__file__).resolve().parents[1]
+
+    parameters = _candidate_asset_parameters(
+        root / "configs/methods/ctrl_world_predictive_v1.json"
+    )
+
+    assert "--data_stat_path" in parameters
+    assert "--droid_subset_path" in parameters
+    assert "--ckpt_path" in parameters
 
 
 def _model_repo(repo: Path) -> Path:

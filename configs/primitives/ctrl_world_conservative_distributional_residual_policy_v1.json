@@ -1,0 +1,370 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-target-local-mechanism-candidate",
+  "candidate_id": "ctrl_world_conservative_distributional_residual_policy_v1",
+  "state": "frozen_before_implementation",
+  "working_name": "conservative_distributional_residual_policy",
+  "source_failure": {
+    "training_settlement": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/ablation-screen-64-v2/TRAINING_SETTLEMENT.json",
+    "training_settlement_sha256": "9822e6a13d239114aee186a89217adcdc5d9ae0d595ae2d28fb970c526ea8c16",
+    "heldout_settlement": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/heldout-screen-64-v3/SETTLEMENT.json",
+    "heldout_settlement_sha256": "4af770942a5d750a9171e1cf9eaa75ad073d517aea12008be1066fc26fda1ae",
+    "heldout_report": "/path/to/verdiwm-runs/ctrl-world/cclvr-v2/heldout-screen-64-v3/heldout-report.json",
+    "heldout_report_sha256": "8114cd888f7e979c55d7b7d03efac7b4cc34aaaed7013b4c847681f84fe74dfd",
+    "promotion_state": "not_promoted",
+    "dominant_failure": "CCLVR D4 improved held-out mean L1 and had positive counterfactual policy value, but its point-valued local policy overexecuted harmful arms, had a policy Brier score of 0.900115, regressed terminal interaction L1 and horizon slope versus D3, and showed that the coverage dual alternated between forced execution and route collapse."
+  },
+  "failure_fingerprint": {
+    "d4_mean_l1": 6.301613211631775,
+    "d4_final_interaction_l1": 7.593880971272786,
+    "d4_horizon_l1_slope": 0.9640627066294356,
+    "d4_policy_brier": 0.9001152263954282,
+    "d4_harmful_routing_rate": 0.3333333333333333,
+    "d4_counterfactual_policy_value": 0.0730228463808702,
+    "d3_final_interaction_l1": 7.5693901379903155,
+    "d3_horizon_l1_slope": 0.9510105292002363,
+    "diagnosis": [
+      "A scalar expected return hid terminal and horizon tail regressions.",
+      "Point estimates supplied no epistemic or return-distribution uncertainty.",
+      "Coverage control changed execution frequency without proving that an executed arm was safer than zero.",
+      "Static counterfactual targets could become stale as the trainable residual adapter changed.",
+      "Zero correction was an exact identity arm but was not used as the protected baseline for uncertain states."
+    ]
+  },
+  "mechanism_evidence": {
+    "broad_request": "configs/retrieval/ctrl_world_cclvr_risk_calibrated_router_mechanism_discovery_v1.json",
+    "broad_request_sha256": "afada16f5e0c3fbd8313883355207ee0582365a229c4a3b229b587531db0e166",
+    "broad_atlas": "/path/to/verdiwm-runs/ctrl-world/mechanism-discovery-v11/mechanism-atlas.json",
+    "broad_atlas_sha256": "618b8d397d614500cecb5ffbf1ed0e56e42b5655fe5d21446a344e2ff539c2af",
+    "targeted_request": "configs/retrieval/ctrl_world_cclvr_risk_calibrated_router_mechanism_discovery_v2.json",
+    "targeted_request_sha256": "2fab38ba6c817d6e64d79c091c32fc3b83b4d44e6f9704b7b221ef54869890cc",
+    "targeted_atlas_part_1": "/path/to/verdiwm-runs/ctrl-world/mechanism-discovery-v12/mechanism-atlas.json",
+    "targeted_atlas_part_1_sha256": "9fbc1ac7d154841915f7a0d453c0882dd522766dfaff69050f2eae34950d8ff3",
+    "targeted_atlas_part_2": "/path/to/verdiwm-runs/ctrl-world/mechanism-discovery-v13/mechanism-atlas.json",
+    "targeted_atlas_part_2_sha256": "a9b9f7d072b3e18b37f581a941099822ea70a96debe4152228020902a719ccf6",
+    "settled_reference_profiles": "configs/retrieval/ctrl_world_settled_mechanism_profiles_v2.json",
+    "settled_reference_profiles_sha256": "f107e0a3003ce805a59d3ad894f8f4f4d5cb526345ff6d743f86c19a01b2880d",
+    "broad_paper_count": 80,
+    "targeted_evidence_supported_count": 9,
+    "current_missing_source_count": 0,
+    "selected_sources": [
+      {
+        "arxiv_id": "1710.10044v1",
+        "role": "Replace a single expected arm value with trainable quantiles of each arm's future return distribution."
+      },
+      {
+        "arxiv_id": "1612.01474v3",
+        "role": "Use independently initialized and group-bootstrapped value heads to estimate epistemic uncertainty in parallel."
+      },
+      {
+        "arxiv_id": "1712.06924v5",
+        "role": "Treat exact zero correction as the baseline policy and fall back to it in unsupported or uncertain local states."
+      },
+      {
+        "arxiv_id": "2006.04779v3",
+        "role": "Penalize unsupported nonzero arm-value overestimation instead of forcing a coverage target."
+      },
+      {
+        "arxiv_id": "2212.13629v1",
+        "role": "Evaluate and calibrate high-loss terminal and horizon events rather than only expected loss."
+      },
+      {
+        "arxiv_id": "2506.07469v1",
+        "role": "Execute a treatment only when its paired effect interval is informative and excludes zero in the beneficial direction."
+      },
+      {
+        "arxiv_id": "2502.01459v2",
+        "role": "Keep correction decisions local to an interaction or suffix over the frozen predictor."
+      },
+      {
+        "arxiv_id": "2407.01392v4",
+        "role": "Preserve per-position and variable-horizon temporal credit instead of a whole-rollout mean target."
+      }
+    ],
+    "secondary_only": [
+      {
+        "arxiv_id": "2208.02814v4",
+        "reason": "Conformal risk control is reserved for development-set certification and cannot be the trainable core mechanism."
+      },
+      {
+        "arxiv_id": "1910.02600v2",
+        "reason": "A single evidential head is cheaper but can share the same representation error as the failed point-value head; it remains an ablation, not the primary uncertainty mechanism."
+      },
+      {
+        "arxiv_id": "1707.06887v1",
+        "reason": "The full distributional Bellman operator is not transferred; the target is a supervised paired rollout return distribution."
+      }
+    ]
+  },
+  "structural_changes": {
+    "preserved": [
+      "frozen official Ctrl-World U-Net and action encoder",
+      "zero-initialized multiscale history side residual",
+      "negative, zero, and positive normalized correction arms",
+      "paired same-context and same-seed arm rollouts",
+      "adapter-only gradient isolation",
+      "zero-arm exact predictive identity",
+      "fail-closed held-out promotion"
+    ],
+    "removed": [
+      "single point estimate per local correction arm",
+      "scalarized mean-dominated terminal-horizon return target",
+      "non-gradient coverage dual and target coverage band",
+      "forced nonzero execution to repair all-abstain collapse",
+      "static arm-value labels for the entire optimization run"
+    ],
+    "added": [
+      {
+        "component": "multi_objective_quantile_arm_value_ensemble",
+        "definition": "At each interaction, independently initialized bootstrap heads predict quantiles for mean-L1 benefit, terminal-interaction benefit, and horizon-slope benefit for negative, zero, and positive correction arms. The three objectives are retained separately and are not collapsed into one scalar training label."
+      },
+      {
+        "component": "zero_baseline_conservative_dominance",
+        "definition": "A nonzero arm is eligible only when its lower confidence bounds beat zero on mean benefit and do not regress terminal or horizon benefit. Unsupported or uncertain states route to the exact zero identity arm. There is no coverage target."
+      },
+      {
+        "component": "risk_gated_adapter_gradient",
+        "definition": "Only development-supported nonzero arms whose conservative improvement target is positive send terminal and horizon rollout gradients into the multiscale residual adapter. Harmful and unsupported arm samples train the value heads and zero-baseline margin but cannot force a residual update."
+      },
+      {
+        "component": "on_policy_counterfactual_refresh",
+        "definition": "Paired arm outcomes are regenerated under the current adapter at frozen refresh boundaries so value targets cannot remain tied to an obsolete residual checkpoint. Every refresh is hashed before the next training segment."
+      },
+      {
+        "component": "development_only_tail_risk_calibration",
+        "definition": "A held-out development calibration split freezes the lower-confidence and high-loss thresholds. This layer certifies the learned mechanism; it does not receive gradients and is not counted as the source of model improvement."
+      }
+    ]
+  },
+  "mechanism_profile": {
+    "state_representation": [
+      "history_latents",
+      "action_embedding",
+      "multiscale_temporal_residual_features",
+      "paired_counterfactual_rollout_benefit",
+      "multi_objective_return_quantiles",
+      "bootstrap_epistemic_uncertainty",
+      "zero_baseline_policy"
+    ],
+    "conditioning_path": [
+      "multiscale_unet_residual_injection",
+      "interaction_local_quantile_value_heads",
+      "zero_baseline_bootstrap_gate"
+    ],
+    "update_operator": [
+      "zero_initialized_multiscale_history_side_residual",
+      "quantile_arm_value_update",
+      "conservative_nonzero_value_regularization",
+      "risk_gated_adapter_update",
+      "on_policy_counterfactual_target_refresh"
+    ],
+    "reliability_routing": [
+      "lower_confidence_arm_dominance",
+      "fallback_to_zero_under_uncertainty",
+      "interaction_local_route",
+      "tail_risk_constraint"
+    ],
+    "training_distribution": [
+      "teacher_history",
+      "free_running_history",
+      "paired_counterfactual_correction",
+      "group_bootstrapped_development_contexts",
+      "periodically_refreshed_current_adapter_rollouts"
+    ],
+    "learning_signal": [
+      "diffusion_reconstruction",
+      "multi_objective_quantile_regression",
+      "conservative_value_margin",
+      "terminal_tail_loss",
+      "horizon_tail_loss",
+      "paired_policy_regret"
+    ],
+    "gradient_path": [
+      "frozen_pretrained_backbone",
+      "multiscale_side_adapter",
+      "independent_quantile_value_heads",
+      "stop_gradient_risk_gate"
+    ],
+    "inference_transition": [
+      "multiscale_residual_injection",
+      "choose_conservatively_dominant_nonzero_arm",
+      "otherwise_exact_zero_baseline"
+    ]
+  },
+  "implementation_contract": {
+    "trainable_modules": [
+      "history_corrector.multiscale_side_adapter",
+      "history_corrector.bootstrap_quantile_value_heads"
+    ],
+    "frozen_modules": [
+      "official_unet",
+      "official_action_encoder",
+      "vae",
+      "clip_encoder"
+    ],
+    "arms": [
+      "negative_normalized_multiscale_dose",
+      "zero_identity_dose",
+      "positive_normalized_multiscale_dose"
+    ],
+    "objectives": [
+      "mean_l1_benefit",
+      "terminal_interaction_l1_benefit",
+      "horizon_l1_slope_benefit"
+    ],
+    "ensemble_head_count": 5,
+    "quantiles": [0.1, 0.25, 0.5, 0.75, 0.9],
+    "bootstrap_unit": "development context group; all seeds and interactions from one context remain in the same bootstrap unit",
+    "route_granularity": "one frozen arm decision per autoregressive interaction",
+    "selection_rule": "Among nonzero arms whose calibrated lower confidence bound for mean benefit is positive and whose terminal and horizon lower bounds are nonnegative, select the arm with maximum conservative mean benefit. Otherwise select zero.",
+    "training_gate_rule": "A stop-gradient conservative eligibility mask controls whether a nonzero counterfactual rollout sends terminal or horizon gradients into the adapter. It never forces eligibility to meet coverage.",
+    "refresh_rule": "Refresh paired negative, zero, and positive rollout targets at optimizer steps 0, 16, 32, and 48. Freeze and hash each bank before steps 1-16, 17-32, 33-48, and 49-64 respectively.",
+    "identity_rule": "Forcing zero at every interaction must reproduce the official checkpoint within 1e-6 on all established quality outputs.",
+    "gradient_rule": "Only the multiscale side adapter and bootstrap quantile heads enter the optimizer. Calibration thresholds and eligibility masks are stop-gradient state. Every official checkpoint tensor must remain byte-identical.",
+    "forbidden_inputs": [
+      "episode_id",
+      "context_id",
+      "promotion_episode_membership",
+      "precomputed fingerprint class"
+    ]
+  },
+  "data_admission_gate": {
+    "required_before_training": true,
+    "promotion_episode_1799_policy": "forbidden for training, label construction, target refresh, bootstrap grouping, calibration, method selection, threshold selection, and all future promotion evaluation",
+    "new_promotion_context_rule": "Select and hash a previously unseen promotion-only episode and start context after implementation and before the first optimizer step. It must not be used until the versioned held-out evaluator runs.",
+    "required_development_partitions": [
+      "adapter_training_contexts",
+      "value_head_training_contexts",
+      "risk_calibration_contexts"
+    ],
+    "group_isolation_rule": "No episode or start context may cross training and calibration partitions; seeds from one context remain grouped.",
+    "minimum_support": {
+      "distinct_development_contexts": 12,
+      "distinct_contexts_per_best_arm": 3,
+      "paired_seeds_per_context": 3,
+      "local_interactions_per_arm": 32,
+      "risk_calibration_contexts": 4
+    },
+    "required_measurements": [
+      "same-seed negative, zero, and positive current-adapter rollouts",
+      "per-interaction suffix mean L1 for every arm",
+      "terminal interaction L1 for every arm",
+      "horizon L1 slope for every arm",
+      "action sensitivity for zero and selected arms",
+      "context-group identifier used only for split and bootstrap isolation"
+    ],
+    "failure_action": "Do not train and do not relax the conservative gate. Expand development-only paired probes or return to mechanism retrieval."
+  },
+  "loss_contract": {
+    "total": "L_diffusion + lambda_quantile*L_multiobjective_quantile + lambda_conservative*L_nonzero_overestimate + lambda_tail*L_terminal_horizon_tail + lambda_regret*L_paired_policy_regret",
+    "multiobjective_quantile": "Quantile Huber loss over per-arm mean, terminal, and horizon benefits without pre-scalarizing the objectives.",
+    "nonzero_overestimate": "Asymmetric penalty when a nonzero arm predicts positive conservative benefit on a development sample whose observed benefit is non-positive; zero is exempt as the protected baseline.",
+    "terminal_horizon_tail": "Upper-tail loss of terminal and horizon regression over eligible current-adapter rollouts, with gradients limited to the side adapter and value heads.",
+    "paired_policy_regret": "Observed loss of the selected eligible arm minus the minimum observed arm loss under the same context and seed.",
+    "coverage_loss": "forbidden",
+    "coverage_dual": "forbidden"
+  },
+  "screen_ablation": [
+    {
+      "id": "a0",
+      "name": "official_checkpoint_no_training",
+      "role": "protected predictive baseline"
+    },
+    {
+      "id": "d4",
+      "name": "failed_cclvr_point_value_policy",
+      "role": "settled nearest target-side mechanism"
+    },
+    {
+      "id": "e1",
+      "name": "interaction_local_point_value_without_coverage_dual",
+      "tests": "whether deleting forced coverage alone repairs harmful routing"
+    },
+    {
+      "id": "e2",
+      "name": "single_head_multiobjective_quantile_policy",
+      "tests": "whether return distributions and separated objectives help without epistemic uncertainty"
+    },
+    {
+      "id": "e3",
+      "name": "bootstrap_quantile_heads_with_zero_baseline_gate",
+      "tests": "whether uncertainty-aware baseline fallback reduces harmful routing"
+    },
+    {
+      "id": "e4",
+      "name": "e3_with_risk_gated_adapter_gradient",
+      "tests": "whether uncertainty changes learned residual capability rather than only inference routing"
+    },
+    {
+      "id": "e5",
+      "name": "full_policy_with_on_policy_refresh_and_tail_objective",
+      "candidate": true,
+      "tests": "complete conservative distributional residual mechanism"
+    },
+    {
+      "id": "e6",
+      "name": "e5_with_shuffled_context_bootstrap_groups",
+      "tests": "whether context-group uncertainty contains real generalization information"
+    }
+  ],
+  "falsification_logic": [
+    "If E1 matches E5, the new mechanism is rejected as an unnecessary replacement for deleting the coverage dual.",
+    "If E2 does not improve terminal and horizon calibration over E1, multi-objective quantile modeling is rejected.",
+    "If E3 does not reduce harmful routing and policy Brier over E2, bootstrap uncertainty and zero-baseline fallback are rejected.",
+    "If E4 does not improve fixed-arm terminal or horizon quality over E3, the risk-gated adapter gradient is not learning new residual capability and the result is only a routing effect.",
+    "If E5 does not beat E4 on value calibration and at least one of terminal L1 or horizon slope without regressing the other, on-policy refresh and tail training are rejected.",
+    "If E6 matches E5, the bootstrap grouping signal is not causally useful.",
+    "If E5 only improves mean L1 or only succeeds through posthoc calibration, the candidate is not promoted.",
+    "If any official tensor changes, zero-route identity fails, or promotion evidence enters training, the screen is void."
+  ],
+  "screen_budget": {
+    "gpus": 8,
+    "distributed_training": true,
+    "world_size": 8,
+    "steps_per_cell": 64,
+    "per_device_batch_size": 2,
+    "effective_global_batch_size": 16,
+    "precision": "bf16",
+    "resource_basis": "The settled CCLVR D1-D4 run used this configuration with about 24 GiB peak reserved memory per rank and passed frozen-scope audit.",
+    "memory_gate": "Peak reserved memory must remain below 90 percent of physical memory on every rank during an eight-rank optimizer-step smoke.",
+    "confirmation_steps": 512,
+    "confirmation_authorized": false,
+    "confirmation_rule": "No confirmation plan may be created unless E5 passes every new promotion gate on a newly frozen promotion-only context."
+  },
+  "promotion_gate": {
+    "new_promotion_context_required": true,
+    "episode_1799_forbidden": true,
+    "official_checkpoint_unchanged": true,
+    "zero_arm_identity_tolerance": 1e-6,
+    "mean_l1_strictly_below": 6.308339913686116,
+    "final_interaction_l1_strictly_below": 7.532397111256917,
+    "horizon_l1_slope_strictly_below": 0.9482283910115566,
+    "policy_brier_strictly_below": 0.15579411994527886,
+    "harmful_routing_rate_maximum": 0.1,
+    "counterfactual_policy_value_strictly_positive": true,
+    "paired_seed_wins_minimum": {
+      "versus_a0": 2,
+      "versus_d4": 2,
+      "versus_e1": 2
+    },
+    "action_response_ratio_vs_a0_minimum": 0.9,
+    "mechanism_ablation_rule": "E5 must beat E3 on both fixed-arm terminal interaction L1 and horizon slope, demonstrating trained residual improvement beyond uncertainty routing.",
+    "tail_risk_rule": "No paired seed may exceed the frozen high-loss terminal or horizon regression threshold after calibration.",
+    "coverage_rule": "No minimum nonzero coverage is imposed. When the held-out conservative oracle contains a supported beneficial arm, E5 must execute at least one such arm and must abstain on every unsupported non-beneficial interaction.",
+    "all_gates_required": true
+  },
+  "implementation_order": [
+    "Materialize a versioned development split and prove episode 1799 and all prior promotion contexts are absent.",
+    "Extend the local value bank to retain three objective vectors per arm and context-group bootstrap identifiers.",
+    "Implement bootstrap quantile heads and unit-test quantile ordering, independent initialization, grouped masks, and exact zero fallback.",
+    "Implement conservative dominance and risk-gated gradients with coverage loss and coverage dual structurally unavailable.",
+    "Implement current-adapter paired target refresh with immutable bank receipts at steps 0, 16, 32, and 48.",
+    "Run one-GPU fixed-batch overfit and gradient-scope tests.",
+    "Run an eight-GPU one-step memory and synchronization smoke at batch size two.",
+    "Freeze a new promotion-only context and evaluator before any 64-step ablation starts.",
+    "Train E1-E5 under identical data, seed, optimizer, and resource settings; run E6 only if E5 clears the development canary.",
+    "Run the held-out evaluator once; do not authorize 512 steps unless every gate passes."
+  ],
+  "execution_authority": "design_only_no_training",
+  "claim_boundary": "This is a literature-grounded, target-local, trainable mechanism hypothesis and falsifiable work order. Structural-candidate labels are not publication novelty claims. No training, held-out reuse, or 512-step confirmation is authorized by this artifact."
+}

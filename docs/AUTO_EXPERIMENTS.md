@@ -77,14 +77,14 @@ database path, so changing the path cannot reset the campaign budget.
 ```bash
 uv run verdiwm-auto-scheduler plan \
   --batch configs/smoke/auto_experiment_candidate_batch_cuda_v1.json \
-  --workspace-root /share/project/hywu/wjy/VerdiWM \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1
+  --workspace-root /path/to/VerdiWM \
+  --output-root /path/to/verdiwm-runs/auto-scheduler-cuda-plan-v1
 
 uv run verdiwm-auto-scheduler run \
-  --queue /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1/queue.json \
-  --workspace-root /share/project/hywu/wjy/VerdiWM \
-  --archive-db /share/project/hywu/wjy/verdiwm-runs/archive.db \
-  --cas-root /share/project/hywu/wjy/verdiwm-runs/auto-scheduler-cuda-plan-v1/cas \
+  --queue /path/to/verdiwm-runs/auto-scheduler-cuda-plan-v1/queue.json \
+  --workspace-root /path/to/VerdiWM \
+  --archive-db /path/to/verdiwm-runs/archive.db \
+  --cas-root /path/to/verdiwm-runs/auto-scheduler-cuda-plan-v1/cas \
   --lock-root /tmp/verdiwm-gpu-leases
 ```
 
@@ -157,8 +157,8 @@ the plan allowlist:
 ```bash
 uv run verdiwm-auto-experiment run \
   --plan configs/smoke/auto_experiment_cuda_smoke_v1.json \
-  --workspace-root /share/project/hywu/wjy/VerdiWM \
-  --output-root /share/project/hywu/wjy/verdiwm-runs/auto-experiment-cuda-smoke-v1
+  --workspace-root /path/to/VerdiWM \
+  --output-root /path/to/verdiwm-runs/auto-experiment-cuda-smoke-v1
 ```
 
 The smoke workload performs a bounded matrix multiplication, writes
@@ -180,6 +180,6 @@ directory before treating the control plane as ready for model experiments.
 
 ```bash
 uv run verdiwm-auto-experiment cleanup \
-  --run-root /share/project/hywu/wjy/verdiwm-runs/auto-experiment-cuda-smoke-v1 \
+  --run-root /path/to/verdiwm-runs/auto-experiment-cuda-smoke-v1 \
   --older-than-hours 168
 ```

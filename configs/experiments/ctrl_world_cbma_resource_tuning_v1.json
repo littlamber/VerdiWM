@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-resource-tuning-plan",
+  "plan_id": "ctrl_world_cbma_resource_tuning_v1",
+  "candidate": "ctrl_world_counterfactual_benefit_multiscale_adapter_v1",
+  "state": "frozen_before_bs4_execution",
+  "evidence": {
+    "bs1_receipt": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/multiscale-adapter-8gpu-smoke-bs1-v1/receipt.json",
+    "bs1_receipt_sha256": "e63b1da55a22081288a462265c7280432b855958e8a6a2ec3e50a9b24287c4f6",
+    "bs1_peak_memory_fraction_max": 0.3987651163993251,
+    "bs2_receipt": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/multiscale-adapter-8gpu-smoke-bs2-v1/receipt.json",
+    "bs2_receipt_sha256": "a2e4ecad4d71e4fe35b7d0293c64ab06061c213022b61bf0433a568d9196e723",
+    "bs2_peak_memory_fraction_max": 0.5535735364579217
+  },
+  "next_rung": {
+    "per_device_batch_size": 4,
+    "world_size": 8,
+    "effective_global_batch_size": 32,
+    "predicted_peak_memory_fraction": 0.863190376575115,
+    "prediction_rule": "Linear extrapolation of the measured incremental activation memory from bs1 to bs2, retaining the measured fixed model footprint.",
+    "acceptance_gate": "Every rank completes one optimizer step, preserves zero-init identity and all official tensors, and remains below 0.9 physical-memory fraction.",
+    "failure_action": "Use per-device batch size 2 for the 64-step screen; do not retry bs4 with reduced safety margin."
+  },
+  "claim_boundary": "Infrastructure utilization tuning only. This plan does not change scientific losses, labels, model mechanism, or promotion thresholds."
+}

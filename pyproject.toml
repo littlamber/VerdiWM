@@ -30,8 +30,10 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8,<9"]
+torch-tests = ["torch>=2.2,<3"]
 
 [project.scripts]
+verdiwm = "wmloop.cli:main"
 verdiwm-backbone-audit = "wmloop.control.backbone_instance:main"
 verdiwm-capability-matrix = "wmloop.control.backbone_capability_matrix:main"
 verdiwm-acwm-cpbe-bootstrap = "wmloop.experiments.acwm_cpbe_bootstrap:main"
@@ -52,6 +54,7 @@ verdiwm-run-daemon = "wmloop.execute.pipeline_daemon:main"
 verdiwm-evolution-daemon = "wmloop.execute.evolution_daemon:main"
 verdiwm-literature-search = "wmloop.retrieve.literature:main"
 verdiwm-literature-method-stage = "wmloop.retrieve.method_staging:main"
+verdiwm-mechanism-discovery = "wmloop.retrieve.mechanism_discovery:main"
 verdiwm-campaign-daemon = "wmloop.execute.campaign_daemon:main"
 verdiwm-campaign-api = "wmloop.control.campaign_api:main"
 verdiwm-evidence-graph = "wmloop.experiments.evidence_graph:main"
@@ -62,6 +65,33 @@ packages = ["wmloop"]
 
 [tool.hatch.build.targets.wheel.force-include]
 configs = "configs"
+"scripts/aggregate_ctrl_world_local_fingerprint.py" = "scripts/aggregate_ctrl_world_local_fingerprint.py"
+"scripts/evaluate_ctrl_world_anchor_repair_confirm.py" = "scripts/evaluate_ctrl_world_anchor_repair_confirm.py"
+"scripts/freeze_ctrl_world_directional_selector.py" = "scripts/freeze_ctrl_world_directional_selector.py"
+"scripts/run_ctrl_world_anchor_repair_candidate.py" = "scripts/run_ctrl_world_anchor_repair_candidate.py"
+"scripts/run_ctrl_world_anchor_repair_screen.py" = "scripts/run_ctrl_world_anchor_repair_screen.py"
+"scripts/run_ctrl_world_local_fingerprint_probe.py" = "scripts/run_ctrl_world_local_fingerprint_probe.py"
+"scripts/settle_ctrl_world_anchor_repair_screen.py" = "scripts/settle_ctrl_world_anchor_repair_screen.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/configs",
+  "/CONTRIBUTING.md",
+  "/docs",
+  "/LICENSE",
+  "/pyproject.toml",
+  "/README.md",
+  "/README_zh.md",
+  "/scripts",
+  "/SECURITY.md",
+  "/tests",
+  "/uv.lock",
+  "/wmloop",
+]
+exclude = [
+  "/docs/CTRL_WORLD_CONSERVATIVE_DISTRIBUTIONAL_RESIDUAL_POLICY_WORK_ORDER.md",
+  "/docs/CTRL_WORLD_FINGERPRINT_SIGNED_HISTORY_WORK_ORDER.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,65 @@
+{
+  "symptom_description": "A frozen-backbone signed history corrector preserved the official Ctrl-World function and action sensitivity, and a decoupled execute-or-abstain router calibrated safely. However, the single global history-latent correction path did not beat simpler frozen correctors on independently held-out long-horizon quality, and both fixed correction directions were harmful on the held-out context.",
+  "failure_signatures": [
+    "frozen_corrector_capacity_or_injection_mismatch",
+    "global_history_gain_without_spatiotemporal_localization",
+    "reconstruction_signal_not_aligned_with_rollout_benefit",
+    "no_beneficial_correction_examples_in_heldout_route_screen",
+    "direction_confidence_use_identifiability_requires_mixed_benefit_contexts"
+  ],
+  "target_metrics": [
+    "heldout_long_horizon_prediction_quality",
+    "counterfactual_correction_benefit",
+    "paired_seed_quality_wins",
+    "routing_risk_coverage",
+    "abstention_calibration"
+  ],
+  "protected_metrics": [
+    "official_checkpoint_predictive_function",
+    "action_sensitivity",
+    "short_horizon_prediction_quality",
+    "bounded_harmful_routing"
+  ],
+  "available_hooks": [
+    "frozen_unet_multiscale_features",
+    "history_latent_input",
+    "signed_history_corrector",
+    "direction_confidence_use_logits",
+    "diffusion_training_objective",
+    "paired_counterfactual_rollouts",
+    "generated_rollout_history",
+    "heldout_meta_objective"
+  ],
+  "model_family": "Ctrl-World action-conditioned spatiotemporal U-Net latent video diffusion with a frozen official backbone and a trainable selective residual history-correction path",
+  "seed_arxiv_ids": [
+    "2405.20222v3",
+    "2312.00845v1",
+    "2404.09967v2",
+    "2312.06573v2",
+    "1709.07871v2",
+    "1901.09192v4",
+    "1803.09050v3",
+    "1812.06298v2",
+    "1606.03976v5",
+    "2405.19014v3",
+    "1610.09038v1",
+    "2506.08009v2"
+  ],
+  "cross_domain_lenses": [
+    "multi scale frozen side network high frequency feedback residual injection",
+    "temporal attention adapter motion residual distillation low frequency trajectory",
+    "mixture of experts router sparse control feature space adaptation",
+    "selective prediction integrated reject option risk coverage",
+    "validation meta gradient example weighting rollout benefit",
+    "individual treatment effect paired correction no correction counterfactual",
+    "residual control on top of strong imperfect nominal controller",
+    "local uncertainty where to trust model adaptive rollout",
+    "train sample dynamics alignment free running generated history",
+    "video level holistic rollout objective stochastic gradient truncation"
+  ],
+  "experiment_evidence": {
+    "settlement": "/path/to/verdiwm-runs/ctrl-world/fpshc-v1/heldout-screen-v1/SETTLEMENT.json",
+    "heldout_report": "/path/to/verdiwm-runs/ctrl-world/fpshc-v1/heldout-screen-v1/heldout-evaluation-report.json",
+    "observed_failure": "B3 beat A0 on all three paired seeds and preserved action response, but lost to B1 and B2 on two of three seeds and failed all three aggregate quality gates. Its route correctly abstained because both fixed correction endpoints were harmful."
+  }
+}

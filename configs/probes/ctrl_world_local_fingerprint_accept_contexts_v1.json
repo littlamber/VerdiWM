@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-context-set",
+  "context_set_id": "ctrl_world_droid_subset_accept_context_v1",
+  "dataset": {
+    "name": "DROID subset distributed with the Ctrl-World checkout",
+    "root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "split": "annotation/val"
+  },
+  "selection_policy": "Episode 1799 was excluded from the three-context development atlas and frozen before accept probe execution. The replay start, seeds, checkpoint, probe definitions, radii, outcome weights, and locality threshold are inherited without accept-side tuning.",
+  "contexts": [
+    {
+      "context_id": "droid-1799-start-8",
+      "episode_id": "1799",
+      "start_idx": 8,
+      "seeds": [401, 502, 603]
+    }
+  ],
+  "claim_boundary": "This is an independently frozen directional-selector accept context. It does not turn base intervention doses into repair-effect evidence."
+}

@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-primitive-mechanism-profiles",
+  "profiles": {
+    "action_contrastive_finetune": {
+      "state_representation": ["action_embedding"],
+      "conditioning_path": ["action_cross_attention"],
+      "update_operator": ["counterfactual_action_contrast"],
+      "reliability_routing": ["none"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["contrastive_action_loss"],
+      "gradient_path": ["action_encoder", "world_model"],
+      "inference_transition": ["fixed_action_conditioning"]
+    },
+    "action_dimension_balancing": {
+      "state_representation": ["action_embedding"],
+      "conditioning_path": ["action_cross_attention"],
+      "update_operator": ["per_dimension_rescaling"],
+      "reliability_routing": ["fixed_dimension_gain"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["action_encoder", "world_model"],
+      "inference_transition": ["balanced_action_conditioning"]
+    },
+    "cfg_guidance_schedule": {
+      "state_representation": ["conditional_unconditional_prediction"],
+      "conditioning_path": ["classifier_free_guidance"],
+      "update_operator": ["guidance_interpolation"],
+      "reliability_routing": ["fixed_time_schedule"],
+      "training_distribution": ["unchanged"],
+      "learning_signal": ["none"],
+      "gradient_path": ["none"],
+      "inference_transition": ["scheduled_guidance"]
+    },
+    "dino_rep_injection": {
+      "state_representation": ["external_visual_features"],
+      "conditioning_path": ["representation_conditioning"],
+      "update_operator": ["feature_injection"],
+      "reliability_routing": ["fixed_blend"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["fixed_feature_conditioning"]
+    },
+    "drift_token_trim": {
+      "state_representation": ["context_tokens"],
+      "conditioning_path": ["context_conditioning"],
+      "update_operator": ["token_pruning"],
+      "reliability_routing": ["fixed_keep_count"],
+      "training_distribution": ["unchanged"],
+      "learning_signal": ["none"],
+      "gradient_path": ["none"],
+      "inference_transition": ["trimmed_context"]
+    },
+    "event_window_reweight": {
+      "state_representation": ["training_windows"],
+      "conditioning_path": ["data_sampling"],
+      "update_operator": ["event_weighted_sampling"],
+      "reliability_routing": ["motion_event_score"],
+      "training_distribution": ["reweighted_teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["unchanged"]
+    },
+    "first_frame_anchor": {
+      "state_representation": ["first_frame_latent"],
+      "conditioning_path": ["history_conditioning"],
+      "update_operator": ["fixed_anchor_blend"],
+      "reliability_routing": ["fixed_schedule"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["periodic_anchor_refresh"]
+    },
+    "frontier_collection": {
+      "state_representation": ["failure_frontier_examples"],
+      "conditioning_path": ["data_collection"],
+      "update_operator": ["targeted_episode_collection"],
+      "reliability_routing": ["failure_condition"],
+      "training_distribution": ["frontier_augmented_data"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["unchanged"]
+    },
+    "history_noise_schedule": {
+      "state_representation": ["history_latents"],
+      "conditioning_path": ["history_conditioning"],
+      "update_operator": ["conditioning_corruption"],
+      "reliability_routing": ["fixed_noise_schedule"],
+      "training_distribution": ["corrupted_teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["fixed_history_reuse"]
+    },
+    "inv_dyn_reward_finetune": {
+      "state_representation": ["predicted_transition"],
+      "conditioning_path": ["action_conditioning"],
+      "update_operator": ["inverse_dynamics_reward"],
+      "reliability_routing": ["none"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["inverse_dynamics_reward_loss"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["fixed_action_conditioning"]
+    },
+    "latent_motion_prior": {
+      "state_representation": ["latent_motion_features"],
+      "conditioning_path": ["latent_objective"],
+      "update_operator": ["motion_prior_regularization"],
+      "reliability_routing": ["none"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["motion_prior_loss"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["unchanged"]
+    },
+    "latent_spatial_memory": {
+      "state_representation": ["latent_memory_slots"],
+      "conditioning_path": ["memory_conditioning"],
+      "update_operator": ["memory_slot_update"],
+      "reliability_routing": ["attention_routing"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["memory_module", "world_model"],
+      "inference_transition": ["persistent_memory_update"]
+    },
+    "mixture_reweight": {
+      "state_representation": ["training_mixture"],
+      "conditioning_path": ["data_sampling"],
+      "update_operator": ["mixture_weighting"],
+      "reliability_routing": ["fixed_mixture_weight"],
+      "training_distribution": ["reweighted_teacher_history"],
+      "learning_signal": ["diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["unchanged"]
+    },
+    "motion_region_reweight": {
+      "state_representation": ["spatial_motion_mask"],
+      "conditioning_path": ["loss_weighting"],
+      "update_operator": ["motion_region_weighting"],
+      "reliability_routing": ["motion_region_score"],
+      "training_distribution": ["teacher_history"],
+      "learning_signal": ["weighted_diffusion_reconstruction"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["unchanged"]
+    },
+    "next_forcing": {
+      "state_representation": ["multi_chunk_future"],
+      "conditioning_path": ["autoregressive_conditioning"],
+      "update_operator": ["multi_chunk_rollout"],
+      "reliability_routing": ["fixed_chunk_schedule"],
+      "training_distribution": ["free_running_history"],
+      "learning_signal": ["multi_horizon_loss"],
+      "gradient_path": ["world_model"],
+      "inference_transition": ["rolling_generated_history"]
+    },
+    "self_forcing_finetune": {
+      "state_representation": ["generated_history"],
+      "conditioning_path": ["autoregressive_conditioning"],
+      "update_operator": ["generated_state_rollout"],
+      "reliability_routing": ["none"],
+      "training_distribution": ["free_running_history"],
+      "learning_signal": ["sequence_generation_loss"],
+      "gradient_path": ["truncated_rollout_gradient", "world_model"],
+      "inference_transition": ["rolling_generated_history"]
+    },
+    "wmsd_self_distill": {
+      "state_representation": ["generated_history", "ema_teacher_prediction"],
+      "conditioning_path": ["autoregressive_conditioning"],
+      "update_operator": ["on_policy_self_distillation"],
+      "reliability_routing": ["teacher_student_consistency"],
+      "training_distribution": ["free_running_history"],
+      "learning_signal": ["distillation_loss"],
+      "gradient_path": ["student_world_model"],
+      "inference_transition": ["rolling_generated_history"]
+    }
+  }
+}

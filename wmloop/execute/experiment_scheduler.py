@@ -85,7 +85,7 @@ def plan_candidate_batch(
         stage_records = []
         for stage in candidate["stages"]:
             plan = _stage_plan(batch=batch, candidate=candidate, stage=stage)
-            filename = f"{plan['trial_id']}.json"
+            filename = f"{_trial_id(str(candidate['candidate_id']), str(stage['stage']))}.json"
             plan_path = destination / "plans" / filename
             _write_json_atomic(plan_path, plan)
             stage_records.append(
@@ -455,12 +455,10 @@ def _stage_plan(
 ) -> dict[str, object]:
     candidate_id = str(candidate["candidate_id"])
     stage_name = str(stage["stage"])
-    trial_id = _trial_id(candidate_id, stage_name)
     plan = {
         "schema_version": 1,
         "artifact_type": "verdiwm-auto-experiment-plan",
         "campaign_id": batch["campaign_id"],
-        "trial_id": trial_id,
         "objective": batch["objective"],
         "hypothesis": candidate["hypothesis"],
         "selection_reason": f"{batch['selection_reason']} Candidate: {candidate['selection_reason']}",
@@ -489,6 +487,15 @@ def _stage_plan(
     )
     if "onboarding_admission" in batch:
         plan["onboarding_admission"] = batch["onboarding_admission"]
+    identity = _sha256_bytes(
+        json.dumps(
+            plan,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )[:12]
+    plan["trial_id"] = _trial_id(candidate_id, stage_name, identity=identity)
     return plan
 
 
@@ -509,12 +516,14 @@ def _validate_external_workspace_admission(
         ) from exc
 
 
-def _trial_id(candidate_id: str, stage: str) -> str:
-    value = f"auto-{candidate_id}-{stage}"
+def _trial_id(candidate_id: str, stage: str, *, identity: str | None = None) -> str:
+    suffix = f"-{stage}" + (f"-{identity}" if identity is not None else "")
+    value = f"auto-{candidate_id}{suffix}"
     if len(value) <= 128:
         return value
-    digest = _sha256_bytes(value.encode("utf-8"))[:12]
-    return f"auto-{candidate_id[:108]}-{digest}"
+    digest = identity or _sha256_bytes(value.encode("utf-8"))[:12]
+    candidate_limit = 128 - len("auto--") - len(stage) - len(digest) - 2
+    return f"auto-{candidate_id[:candidate_limit]}-{stage}-{digest}"
 
 
 def _queue_manifest(

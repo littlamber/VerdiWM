@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-context-set",
+  "context_set_id": "ctrl_world_fshc_balanced_development_contexts_v2",
+  "dataset": {
+    "name": "DROID subset distributed with the Ctrl-World checkout",
+    "root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "split": "annotation/val development episodes only"
+  },
+  "selection_policy": "Frozen before the second execution batch after v1 data admission was blocked. Starts stratify the high-motion and gripper-transition neighborhoods in episode 18599 plus distinct motion phases in episodes 199 and 899. No v2 probe outcome was observed during selection; episode 1799 remains forbidden.",
+  "contexts": [
+    {
+      "context_id": "droid-199-start-4",
+      "episode_id": "199",
+      "start_idx": 4,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-899-start-12",
+      "episode_id": "899",
+      "start_idx": 12,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-899-start-52",
+      "episode_id": "899",
+      "start_idx": 52,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-899-start-80",
+      "episode_id": "899",
+      "start_idx": 80,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-8",
+      "episode_id": "18599",
+      "start_idx": 8,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-12",
+      "episode_id": "18599",
+      "start_idx": 12,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-20",
+      "episode_id": "18599",
+      "start_idx": 20,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-28",
+      "episode_id": "18599",
+      "start_idx": 28,
+      "seeds": [101, 202, 303]
+    }
+  ],
+  "leakage_audit": {
+    "promotion_episode_id": "1799",
+    "promotion_episode_present": false,
+    "prior_development_batch": "configs/probes/ctrl_world_fshc_balanced_development_contexts_v1.json",
+    "episode_identity_forbidden_as_model_feature": true
+  },
+  "claim_boundary": "Adaptive development-only class collection. Contexts from one episode are correlated and do not count as independent dataset-level evidence."
+}

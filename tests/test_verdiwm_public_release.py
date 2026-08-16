@@ -117,9 +117,11 @@ class GithubStagingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             (root / "bad.txt").write_text("/" + "mnt" + "/private/run", encoding="utf-8")
+            (root / "shared.txt").write_text("/" + "share" + "/project/run", encoding="utf-8")
             (root / "model.pt").write_bytes(b"weight")
             findings = audit_release_tree(root)
             self.assertIn("local_path:bad.txt", findings)
+            self.assertIn("local_path:shared.txt", findings)
             self.assertIn("blocked_extension:model.pt", findings)
 
     def test_builder_refuses_existing_destination(self) -> None:
@@ -128,18 +130,27 @@ class GithubStagingTests(unittest.TestCase):
                 build_github_staging(source_root=REPO_ROOT, output_root=Path(temp))
 
     def test_builder_includes_cross_backbone_control_plane(self) -> None:
-        if not (REPO_ROOT / "README_PUBLIC.md").is_file():
-            self.skipTest("an exported release tree is not itself a release-builder source")
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "release"
             audit = build_github_staging(source_root=REPO_ROOT, output_root=output)
 
             self.assertEqual(audit["state"], "ready")
+            self.assertTrue((output / "README_zh.md").is_file())
             self.assertTrue((output / "wmloop" / "experiments" / "lobo.py").is_file())
             self.assertTrue(
                 (output / "configs" / "experiments" / "three_backbone_lobo_pilot_v1.json").is_file()
             )
             self.assertTrue((output / "tests" / "test_cross_backbone_experiments.py").is_file())
+            self.assertTrue((output / "tests" / "test_evidence_capsule.py").is_file())
+            self.assertTrue((output / "tests" / "test_mechanism_discovery.py").is_file())
+            self.assertTrue((output / "tests" / "test_transferable_experience.py").is_file())
+            self.assertTrue((output / "wmloop" / "retrieve" / "evidence_capsule.py").is_file())
+            self.assertTrue((output / "wmloop" / "retrieve" / "mechanism_discovery.py").is_file())
+            self.assertTrue(
+                (output / "configs" / "retrieval" / "mechanism_tag_ontology_v1.json").is_file()
+            )
+            self.assertTrue((output / "docs" / "TRANSFERABLE_EXPERIENCE.md").is_file())
+            self.assertTrue((output / "docs" / "RELEASE_CHECKLIST.md").is_file())
             self.assertTrue((output / "tests" / "test_acwm_multiseed_eval_summary.py").is_file())
             self.assertTrue((output / "tests" / "test_progressive_fidelity.py").is_file())
             self.assertTrue((output / "tests" / "test_stage_progressive_fidelity_sources.py").is_file())

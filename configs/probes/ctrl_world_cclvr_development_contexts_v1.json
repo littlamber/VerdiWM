@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-context-set",
+  "context_set_id": "ctrl_world_cclvr_development_contexts_v1",
+  "dataset": {
+    "name": "DROID subset distributed with the Ctrl-World checkout",
+    "root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "split": "annotation/val development episodes only"
+  },
+  "selection_policy": "Hash-bound union of the previously frozen FSHC v1 and v2 development context sets. No context was selected from an interaction-local counterfactual outcome. Episode 1799 remains promotion-only and forbidden.",
+  "source_context_sets": [
+    {
+      "path": "configs/probes/ctrl_world_fshc_balanced_development_contexts_v1.json",
+      "sha256": "e000a44e9366c8991506b6a8be6bb46ef03919f9f3f650bbd3711d828f504668"
+    },
+    {
+      "path": "configs/probes/ctrl_world_fshc_balanced_development_contexts_v2.json",
+      "sha256": "937b46fe6b6d074e89bf3c2cfcd9ff4085857f72b73193fffa895c9f87e97e91"
+    }
+  ],
+  "contexts": [
+    {"context_id": "droid-199-start-0", "episode_id": "199", "start_idx": 0, "seeds": [101, 202, 303]},
+    {"context_id": "droid-199-start-8", "episode_id": "199", "start_idx": 8, "seeds": [101, 202, 303]},
+    {"context_id": "droid-899-start-0", "episode_id": "899", "start_idx": 0, "seeds": [101, 202, 303]},
+    {"context_id": "droid-899-start-32", "episode_id": "899", "start_idx": 32, "seeds": [101, 202, 303]},
+    {"context_id": "droid-899-start-64", "episode_id": "899", "start_idx": 64, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-0", "episode_id": "18599", "start_idx": 0, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-14", "episode_id": "18599", "start_idx": 14, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-40", "episode_id": "18599", "start_idx": 40, "seeds": [101, 202, 303]},
+    {"context_id": "droid-199-start-4", "episode_id": "199", "start_idx": 4, "seeds": [101, 202, 303]},
+    {"context_id": "droid-899-start-12", "episode_id": "899", "start_idx": 12, "seeds": [101, 202, 303]},
+    {"context_id": "droid-899-start-52", "episode_id": "899", "start_idx": 52, "seeds": [101, 202, 303]},
+    {"context_id": "droid-899-start-80", "episode_id": "899", "start_idx": 80, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-8", "episode_id": "18599", "start_idx": 8, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-12", "episode_id": "18599", "start_idx": 12, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-20", "episode_id": "18599", "start_idx": 20, "seeds": [101, 202, 303]},
+    {"context_id": "droid-18599-start-28", "episode_id": "18599", "start_idx": 28, "seeds": [101, 202, 303]}
+  ],
+  "leakage_audit": {
+    "promotion_episode_id": "1799",
+    "promotion_episode_present": false,
+    "episode_identity_forbidden_as_model_feature": true,
+    "context_identity_forbidden_as_model_feature": true,
+    "seed_forbidden_as_model_feature": true,
+    "start_idx_forbidden_as_model_feature": true
+  },
+  "claim_boundary": "Development-only interaction-local counterfactual label discovery. Starts and seeds within an episode are correlated and are not independent dataset-level evidence."
+}

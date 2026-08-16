@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-mechanism-tag-ontology",
+  "axes": {
+    "state_representation": {
+      "action_condition": [
+        "action_embedding"
+      ],
+      "base_model_state": [
+        "pretrained_base_output",
+        "pretrained_diffusion_features",
+        "pretrained_hidden_state",
+        "pretrained_parameters",
+        "pretrained_weights",
+        "frozen_pretrained_weights",
+        "nominal_controller_action"
+      ],
+      "conditioning_signal": [
+        "conditioning_information",
+        "external_control_condition",
+        "external_control_features",
+        "multiple_control_conditions",
+        "sparse_motion_control"
+      ],
+      "generated_rollout_state": [
+        "generated_history",
+        "self_generated_history",
+        "free_running_dynamics",
+        "full_generated_video",
+        "rolling_key_value_cache"
+      ],
+      "history_state": [
+        "history_latents",
+        "latent_memory_slots",
+        "teacher_forced_dynamics"
+      ],
+      "local_reliability_state": [
+        "expert_correctness_probability",
+        "local_model_uncertainty",
+        "model_correctness_probability",
+        "prediction",
+        "selection_probability"
+      ],
+      "multiscale_generator_features": [
+        "generation_feedback_features",
+        "multiscale_image_features",
+        "network_features",
+        "pretrained_controlnet_features",
+        "target_backbone_features"
+      ],
+      "paired_counterfactual_outcomes": [
+        "balanced_context_representation",
+        "counterfactual_treatment_effect",
+        "treated_and_control_outcomes"
+      ],
+      "routing_resource_state": [
+        "adaptive_cardinality",
+        "consultation_costs",
+        "entity_scores",
+        "expert_routing_scores",
+        "recent_expert_load"
+      ],
+      "sequence_position_state": [
+        "expert_capability",
+        "per_token_noise_levels",
+        "sequence_prefix",
+        "sequence_tokens",
+        "token_level_prediction"
+      ],
+      "teacher_generated_state": [
+        "ground_truth_previous_token",
+        "model_generated_previous_token"
+      ],
+      "treatment_policy_state": [
+        "individual_characteristics"
+      ],
+      "residual_state": [
+        "adapter_bottleneck_state",
+        "corrective_control_features",
+        "dense_motion_flow",
+        "learned_residual_action",
+        "low_rank_parameter_delta",
+        "side_network_output"
+      ],
+      "validation_signal": [
+        "clean_validation_loss",
+        "per_example_gradient_direction"
+      ]
+    },
+    "conditioning_path": {
+      "action_conditioning": [
+        "action_conditioning",
+        "action_cross_attention"
+      ],
+      "feature_modulation": [
+        "featurewise_modulation"
+      ],
+      "history_conditioning": [
+        "autoregressive_conditioning",
+        "autoregressive_self_conditioning",
+        "history_conditioning",
+        "memory_conditioning"
+      ],
+      "router_bias_conditioning": [
+        "expertwise_score_bias"
+      ],
+      "selective_policy_conditioning": [
+        "integrated_selection_head",
+        "one_vs_all_correctness_heads",
+        "policy_features",
+        "shared_prediction_deferral_scores"
+      ],
+      "sequence_local_routing_path": [
+        "posthoc_sequence_rejector"
+      ],
+      "temporal_credit_conditioning": [
+        "causal_partially_noised_history",
+        "scheduled_teacher_generated_conditioning"
+      ],
+      "side_adapter_path": [
+        "additive_side_network",
+        "condition_specific_adapter_path",
+        "cross_backbone_control_adapter",
+        "domain_aware_motion_field_adapter",
+        "high_frequency_high_bandwidth_feedback",
+        "layerwise_adapter_path",
+        "layerwise_low_rank_weight_path",
+        "multiscale_guided_feature_injection",
+        "parallel_control_branch",
+        "patch_level_multicondition_path",
+        "residual_policy_path",
+        "temporal_attention_adaptation"
+      ],
+      "teacher_or_meta_conditioning": [
+        "teacher_output_targets",
+        "train_sample_domain_discriminator",
+        "treatment_conditioned_outcome_heads",
+        "uncertainty_conditioned_rollout_control",
+        "validation_meta_objective"
+      ]
+    },
+    "update_operator": {
+      "counterfactual_effect_estimation": [
+        "doubly_robust_policy_optimization",
+        "individual_treatment_effect_estimation"
+      ],
+      "data_or_loss_reweighting": [
+        "event_weighted_sampling",
+        "meta_learned_example_reweighting",
+        "mixture_weighting",
+        "motion_region_weighting"
+      ],
+      "generated_rollout_update": [
+        "curriculum_history_substitution",
+        "generated_state_rollout",
+        "multi_chunk_rollout",
+        "self_forced_video_rollout"
+      ],
+      "granular_route_optimization": [
+        "cost_sensitive_topk_selection",
+        "joint_prediction_deferral_optimization",
+        "token_or_suffix_deferral"
+      ],
+      "load_control_update": [
+        "online_load_dependent_bias_update"
+      ],
+      "residual_feature_update": [
+        "additive_low_rank_parameter_update",
+        "additive_residual_control",
+        "base_side_output_summation",
+        "bounded_signed_history_residual",
+        "conditional_affine_feature_transform",
+        "feature_space_control_adaptation",
+        "iterative_corrective_feedback",
+        "learned_adapter_feature_injection",
+        "residual_bottleneck_adaptation",
+        "sparse_to_dense_motion_warp",
+        "zero_initialized_residual_control"
+      ],
+      "route_or_trust_update": [
+        "adaptive_rollout_extent",
+        "joint_prediction_rejection_optimization"
+      ],
+      "temporal_diffusion_update": [
+        "independent_per_token_denoising"
+      ],
+      "training_dynamics_alignment": [
+        "adversarial_dynamics_alignment",
+        "motion_residual_distillation",
+        "on_policy_self_distillation",
+        "output_distillation_anti_forgetting"
+      ]
+    },
+    "reliability_routing": {
+      "abstention_route": [
+        "decoupled_direction_confidence_use",
+        "learned_reject_option",
+        "predict_or_abstain",
+        "risk_coverage_tradeoff"
+      ],
+      "calibrated_actor_route": [
+        "calibrated_actor_correctness_route",
+        "constrained_treatment_assignment_policy"
+      ],
+      "granular_sequence_route": [
+        "adaptive_topk_route",
+        "one_time_suffix_rejector",
+        "token_level_rejector"
+      ],
+      "fixed_route": [
+        "fixed_additive_fusion",
+        "fixed_blend",
+        "fixed_chunk_schedule",
+        "fixed_dimension_gain",
+        "fixed_interpolation_coefficient",
+        "fixed_mixture_weight",
+        "fixed_regularization_strength",
+        "fixed_residual_composition",
+        "fixed_schedule",
+        "fixed_time_schedule",
+        "none"
+      ],
+      "learned_context_route": [
+        "attention_routing",
+        "confidence_calibrated_route",
+        "discriminator_feedback",
+        "domain_specific_adapter_composition",
+        "feedback_control_loop",
+        "gradient_alignment_weight",
+        "local_where_to_trust_gate",
+        "mixture_of_experts_router",
+        "predicted_individual_effect",
+        "teacher_student_consistency"
+      ],
+      "signal_filter": [
+        "condition_generated_scale_and_shift",
+        "frequency_separated_motion_filter",
+        "motion_event_score",
+        "motion_region_score"
+      ],
+      "training_distribution_schedule": [
+        "independent_token_noise_schedule",
+        "time_dependent_teacher_generated_mix"
+      ],
+      "training_stability_route": [
+        "auxiliary_loss_free_load_balancing",
+        "stochastic_gradient_truncation",
+        "topk_router",
+        "zero_initialized_coupling"
+      ]
+    },
+    "training_distribution": {
+      "counterfactual_or_selective_examples": [
+        "covered_and_rejected_examples",
+        "model_expert_outcome_examples",
+        "multi_entity_outcome_cost_examples",
+        "observational_treatment_outcomes",
+        "paired_counterfactual_correction",
+        "treated_control_observational_data"
+      ],
+      "downstream_adaptation": [
+        "condition_specific_adapter_training",
+        "conditioned_task_examples",
+        "downstream_adaptation_data",
+        "downstream_task_data",
+        "downstream_finetuning_data",
+        "one_shot_target_motion_video",
+        "target_distribution_finetuning"
+      ],
+      "free_running_rollouts": [
+        "controller_induced_robot_rollouts",
+        "free_running_generated_history",
+        "free_running_history",
+        "model_based_actor_critic_rollouts",
+        "teacher_to_generated_history_curriculum",
+        "teacher_forced_and_free_running_sequences"
+      ],
+      "router_training_examples": [
+        "mixture_of_experts_training",
+        "pretrained_sequence_predictions_with_expert_labels"
+      ],
+      "paired_control_data": [
+        "image_video_sparse_frame_controls",
+        "paired_control_condition_training",
+        "sparse_control_video_pairs",
+        "spatial_guidance_pairs"
+      ],
+      "teacher_history_data": [
+        "corrupted_teacher_history",
+        "reweighted_teacher_history",
+        "teacher_history"
+      ],
+      "variable_horizon_diffusion_data": [
+        "all_subsequence_noise_configurations",
+        "variable_horizon_sequences"
+      ],
+      "validation_bilevel_data": [
+        "biased_training_data_with_clean_validation_subset",
+        "new_task_data_without_old_task_data"
+      ]
+    },
+    "learning_signal": {
+      "counterfactual_route_loss": [
+        "bayes_consistent_surrogate",
+        "consistent_deferral_surrogate",
+        "cost_sensitive_deferral_loss",
+        "counterfactual_route_calibration",
+        "coverage_constrained_selection_loss",
+        "doubly_robust_policy_value",
+        "factual_outcome_loss",
+        "proper_correctness_calibration_loss",
+        "representation_balance_penalty",
+        "utilitarian_regret"
+      ],
+      "distillation_or_alignment_loss": [
+        "adversarial_domain_loss",
+        "distillation_loss",
+        "motion_distillation_objective",
+        "original_output_preservation_loss",
+        "teacher_student_consistency"
+      ],
+      "reconstruction_or_task_loss": [
+        "conditional_generation_loss",
+        "control_fidelity_objective",
+        "diffusion_reconstruction",
+        "diffusion_reconstruction_loss",
+        "generation_quality_and_control_fidelity",
+        "main_task_loss_without_balance_gradient",
+        "new_task_loss",
+        "prediction_loss",
+        "target_task_loss",
+        "task_loss"
+      ],
+      "rollout_level_loss": [
+        "all_subsequence_variational_lower_bound",
+        "actor_critic_objective_with_model_rollouts",
+        "holistic_video_level_loss",
+        "multi_horizon_loss",
+        "reinforcement_learning_return",
+        "sequence_cost_accuracy_objective",
+        "sequence_generation_loss",
+        "sequence_likelihood"
+      ],
+      "validation_meta_loss": [
+        "validation_loss_meta_gradient"
+      ]
+    },
+    "gradient_path": {
+      "adapter_only_frozen_base": [
+        "adapter_only",
+        "adapter_only_over_pretrained_controlnet",
+        "compact_control_network",
+        "frozen_original_network",
+        "frozen_pretrained_backbone",
+        "frozen_pretrained_base",
+        "history_corrector_only",
+        "low_rank_matrices_only",
+        "motion_adapters",
+        "rejector_only_frozen_predictor",
+        "residual_policy_only",
+        "side_network_only",
+        "temporal_attention_layers",
+        "trainable_control_branch"
+      ],
+      "bilevel_gradient": [
+        "bilevel_example_weight_gradient",
+        "shared_balanced_encoder_and_outcome_heads"
+      ],
+      "full_model_adaptation": [
+        "adapted_model",
+        "conditioning_generator_and_modulated_network",
+        "finetuned_model",
+        "full_model_with_pretrained_parameter_anchor",
+        "model_based_actor_critic",
+        "policy_optimizer_over_nuisance_estimates",
+        "predictor_and_selector",
+        "predictor_and_deferral_heads",
+        "shared_predictor_router",
+        "world_model"
+      ],
+      "non_gradient_route_update": [
+        "main_task_gradient_only",
+        "non_gradient_router_bias_update"
+      ],
+      "teacher_student_gradient": [
+        "frozen_original_teacher",
+        "recurrent_generator_and_discriminator",
+        "student_world_model"
+      ],
+      "truncated_rollout_gradient": [
+        "truncated_autoregressive_rollout_gradient",
+        "truncated_rollout_gradient"
+      ]
+    },
+    "inference_transition": {
+      "adaptive_or_selective_transition": [
+        "bias_adjusted_topk_route",
+        "choose_more_likely_correct_actor",
+        "choose_treatment_from_predicted_effect",
+        "choose_treatment_under_constraints",
+        "defer_remaining_suffix",
+        "interleaved_model_expert_sequence",
+        "predict_or_abstain",
+        "select_cost_effective_entities",
+        "uncertainty_adapted_rollout"
+      ],
+      "adapter_augmented_transition": [
+        "adapted_control_residual_injection",
+        "adapter_augmented_hidden_transition",
+        "additive_base_side_prediction",
+        "additive_conditioned_feature_residual",
+        "composable_control_adapter",
+        "corrected_history_input",
+        "customized_temporal_attention",
+        "dense_interleaved_feature_correction",
+        "featurewise_affine_conditioning",
+        "motion_field_guided_video_diffusion",
+        "nominal_plus_residual_action",
+        "pretrained_weights_plus_low_rank_delta"
+      ],
+      "free_running_transition": [
+        "free_running_sequence_generation",
+        "guided_desirable_trajectory",
+        "persistent_memory_update",
+        "rolling_cache_video_extrapolation",
+        "rolling_generated_history",
+        "variable_horizon_causal_diffusion"
+      ],
+      "unchanged_or_single_model": [
+        "base_model_without_weighting_module",
+        "single_adapted_model",
+        "unchanged"
+      ]
+    }
+  }
+}

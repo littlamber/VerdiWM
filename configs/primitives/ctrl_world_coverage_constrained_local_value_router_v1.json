@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-target-local-mechanism-candidate",
+  "candidate_id": "ctrl_world_coverage_constrained_local_value_router_v1",
+  "state": "frozen_before_implementation",
+  "working_name": "coverage_constrained_interaction_local_counterfactual_value_router",
+  "source_failure": {
+    "settlement": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/SETTLEMENT.json",
+    "settlement_sha256": "fd814d335f808c71b2515f0b791490f8026aabeff2685b0af955a17f4a978527",
+    "heldout_report": "/path/to/verdiwm-runs/ctrl-world/cbma-v1/heldout-screen-64-v3-normalized-fix/heldout-evaluation-report.json",
+    "heldout_report_sha256": "b634ca908afba0c44acf3c1ba3756a28a72bf50136396072016e9686dd53e5c9",
+    "dominant_failure": "The C3 multiscale corrector had beneficial fixed endpoints and the best mean L1, but its example-level use head abstained on every held-out seed and its average-dominated objective missed terminal-interaction and horizon-slope gates."
+  },
+  "mechanism_evidence": {
+    "request": "configs/retrieval/ctrl_world_cbma_router_horizon_mechanism_discovery_v2.json",
+    "request_sha256": "8692d4bc6f1564fdf14801cfa39fdaa9c27d6573e9aede7f7f3ea9b2323b74c6",
+    "annotations": "configs/retrieval/ctrl_world_cbma_router_horizon_mechanism_annotations_v2.json",
+    "annotations_sha256": "bc8e7f1943932664be1ef78a57e151640b508dae21f91b947d485b3605d79251",
+    "atlas": "/path/to/verdiwm-runs/ctrl-world/mechanism-discovery-v10/mechanism-atlas.json",
+    "atlas_sha256": "768afb684094f2a99a5ea032e87b5fa31c344bdccf31e99e57a00eec0708af78",
+    "comparison_ontology_sha256": "38dc19abb1dc2fe44085b407196550fbf92c6b62df751f8edd2a1e352b2f5683",
+    "settled_reference_profiles_sha256": "714e40c659f13af4ff14764fe0fe80b1cf7e4e6c5fa5bde4512f05617aa43158",
+    "paper_count": 100,
+    "evidence_supported_count": 8,
+    "missing_source_count": 0,
+    "classification_counts": {
+      "equivalent": 1,
+      "extension": 3,
+      "composition": 4,
+      "structural_candidate": 0,
+      "unresolved": 92
+    },
+    "selected_sources": [
+      {
+        "arxiv_id": "1702.02896v6",
+        "role": "Optimize a treatment-assignment policy value under explicit application constraints instead of independently thresholding direction and use logits.",
+        "screening_label": "extension",
+        "structural_difference": ["state_representation", "update_operator"]
+      },
+      {
+        "arxiv_id": "2202.03673v2",
+        "role": "Use calibrated actor-specific outcome probabilities as the parameterization for correction versus no correction.",
+        "screening_label": "composition",
+        "structural_difference": ["update_operator", "reliability_routing"]
+      },
+      {
+        "arxiv_id": "2502.01459v2",
+        "role": "Replace whole-example execution with partial sequence execution at interaction boundaries over a frozen predictor.",
+        "screening_label": "composition",
+        "structural_difference": ["conditioning_path"]
+      },
+      {
+        "arxiv_id": "2408.15664v1",
+        "role": "Prevent all-abstain collapse through a recent-coverage-dependent router bias that does not inject balancing gradients into the predictive objective.",
+        "screening_label": "composition",
+        "structural_difference": ["conditioning_path", "update_operator", "gradient_path"]
+      },
+      {
+        "arxiv_id": "2407.01392v4",
+        "role": "Transfer only the per-position and all-subsequence temporal-credit principle into a frozen-adapter return-to-go target.",
+        "screening_label": "extension",
+        "structural_difference": ["update_operator", "training_distribution"]
+      }
+    ],
+    "not_selected_as_primary": [
+      {
+        "arxiv_id": "1907.00208v2",
+        "reason": "Structurally equivalent to the already referenced SelectiveNet mechanism and therefore not a new route beyond the failed reject-option family."
+      },
+      {
+        "arxiv_id": "1506.03099v3",
+        "reason": "Scheduled Sampling repairs train-inference distribution mismatch but does not directly address calibrated treatment value or terminal credit."
+      },
+      {
+        "arxiv_id": "2505.10160v2",
+        "reason": "Adaptive Top-k allocation is reserved for a later depth-routing extension; it adds unnecessary cardinality complexity before interaction-local routing is validated."
+      }
+    ]
+  },
+  "structural_composition": {
+    "preserved_components": [
+      "frozen official Ctrl-World backbone and action encoder",
+      "zero-initialized multiscale history side residuals",
+      "normalized negative, zero, and positive correction doses",
+      "paired fixed-dose counterfactual rollout measurements",
+      "adapter-only gradient isolation",
+      "held-out fail-closed promotion evaluation"
+    ],
+    "replaced_components": [
+      "separate direction, confidence, and use logits",
+      "single whole-example execute-or-abstain threshold",
+      "average-dominated reconstruction and benefit-ranking targets without explicit terminal return"
+    ],
+    "new_mechanism": [
+      {
+        "component": "interaction_local_three_arm_value_policy",
+        "definition": "At each interaction boundary, predict calibrated return values for negative, zero, and positive normalized multiscale doses. Zero is an explicit treatment arm, so abstention and direction are selected by one policy rather than inconsistent heads."
+      },
+      {
+        "component": "terminal_horizon_return_to_go",
+        "definition": "For each interaction and dose, supervise the predicted value with future weighted L1 return relative to zero dose. The return includes an explicit terminal-interaction term and a horizon-slope term, assigning current routing and adapter updates credit for later rollout quality."
+      },
+      {
+        "component": "non_gradient_coverage_dual",
+        "definition": "Add a scalar nonzero-arm bias updated from the gap between observed route coverage and the frozen development oracle-beneficial coverage band. The dual is updated outside backpropagation and cannot change dose direction or residual content."
+      }
+    ]
+  },
+  "mechanism_profile": {
+    "state_representation": [
+      "history_latents",
+      "action_embedding",
+      "multiscale_temporal_residual_features",
+      "paired_counterfactual_rollout_benefit",
+      "per_interaction_return_to_go",
+      "three_arm_treatment_values",
+      "recent_route_coverage"
+    ],
+    "conditioning_path": [
+      "multiscale_unet_residual_injection",
+      "interaction_local_policy_head",
+      "coverage_dual_bias"
+    ],
+    "update_operator": [
+      "zero_initialized_multiscale_history_side_residual",
+      "three_arm_counterfactual_policy_optimization",
+      "temporal_return_to_go_value_update",
+      "non_gradient_coverage_dual_update"
+    ],
+    "reliability_routing": [
+      "calibrated_arm_value_route",
+      "constrained_treatment_assignment_policy",
+      "interaction_local_rejector",
+      "coverage_band_control"
+    ],
+    "training_distribution": [
+      "teacher_history",
+      "free_running_history",
+      "paired_counterfactual_correction",
+      "balanced_benefit_classes",
+      "per_interaction_counterfactual_outcomes"
+    ],
+    "learning_signal": [
+      "diffusion_reconstruction",
+      "per_arm_value_calibration",
+      "counterfactual_policy_value",
+      "terminal_weighted_return_to_go",
+      "horizon_slope_regularization",
+      "policy_regret"
+    ],
+    "gradient_path": [
+      "frozen_pretrained_backbone",
+      "history_corrector_only",
+      "router_and_value_heads",
+      "non_gradient_coverage_dual"
+    ],
+    "inference_transition": [
+      "multiscale_residual_injection",
+      "choose_best_positive_value_arm",
+      "interaction_local_execute_or_abstain"
+    ]
+  },
+  "implementation_contract": {
+    "trainable_modules": [
+      "history_corrector.multiscale_side_adapter",
+      "history_corrector.local_arm_value_head"
+    ],
+    "frozen_modules": [
+      "official_unet",
+      "official_action_encoder",
+      "vae",
+      "clip_encoder"
+    ],
+    "arms": [
+      "negative_normalized_multiscale_dose",
+      "zero_dose",
+      "positive_normalized_multiscale_dose"
+    ],
+    "route_granularity": "one treatment decision per autoregressive interaction; all frames generated inside that interaction share the frozen decision",
+    "value_target": "For interaction i and arm a, target delta_i(a)=future_weighted_error_i(zero)-future_weighted_error_i(a), where future_weighted_error includes all j>=i interaction L1 values, an explicit final-interaction weight, and the rollout horizon-L1 slope.",
+    "selection_rule": "Select the arm with the highest calibrated predicted delta after the frozen coverage bias. Select zero whenever the best nonzero lower-confidence value is not positive.",
+    "coverage_rule": "Freeze the target coverage band from the development fraction of interaction-arm pairs with positive counterfactual return. Update one clipped scalar bias from recent soft route coverage outside autograd; never backpropagate a coverage auxiliary loss through the adapter.",
+    "identity_rule": "Forcing the zero arm at every interaction must reproduce the official checkpoint within the established normalized zero-dose tolerance.",
+    "gradient_rule": "Only the multiscale side adapter and local arm-value head may enter the optimizer. The coverage dual is state, not a parameter, and every official checkpoint tensor must remain byte-identical."
+  },
+  "data_admission_gate": {
+    "required_before_training": true,
+    "development_contexts": "configs/probes/ctrl_world_fshc_balanced_development_contexts_v2.json",
+    "heldout_episode_policy": "Episode 1799 is promotion-only and is forbidden from feature extraction, label construction, calibration, threshold selection, and training.",
+    "required_measurements": [
+      "shared-seed negative, zero, and positive normalized-dose rollouts",
+      "per-interaction L1 sequence for every arm",
+      "final-interaction L1 for every arm",
+      "horizon-L1 slope for every arm",
+      "action-sensitivity receipt for zero and selected arms"
+    ],
+    "minimum_local_target_support": {
+      "negative_arm_best": 4,
+      "zero_arm_best": 4,
+      "positive_arm_best": 4
+    },
+    "paired_seeds_per_context": 3,
+    "freeze_rule": "Hash the admitted context list, all arm receipts, local value labels, terminal and slope weights, coverage band, and evaluator before the first optimizer step.",
+    "failure_action": "Do not train; expand development-only fixed-arm probes or return to retrieval."
+  },
+  "screen_ablation": [
+    {
+      "id": "a0",
+      "name": "official_checkpoint_no_training",
+      "role": "protected baseline"
+    },
+    {
+      "id": "b3",
+      "name": "frozen_scalar_corrector_decoupled_route",
+      "role": "best existing horizon-slope comparator"
+    },
+    {
+      "id": "c1",
+      "name": "multiscale_adapter_reconstruction_only",
+      "role": "best existing final-interaction comparator"
+    },
+    {
+      "id": "c3",
+      "name": "multiscale_adapter_counterfactual_benefit_route",
+      "role": "failed nearest mechanism and best existing mean-L1 comparator"
+    },
+    {
+      "id": "d1",
+      "name": "episode_level_three_arm_value_policy",
+      "tests": "unified calibrated treatment values without coverage or local routing"
+    },
+    {
+      "id": "d2",
+      "name": "episode_level_three_arm_value_policy_with_coverage_dual",
+      "tests": "coverage-collapse repair without local execution or terminal return"
+    },
+    {
+      "id": "d3",
+      "name": "interaction_local_three_arm_policy_with_coverage_dual",
+      "tests": "partial execution without terminal-horizon return-to-go"
+    },
+    {
+      "id": "d4",
+      "name": "interaction_local_coverage_policy_with_terminal_horizon_return",
+      "candidate": true,
+      "tests": "complete proposed mechanism"
+    }
+  ],
+  "falsification_logic": [
+    "If D2 increases execution coverage but does not improve held-out policy value and Brier score over D1, the coverage dual is merely forcing routes and is rejected.",
+    "If D3 does not improve local route precision or harmful-routing rate over D2, interaction-local execution is rejected.",
+    "If D4 does not beat D3 on final-interaction L1 and horizon slope, terminal-horizon return-to-go is rejected.",
+    "If D4 improves average L1 but misses either the final-interaction or horizon-slope comparator, the complete candidate is not promoted.",
+    "If any official tensor changes or the zero-arm identity check fails, the entire screen is void."
+  ],
+  "screen_budget": {
+    "gpus": 8,
+    "distributed_training": true,
+    "steps": 64,
+    "per_device_batch_size_start": 1,
+    "batch_size_tuning_rule": "Increase to two only after an eight-rank optimizer-step smoke remains below 90 percent of physical memory on every rank.",
+    "confirmation_steps": 512,
+    "confirmation_authorized": false,
+    "confirmation_rule": "No 512-step plan may be created unless D4 passes every frozen 64-step promotion gate."
+  },
+  "promotion_gate": {
+    "official_checkpoint_unchanged": true,
+    "zero_arm_identity_required": true,
+    "mean_l1_strictly_below": 6.308339913686116,
+    "final_interaction_l1_strictly_below": 7.532397111256917,
+    "horizon_l1_slope_strictly_below": 0.9482283910115566,
+    "abstention_calibration_brier_strictly_below": 0.15579411994527886,
+    "paired_seed_wins_minimum": {
+      "versus_b3": 2,
+      "versus_c1": 2,
+      "versus_c3": 2
+    },
+    "action_response_ratio_vs_a0_minimum": 0.9,
+    "harmful_routing_rate_maximum": 0.1,
+    "counterfactual_policy_value_strictly_positive": true,
+    "local_execution_rule": "When the frozen held-out local oracle contains both positive and non-positive returns, D4 must execute at least one beneficial interaction and abstain on at least one non-beneficial interaction on every paired seed.",
+    "ablation_rule": "D4 must beat D3 on both final-interaction L1 and horizon slope; D2 must beat D1 on coverage calibration without increasing harmful routing.",
+    "all_gates_required": true
+  },
+  "execution_authority": "design_only_no_training",
+  "claim_boundary": "This is a literature-grounded, target-local structural composition and falsifiable 64-step candidate. It is not a publication-level novelty claim, a dataset-wide improvement claim, or authorization for 512-step training."
+}

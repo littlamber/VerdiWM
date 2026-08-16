@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import tempfile
 import threading
@@ -21,10 +22,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from wmloop.control.adapter_profiles import (
+    AdapterProfileError,
+    compile_adapter_execution,
+    parse_gpu_budget,
+)
 from wmloop.experiments.evidence_graph import query_evidence_graph
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _TRANSITIONS = {
     "created": {"confirmed", "queued", "cancelled"},
     "confirmed": {"queued", "cancelled"},
@@ -77,24 +83,81 @@ class CampaignStore:
 
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         campaign_id = str(payload.get("campaign_id") or uuid.uuid4().hex)
-        goal = payload.get("goal")
-        if not isinstance(goal, str) or not goal.strip():
-            raise CampaignAPIError("GOAL_REQUIRED")
+        self._path(campaign_id)
+        goal = _required_text(payload, "goal", "GOAL_REQUIRED")
+        model = _required_text(payload, "model", "MODEL_REQUIRED")
+        dataset = _required_text(payload, "dataset", "DATASET_REQUIRED")
+        try:
+            budget_hours = parse_gpu_budget(payload.get("budget"))
+        except AdapterProfileError as exc:
+            raise CampaignAPIError(str(exc)) from exc
+        request_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
+        with self._lock:
+            path = self._path(campaign_id)
+            if path.exists():
+                existing = json.loads(path.read_text(encoding="utf-8"))
+                if existing.get("request_hash") != request_hash:
+                    raise CampaignAPIError("CAMPAIGN_ID_CONFLICT")
+                return existing
+
         execution = payload.get("execution")
-        if execution is not None:
-            _validate_execution(execution)
+        adapter_profile = payload.get("adapter")
+        model_family = payload.get("model_family")
+        capability_level = payload.get("capability_level")
+        constitution_freeze = payload.get("constitution_freeze")
+        if execution is None:
+            assets = payload.get("assets")
+            if assets is not None and not isinstance(assets, dict):
+                raise CampaignAPIError("ASSET_OVERRIDES_OBJECT_REQUIRED")
+            try:
+                resolved = compile_adapter_execution(
+                    campaign_id=campaign_id,
+                    model=Path(model),
+                    data=Path(dataset),
+                    goal=goal,
+                    budget=budget_hours,
+                    campaign_root=self.root,
+                    adapter=(
+                        str(payload["adapter"])
+                        if payload.get("adapter") is not None
+                        else None
+                    ),
+                    adapter_profile_path=(
+                        Path(str(payload["adapter_profile_path"]))
+                        if payload.get("adapter_profile_path") is not None
+                        else None
+                    ),
+                    runtime_python=(
+                        Path(str(payload["runtime_python"]))
+                        if payload.get("runtime_python") is not None
+                        else None
+                    ),
+                    asset_overrides=assets,
+                )
+            except AdapterProfileError as exc:
+                raise CampaignAPIError(str(exc)) from exc
+            execution = resolved.execution
+            adapter_profile = resolved.profile_id
+            model_family = resolved.model_family
+            capability_level = resolved.capability_level
+            constitution_freeze = resolved.constitution_freeze
+        _validate_execution(execution)
         record = {
             "schema_version": SCHEMA_VERSION,
             "campaign_id": campaign_id,
-            "goal": goal.strip(),
-            "model": payload.get("model"),
-            "dataset": payload.get("dataset"),
-            "budget": payload.get("budget"),
+            "goal": goal,
+            "model": model,
+            "dataset": dataset,
+            "budget": {"gpu_hours": budget_hours},
+            "adapter_profile": adapter_profile,
+            "model_family": model_family,
+            "capability_level": capability_level,
+            "constitution_freeze": constitution_freeze,
             "execution": execution,
             "status": "created",
             "created_at": _now(),
             "updated_at": _now(),
-            "request_hash": hashlib.sha256(_canonical(payload).encode()).hexdigest(),
+            "request_hash": request_hash,
         }
         with self._lock:
             path = self._path(campaign_id)
@@ -149,7 +212,7 @@ class CampaignStore:
             record = self.get(campaign_id)
             execution = record.get("execution")
             if execution is None:
-                return self.transition(campaign_id, "confirmed")
+                raise CampaignAPIError("EXECUTION_REQUIRED")
             _validate_execution(execution)
             current = str(record.get("status"))
             if current == "queued":
@@ -177,6 +240,34 @@ class CampaignStore:
             record["status"] = "queued"
             record["dispatch_ref"] = str(dispatch_path)
             record["updated_at"] = _now()
+            self._write(self._path(campaign_id), record)
+            return record
+
+    def cancel(self, campaign_id: str) -> dict[str, Any]:
+        """Request cancellation and withdraw an unclaimed dispatch immediately."""
+
+        with self._lock:
+            record = self.get(campaign_id)
+            current = str(record.get("status"))
+            if current == "cancelled":
+                return record
+            if "cancelled" not in _TRANSITIONS.get(current, set()):
+                raise CampaignAPIError("STATUS_TRANSITION_INVALID")
+            record["status"] = "cancelled"
+            record["cancellation_requested_at"] = _now()
+            record["updated_at"] = _now()
+            pending = self.root / "dispatch" / "pending" / f"{campaign_id}.json"
+            if pending.is_file() and not pending.is_symlink():
+                try:
+                    dispatch = json.loads(pending.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    dispatch = {"campaign_id": campaign_id, "schema_version": 1}
+                dispatch["state"] = "cancelled"
+                dispatch["cancelled_at"] = record["cancellation_requested_at"]
+                cancelled_path = self.root / "dispatch" / "cancelled" / pending.name
+                self._write(cancelled_path, dispatch)
+                pending.unlink(missing_ok=True)
+                record["dispatch_ref"] = str(cancelled_path.resolve())
             self._write(self._path(campaign_id), record)
             return record
 
@@ -209,14 +300,39 @@ class CampaignStore:
             self._write(self._path(campaign_id), record)
             return record
 
+    def record_dispatch_location(
+        self, campaign_id: str, dispatch_path: Path
+    ) -> dict[str, Any]:
+        """Bind campaign status to the dispatch manifest's current location."""
+
+        with self._lock:
+            record = self.get(campaign_id)
+            record["dispatch_ref"] = str(Path(dispatch_path).resolve())
+            record["updated_at"] = _now()
+            self._write(self._path(campaign_id), record)
+            return record
+
     def reproduce(self, campaign_id: str) -> dict[str, Any]:
         source = self.get(campaign_id)
+        execution = source.get("execution")
+        if not isinstance(execution, dict):
+            raise CampaignAPIError("REPRODUCE_EXECUTION_REQUIRED")
         child = dict(source)
         child_id = f"{campaign_id}-repro-{uuid.uuid4().hex[:8]}"
+        for field in (
+            "dispatch_ref",
+            "execution_result",
+            "execution_result_hash",
+            "execution_error",
+            "cancellation_requested_at",
+        ):
+            child.pop(field, None)
+        child_execution = _reproduction_execution(execution, campaign_id=child_id)
         child.update(
             {
                 "campaign_id": child_id,
-                "status": "created" if child.get("execution") is not None else "queued",
+                "execution": child_execution,
+                "status": "created",
                 "parent_campaign_id": campaign_id,
                 "created_at": _now(),
                 "updated_at": _now(),
@@ -226,14 +342,39 @@ class CampaignStore:
             _canonical(
                 {
                     "parent_campaign_id": campaign_id,
-                    "execution": child.get("execution"),
+                    "execution": child_execution,
                     "goal": child.get("goal"),
+                    "model": child.get("model"),
+                    "dataset": child.get("dataset"),
+                    "budget": child.get("budget"),
                 }
             ).encode()
         ).hexdigest()
         with self._lock:
             self._write(self._path(child_id), child)
-        return child
+        return self.confirm(child_id)
+
+
+def _required_text(payload: Mapping[str, Any], name: str, code: str) -> str:
+    value = payload.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise CampaignAPIError(code)
+    return value.strip()
+
+
+def _reproduction_execution(
+    execution: Mapping[str, Any], *, campaign_id: str
+) -> dict[str, Any]:
+    reproduced = json.loads(json.dumps(execution))
+    for field in ("output_root", "state_root"):
+        value = reproduced.get(field)
+        if isinstance(value, str) and value:
+            reproduced[field] = str(Path(value).parent / campaign_id)
+    budget_db = reproduced.get("budget_db")
+    if isinstance(budget_db, str) and budget_db:
+        reproduced["budget_db"] = str(Path(budget_db).parent / f"{campaign_id}.db")
+    _validate_execution(reproduced)
+    return reproduced
 
 
 def _validate_execution(value: object) -> None:
@@ -241,6 +382,12 @@ def _validate_execution(value: object) -> None:
         raise CampaignAPIError("EXECUTION_OBJECT_REQUIRED")
     kind = value.get("kind")
     required = {
+        "pipeline": (
+            "repo_root",
+            "output_root",
+            "evaluator_contract",
+            "budget_total_gpu_hours",
+        ),
         "campaign_queue": (
             "queue_paths",
             "output_root",
@@ -258,7 +405,11 @@ def _validate_execution(value: object) -> None:
     }
     if kind not in required:
         raise CampaignAPIError("EXECUTION_KIND_INVALID")
-    missing = [name for name in required[str(kind)] if value.get(name) in {None, ""}]
+    missing = [
+        name
+        for name in required[str(kind)]
+        if value.get(name) is None or value.get(name) == ""
+    ]
     if missing:
         raise CampaignAPIError(f"EXECUTION_REQUIRED:{','.join(missing)}")
     queue_paths = value.get("queue_paths")
@@ -274,6 +425,30 @@ def _validate_execution(value: object) -> None:
                 raise CampaignAPIError(f"EXECUTION_PATH_INVALID:{name}")
     if kind == "campaign_queue" and any(not Path(path).is_absolute() for path in queue_paths):
         raise CampaignAPIError("EXECUTION_PATH_INVALID:queue_paths")
+    if kind == "pipeline":
+        bindings = value.get("asset_bindings")
+        if not isinstance(bindings, dict) or not bindings:
+            raise CampaignAPIError("EXECUTION_ASSET_BINDINGS_INVALID")
+        for parameter, path in bindings.items():
+            if (
+                not isinstance(parameter, str)
+                or not parameter.startswith("--")
+                or not isinstance(path, str)
+                or not Path(path).is_absolute()
+            ):
+                raise CampaignAPIError("EXECUTION_ASSET_BINDINGS_INVALID")
+        if not isinstance(value.get("probe_imports", True), bool):
+            raise CampaignAPIError("EXECUTION_PROBE_IMPORTS_INVALID")
+    for budget_name in ("budget_total_gpu_hours", "total_budget_gpu_hours"):
+        if budget_name in value:
+            budget_value = value[budget_name]
+            if (
+                isinstance(budget_value, bool)
+                or not isinstance(budget_value, (int, float))
+                or not math.isfinite(float(budget_value))
+                or float(budget_value) <= 0
+            ):
+                raise CampaignAPIError(f"EXECUTION_BUDGET_INVALID:{budget_name}")
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -365,7 +540,7 @@ class _Handler(BaseHTTPRequestHandler):
                 else:
                     self._json(
                         HTTPStatus.OK,
-                        self.store.transition(parts[3], "cancelled"),
+                        self.store.cancel(parts[3]),
                     )
             elif len(parts) == 5 and parts[1:3] == ["v1", "campaigns"] and parts[4] == "reproduce":
                 self._json(HTTPStatus.ACCEPTED, self.store.reproduce(parts[3]))

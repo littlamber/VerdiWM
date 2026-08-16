@@ -27,7 +27,7 @@
       "stages": [
         {
           "stage": "screen",
-          "command": ["/root/miniconda3/envs/multi-world/bin/python", "-m", "wmloop.execute.cuda_smoke_workload"],
+          "command": ["python", "-m", "wmloop.execute.cuda_smoke_workload"],
           "working_directory": ".",
           "allowed_gpu_indices": [0, 1, 4, 5, 6, 7],
           "estimated_gpu_hours": 0.005,
@@ -45,7 +45,7 @@
         },
         {
           "stage": "gate",
-          "command": ["/root/miniconda3/envs/multi-world/bin/python", "-m", "wmloop.execute.cuda_smoke_workload"],
+          "command": ["python", "-m", "wmloop.execute.cuda_smoke_workload"],
           "working_directory": ".",
           "allowed_gpu_indices": [0, 1, 4, 5, 6, 7],
           "estimated_gpu_hours": 0.007,
@@ -63,7 +63,7 @@
         },
         {
           "stage": "confirm",
-          "command": ["/root/miniconda3/envs/multi-world/bin/python", "-m", "wmloop.execute.cuda_smoke_workload"],
+          "command": ["python", "-m", "wmloop.execute.cuda_smoke_workload"],
           "working_directory": ".",
           "allowed_gpu_indices": [0, 1, 4, 5, 6, 7],
           "estimated_gpu_hours": 0.01,
@@ -93,7 +93,7 @@
       "stages": [
         {
           "stage": "screen",
-          "command": ["/root/miniconda3/envs/multi-world/bin/python", "-m", "wmloop.execute.cuda_smoke_workload"],
+          "command": ["python", "-m", "wmloop.execute.cuda_smoke_workload"],
           "working_directory": ".",
           "allowed_gpu_indices": [0, 1, 4, 5, 6, 7],
           "estimated_gpu_hours": 0.005,

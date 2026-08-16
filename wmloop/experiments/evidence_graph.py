@@ -159,6 +159,7 @@ def _project_archive(graph: EvidenceGraph, archive_db: Path) -> int:
             settlement = {}
         if isinstance(settlement, Mapping):
             payload["settlement"] = settlement
+            payload["evidence_scope"] = settlement.get("evidence_scope")
         _project_document(graph, payload, source=source, ordinal=ordinal)
     return len(rows)
 
@@ -225,7 +226,30 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
         graph.edge(root, relation, child, evidence=source)
     settlement = payload.get("settlement")
     settlement_state = settlement.get("state") if isinstance(settlement, Mapping) else None
-    if payload.get("settlement_state") == "settled" or settlement_state == "settled" or payload.get("verification_state") in {"settled", "verified"}:
+    evidence_scope = (
+        settlement.get("evidence_scope")
+        if isinstance(settlement, Mapping)
+        else payload.get("evidence_scope")
+    )
+    is_settled = (
+        payload.get("settlement_state") == "settled"
+        or settlement_state == "settled"
+        or payload.get("verification_state") in {"settled", "verified"}
+    )
+    if is_settled and evidence_scope == "exploratory":
+        exploratory = graph.node(
+            "exploratory_evidence",
+            f"{artifact}:{identity}:{ordinal}",
+            source=source,
+            artifact_type=artifact,
+        )
+        graph.edge(
+            root,
+            "provides_exploratory_evidence",
+            exploratory,
+            evidence=source,
+        )
+    elif is_settled:
         verified = graph.node("verified_evidence", f"{artifact}:{identity}:{ordinal}", source=source, artifact_type=artifact)
         graph.edge(root, "provides_verified_evidence", verified, evidence=source)
     licensed_certificate = (

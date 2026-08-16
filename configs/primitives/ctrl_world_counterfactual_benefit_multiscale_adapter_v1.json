@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-target-local-mechanism-candidate",
+  "candidate_id": "ctrl_world_counterfactual_benefit_multiscale_adapter_v1",
+  "state": "frozen_before_implementation",
+  "working_name": "counterfactual_benefit_routed_multiscale_history_adapter",
+  "source_failure": {
+    "settlement": "/path/to/verdiwm-runs/ctrl-world/fpshc-v1/heldout-screen-v1/SETTLEMENT.json",
+    "settlement_sha256": "2975a8ca4607677278fd8d2f2ef27eecab1bef380e8c6077ab0a77864f55ccf1",
+    "failed_axis": "A scalar history-latent correction preserved the backbone and calibrated abstention but did not improve held-out prediction beyond simpler frozen correctors."
+  },
+  "mechanism_evidence": {
+    "atlas": "/path/to/verdiwm-runs/ctrl-world/mechanism-discovery-v8/mechanism-atlas.json",
+    "atlas_sha256": "2ca8b13baef21c8d66906bb13029e822fa5fb5569d724f282af2780ec66f0e14",
+    "comparison_ontology_sha256": "973f4a6f29244801f3aa61c1989876bc1afb65f31bde1b3755c352c03bf88aac",
+    "settled_reference_profiles_sha256": "93847fc1b1c8cc2a5a0cb4517723b3528b033c17f8daa2e4857f21e6b77697f1",
+    "paper_count": 80,
+    "evidence_supported_count": 12,
+    "classification_counts": {
+      "equivalent": 5,
+      "extension": 4,
+      "composition": 3,
+      "structural_candidate": 0,
+      "unresolved": 68
+    }
+  },
+  "structural_composition": {
+    "preserved_components": [
+      {
+        "component": "frozen_official_backbone_and_zero_identity_side_path",
+        "basis": ["2302.05543v3", "1912.13503v4", "2405.20222v3", "2312.06573v2"],
+        "novelty_boundary": "Known frozen side-network and feedback-control mechanisms; not claimed as new."
+      },
+      {
+        "component": "decoupled_execute_or_abstain_router",
+        "basis": ["1901.09192v4", "ctrl_world_frozen_signed_corrector_decoupled_route"],
+        "novelty_boundary": "Selective rejection is known and the local B3 implementation already passed calibration gates."
+      },
+      {
+        "component": "generated_history_rollout_training",
+        "basis": ["2506.08009v2", "1610.09038v1"],
+        "novelty_boundary": "Free-running and train-sample alignment are known; gradients remain isolated to the adapter."
+      }
+    ],
+    "hypothesized_new_combination": [
+      {
+        "component": "multiscale_temporal_residual_state",
+        "basis": ["2312.00845v1", "2405.20222v3", "2312.06573v2"],
+        "target_specific_role": "Represent history error as spatially localized consecutive-frame residual features and inject corrections at multiple frozen U-Net depths instead of one scalar latent gain."
+      },
+      {
+        "component": "paired_counterfactual_benefit_learning",
+        "basis": ["1606.03976v5", "1803.09050v3", "2405.19014v3"],
+        "target_specific_role": "Learn execute direction and coverage from randomized correction versus no-correction rollout outcomes, with development meta-loss alignment and a separate promotion holdout."
+      }
+    ]
+  },
+  "implementation_contract": {
+    "trainable_module": "history_corrector.multiscale_side_adapter",
+    "frozen_modules": [
+      "official_unet",
+      "official_action_encoder",
+      "vae",
+      "clip_encoder"
+    ],
+    "input_state": [
+      "per_history_frame_current_minus_history_latent",
+      "consecutive_history_latent_residual",
+      "history_age",
+      "action_magnitude_and_change",
+      "diffusion_noise",
+      "rollout_consistency"
+    ],
+    "injection_sites": [
+      "unet_down_block_0_output",
+      "unet_down_block_1_output",
+      "unet_down_block_2_output",
+      "unet_down_block_3_output",
+      "unet_mid_block_output"
+    ],
+    "identity_rule": "Every side projection is zero initialized; enabling the module before training must reproduce the official checkpoint bit-for-bit within the existing zero-dose tolerance.",
+    "routing_rule": "The side feature direction is learned by the adapter. The use head alone owns execute versus abstain; confidence cannot substitute for use probability.",
+    "benefit_rule": "For each development rollout state, evaluate shared-seed negative, zero, and positive adapter doses. Supervise use from whether the best nonzero arm beats zero, and supervise direction only when a nonzero arm is beneficial.",
+    "gradient_rule": "Only history_corrector parameters may enter the optimizer; the checkpoint verifier must reject any changed official tensor."
+  },
+  "data_admission_gate": {
+    "required_before_training": true,
+    "minimum_development_contexts": 6,
+    "minimum_contexts_per_target_class": {
+      "negative_direction_beneficial": 2,
+      "abstain": 2,
+      "positive_direction_beneficial": 2
+    },
+    "paired_seeds_per_context": 3,
+    "forbidden": [
+      "heldout promotion episodes",
+      "episode identity as a router feature",
+      "relabeling a harmful nonzero arm as useful because its training loss decreased"
+    ],
+    "failure_action": "Do not train the candidate; expand development probes or return to retrieval."
+  },
+  "screen_ablation": [
+    {
+      "id": "a0",
+      "name": "official_checkpoint_no_training"
+    },
+    {
+      "id": "b2",
+      "name": "frozen_scalar_corrector_legacy_route"
+    },
+    {
+      "id": "b3",
+      "name": "frozen_scalar_corrector_decoupled_route"
+    },
+    {
+      "id": "c1",
+      "name": "multiscale_adapter_reconstruction_only"
+    },
+    {
+      "id": "c2",
+      "name": "multiscale_adapter_decoupled_route"
+    },
+    {
+      "id": "c3",
+      "name": "multiscale_adapter_counterfactual_benefit_route",
+      "candidate": true
+    }
+  ],
+  "screen_budget": {
+    "gpus": 8,
+    "steps": 64,
+    "per_device_batch_size_start": 1,
+    "batch_size_tuning_rule": "Increase to two only after an eight-rank optimizer-step smoke remains below 90 percent of physical memory on every rank.",
+    "confirmation_steps": 512
+  },
+  "promotion_gate": [
+    "all official checkpoint tensors remain unchanged",
+    "candidate beats A0, B2, and B3 on mean L1, final-interaction L1, and horizon slope",
+    "candidate wins at least two of three paired seeds against each comparator",
+    "action response remains at least 0.9 times A0",
+    "harmful routing rate is at most 0.1",
+    "benefit Brier score beats B3",
+    "at least one held-out context requires correction and at least one requires abstention",
+    "only a full pass licenses a separate 512-step plan"
+  ],
+  "claim_boundary": "This is a literature-grounded structural composition and falsifiable target-side candidate. No component or combination is a publication-level novelty or general model-improvement claim until independent multi-context confirmation passes."
+}

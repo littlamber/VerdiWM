@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "catalog_id",
+    "model_family",
+    "candidates",
+    "capability_gaps",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-method-candidate-catalog"]},
+    "catalog_id": {"type": "string", "minLength": 1},
+    "model_family": {"type": "string", "minLength": 1},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "primitive_reference",
+          "source",
+          "mechanism_hypothesis",
+          "required_hooks",
+          "failure_signatures",
+          "applicability_conditions",
+          "failure_boundaries",
+          "estimated_gpu_hours",
+          "historical_candidate_ids",
+          "required_files",
+          "candidate_template"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "primitive_reference": {"type": ["string", "null"]},
+          "source": {"type": "string", "minLength": 1},
+          "mechanism_hypothesis": {"type": "string", "minLength": 12},
+          "required_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "failure_signatures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "applicability_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "failure_boundaries": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+          "historical_candidate_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "required_files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "path"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "path": {"type": "string", "minLength": 1},
+                "sha256": {"type": ["string", "null"]}
+              }
+            }
+          },
+          "candidate_template": {"type": "object"}
+        }
+      }
+    },
+    "capability_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "source",
+          "mechanism_hypothesis",
+          "required_hooks",
+          "failure_signatures",
+          "estimated_gpu_hours",
+          "reason"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "source": {"type": "string", "minLength": 1},
+          "mechanism_hypothesis": {"type": "string", "minLength": 12},
+          "required_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "failure_signatures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "estimated_gpu_hours": {"type": "number", "minimum": 0},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

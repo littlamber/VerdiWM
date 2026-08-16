@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-context-set",
+  "context_set_id": "ctrl_world_fshc_balanced_development_contexts_v1",
+  "dataset": {
+    "name": "DROID subset distributed with the Ctrl-World checkout",
+    "root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "split": "annotation/val development episodes only"
+  },
+  "selection_policy": "Frozen before execution. Reuse the three development episodes from the original fingerprint campaign at eight distinct replay starts. Episode 1799 remains isolated for promotion evaluation and is forbidden here.",
+  "contexts": [
+    {
+      "context_id": "droid-199-start-0",
+      "episode_id": "199",
+      "start_idx": 0,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-199-start-8",
+      "episode_id": "199",
+      "start_idx": 8,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-899-start-0",
+      "episode_id": "899",
+      "start_idx": 0,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-899-start-32",
+      "episode_id": "899",
+      "start_idx": 32,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-899-start-64",
+      "episode_id": "899",
+      "start_idx": 64,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-0",
+      "episode_id": "18599",
+      "start_idx": 0,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-14",
+      "episode_id": "18599",
+      "start_idx": 14,
+      "seeds": [101, 202, 303]
+    },
+    {
+      "context_id": "droid-18599-start-40",
+      "episode_id": "18599",
+      "start_idx": 40,
+      "seeds": [101, 202, 303]
+    }
+  ],
+  "leakage_audit": {
+    "promotion_episode_id": "1799",
+    "promotion_episode_present": false,
+    "training_sample_manifest": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/train_sample.json",
+    "episode_identity_forbidden_as_model_feature": true
+  },
+  "claim_boundary": "Development-only counterfactual label discovery. Multiple starts from one episode are correlated contexts, not independent dataset-level samples."
+}

@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-reviewed-mechanism-annotations",
+  "annotations": {
+    "1907.00208v2": {
+      "axes": {
+        "state_representation": ["prediction", "selection_probability"],
+        "conditioning_path": ["integrated_selection_head"],
+        "update_operator": ["joint_prediction_rejection_optimization"],
+        "reliability_routing": ["learned_reject_option", "risk_coverage_tradeoff"],
+        "training_distribution": ["covered_and_rejected_examples"],
+        "learning_signal": ["coverage_constrained_selection_loss"],
+        "gradient_path": ["predictor_and_selector"],
+        "inference_transition": ["predict_or_abstain"]
+      },
+      "evidence_excerpts": [
+        "We deal with the selective classification problem (supervised-learning problem with a rejection option), where we want to achieve the best performance at a certain level of coverage of the data.",
+        "Minimizing this loss function corresponds naturally to maximizing the return of a horse race , where a player aims to balance between betting on an outcome (making a prediction) when confident and reserving one\u2019s winnings (abstaining) when not confident."
+      ],
+      "requirements": [
+        "The correction policy needs an explicit target coverage or execution-rate constraint separate from correction direction.",
+        "Coverage must be evaluated together with predictive risk so forced execution cannot hide harmful routes."
+      ],
+      "failure_boundaries": [
+        "A classification-style reject class does not estimate the magnitude of Ctrl-World correction benefit and can still select the wrong positive dose."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly binds a learned abstention output to a target coverage and an end-to-end selective loss."
+    },
+    "2202.03673v2": {
+      "axes": {
+        "state_representation": ["model_correctness_probability", "expert_correctness_probability"],
+        "conditioning_path": ["one_vs_all_correctness_heads"],
+        "update_operator": ["joint_prediction_deferral_optimization"],
+        "reliability_routing": ["calibrated_actor_correctness_route"],
+        "training_distribution": ["model_expert_outcome_examples"],
+        "learning_signal": ["proper_correctness_calibration_loss", "consistent_deferral_surrogate"],
+        "gradient_path": ["predictor_and_deferral_heads"],
+        "inference_transition": ["choose_more_likely_correct_actor"]
+      },
+      "evidence_excerpts": [
+        "For a given input, the system can defer the decision to a human if the human is more likely than the model to take the correct action.",
+        "We propose an L2D system based on one-vs-all classifiers that is able to produce calibrated probabilities of expert correctness."
+      ],
+      "requirements": [
+        "Correction and no-correction outcomes must define two comparable actors whose correctness or utility can be calibrated.",
+        "Calibration must be measured on held-out paired rollouts, not only on the training labels used by the router."
+      ],
+      "failure_boundaries": [
+        "Calibrated correctness probabilities are insufficient when both actors are wrong or when benefit magnitude and terminal harm are asymmetric."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly replaces a degenerate multiclass deferral parameterization with one-vs-all calibrated actor-correctness probabilities."
+    },
+    "2505.10160v2": {
+      "axes": {
+        "state_representation": ["entity_scores", "consultation_costs", "adaptive_cardinality"],
+        "conditioning_path": ["shared_prediction_deferral_scores"],
+        "update_operator": ["cost_sensitive_topk_selection"],
+        "reliability_routing": ["adaptive_topk_route"],
+        "training_distribution": ["multi_entity_outcome_cost_examples"],
+        "learning_signal": ["cost_sensitive_deferral_loss", "bayes_consistent_surrogate"],
+        "gradient_path": ["shared_predictor_router"],
+        "inference_transition": ["select_cost_effective_entities"]
+      },
+      "evidence_excerpts": [
+        "We introduce the first one-stage Top- k k Learning-to-Defer framework, which unifies prediction and deferral by learning a shared score-based model that selects the k k most cost-effective entities\u2014labels or experts\u2014per input.",
+        "We further introduce an adaptive variant, Top- k \u2061 ( x ) k(x) , which dynamically selects the number of consulted entities per input to balance predictive accuracy and consultation cost."
+      ],
+      "requirements": [
+        "Candidate correction sites such as frames, interactions, or U-Net depths need explicit execution costs and comparable benefit scores.",
+        "The adaptive cardinality policy must remain bounded so it cannot silently activate every correction path."
+      ],
+      "failure_boundaries": [
+        "Top-k allocation optimizes relative selection among entities but does not by itself calibrate whether any correction should execute."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines shared cost-sensitive scores and an input-adaptive number of selected prediction or expert entities."
+    },
+    "2502.01459v2": {
+      "axes": {
+        "state_representation": ["sequence_prefix", "token_level_prediction", "expert_capability"],
+        "conditioning_path": ["posthoc_sequence_rejector"],
+        "update_operator": ["token_or_suffix_deferral"],
+        "reliability_routing": ["token_level_rejector", "one_time_suffix_rejector"],
+        "training_distribution": ["pretrained_sequence_predictions_with_expert_labels"],
+        "learning_signal": ["sequence_cost_accuracy_objective"],
+        "gradient_path": ["rejector_only_frozen_predictor"],
+        "inference_transition": ["interleaved_model_expert_sequence", "defer_remaining_suffix"]
+      },
+      "evidence_excerpts": [
+        "We present an L2D setting for sequence outputs where the system can defer specific outputs of the whole model prediction to an expert in an effort to interleave the expert and machine throughout the prediction.",
+        "We propose two types of model-based post-hoc rejectors for pre-trained predictors: a token-level rejector, which defers specific token predictions to experts with next token prediction capabilities, and a one-time rejector for experts without such abilities, which defers the remaining sequence from a specific point onward."
+      ],
+      "requirements": [
+        "Ctrl-World correction benefit labels must be localized to frames, interaction boundaries, or residual-injection depths rather than only whole rollouts.",
+        "The frozen official predictor must expose a post-hoc route point that does not change its nominal output when all local routes abstain."
+      ],
+      "failure_boundaries": [
+        "A post-hoc local rejector cannot repair a corrector whose residual content is intrinsically harmful at the selected frame or depth."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly distinguishes whole-sequence rejection from token-level and suffix-level partial execution over a pretrained predictor."
+    },
+    "1702.02896v6": {
+      "axes": {
+        "state_representation": ["individual_characteristics", "counterfactual_treatment_effect"],
+        "conditioning_path": ["policy_features"],
+        "update_operator": ["doubly_robust_policy_optimization"],
+        "reliability_routing": ["constrained_treatment_assignment_policy"],
+        "training_distribution": ["observational_treatment_outcomes"],
+        "learning_signal": ["doubly_robust_policy_value", "utilitarian_regret"],
+        "gradient_path": ["policy_optimizer_over_nuisance_estimates"],
+        "inference_transition": ["choose_treatment_under_constraints"]
+      },
+      "evidence_excerpts": [
+        "In many areas, practitioners seek to use observational data to learn a treatment assignment policy that satisfies application-specific constraints, such as budget, fairness, simplicity, or other functional form constraints.",
+        "Given a doubly robust estimator of the causal effect of assigning everyone to treatment, we develop an algorithm for choosing whom to treat, and establish strong guarantees for the asymptotic utilitarian regret of the resulting policy."
+      ],
+      "requirements": [
+        "Positive and negative correction doses must be treated as interventions with paired or randomized no-correction outcomes.",
+        "The policy objective must optimize held-out correction value under explicit coverage and harm constraints."
+      ],
+      "failure_boundaries": [
+        "Observational double-robustness assumptions are unnecessary and potentially misleading when randomized paired correction outcomes are available."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines constrained treatment-assignment policy learning from a doubly robust causal-effect estimator and evaluates policy regret."
+    },
+    "2408.15664v1": {
+      "axes": {
+        "state_representation": ["recent_expert_load", "expert_routing_scores"],
+        "conditioning_path": ["expertwise_score_bias"],
+        "update_operator": ["online_load_dependent_bias_update"],
+        "reliability_routing": ["auxiliary_loss_free_load_balancing", "topk_router"],
+        "training_distribution": ["mixture_of_experts_training"],
+        "learning_signal": ["main_task_loss_without_balance_gradient"],
+        "gradient_path": ["non_gradient_router_bias_update", "main_task_gradient_only"],
+        "inference_transition": ["bias_adjusted_topk_route"]
+      },
+      "evidence_excerpts": [
+        "For Mixture-of-Experts (MoE) models, an unbalanced expert load will lead to routing collapse or increased computational overhead.",
+        "To be specific, before the top-K routing decision, Loss-Free Balancing will first apply an expert-wise bias to the routing scores of each expert. By dynamically updating the bias of each expert according to its recent load, Loss-Free Balancing can consistently maintain a balanced distribution of expert load."
+      ],
+      "requirements": [
+        "The Ctrl-World use router needs a separately updated coverage bias or dual variable based on recent execution rate.",
+        "The balancing update must not alter the sign or magnitude target learned from paired correction benefit."
+      ],
+      "failure_boundaries": [
+        "Load balance prevents all-abstain collapse but can force harmful corrections unless bounded by counterfactual policy value and risk gates."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly identifies routing collapse and describes a recent-load-dependent expert bias updated without auxiliary-loss interference gradients."
+    },
+    "1506.03099v3": {
+      "axes": {
+        "state_representation": ["ground_truth_previous_token", "model_generated_previous_token"],
+        "conditioning_path": ["scheduled_teacher_generated_conditioning"],
+        "update_operator": ["curriculum_history_substitution"],
+        "reliability_routing": ["time_dependent_teacher_generated_mix"],
+        "training_distribution": ["teacher_to_generated_history_curriculum"],
+        "learning_signal": ["sequence_likelihood"],
+        "gradient_path": ["world_model"],
+        "inference_transition": ["free_running_sequence_generation"]
+      },
+      "evidence_excerpts": [
+        "At inference, the unknown previous token is then replaced by a token generated by the model itself. This discrepancy between training and inference can yield errors that can accumulate quickly along the generated sequence.",
+        "We propose a curriculum learning strategy to gently change the training process from a fully guided scheme using the true previous token, towards a less guided scheme which mostly uses the generated token instead."
+      ],
+      "requirements": [
+        "Generated Ctrl-World history must be available during training with a bounded teacher-to-generated schedule.",
+        "The schedule must preserve the official short-horizon baseline while exposing the adapter to rollout drift."
+      ],
+      "failure_boundaries": [
+        "History substitution addresses exposure bias but does not directly optimize terminal interaction error or correction policy calibration."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly defines a curriculum that replaces teacher history with model-generated history to reduce train-inference discrepancy."
+    },
+    "2407.01392v4": {
+      "axes": {
+        "state_representation": ["sequence_tokens", "per_token_noise_levels"],
+        "conditioning_path": ["causal_partially_noised_history"],
+        "update_operator": ["independent_per_token_denoising"],
+        "reliability_routing": ["independent_token_noise_schedule"],
+        "training_distribution": ["all_subsequence_noise_configurations", "variable_horizon_sequences"],
+        "learning_signal": ["all_subsequence_variational_lower_bound"],
+        "gradient_path": ["world_model"],
+        "inference_transition": ["variable_horizon_causal_diffusion", "guided_desirable_trajectory"]
+      },
+      "evidence_excerpts": [
+        "This paper presents Diffusion Forcing, a new training paradigm where a diffusion model is trained to denoise a set of tokens with independent per-token noise levels.",
+        "In addition to its empirical success, our method is proven to optimize a variational lower bound on the likelihoods of all subsequences of tokens drawn from the true joint distribution."
+      ],
+      "requirements": [
+        "A Ctrl-World adaptation must expose frame- or interaction-specific noise and loss weights without unfreezing the official backbone in the first screen.",
+        "Variable-horizon supervision must include the terminal interaction and the measured horizon-error slope."
+      ],
+      "failure_boundaries": [
+        "Full Diffusion Forcing changes the training paradigm and is too invasive for the next frozen-backbone screen; only its per-position temporal-credit principle is immediately transferable."
+      ],
+      "extraction_state": "evidence_supported",
+      "extraction_rationale": "The abstract explicitly binds independent per-token noise schedules to causal variable-horizon diffusion and an objective over all subsequences."
+    }
+  }
+}

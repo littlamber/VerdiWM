@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "catalog_id",
+    "model_family",
+    "observed_failure_signatures",
+    "compiled_candidate_count",
+    "compiled_candidates",
+    "capability_gap_count",
+    "capability_gaps",
+    "historical_constraint_count",
+    "historical_constraints",
+    "literature_constraint_count",
+    "literature_constraints",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-method-candidate-compilation"]},
+    "state": {"enum": ["ready", "blocked"]},
+    "catalog_id": {"type": "string", "minLength": 1},
+    "model_family": {"type": "string", "minLength": 1},
+    "observed_failure_signatures": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "compiled_candidate_count": {"type": "integer", "minimum": 0},
+    "compiled_candidates": {"type": "array", "items": {"type": "object"}},
+    "capability_gap_count": {"type": "integer", "minimum": 0},
+    "capability_gaps": {"type": "array", "items": {"type": "object"}},
+    "historical_constraint_count": {"type": "integer", "minimum": 0},
+    "historical_constraints": {"type": "array", "items": {"type": "object"}},
+    "literature_constraint_count": {"type": "integer", "minimum": 0},
+    "literature_constraints": {"type": "array", "items": {"type": "object"}},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

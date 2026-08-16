@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-context-set",
+  "context_set_id": "ctrl_world_fshc_heldout_contexts_v1",
+  "dataset": {
+    "name": "DROID subset distributed with the Ctrl-World checkout",
+    "root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "split": "annotation/val"
+  },
+  "selection_policy": "Frozen before any ablation-checkpoint held-out evaluation. Episode 1799 is absent from the training sample manifest, has 41 decoded frames, and supports the same replay start with three paired inference seeds.",
+  "contexts": [
+    {
+      "context_id": "droid-1799-start-8",
+      "episode_id": "1799",
+      "start_idx": 8,
+      "seeds": [101, 202, 303]
+    }
+  ],
+  "leakage_audit": {
+    "training_sample_manifest": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/train_sample.json",
+    "episode_token_present_in_training_manifest": false,
+    "annotation": "/path/to/Ctrl-World/dataset_example/droid_subset/annotation/val/1799.json",
+    "video_length": 41
+  },
+  "claim_boundary": "One independently held-out episode with three paired inference seeds supports mechanism screening only. It cannot establish broad task or dataset-level improvement."
+}

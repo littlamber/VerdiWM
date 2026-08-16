@@ -46,6 +46,7 @@ def run_diagnostic_probe(
     budget_high_trial_limit: int = 2,
     budget_require_high_cost_approval: bool = True,
     retrieval_db: Path | None = None,
+    campaign_id: str | None = None,
 ) -> dict[str, object]:
     """Run or resume one probe, then optionally publish it to retrieval."""
 
@@ -78,7 +79,12 @@ def run_diagnostic_probe(
         if {path.name for path in destination.iterdir()} - {"probe-plan.json", "run"}:
             raise DiagnosticProbeError("DIAGNOSTIC_PROBE_OUTPUT_UNBOUND")
 
-    plan = _build_plan(contract, report=report, admission=admission)
+    plan = _build_plan(
+        contract,
+        report=report,
+        admission=admission,
+        campaign_id=campaign_id,
+    )
     run_root = destination / "run"
     execution = run_auto_experiment(
         plan_path=_write_plan(destination, plan),
@@ -148,6 +154,7 @@ def _build_plan(
     *,
     report: Mapping[str, object],
     admission: Mapping[str, object],
+    campaign_id: str | None = None,
 ) -> dict[str, object]:
     values = _materialization_values(report)
     command = [_materialize_token(str(token), values) for token in contract["command"]]
@@ -161,11 +168,18 @@ def _build_plan(
             "VERDIWM_PROBE_RESULT_PATH": "{scratch_dir}/" + str(contract["result_path"]),
         }
     )
+    diagnostic_campaign_id = f"diagnostic-{contract['probe_id']}"
+    if campaign_id:
+        # Archive identities are global, while a probe's local output is
+        # campaign-scoped. Isolate pipeline runs so a prior campaign cannot
+        # masquerade as a resumable settlement for the current one.
+        suffix = hashlib.sha256(campaign_id.encode("utf-8")).hexdigest()[:12]
+        diagnostic_campaign_id = f"{diagnostic_campaign_id}-{suffix}"
     plan = {
         "schema_version": 1,
         "artifact_type": "verdiwm-auto-experiment-plan",
-        "campaign_id": f"diagnostic-{contract['probe_id']}",
-        "trial_id": f"diagnostic-{contract['probe_id']}",
+        "campaign_id": diagnostic_campaign_id,
+        "trial_id": diagnostic_campaign_id,
         "objective": contract["objective"],
         "hypothesis": contract["hypothesis"],
         "selection_reason": contract["selection_reason"],

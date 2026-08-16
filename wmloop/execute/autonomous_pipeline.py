@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -24,6 +25,7 @@ from wmloop.control.onboarding_compiler import (
     OnboardingCompilerError,
     compile_and_plan,
 )
+from wmloop.control.method_candidate_compiler import MethodCandidateCompilerError
 from wmloop.control.onboarding_conformance import (
     ConformanceOptions,
     ModelConformanceError,
@@ -37,6 +39,11 @@ from wmloop.execute.experiment_scheduler import (
 )
 from wmloop.execute.gpu_lease import GpuLeaseError
 from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
+from wmloop.retrieve.evidence_capsule import (
+    EvidenceCapsuleError,
+    build_evidence_capsule,
+    write_evidence_capsule,
+)
 from wmloop.retrieve.literature import LiteratureRetrievalError, run_literature_retrieval
 from wmloop.retrieve.method_staging import (
     LiteratureMethodStagingError,
@@ -74,6 +81,8 @@ class AutonomousPipelineOptions:
     literature_query: str | None = None
     literature_max_results: int = 8
     literature_timeout_seconds: float = 10.0
+    candidate_catalog: Path | None = None
+    settlement_manifest: Path | None = None
 
 
 def run_autonomous_pipeline(
@@ -108,6 +117,15 @@ def run_autonomous_pipeline(
     )
     if probe_contract is not None and (not probe_contract.is_file() or probe_contract.is_symlink()):
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_PROBE_CONTRACT_INVALID")
+    candidate_catalog = _optional_file(
+        options.candidate_catalog,
+        "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID",
+    )
+    candidate_asset_parameters = _candidate_asset_parameters(candidate_catalog)
+    settlement_manifest = _optional_file(
+        options.settlement_manifest,
+        "AUTONOMOUS_PIPELINE_SETTLEMENT_MANIFEST_INVALID",
+    )
     if options.literature_max_results < 1 or options.literature_max_results > 50:
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_LIMIT_INVALID")
     if options.literature_timeout_seconds <= 0 or options.literature_timeout_seconds > 60:
@@ -141,6 +159,8 @@ def run_autonomous_pipeline(
         budget_db=budget_db,
         retrieval_db=retrieval_db,
         probe_contract=probe_contract,
+        candidate_catalog=candidate_catalog,
+        settlement_manifest=settlement_manifest,
         budget_total_gpu_hours=budget_total_gpu_hours,
     )
     input_hash = _sha256(_canonical_json(input_document))
@@ -167,6 +187,7 @@ def run_autonomous_pipeline(
                     runtime_python=options.runtime_python,
                     evaluator_contract=evaluator,
                     asset_bindings=options.asset_bindings,
+                    additional_asset_parameters=candidate_asset_parameters,
                     probe_imports=options.probe_imports,
                     max_files=options.max_files,
                 )
@@ -221,6 +242,7 @@ def run_autonomous_pipeline(
                     options.budget_require_high_cost_approval
                 ),
                 retrieval_db=retrieval_db,
+                campaign_id=destination.name,
             )
             if probe_manifest.get("verdict") != "PASS":
                 return _settle_pipeline(
@@ -257,6 +279,18 @@ def run_autonomous_pipeline(
                 "matches": [row.to_dict() for row in matches],
                 "index_path": str(retrieval_db),
             }
+        capsule = build_evidence_capsule(
+            probe=probe_manifest,
+            matches=[
+                row for row in retrieval_context.get("matches", [])
+                if isinstance(row, Mapping)
+            ],
+        )
+        capsule_path = write_evidence_capsule(
+            destination / "retrieval" / "evidence-capsule.json", capsule
+        )
+        retrieval_context["capsule"] = capsule
+        retrieval_context["capsule_path"] = str(capsule_path)
         literature_query = options.literature_query
         if (
             literature_query is None
@@ -327,7 +361,18 @@ def run_autonomous_pipeline(
             literature_method_manifest=(literature_method_root / "manifest.json")
             if literature_method_manifest is not None
             else None,
+            candidate_catalog=candidate_catalog,
+            settlement_manifest=settlement_manifest,
         )
+        method_candidate_report = None
+        method_candidate_path = compilation_manifest.get(
+            "method_candidate_compilation_path"
+        )
+        if isinstance(method_candidate_path, str) and method_candidate_path:
+            method_candidate_report = _load_json(
+                Path(method_candidate_path),
+                "AUTONOMOUS_PIPELINE_METHOD_COMPILATION_INVALID",
+            )
         queue_path = Path(str(compilation_manifest["queue_path"]))
 
         stage = "execution"
@@ -361,10 +406,11 @@ def run_autonomous_pipeline(
                 dict(candidate_states) if isinstance(candidate_states, Mapping) else {}
             ),
             diagnostic_probe=probe_manifest,
-            retrieval=retrieval_context,
+            retrieval=_runtime_retrieval_manifest(retrieval_context),
             literature=literature_manifest,
             literature_methods=literature_method_manifest,
             literature_method_prompts=literature_method_prompt_manifest,
+            method_candidates=method_candidate_report,
         )
     except Exception as exc:
         _write_json_atomic(
@@ -429,6 +475,32 @@ def _pipeline_budget_total(
     return total
 
 
+def _runtime_retrieval_manifest(
+    retrieval: Mapping[str, object],
+) -> dict[str, object]:
+    """Expose the bounded runtime projection in the top-level manifest.
+
+    Compilation still receives the full in-memory retrieval context so exact
+    candidate provenance is retained in the compiled batch. The resumable
+    pipeline manifest carries the capsule instead of duplicating every row.
+    """
+
+    capsule = retrieval.get("capsule")
+    if not isinstance(capsule, Mapping):
+        return dict(retrieval)
+    return {
+        "state": retrieval.get("state"),
+        "query": dict(capsule.get("query", {}))
+        if isinstance(capsule.get("query"), Mapping)
+        else {},
+        "match_count": capsule.get("match_count", 0),
+        "route": capsule.get("route"),
+        "capsule": dict(capsule),
+        "capsule_path": retrieval.get("capsule_path"),
+        "index_path": retrieval.get("index_path"),
+    }
+
+
 def _input_document(
     options: AutonomousPipelineOptions,
     *,
@@ -440,6 +512,8 @@ def _input_document(
     budget_db: Path,
     retrieval_db: Path,
     probe_contract: Path | None,
+    candidate_catalog: Path | None,
+    settlement_manifest: Path | None,
     budget_total_gpu_hours: float,
 ) -> dict[str, object]:
     bindings: list[dict[str, str]] = []
@@ -501,6 +575,22 @@ def _input_document(
         "literature_query": options.literature_query,
         "literature_max_results": options.literature_max_results,
         "literature_timeout_seconds": options.literature_timeout_seconds,
+        "candidate_catalog": (
+            str(candidate_catalog) if candidate_catalog is not None else None
+        ),
+        "candidate_catalog_sha256": (
+            _sha256(candidate_catalog.read_bytes())
+            if candidate_catalog is not None
+            else None
+        ),
+        "settlement_manifest": (
+            str(settlement_manifest) if settlement_manifest is not None else None
+        ),
+        "settlement_manifest_sha256": (
+            _sha256(settlement_manifest.read_bytes())
+            if settlement_manifest is not None
+            else None
+        ),
     }
 
 
@@ -563,6 +653,7 @@ def _settle_pipeline(
     literature: Mapping[str, object] | None = None,
     literature_methods: Mapping[str, object] | None = None,
     literature_method_prompts: Mapping[str, object] | None = None,
+    method_candidates: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = _manifest(
         destination,
@@ -576,6 +667,7 @@ def _settle_pipeline(
         literature=literature,
         literature_methods=literature_methods,
         literature_method_prompts=literature_method_prompts,
+        method_candidates=method_candidates,
     )
     _write_json_atomic(destination / "pipeline-manifest.json", manifest)
     return manifest
@@ -595,6 +687,7 @@ def _manifest(
     literature: Mapping[str, object] | None = None,
     literature_methods: Mapping[str, object] | None = None,
     literature_method_prompts: Mapping[str, object] | None = None,
+    method_candidates: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = {
         "schema_version": 1,
@@ -612,6 +705,9 @@ def _manifest(
             dict(literature_method_prompts)
             if literature_method_prompts is not None
             else None
+        ),
+        "method_candidates": (
+            dict(method_candidates) if method_candidates is not None else None
         ),
         "paths": {
             "onboarding": str(destination / "onboarding" / "manifest.json"),
@@ -633,6 +729,50 @@ def _manifest(
 
 def _resolved(value: Path | None, default: Path) -> Path:
     return Path(value if value is not None else default).expanduser().resolve()
+
+
+def _candidate_asset_parameters(catalog_path: Path | None) -> tuple[str, ...]:
+    if catalog_path is None:
+        return ()
+    catalog = _load_json(
+        catalog_path,
+        "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID",
+    )
+    try:
+        validate_document("method_candidate_catalog", catalog)
+    except ContractValidationError as exc:
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID"
+        ) from exc
+
+    parameters: set[str] = set()
+
+    def visit(value: object) -> None:
+        if isinstance(value, Mapping):
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+        elif isinstance(value, str):
+            parameters.update(
+                placeholder[len("{asset:") : -1]
+                for placeholder in re.findall(
+                    r"\{asset:--[A-Za-z0-9_-]+\}", value
+                )
+            )
+
+    visit(catalog)
+    return tuple(sorted(parameters))
+
+
+def _optional_file(value: Path | None, code: str) -> Path | None:
+    if value is None:
+        return None
+    path = Path(value).expanduser().resolve()
+    if not path.is_file() or path.is_symlink():
+        raise AutonomousPipelineError(code)
+    return path
 
 
 def _overlaps(first: Path, second: Path) -> bool:
@@ -703,6 +843,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--literature-query")
     parser.add_argument("--literature-max-results", type=int, default=8)
     parser.add_argument("--literature-timeout-seconds", type=float, default=10.0)
+    parser.add_argument("--candidate-catalog", type=Path)
+    parser.add_argument("--settlement-manifest", type=Path)
     args = parser.parse_args(argv)
     try:
         manifest = run_autonomous_pipeline(
@@ -728,6 +870,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 literature_query=args.literature_query,
                 literature_max_results=args.literature_max_results,
                 literature_timeout_seconds=args.literature_timeout_seconds,
+                candidate_catalog=args.candidate_catalog,
+                settlement_manifest=args.settlement_manifest,
             )
         )
     except (
@@ -741,6 +885,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         DiagnosticProbeError,
         LiteratureRetrievalError,
         LiteratureMethodStagingError,
+        MethodCandidateCompilerError,
+        EvidenceCapsuleError,
         ProbeRetrievalError,
     ) as exc:
         print(str(exc), file=__import__("sys").stderr)

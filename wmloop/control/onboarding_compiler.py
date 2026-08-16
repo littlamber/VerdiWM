@@ -18,6 +18,7 @@ from wmloop.control.onboarding_admission import (
     admission_from_manifest,
     verify_onboarding_admission,
 )
+from wmloop.control.method_candidate_compiler import compile_method_candidates
 from wmloop.execute.experiment_scheduler import (
     ExperimentSchedulerError,
     _validate_batch_semantics,
@@ -26,7 +27,7 @@ from wmloop.execute.experiment_scheduler import (
 
 
 _PLACEHOLDER = re.compile(
-    r"\{(?:python|verdiwm_python|repo_root|asset:--[A-Za-z0-9_-]+)\}"
+    r"\{(?:python|verdiwm_python|repo_root|control_root|model_parent|asset:--[A-Za-z0-9_-]+)\}"
 )
 _RUNTIME_PLACEHOLDERS = {
     "{scratch_dir}",
@@ -50,6 +51,8 @@ def compile_and_plan(
     retrieval_context: Mapping[str, object] | None = None,
     literature_manifest: Path | None = None,
     literature_method_manifest: Path | None = None,
+    candidate_catalog: Path | None = None,
+    settlement_manifest: Path | None = None,
 ) -> dict[str, object]:
     """Materialize a frozen template and produce its deterministic queue."""
 
@@ -115,6 +118,16 @@ def compile_and_plan(
         )
         if literature_methods.get("artifact_type") != "wmloop-literature-method-staging-manifest":
             raise OnboardingCompilerError("ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID")
+    candidate_catalog_bytes = b""
+    candidate_catalog_path = None
+    if candidate_catalog is not None:
+        candidate_catalog_path = Path(candidate_catalog).resolve(strict=True)
+        candidate_catalog_bytes = candidate_catalog_path.read_bytes()
+    settlement_bytes = b""
+    settlement_manifest_path = None
+    if settlement_manifest is not None:
+        settlement_manifest_path = Path(settlement_manifest).resolve(strict=True)
+        settlement_bytes = _settlement_bundle_bytes(settlement_manifest_path)
     retrieval = dict(retrieval_context or {"state": "cold_start", "matches": []})
     input_hash = _sha256(
         report_bytes
@@ -128,6 +141,10 @@ def compile_and_plan(
         + literature_bytes
         + b"\0"
         + literature_method_bytes
+        + b"\0"
+        + candidate_catalog_bytes
+        + b"\0"
+        + settlement_bytes
         + b"\0"
         + _canonical_json(retrieval)
     )
@@ -146,6 +163,31 @@ def compile_and_plan(
     if not isinstance(batch, dict):
         raise OnboardingCompilerError("ONBOARDING_COMPILER_TEMPLATE_OBJECT_REQUIRED")
     batch["onboarding_admission"] = admission
+    method_compilation = None
+    if candidate_catalog_path is not None:
+        method_compilation = compile_method_candidates(
+            batch=batch,
+            catalog_path=candidate_catalog_path,
+            diagnostic_probe=probe,
+            settlement_manifest=settlement_manifest_path,
+            literature_methods=literature_methods,
+            materialization_values=values,
+        )
+        batch["method_candidate_compilation"] = {
+            "manifest_path": str(
+                destination / "method-candidates" / "manifest.json"
+            ),
+            "manifest_sha256": _sha256(_canonical_json(method_compilation)),
+            "compiled_candidate_ids": [
+                str(row["candidate_id"])
+                for row in method_compilation["compiled_candidates"]
+                if isinstance(row, Mapping)
+            ],
+            "capability_gap_count": method_compilation["capability_gap_count"],
+            "historical_constraint_count": method_compilation[
+                "historical_constraint_count"
+            ],
+        }
     _apply_retrieval_context(
         batch,
         probe=probe,
@@ -154,6 +196,11 @@ def compile_and_plan(
         literature_methods=literature_methods,
         probe_manifest_path=diagnostic_probe_manifest,
     )
+    if method_compilation is not None:
+        _prefer_compiled_method_candidates(
+            batch,
+            compilation=method_compilation,
+        )
     try:
         validate_document("auto_experiment_candidate_batch", batch)
         _validate_batch_semantics(batch, workspace_root=repo)
@@ -169,6 +216,11 @@ def compile_and_plan(
     try:
         _write_json(temporary / "candidate-batch.json", batch)
         _write_json(temporary / "onboarding-admission.json", admission)
+        if method_compilation is not None:
+            _write_json(
+                temporary / "method-candidates" / "manifest.json",
+                method_compilation,
+            )
         manifest = {
             "schema_version": 1,
             "artifact_type": "wmloop-onboarded-candidate-compilation",
@@ -185,6 +237,26 @@ def compile_and_plan(
                 str(Path(literature_method_manifest).resolve())
                 if literature_method_manifest is not None
                 else None
+            ),
+            "method_candidate_compilation_path": (
+                str(destination / "method-candidates" / "manifest.json")
+                if method_compilation is not None
+                else None
+            ),
+            "method_candidate_compilation_sha256": (
+                _sha256(_canonical_json(method_compilation))
+                if method_compilation is not None
+                else None
+            ),
+            "compiled_method_candidate_count": (
+                method_compilation["compiled_candidate_count"]
+                if method_compilation is not None
+                else 0
+            ),
+            "method_capability_gap_count": (
+                method_compilation["capability_gap_count"]
+                if method_compilation is not None
+                else 0
             ),
         }
         _write_json(temporary / "manifest.json", manifest)
@@ -382,6 +454,53 @@ def _apply_diagnostic_routing(
             }
 
 
+def _prefer_compiled_method_candidates(
+    batch: dict[str, object], *, compilation: Mapping[str, object]
+) -> None:
+    compiled_rows = [
+        row
+        for row in compilation.get("compiled_candidates", [])
+        if isinstance(row, Mapping)
+    ]
+    compiled_ids = {
+        str(row.get("candidate_id"))
+        for row in compiled_rows
+        if isinstance(row.get("candidate_id"), str)
+    }
+    compiled_signatures = {
+        str(signature)
+        for row in compiled_rows
+        for signature in row.get("failure_signatures", [])
+        if isinstance(signature, str)
+    }
+    if not compiled_ids or not compiled_signatures:
+        return
+    candidates = batch.get("candidates")
+    if not isinstance(candidates, list):
+        return
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_id = str(candidate.get("candidate_id"))
+        if candidate_id in compiled_ids:
+            continue
+        routing = candidate.get("routing_admission")
+        if not isinstance(routing, Mapping) or routing.get("state") != "eligible":
+            continue
+        matched = {
+            str(value)
+            for value in routing.get("matched_failure_signatures", [])
+            if isinstance(value, str)
+        }
+        overlap = sorted(matched & compiled_signatures)
+        if overlap:
+            candidate["routing_admission"] = {
+                "state": "blocked",
+                "reason": "superseded_by_compiled_method_candidate",
+                "matched_failure_signatures": overlap,
+            }
+
+
 def _materialization_values(
     report: Mapping[str, object], *, repo: Path
 ) -> dict[str, str]:
@@ -396,6 +515,8 @@ def _materialization_values(
         "{python}": selected_python,
         "{verdiwm_python}": str(Path(__import__("sys").executable).absolute()),
         "{repo_root}": str(repo),
+        "{control_root}": str(Path(__file__).resolve().parents[2]),
+        "{model_parent}": str(repo.parent),
     }
     asset_rows = connector.get("asset_bindings")
     if not isinstance(asset_rows, list):
@@ -442,7 +563,38 @@ def _resume(destination: Path, *, input_hash: str) -> dict[str, object]:
     batch_path = destination / "candidate-batch.json"
     if _sha256(batch_path.read_bytes()) != manifest.get("candidate_batch_sha256"):
         raise OnboardingCompilerError("ONBOARDING_COMPILER_BATCH_HASH_MISMATCH")
+    method_path = manifest.get("method_candidate_compilation_path")
+    method_hash = manifest.get("method_candidate_compilation_sha256")
+    if method_path is not None:
+        path = Path(str(method_path))
+        if (
+            not path.is_file()
+            or path.is_symlink()
+            or _sha256(path.read_bytes()) != method_hash
+        ):
+            raise OnboardingCompilerError(
+                "ONBOARDING_COMPILER_METHOD_COMPILATION_HASH_MISMATCH"
+            )
     return manifest
+
+
+def _settlement_bundle_bytes(manifest_path: Path) -> bytes:
+    records_root = manifest_path.parent / "records"
+    payload = bytearray(manifest_path.read_bytes())
+    if not records_root.is_dir() or records_root.is_symlink():
+        raise OnboardingCompilerError(
+            "ONBOARDING_COMPILER_SETTLEMENT_RECORDS_INVALID"
+        )
+    for path in sorted(records_root.glob("*.json")):
+        if not path.is_file() or path.is_symlink():
+            raise OnboardingCompilerError(
+                "ONBOARDING_COMPILER_SETTLEMENT_RECORDS_INVALID"
+            )
+        payload.extend(b"\0")
+        payload.extend(path.name.encode("utf-8"))
+        payload.extend(b"\0")
+        payload.extend(path.read_bytes())
+    return bytes(payload)
 
 
 def _validate_output(

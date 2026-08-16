@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-ctrl-world-local-fingerprint-campaign",
+  "campaign_id": "ctrl_world_fshc_balanced_direction_probe_v1",
+  "objective": "Find a development-only mixture of negative-benefit, abstain, and positive-benefit history-correction contexts before training the counterfactual benefit router.",
+  "hypothesis": "Distinct replay starts from the three development episodes contain at least two contexts in each signed-benefit class under the exact bounded scalar history-correction operator.",
+  "selection_reason": "The prior supervision bank contained no negative-direction examples. Eight starts are frozen before execution to test whether this is a sampling limitation or a mechanism-level absence.",
+  "falsification_criterion": "Reject data admission when fewer than two contexts pass the confidence lower-bound gate in any of the negative, abstain, or positive classes. Do not synthesize or relabel missing classes.",
+  "estimated_gpu_hours": 2.5,
+  "dependencies": {
+    "ctrl_world_source": "/path/to/Ctrl-World",
+    "runtime_python": "/path/to/ctrl-world-verdiwm-py312/bin/python",
+    "dataset_root": "/path/to/Ctrl-World/dataset_example/droid_subset",
+    "data_stat": "/path/to/Ctrl-World/dataset_meta_info/droid_subset/stat.json",
+    "svd_model": "/path/to/model/ctrl-world/stable-video-diffusion-img2vid",
+    "clip_model": "/path/to/model/ctrl-world/clip-vit-base-patch32"
+  },
+  "artifact_policy": "Retain every context result, log, zero-dose video, input hash, merge receipt, atlas, selector, and failed class count. Never overwrite an existing output directory.",
+  "context_set_ref": "configs/probes/ctrl_world_fshc_balanced_development_contexts_v1.json",
+  "checkpoint": "/path/to/model/ctrl-world/Ctrl-World/checkpoint-10000.pt",
+  "protocol": {
+    "mode": "frozen_action_conditioned_replay",
+    "interact_num": 4,
+    "num_inference_steps": 2,
+    "minimum_seed_repeats": 3,
+    "candidate_radius": 0.025,
+    "minimum_predicted_gain_lcb": 0.0,
+    "selector_confidence_distribution": "student_t_two_sided_95_percent_df_2",
+    "selector_confidence_critical_value": 4.303,
+    "threshold_freeze_timing": "Frozen before all eight context jobs launch.",
+    "invariants": [
+      "same_official_checkpoint",
+      "same_episode_start_action_trajectory_and_seed_per_paired_dose",
+      "exact_fshc_operator_at_every_denoising_step",
+      "zero_dose_matches_unwrapped_reference",
+      "promotion_episode_1799_absent"
+    ]
+  },
+  "probe_paths": [
+    {
+      "probe_id": "fshc_signed_history_gain",
+      "base_probe_family": "trainable_signed_history_correction",
+      "semantic_variable": "bounded_signed_history_correction_gain",
+      "transformation": "apply fixed gain d through h_i'=h_i+d*(current-h_i) using the exact norm-bounded FSHC operator",
+      "doses": [-0.025, 0.0, 0.025]
+    }
+  ],
+  "outcomes": [
+    {"name": "negative_mean_l1", "weight": 1.0},
+    {"name": "negative_final_interaction_l1", "weight": 2.0},
+    {"name": "negative_horizon_l1_slope", "weight": 2.0},
+    {"name": "mean_psnr", "weight": 1.0},
+    {"name": "final_psnr", "weight": 1.0}
+  ],
+  "locality_admission": {
+    "maximum_residual": 0.5,
+    "failure_policy": "emit_abstain_label_for_context"
+  },
+  "data_admission_gate": {
+    "minimum_contexts_per_class": 2,
+    "classes": [-1, 0, 1],
+    "fail_action": "Do not train the multiscale candidate; return to context collection or mechanism redesign."
+  },
+  "claim_scope": "Development-only paired-dose class discovery. It is not repair-effect or promotion evidence."
+}

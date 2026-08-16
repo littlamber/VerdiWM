@@ -145,6 +145,7 @@ class OnboardingOptions:
     runtime_python: Path | None = None
     evaluator_contract: Path | None = None
     asset_bindings: tuple[tuple[str, Path], ...] = ()
+    additional_asset_parameters: tuple[str, ...] = ()
     probe_imports: bool = True
     max_files: int = _MAX_FILES
 
@@ -241,6 +242,7 @@ def _build_report(repo: Path, options: OnboardingOptions) -> dict[str, object]:
         repo=repo,
         explicit_bindings=options.asset_bindings,
         evaluator_contract=evaluator_contract,
+        additional_parameters=options.additional_asset_parameters,
     )
     connector = _build_connector(
         repo,
@@ -1128,6 +1130,7 @@ def _discover_asset_bindings(
     repo: Path,
     explicit_bindings: Sequence[tuple[str, Path]],
     evaluator_contract: Mapping[str, object],
+    additional_parameters: Sequence[str] = (),
 ) -> list[dict[str, object]]:
     """Resolve input-like CLI paths against discovered repository assets."""
 
@@ -1136,6 +1139,7 @@ def _discover_asset_bindings(
         if entrypoint.get("kinds") == ["unknown"]:
             continue
         flags.update(str(flag) for flag in entrypoint.get("cli_flags", []))
+    flags.update(_validate_additional_asset_parameters(additional_parameters))
     overrides = _validate_explicit_asset_bindings(explicit_bindings, flags)
     required_parameters = _evaluator_asset_parameters(evaluator_contract)
     rows: list[dict[str, object]] = []
@@ -1174,6 +1178,22 @@ def _discover_asset_bindings(
             }
         )
     return rows
+
+
+def _validate_additional_asset_parameters(values: Sequence[str]) -> set[str]:
+    parameters: set[str] = set()
+    for value in values:
+        normalized = value if value.startswith("--") else f"--{value}"
+        if not re.fullmatch(r"--[A-Za-z0-9_-]+", normalized):
+            raise OnboardingError(
+                f"ASSET_BINDING_PARAMETER_INVALID:{normalized}"
+            )
+        if normalized in parameters:
+            raise OnboardingError(
+                f"ASSET_BINDING_PARAMETER_DUPLICATE:{normalized}"
+            )
+        parameters.add(normalized)
+    return parameters
 
 
 def _evaluator_asset_parameters(
@@ -1230,7 +1250,13 @@ def _asset_fingerprint(path: Path) -> str:
 def _binding_kind(field: str) -> str | None:
     if "ckpt" in field or "checkpoint" in field:
         return "checkpoint"
-    if "dataset" in field or "data_" in field or field.startswith("data"):
+    if (
+        "dataset" in field
+        or "data_" in field
+        or field.startswith("data")
+        or "droid" in field
+        or "subset" in field
+    ):
         return "dataset_or_metadata"
     if any(token in field for token in ("model", "policy", "vae", "clip", "svd")):
         return "model_dependency"

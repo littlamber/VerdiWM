@@ -44,6 +44,39 @@ def test_probe_plan_preserves_runtime_placeholders() -> None:
     assert plan["environment"]["VERDIWM_PROBE_RESULT_PATH"] == "{scratch_dir}/result.json"
 
 
+def test_probe_plan_isolates_pipeline_campaign_identity() -> None:
+    contract = {
+        "probe_id": "diagnostic-v1",
+        "objective": "Measure a bounded failure signature before candidate search.",
+        "hypothesis": "The model exposes a long horizon drift signature.",
+        "selection_reason": "A cheap paired probe is required before retrieval.",
+        "falsification_criterion": "Missing signature output blocks the campaign.",
+        "command": ["{verdiwm_python}", "probe.py"],
+        "working_directory": ".",
+        "allowed_gpu_indices": [0],
+        "estimated_gpu_hours": 0.01,
+        "total_budget_gpu_hours": 0.02,
+        "timeout_seconds": 30,
+        "gpu_wait_seconds": 0,
+        "sample_interval_seconds": 0.2,
+        "result_path": "result.json",
+        "artifacts": ["result.json"],
+        "metric_gates": [{"metric": "probe_ready", "role": "primary", "operator": "gte", "threshold": 1}],
+        "environment": {},
+        "cleanup_policy": "archive_then_delete",
+    }
+    report = {
+        "repo_root": "/tmp/model",
+        "runtime": {"selected_python": "/env/python"},
+        "connector": {"asset_bindings": []},
+    }
+    admission = {"receipt_path": "r", "receipt_sha256": "a" * 64, "onboarding_report_sha256": "b" * 64}
+    first = _build_plan(contract, report=report, admission=admission, campaign_id="campaign-a")
+    second = _build_plan(contract, report=report, admission=admission, campaign_id="campaign-b")
+    assert first["trial_id"] != second["trial_id"]
+    assert first["trial_id"].startswith("diagnostic-diagnostic-v1-")
+
+
 def test_probe_result_requires_failure_signatures() -> None:
     result = {
         "schema_version": 1,
