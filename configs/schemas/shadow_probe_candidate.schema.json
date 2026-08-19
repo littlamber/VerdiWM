@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "abi_id",
+    "observation_task_id",
+    "probe_protocol_id",
+    "probe_protocol_version",
+    "entrypoint",
+    "module_source",
+    "output_contract",
+    "authority",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-shadow-probe-candidate"]},
+    "state": {"enum": ["draft"]},
+    "abi_id": {"type": "string", "minLength": 1},
+    "observation_task_id": {"type": "string", "pattern": "^observation-task-[0-9a-f]{24}$"},
+    "probe_protocol_id": {"type": "string", "minLength": 1},
+    "probe_protocol_version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "entrypoint": {"enum": ["run_shadow_probe"]},
+    "module_source": {"type": "string", "minLength": 24, "maxLength": 12000},
+    "output_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "authoritative"],
+      "properties": {
+        "label": {"enum": ["shadow_diagnostic_only"]},
+        "authoritative": {"enum": [false]}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shadow_only",
+        "source_mutation",
+        "gpu_scheduling",
+        "metric_selection",
+        "evaluator_selection",
+        "verdict_exposure",
+        "promotion"
+      ],
+      "properties": {
+        "shadow_only": {"enum": [true]},
+        "source_mutation": {"enum": [false]},
+        "gpu_scheduling": {"enum": [false]},
+        "metric_selection": {"enum": [false]},
+        "evaluator_selection": {"enum": [false]},
+        "verdict_exposure": {"enum": [false]},
+        "promotion": {"enum": [false]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

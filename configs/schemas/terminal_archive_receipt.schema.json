@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "archive_id",
+    "work_id",
+    "state",
+    "terminal_outcome",
+    "artifacts",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-terminal-archive-receipt"]},
+    "archive_id": {"type": "string", "pattern": "^terminal-archive-[0-9a-f]{24}$"},
+    "work_id": {"type": "string", "minLength": 1},
+    "state": {"enum": ["ready"]},
+    "terminal_outcome": {"type": "string", "minLength": 1},
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["logical_name", "sha256", "cas_ref", "size_bytes"],
+        "properties": {
+          "logical_name": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "cas_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "metric_id", "direction", "evaluator_binding", "reference_values", "known_regression_values", "anti_goodhart_cases", "incremental_information_lower_bound", "protected_metric_non_regression", "calibration_evidence_refs", "fresh_heldout_evidence_refs"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["wmloop-metric-adequacy-observation"]},
+    "metric_id": {"type": "string", "minLength": 1},
+    "direction": {"enum": ["maximize", "minimize"]},
+    "evaluator_binding": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "reference_values": {"type": "array", "minItems": 3, "items": {"type": "number"}},
+    "known_regression_values": {"type": "array", "minItems": 3, "items": {"type": "number"}},
+    "anti_goodhart_cases": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["case_id", "detected"], "properties": {"case_id": {"type": "string", "minLength": 1}, "detected": {"type": "boolean"}}}},
+    "incremental_information_lower_bound": {"type": "number"},
+    "protected_metric_non_regression": {"type": "boolean"},
+    "calibration_evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+    "fresh_heldout_evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}}
+  }
+}

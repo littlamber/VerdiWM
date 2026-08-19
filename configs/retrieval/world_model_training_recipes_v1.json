@@ -1,0 +1,393 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-world-model-training-recipe-registry",
+  "registry_id": "world_model_training_recipes_v1",
+  "provenance": {
+    "retrieved_at": "2026-08-16",
+    "sources": [
+      {
+        "source_id": "genie_paper_v1",
+        "kind": "paper",
+        "title": "Genie: Generative Interactive Environments",
+        "url": "https://arxiv.org/abs/2402.15391",
+        "published": "2024-02-23",
+        "evidence_tier": "paper_explicit",
+        "notes": "The paper reports the final dynamics-model recipe and scaling studies."
+      },
+      {
+        "source_id": "gaia1_paper_v1",
+        "kind": "paper",
+        "title": "GAIA-1: A Generative World Model for Autonomous Driving",
+        "url": "https://arxiv.org/abs/2309.17080",
+        "published": "2023-09-29",
+        "evidence_tier": "paper_explicit",
+        "notes": "The paper reports data splits and separate autoencoder, world-model, and decoder recipes."
+      },
+      {
+        "source_id": "cosmos_paper_v3",
+        "kind": "paper",
+        "title": "Cosmos World Foundation Model Platform for Physical AI",
+        "url": "https://arxiv.org/abs/2501.03575",
+        "published": "2025-01-07",
+        "evidence_tier": "paper_explicit",
+        "notes": "The paper reports data curation scale and progressive training, but not one universal recipe."
+      },
+      {
+        "source_id": "dreamerv3_paper_v2",
+        "kind": "paper",
+        "title": "Mastering Diverse Domains through World Models",
+        "url": "https://arxiv.org/abs/2301.04104",
+        "published": "2023-01-10",
+        "evidence_tier": "paper_explicit",
+        "notes": "DreamerV3 is an online RL/world-model system; its domain-independent claims are not a video pretraining recipe."
+      },
+      {
+        "source_id": "diffusion_forcing_paper_v4",
+        "kind": "paper",
+        "title": "Diffusion Forcing: Next-token Prediction Meets Full-Sequence Diffusion",
+        "url": "https://arxiv.org/abs/2407.01392",
+        "published": "2024-07-01",
+        "evidence_tier": "paper_explicit",
+        "notes": "The paper explicitly limits its experiments and does not claim internet-scale training."
+      },
+      {
+        "source_id": "vjepa2_paper_v1",
+        "kind": "paper",
+        "title": "V-JEPA 2: Self-Supervised Video Models Enable Understanding, Prediction and Planning",
+        "url": "https://arxiv.org/abs/2506.09985",
+        "published": "2025-06-11",
+        "evidence_tier": "paper_explicit",
+        "notes": "The paper separates internet-scale representation pretraining from a small action-conditioned robot post-training stage."
+      }
+    ]
+  },
+  "recipes": [
+    {
+      "recipe_id": "genie_dynamics_pretrain_v1",
+      "backbone": "genie-10.1b-dynamics",
+      "family": "generative_interactive_environment",
+      "phase": "pretraining",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["genie_paper_v1"],
+      "objective": "Autoregressive latent-video dynamics with learned latent actions.",
+      "dataset": {
+        "name": "Platformers",
+        "examples": 6800000,
+        "hours": 30000,
+        "episodes": null,
+        "scale_description": "6.8M clips, each 16 seconds at 10 FPS; the paper also reports 55M filtered candidates."
+      },
+      "sequence": {
+        "frames": 160,
+        "fps": 10,
+        "horizon_description": "16-second clips; autoregressive rollout beyond the training clip is evaluated."
+      },
+      "optimization": {
+        "batch_size": 512,
+        "global_batch_size": 512,
+        "gradient_accumulation": null,
+        "learning_rate": 0.00003,
+        "warmup_steps": 5000,
+        "total_steps": 125000,
+        "epochs": null,
+        "scheduler": "cosine decay"
+      },
+      "compute": {
+        "hardware": "TPUv5p",
+        "devices": 256,
+        "notes": "Final dynamics model; tokenizer and latent action model are separate components."
+      },
+      "checkpoint_policy": "Paper reports final training budget and scaling curves; checkpoint selection details are not specified.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.examples", "dataset.hours", "sequence.frames", "sequence.fps", "optimization.batch_size", "optimization.learning_rate", "optimization.warmup_steps", "optimization.total_steps", "compute.devices"],
+      "undisclosed_fields": ["dataset.episodes", "optimization.gradient_accumulation", "optimization.epochs", "checkpoint_selection"],
+      "evidence": [
+        {"field": "dataset", "claim": "6.8M 16-second clips (30k hours) at 10 FPS", "locator": "paper Section 3, Datasets"},
+        {"field": "optimization", "claim": "10.1B dynamics model, batch 512, 125k steps on 256 TPUv5p", "locator": "paper Section 3, Genie Model"},
+        {"field": "optimization.learning_rate", "claim": "Dynamics-model max learning rate 3e-5 and 5k warmup", "locator": "paper Appendix C.3, Table 9"}
+      ],
+      "limitations": ["This is a large-scale platformer foundation model, not a transferable default for Ctrl-World.", "Reported values are a literature prior and have no local VerdiWM validation receipt."]
+    },
+    {
+      "recipe_id": "gaia1_world_model_pretrain_v1",
+      "backbone": "gaia-1",
+      "family": "autonomous_driving_video_world_model",
+      "phase": "pretraining",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["gaia1_paper_v1"],
+      "objective": "Action-, text-, and unconditional-conditioned driving video world model.",
+      "dataset": {
+        "name": "Proprietary London driving data",
+        "examples": 420000000,
+        "hours": 4700,
+        "episodes": null,
+        "scale_description": "4,700 hours at 25 Hz (about 420M unique images); 400 hours of disjoint validation runs."
+      },
+      "sequence": {
+        "frames": 7,
+        "fps": 25,
+        "horizon_description": "Decoder sequences use seven images; source data supports 6.25, 12.5, and 25 Hz tasks."
+      },
+      "optimization": {
+        "batch_size": 128,
+        "global_batch_size": 128,
+        "gradient_accumulation": null,
+        "learning_rate": 0.0001,
+        "warmup_steps": 2500,
+        "total_steps": 100000,
+        "epochs": null,
+        "scheduler": "linear warmup then cosine decay to 1e-5"
+      },
+      "compute": {
+        "hardware": "A100 80GB",
+        "devices": 64,
+        "notes": "World-model training uses DeepSpeed ZeRO-2 and activation checkpointing."
+      },
+      "checkpoint_policy": "Independent validation runs/geofences are described; best-checkpoint selection is not specified.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.examples", "dataset.hours", "sequence.frames", "sequence.fps", "optimization.batch_size", "optimization.learning_rate", "optimization.warmup_steps", "optimization.total_steps", "compute.devices"],
+      "undisclosed_fields": ["dataset.episodes", "optimization.gradient_accumulation", "optimization.epochs", "checkpoint_selection"],
+      "evidence": [
+        {"field": "dataset", "claim": "4,700 hours and about 420M unique images, with 400 hours of validation data", "locator": "paper Section 3, Data"},
+        {"field": "optimization", "claim": "100k steps, batch 128 split across 64 A100 80GB GPUs", "locator": "paper Section 4.2, World Model"},
+        {"field": "optimization.learning_rate", "claim": "1e-4 AdamW learning rate, 2.5k warmup, cosine decay", "locator": "paper Section 4.2, World Model"}
+      ],
+      "limitations": ["The data is proprietary driving footage and not comparable to small robot-trajectory datasets.", "The paper has separate component recipes; this entry covers the world-model component only."]
+    },
+    {
+      "recipe_id": "cosmos_predict1_progressive_pretrain_v1",
+      "backbone": "cosmos-predict1",
+      "family": "video_world_foundation_model",
+      "phase": "pretraining",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["cosmos_paper_v3"],
+      "objective": "Diffusion and autoregressive world-foundation-model pretraining followed by specialization.",
+      "dataset": {
+        "name": "Cosmos curated video corpus",
+        "examples": 100000000,
+        "hours": 20000000,
+        "episodes": null,
+        "scale_description": "About 20M raw video hours; about 100M pretraining clips and 10M fine-tuning clips after curation."
+      },
+      "sequence": {
+        "frames": [57, 121],
+        "fps": null,
+        "horizon_description": "Progressive training starts at 512px/57 frames and moves to 720px/121 frames."
+      },
+      "optimization": {
+        "batch_size": null,
+        "global_batch_size": null,
+        "gradient_accumulation": null,
+        "learning_rate": null,
+        "warmup_steps": 2500,
+        "total_steps": null,
+        "epochs": null,
+        "scheduler": "per-model schedule; high-quality fine-tuning uses linear decay for O(10k) iterations"
+      },
+      "compute": {
+        "hardware": "H100",
+        "devices": 10000,
+        "notes": "The paper reports a cluster of 10,000 H100 GPUs over three months for reported WFM models."
+      },
+      "checkpoint_policy": "Progressive resolution/length stages and high-quality-subset fine-tuning; no universal best-checkpoint rule.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.examples", "dataset.hours", "sequence.frames", "optimization.warmup_steps", "compute.devices", "checkpoint_policy"],
+      "undisclosed_fields": ["optimization.batch_size", "optimization.global_batch_size", "optimization.learning_rate", "optimization.total_steps", "optimization.epochs", "checkpoint_selection"],
+      "evidence": [
+        {"field": "dataset", "claim": "20M raw hours, 100M pretraining clips, 10M fine-tuning clips", "locator": "paper Sections 1 and 3.1"},
+        {"field": "sequence", "claim": "Progressive 512px/57-frame to 720px/121-frame training", "locator": "paper Section 5.1.3"},
+        {"field": "optimization", "claim": "High-quality fine-tuning uses O(10k) iterations with linear decay; universal batch and total pretraining steps are not given", "locator": "paper Section 5.1.3 and Table 11"}
+      ],
+      "limitations": ["Cosmos is a platform with multiple model families and stages; collapsing it to one recipe would be misleading.", "The reported hardware scale is not a recommendation for a small local experiment."]
+    },
+    {
+      "recipe_id": "dreamerv3_domain_general_rl_v1",
+      "backbone": "dreamerv3",
+      "family": "latent_dynamics_online_rl",
+      "phase": "rl_world_model",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["dreamerv3_paper_v2"],
+      "objective": "Learn latent dynamics from online interaction and improve policy through imagined rollouts.",
+      "dataset": {
+        "name": "Online environment interaction across 150+ tasks",
+        "examples": null,
+        "hours": null,
+        "episodes": null,
+        "scale_description": "The paper evaluates more than 150 tasks; it is not a fixed offline video corpus."
+      },
+      "sequence": {
+        "frames": null,
+        "fps": null,
+        "horizon_description": "Imagined rollout horizon is task/configuration dependent."
+      },
+      "optimization": {
+        "batch_size": null,
+        "global_batch_size": null,
+        "gradient_accumulation": null,
+        "learning_rate": null,
+        "warmup_steps": null,
+        "total_steps": null,
+        "epochs": null,
+        "scheduler": null
+      },
+      "compute": {
+        "hardware": "task-dependent",
+        "devices": null,
+        "notes": "This entry deliberately records no guessed fixed training budget."
+      },
+      "checkpoint_policy": "Task evaluation is reported; a general best-checkpoint selection recipe is not disclosed.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.scale_description", "objective"],
+      "undisclosed_fields": ["dataset.examples", "sequence.frames", "optimization.batch_size", "optimization.learning_rate", "optimization.total_steps", "checkpoint_selection"],
+      "evidence": [
+        {"field": "dataset", "claim": "The system is evaluated across more than 150 diverse tasks", "locator": "paper abstract and evaluation sections"},
+        {"field": "optimization", "claim": "The paper is an online RL algorithm paper, not a fixed video-pretraining recipe", "locator": "paper Methods and Appendix"}
+      ],
+      "limitations": ["Do not use DreamerV3 figures as a batch/step prescription for action-conditioned video training."]
+    },
+    {
+      "recipe_id": "diffusion_forcing_video_rollout_v1",
+      "backbone": "diffusion-forcing-rnn",
+      "family": "causal_diffusion_sequence_model",
+      "phase": "ablation",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["diffusion_forcing_paper_v4"],
+      "objective": "Train per-token diffusion noise levels to reduce autoregressive exposure bias and stabilize long rollouts.",
+      "dataset": {
+        "name": "Minecraft and DMLab gameplay videos",
+        "examples": null,
+        "hours": null,
+        "episodes": null,
+        "scale_description": "The paper reports task datasets but explicitly does not study internet-scale pretraining."
+      },
+      "sequence": {
+        "frames": null,
+        "fps": null,
+        "horizon_description": "Training windows and frame stacking vary by task; rollout is evaluated to 1000 frames."
+      },
+      "optimization": {
+        "batch_size": null,
+        "global_batch_size": null,
+        "gradient_accumulation": null,
+        "learning_rate": null,
+        "warmup_steps": null,
+        "total_steps": null,
+        "epochs": null,
+        "scheduler": null
+      },
+      "compute": {
+        "hardware": "not disclosed as a scaling recipe",
+        "devices": null,
+        "notes": "RNN implementation is chosen for efficient decision-making experiments."
+      },
+      "checkpoint_policy": "The paper reports validation/benchmark metrics; no universal checkpoint ladder is specified.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.scale_description", "sequence.horizon_description", "objective"],
+      "undisclosed_fields": ["dataset.examples", "optimization.batch_size", "optimization.learning_rate", "optimization.total_steps", "checkpoint_selection"],
+      "evidence": [
+        {"field": "sequence", "claim": "Diffusion Forcing can roll out beyond the training horizon, including 1000 frames", "locator": "paper Section 4.1"},
+        {"field": "optimization", "claim": "The paper explicitly says it does not investigate internet-scale datasets and tasks", "locator": "paper Limitations and Discussion"}
+      ],
+      "limitations": ["This is a mechanism/ablation reference, not a production pretraining recipe."]
+    },
+    {
+      "recipe_id": "vjepa2_representation_pretrain_v1",
+      "backbone": "vjepa2-vit-g",
+      "family": "joint_embedding_predictive_video_model",
+      "phase": "pretraining",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["vjepa2_paper_v1"],
+      "objective": "Self-supervised mask denoising in representation space with EMA targets.",
+      "dataset": {
+        "name": "VideoMix22M and image/video sources",
+        "examples": 22000000,
+        "hours": 1000000,
+        "episodes": null,
+        "scale_description": "Over 1M hours of internet video; data scaling from 2M to 22M videos."
+      },
+      "sequence": {
+        "frames": [16, 64],
+        "fps": null,
+        "horizon_description": "Progressive training uses 16-frame clips in warmup/main phases and 64-frame clips in cooldown."
+      },
+      "optimization": {
+        "batch_size": null,
+        "global_batch_size": null,
+        "gradient_accumulation": null,
+        "learning_rate": null,
+        "warmup_steps": 12000,
+        "total_steps": 252000,
+        "epochs": null,
+        "scheduler": "warmup, constant, then linear cooldown"
+      },
+      "compute": {
+        "hardware": "GPU cluster",
+        "devices": null,
+        "notes": "The paper reports compute in GPU-years for scaling studies rather than a single device count."
+      },
+      "checkpoint_policy": "Frozen representation probes and scaling ablations are used; no universal best-checkpoint rule.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.examples", "dataset.hours", "sequence.frames", "optimization.warmup_steps", "optimization.total_steps", "optimization.scheduler"],
+      "undisclosed_fields": ["optimization.batch_size", "optimization.global_batch_size", "optimization.learning_rate", "checkpoint_selection"],
+      "evidence": [
+        {"field": "dataset", "claim": "Over 1M hours of video and 22M videos after scaling", "locator": "paper abstract and Section 2.1"},
+        {"field": "optimization", "claim": "12k warmup, 228k constant phase, 12k cooldown; total 252k iterations", "locator": "paper Section 2.4"},
+        {"field": "sequence", "claim": "16-frame 256px warmup/main and longer/higher-resolution clips in cooldown", "locator": "paper Section 2.4"}
+      ],
+      "limitations": ["This is observation representation pretraining; it is not itself action-conditioned control training."]
+    },
+    {
+      "recipe_id": "vjepa2_ac_droid_posttrain_v1",
+      "backbone": "vjepa2-ac",
+      "family": "action_conditioned_latent_world_model",
+      "phase": "post_training",
+      "status": "shadow_only",
+      "evidence_tier": "paper_explicit",
+      "source_ids": ["vjepa2_paper_v1"],
+      "objective": "Autoregressive future-feature prediction conditioned on actions and end-effector state over a frozen V-JEPA 2 representation.",
+      "dataset": {
+        "name": "DROID raw robot videos",
+        "examples": null,
+        "hours": 62,
+        "episodes": null,
+        "scale_description": "Less than 62 hours after discarding videos shorter than 4 seconds; left-camera views only."
+      },
+      "sequence": {
+        "frames": 16,
+        "fps": 4,
+        "horizon_description": "Random 4-second clips at 4 FPS; 16 frames per training sample."
+      },
+      "optimization": {
+        "batch_size": 256,
+        "global_batch_size": 256,
+        "gradient_accumulation": null,
+        "learning_rate": 0.000425,
+        "warmup_steps": 4500,
+        "total_steps": 94500,
+        "epochs": null,
+        "scheduler": "warmup 4.5k, constant 85.5k, linear decay 4.5k"
+      },
+      "compute": {
+        "hardware": "not disclosed",
+        "devices": null,
+        "notes": "The encoder is frozen; the recipe is a small post-training stage, not foundation pretraining."
+      },
+      "checkpoint_policy": "The paper evaluates closed-loop planning and does not specify a general checkpoint-selection rule.",
+      "planner_policy": "ranking_only",
+      "known_fields": ["dataset.hours", "sequence.frames", "sequence.fps", "optimization.batch_size", "optimization.learning_rate", "optimization.warmup_steps", "optimization.total_steps", "optimization.scheduler"],
+      "undisclosed_fields": ["dataset.examples", "dataset.episodes", "optimization.gradient_accumulation", "optimization.epochs", "checkpoint_selection"],
+      "evidence": [
+        {"field": "dataset", "claim": "Approximately 62 hours of unlabeled DROID robot video, usually 3-4 seconds per video", "locator": "paper Section 3.1"},
+        {"field": "sequence", "claim": "4-second clips at 4 FPS yield 16-frame samples", "locator": "paper Section 3.1, Model inputs"},
+        {"field": "optimization", "claim": "Batch 256; LR warms from 7.5e-5 to 4.25e-4 for 4.5k, holds 85.5k, then decays 4.5k", "locator": "paper Appendix B.1"}
+      ],
+      "limitations": ["This is the closest public analogue to adapting a pretrained world representation on a small robot dataset, but it is not evidence that the same numbers fit Ctrl-World.", "The encoder is frozen and the data split/camera convention is task-specific."]
+    }
+  ]
+}

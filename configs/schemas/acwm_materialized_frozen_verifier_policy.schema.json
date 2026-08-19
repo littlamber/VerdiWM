@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_id",
+    "policy_digest",
+    "contract_id",
+    "contract_digest",
+    "implementation_sha256",
+    "screen_rejection_is_terminal_evidence",
+    "confirm_required_for_positive",
+    "verdict_authority"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-materialized-frozen-verifier-policy"]},
+    "policy_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_id": {"type": "string", "minLength": 1},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "screen_rejection_is_terminal_evidence": {"enum": [true]},
+    "confirm_required_for_positive": {"enum": [true]},
+    "verdict_authority": {"enum": ["frozen_verifier_only"]}
+  }
+}

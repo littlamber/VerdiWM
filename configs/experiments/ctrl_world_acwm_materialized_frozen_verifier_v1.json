@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-materialized-frozen-verifier-policy",
+  "policy_id": "ctrl-world-acwm-materialized-frozen-verifier-v1",
+  "policy_digest": "34397e1e21f6b0b4749c7a6a9c694ab808e3262aca85a46f998f5b96a96af859",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "implementation_sha256": "3b9402d68da61e2d55880acf632551e833cc5f3cf1950fa6f620aeb462fcfcd9",
+  "screen_rejection_is_terminal_evidence": true,
+  "confirm_required_for_positive": true,
+  "verdict_authority": "frozen_verifier_only"
+}

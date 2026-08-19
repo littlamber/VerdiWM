@@ -26,7 +26,9 @@ class DiagnosticProbeError(RuntimeError):
     """A diagnostic probe contract, receipt, or result is invalid."""
 
 
-_SOURCE_PLACEHOLDER = re.compile(r"\{(?:python|verdiwm_python|repo_root|asset:--[A-Za-z0-9_-]+)\}")
+_SOURCE_PLACEHOLDER = re.compile(
+    r"\{(?:python|verdiwm_python|verdiwm_root|runtime_path|repo_root|asset:--[A-Za-z0-9_-]+)\}"
+)
 _RUNTIME_PLACEHOLDERS = {"{scratch_dir}", "{workspace_root}", "{output_root}", "{gpu_index}", "{gpu_uuid}"}
 
 
@@ -207,11 +209,23 @@ def _materialization_values(report: Mapping[str, object]) -> dict[str, str]:
     runtime = report.get("runtime")
     if not isinstance(runtime, Mapping) or not isinstance(runtime.get("selected_python"), str):
         raise DiagnosticProbeError("DIAGNOSTIC_PROBE_RUNTIME_INVALID")
+    runtime_bin = Path(str(runtime["selected_python"])).parent
+    runtime_path_entries = [str(runtime_bin)]
+    for ffmpeg_dir in sorted(
+        runtime_bin.parent.glob("lib/python*/site-packages/imageio_ffmpeg/binaries")
+    ):
+        if ffmpeg_dir.is_dir():
+            runtime_path_entries.append(str(ffmpeg_dir))
+    runtime_path_entries.append(os.environ.get("PATH", ""))
     values = {
         "{python}": str(runtime["selected_python"]),
         # Preserve a virtual-environment entrypoint symlink. Resolving it to
         # the base interpreter drops the environment's site-packages.
         "{verdiwm_python}": str(Path(__import__("sys").executable).absolute()),
+        "{verdiwm_root}": str(Path(__file__).resolve().parents[2]),
+        "{runtime_path}": os.pathsep.join(
+            runtime_path_entries
+        ),
         "{repo_root}": str(Path(str(report["repo_root"])).resolve()),
     }
     connector = report.get("connector")

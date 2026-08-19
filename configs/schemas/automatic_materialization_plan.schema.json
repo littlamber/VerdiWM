@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "plan_id",
+    "plan_digest",
+    "idea_id",
+    "candidate_id",
+    "model_family",
+    "required_hooks",
+    "estimated_gpu_hours",
+    "descriptor_path",
+    "allowed_changed_paths",
+    "forbidden_changed_paths",
+    "source_overlay",
+    "agent_command",
+    "agent_timeout_seconds",
+    "fixed_checks",
+    "inherit_environment_keys",
+    "preserve_codex_auth",
+    "candidate_template"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-automatic-materialization-plan"]},
+    "plan_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "idea_id": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "model_family": {"type": "string", "minLength": 1},
+    "required_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+    "descriptor_path": {"type": "string", "minLength": 1},
+    "allowed_changed_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "forbidden_changed_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "source_overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["include_untracked_globs", "max_file_bytes", "max_total_bytes"],
+      "properties": {
+        "include_untracked_globs": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "max_file_bytes": {"type": "integer", "minimum": 1},
+        "max_total_bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "agent_command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "agent_timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "fixed_checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "argv", "timeout_seconds"],
+        "properties": {
+          "label": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "argv": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    },
+    "inherit_environment_keys": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "preserve_codex_auth": {"enum": [false]},
+    "candidate_template": {"type": ["object", "null"]},
+    "implementation_contract": {"type": "object"},
+    "manufacturing_mode": {"enum": ["intervention"]},
+    "manufacturing_work_order_id": {"type": "string", "pattern": "^module-manufacturing-[0-9a-f]{24}$"},
+    "manufacturing_work_order_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "manufacturing_work_order_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "manufacturing_request_id": {"type": "string", "minLength": 1},
+    "manufacturing_abi_id": {"type": "string", "minLength": 1},
+    "dependency_abi_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "portfolio_entry_ids": {"type": "array", "items": {"type": "string", "pattern": "^portfolio-entry-[0-9a-f]{24}$"}},
+    "protected_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evaluator_binding": {"type": "object"}
+  }
+}

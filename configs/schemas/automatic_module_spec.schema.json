@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "abi_id", "module_source", "component_touchpoints", "runtime_contract", "negative_check", "applicability_conditions", "failure_boundaries", "blockers"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-automatic-module-spec"]},
+    "state": {"enum": ["source_faithful", "derived_embodiment", "requires_interface_extension", "architecture_bound", "missing_data_regime"]},
+    "abi_id": {"type": ["string", "null"]},
+    "module_source": {"type": ["string", "null"]},
+    "component_touchpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_component_id", "intent", "touchpoint"],
+        "properties": {
+          "source_component_id": {"type": "string", "minLength": 1},
+          "intent": {"type": "string", "minLength": 8},
+          "touchpoint": {"type": "string", "minLength": 3}
+        }
+      }
+    },
+    "runtime_contract": {"type": ["string", "null"]},
+    "negative_check": {"type": ["string", "null"]},
+    "applicability_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "failure_boundaries": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "blockers": {"type": "array", "items": {"type": "object"}}
+  }
+}

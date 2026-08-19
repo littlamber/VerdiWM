@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "decision",
+    "selected_candidate_id",
+    "verdict_ref",
+    "verdict_sha256",
+    "policy_digest",
+    "verifier_implementation_sha256",
+    "contract_digest",
+    "screen_input_sha256",
+    "confirm_input_sha256",
+    "verified_candidate_count",
+    "eligible_candidate_count"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-verification-manifest"]},
+    "state": {"enum": ["verified"]},
+    "decision": {"enum": ["selected", "abstained"]},
+    "selected_candidate_id": {"type": ["string", "null"]},
+    "verdict_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "verdict_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "verifier_implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "screen_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "confirm_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "verified_candidate_count": {"type": "integer", "minimum": 1},
+    "eligible_candidate_count": {"type": "integer", "minimum": 0}
+  }
+}

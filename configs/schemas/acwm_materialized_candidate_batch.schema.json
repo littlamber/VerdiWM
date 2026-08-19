@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "batch_id",
+    "batch_digest",
+    "contract_id",
+    "contract_digest",
+    "stage",
+    "objective",
+    "hypothesis",
+    "falsification_criterion",
+    "selection_reason",
+    "expected_gpu_hours_per_candidate",
+    "artifact_policy",
+    "candidates"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-materialized-candidate-batch"]},
+    "batch_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "batch_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stage": {"enum": ["screen", "confirm"]},
+    "objective": {"type": "string", "minLength": 1},
+    "hypothesis": {"type": "string", "minLength": 1},
+    "falsification_criterion": {"type": "string", "minLength": 1},
+    "selection_reason": {"type": "string", "minLength": 1},
+    "expected_gpu_hours_per_candidate": {"type": "number", "exclusiveMinimum": 0},
+    "artifact_policy": {"type": "string", "minLength": 1},
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "candidate_kind", "parameters", "provenance"],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+          "candidate_kind": {"enum": ["materialized_history_retrieval", "materialized_masked_intermediate_action_adapter"]},
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "max_items": {"type": "integer", "minimum": 1},
+              "token_grid_size": {"type": "integer", "minimum": 1},
+              "spatial_weight": {"type": "number", "minimum": 0},
+              "action_weight": {"type": "number", "minimum": 0},
+              "temporal_weight": {"type": "number", "minimum": 0},
+              "action_dim": {"type": "integer", "minimum": 1},
+              "hidden_dim": {"type": "integer", "minimum": 8},
+              "max_residual": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+              "mask_temperature": {"type": "number", "minimum": 0.05, "maximum": 10},
+              "adapter_scale": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "candidate_catalog_path",
+              "candidate_catalog_sha256",
+              "materialization_receipt_path",
+              "materialization_receipt_sha256",
+              "implementation_revision",
+              "descriptor_path",
+              "descriptor_sha256",
+              "source_assessment_path",
+              "source_assessment_sha256",
+              "source_id",
+              "source_digest",
+              "assessment_digest",
+              "source_component_mapping",
+              "required_files"
+            ],
+            "properties": {
+              "candidate_catalog_path": {"type": "string", "minLength": 1},
+              "candidate_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "materialization_receipt_path": {"type": "string", "minLength": 1},
+              "materialization_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "implementation_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+              "descriptor_path": {"type": "string", "minLength": 1},
+              "descriptor_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source_assessment_path": {"type": "string", "minLength": 1},
+              "source_assessment_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source_id": {"type": "string", "minLength": 1},
+              "source_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "assessment_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source_component_mapping": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["source_component_id", "touchpoint"],
+                  "properties": {
+                    "source_component_id": {"type": "string", "minLength": 1},
+                    "touchpoint": {"type": "string", "minLength": 1}
+                  }
+                }
+              },
+              "required_files": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "path", "sha256"],
+                  "properties": {
+                    "name": {"type": "string", "minLength": 1},
+                    "path": {"type": "string", "minLength": 1},
+                    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                  }
+                }
+              },
+              "training_binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "adapter_state_path",
+                  "adapter_state_sha256",
+                  "training_receipt_path",
+                  "training_receipt_sha256",
+                  "training_split_fingerprint",
+                  "backbone_checkpoint_sha256",
+                  "backbone_freeze_proof",
+                  "optimizer_receipt"
+                ],
+                "properties": {
+                  "adapter_state_path": {"type": "string", "minLength": 1},
+                  "adapter_state_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                  "training_receipt_path": {"type": "string", "minLength": 1},
+                  "training_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                  "training_split_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                  "backbone_checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                  "backbone_freeze_proof": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["state", "trainable_parameter_names", "backbone_trainable_parameter_count", "proof_sha256"],
+                    "properties": {
+                      "state": {"enum": ["frozen"]},
+                      "trainable_parameter_names": {
+                        "type": "array",
+                        "minItems": 1,
+                        "items": {"type": "string", "minLength": 1}
+                      },
+                      "backbone_trainable_parameter_count": {"type": "integer", "const": 0},
+                      "proof_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                    }
+                  },
+                  "optimizer_receipt": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["name", "steps", "learning_rate", "seed"],
+                    "properties": {
+                      "name": {"type": "string", "minLength": 1},
+                      "steps": {"type": "integer", "minimum": 1},
+                      "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+                      "seed": {"type": "integer"}
+                    }
+                  },
+                  "adapter_state_format": {"enum": ["torch_state_dict"]}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

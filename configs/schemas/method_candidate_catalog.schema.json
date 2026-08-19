@@ -59,6 +59,8 @@
               }
             }
           },
+          "materialization_receipt_path": {"type": "string", "minLength": 1},
+          "materialization_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "candidate_template": {"type": "object"}
         }
       }

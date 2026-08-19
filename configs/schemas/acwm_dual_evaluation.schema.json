@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "contract_id",
+    "contract_digest",
+    "scope",
+    "evidence_source",
+    "prohibited_signal_ids",
+    "surfaces",
+    "metrics",
+    "stages",
+    "protocol",
+    "resource_policy"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-dual-evaluation-contract"]},
+    "contract_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "scope": {"enum": ["acwm_only"]},
+    "evidence_source": {"enum": ["paired_ground_truth_rollout"]},
+    "prohibited_signal_ids": {
+      "type": "array",
+      "minItems": 3,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "surfaces": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["surface_id", "role", "ground_truth_required"],
+        "properties": {
+          "surface_id": {"enum": ["paired_prediction", "giga_style_rollout"]},
+          "role": {"enum": ["primary", "protected"]},
+          "ground_truth_required": {"enum": [true]}
+        }
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metric_id",
+          "surface_id",
+          "role",
+          "direction",
+          "minimum_improvement",
+          "maximum_regression"
+        ],
+        "properties": {
+          "metric_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+          "surface_id": {"enum": ["paired_prediction", "giga_style_rollout"]},
+          "role": {"enum": ["primary", "protected"]},
+          "direction": {"enum": ["minimize", "maximize"]},
+          "minimum_improvement": {"type": "number", "minimum": 0},
+          "maximum_regression": {"type": "number", "minimum": 0}
+        }
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage", "split", "max_gpu_hours_per_candidate"],
+        "properties": {
+          "stage": {"enum": ["screen", "confirm"]},
+          "split": {"enum": ["dev", "accept"]},
+          "max_gpu_hours_per_candidate": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_version", "seed", "stages"],
+      "properties": {
+        "metric_version": {"enum": [1]},
+        "seed": {"type": "integer", "minimum": 0},
+        "stages": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "stage",
+              "paired_prediction_contexts",
+              "rollout_contexts",
+              "paired_prediction_interactions",
+              "rollout_interactions",
+              "num_inference_steps"
+            ],
+            "properties": {
+              "stage": {"enum": ["screen", "confirm"]},
+              "paired_prediction_contexts": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["episode_id", "start_idx"],
+                  "properties": {
+                    "episode_id": {"type": "string", "pattern": "^[0-9]+$"},
+                    "start_idx": {"type": "integer", "minimum": 0}
+                  }
+                }
+              },
+              "rollout_contexts": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["episode_id", "start_idx"],
+                  "properties": {
+                    "episode_id": {"type": "string", "pattern": "^[0-9]+$"},
+                    "start_idx": {"type": "integer", "minimum": 0}
+                  }
+                }
+              },
+              "paired_prediction_interactions": {"type": "integer", "minimum": 1},
+              "rollout_interactions": {"type": "integer", "minimum": 2},
+              "num_inference_steps": {"type": "integer", "minimum": 1}
+            }
+          }
+        }
+      }
+    },
+    "resource_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_gpus", "per_candidate_gpus", "max_parallel_candidates"],
+      "properties": {
+        "total_gpus": {"type": "integer", "minimum": 1},
+        "per_candidate_gpus": {"type": "integer", "minimum": 1},
+        "max_parallel_candidates": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

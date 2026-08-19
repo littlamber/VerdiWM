@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "decision",
+    "evidence_stage",
+    "candidate_id",
+    "verdict_ref",
+    "verdict_sha256",
+    "policy_digest",
+    "verifier_implementation_sha256",
+    "contract_digest",
+    "screen_input_sha256",
+    "confirm_input_sha256"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-materialized-verification-manifest"]},
+    "state": {"enum": ["verified"]},
+    "decision": {"enum": ["confirmed_positive", "rejected_at_screen", "rejected_at_confirm", "operational_failure"]},
+    "evidence_stage": {"enum": ["screen", "confirm"]},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "verdict_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "verdict_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "verifier_implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "screen_input_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "confirm_input_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+  }
+}

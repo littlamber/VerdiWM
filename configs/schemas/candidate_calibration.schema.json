@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "method_id", "overlay_id", "checks", "claim_boundary"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-candidate-calibration"]},
+    "state": {"enum": ["passed", "failed", "blocked"]},
+    "method_id": {"type": "string", "pattern": "^method-ir-[0-9a-f]{24}$"},
+    "overlay_id": {"type": "string", "pattern": "^overlay-[0-9a-f]{24}$"},
+    "execution_id": {"type": "string", "pattern": "^candidate-execution-[0-9a-f]{24}$"},
+    "checks": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "candidate_catalog_path": {"type": "string", "minLength": 1},
+    "candidate_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

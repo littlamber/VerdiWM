@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "contract_id", "protocol_kind", "protocol_id", "protocol_version", "semantic_dimensions", "protected_fields", "contract_ref", "evidence_refs", "license_spdx_id", "redistribution_allowed", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-protocol-contract"]},
+    "contract_id": {"type": "string", "pattern": "^protocol-contract-[0-9a-f]{24}$"},
+    "protocol_kind": {"enum": ["probe", "metric", "evaluator"]},
+    "protocol_id": {"type": "string", "minLength": 1},
+    "protocol_version": {"type": "string", "minLength": 1},
+    "semantic_dimensions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "protected_fields": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "contract_ref": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+    "license_spdx_id": {"type": "string", "minLength": 1},
+    "redistribution_allowed": {"enum": [true]},
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

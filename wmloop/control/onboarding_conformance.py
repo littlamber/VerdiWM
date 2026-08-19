@@ -26,6 +26,11 @@ from wmloop.control.onboarding_admission import (
     OnboardingAdmissionError,
     verify_receipt_asset_bindings,
 )
+from wmloop.control.intermediate_ir import (
+    IntermediateRepresentationError,
+    ir_digest,
+    validate_model_capability_ir,
+)
 
 
 _MAX_LOG_BYTES = 1_000_000
@@ -66,6 +71,34 @@ def run_conformance(options: ConformanceOptions) -> dict[str, object]:
         "report_sha256"
     ):
         raise ModelConformanceError("CONFORMANCE_ONBOARDING_REPORT_HASH_MISMATCH")
+    capability_path = sidecar / "model-capability-ir.json"
+    capability_bytes = (
+        capability_path.read_bytes()
+        if capability_path.is_file() and not capability_path.is_symlink()
+        else b""
+    )
+    if hashlib.sha256(capability_bytes).hexdigest() != sidecar_manifest.get(
+        "model_capability_ir_sha256"
+    ):
+        raise ModelConformanceError("CONFORMANCE_MODEL_CAPABILITY_IR_HASH_MISMATCH")
+    try:
+        capability_ir = json.loads(capability_bytes)
+        if not isinstance(capability_ir, dict):
+            raise ValueError("capability IR object required")
+        validate_model_capability_ir(capability_ir)
+    except (
+        json.JSONDecodeError,
+        ValueError,
+        IntermediateRepresentationError,
+    ) as exc:
+        raise ModelConformanceError("CONFORMANCE_MODEL_CAPABILITY_IR_INVALID") from exc
+    capability_semantic_digest = ir_digest(capability_ir)
+    if capability_semantic_digest != sidecar_manifest.get(
+        "model_capability_semantic_digest"
+    ):
+        raise ModelConformanceError(
+            "CONFORMANCE_MODEL_CAPABILITY_IR_SEMANTIC_DIGEST_MISMATCH"
+        )
     report = _load_json(report_path, "CONFORMANCE_ONBOARDING_REPORT_INVALID")
     try:
         validate_document("model_onboarding_report", report)
@@ -77,7 +110,7 @@ def run_conformance(options: ConformanceOptions) -> dict[str, object]:
         raise ModelConformanceError("CONFORMANCE_SOURCE_REPOSITORY_INVALID")
     destination = Path(options.output_root).expanduser().resolve()
     _validate_output_root(destination, repo=repo, sidecar=sidecar)
-    input_hash = _input_hash(report_bytes, options.timeout_seconds)
+    input_hash = _input_hash(report_bytes, capability_bytes, options.timeout_seconds)
     if destination.exists() or destination.is_symlink():
         return _resume_conformance(
             destination,
@@ -98,6 +131,10 @@ def run_conformance(options: ConformanceOptions) -> dict[str, object]:
                 "artifact_type": "wmloop-model-conformance-input-lock",
                 "input_hash": input_hash,
                 "onboarding_report_sha256": sidecar_manifest["report_sha256"],
+                "model_capability_ir_sha256": sidecar_manifest[
+                    "model_capability_ir_sha256"
+                ],
+                "model_capability_semantic_digest": capability_semantic_digest,
             },
         )
         source_before = compute_source_revision(repo)
@@ -149,17 +186,30 @@ def run_conformance(options: ConformanceOptions) -> dict[str, object]:
                             timeout_seconds=options.timeout_seconds,
                         )
                     )
+        entrypoint_probe = (
+            str(evaluator.get("entrypoint_probe", "help"))
+            if isinstance(evaluator, Mapping)
+            else "help"
+        )
         if runtime_ready and command is not None and materialization_error is None:
-            process_started = True
-            checks.append(
-                _run_check(
-                    name="entrypoint_help",
-                    command=[*command, "--help"],
-                    repo=repo,
-                    output_root=temporary,
-                    timeout_seconds=options.timeout_seconds,
+            if entrypoint_probe == "skip":
+                checks.append(
+                    _pass_check(
+                        "entrypoint_probe",
+                        "entrypoint probe explicitly deferred to bounded runtime smoke",
+                    )
                 )
-            )
+            else:
+                process_started = True
+                checks.append(
+                    _run_check(
+                        name="entrypoint_help",
+                        command=[*command, "--help"],
+                        repo=repo,
+                        output_root=temporary,
+                        timeout_seconds=options.timeout_seconds,
+                    )
+                )
 
         source_after = compute_source_revision(repo)
         integrity_after = compute_source_tree_revision(repo)
@@ -176,6 +226,10 @@ def run_conformance(options: ConformanceOptions) -> dict[str, object]:
             "repo_root": str(repo),
             "sidecar_root": str(sidecar),
             "onboarding_report_sha256": sidecar_manifest["report_sha256"],
+            "model_capability_ir_sha256": sidecar_manifest[
+                "model_capability_ir_sha256"
+            ],
+            "model_capability_semantic_digest": capability_semantic_digest,
             "source_revision": source_after,
             "source_tree_revision": integrity_after,
             "asset_bindings": assets_after,
@@ -192,7 +246,7 @@ def run_conformance(options: ConformanceOptions) -> dict[str, object]:
                 "model_import_executed": process_started,
                 "gpu_execution_started": False,
             },
-            "claim_boundary": "Conformance PASS authorizes candidate compilation only; it is not model-quality evidence.",
+            "claim_boundary": "Conformance PASS authorizes candidate compilation only; it is not model-quality evidence. An explicitly deferred entrypoint probe still requires a bounded runtime smoke.",
         }
         try:
             validate_document("model_conformance_receipt", receipt)
@@ -506,8 +560,16 @@ def _fail_check(name: str, detail: str) -> dict[str, object]:
     return {"name": name, "status": "fail", "detail": detail}
 
 
-def _input_hash(report_bytes: bytes, timeout_seconds: float) -> str:
-    payload = report_bytes + b"\0" + str(timeout_seconds).encode("ascii")
+def _input_hash(
+    report_bytes: bytes, capability_bytes: bytes, timeout_seconds: float
+) -> str:
+    payload = (
+        report_bytes
+        + b"\0"
+        + capability_bytes
+        + b"\0"
+        + str(timeout_seconds).encode("ascii")
+    )
     return hashlib.sha256(payload).hexdigest()
 
 

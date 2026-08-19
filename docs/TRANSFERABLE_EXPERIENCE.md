@@ -27,3 +27,11 @@ EffectRecord + TransferCertificate
 
 The projection is deterministic and content-derived through `experience_id`.
 Archive/CAS receipts and the full Evidence Graph remain authoritative.
+
+For cross-model reuse, `EffectMemory.portable_experiences()` emits a stricter
+derived view. Its knowledge fields are semantic (model family, capability
+class, goal/evaluator protocol, dataset regime, horizons, and primitive), and
+its evidence references must be `cas://`, `urn:`, or `sha256:` values. Runtime
+paths, repository names, checkpoint filenames, and local manifests are rejected
+by the portability validator. Those bindings remain in execution receipts and
+are never copied into shared knowledge.

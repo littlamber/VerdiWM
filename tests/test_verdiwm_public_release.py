@@ -129,12 +129,20 @@ class GithubStagingTests(unittest.TestCase):
             with self.assertRaisesRegex(GithubStagingError, "OUTPUT_EXISTS"):
                 build_github_staging(source_root=REPO_ROOT, output_root=Path(temp))
 
+    @unittest.skipIf(
+        (REPO_ROOT / ".verdiwm-public-release").is_file(),
+        "the staging-builder integration test runs only in the development repository",
+    )
     def test_builder_includes_cross_backbone_control_plane(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "release"
             audit = build_github_staging(source_root=REPO_ROOT, output_root=output)
+            self.assertFalse(
+                (output / "configs/experiments/ctrl_world_autonomous_transfer_loop_v1.json").exists()
+            )
 
             self.assertEqual(audit["state"], "ready")
+            self.assertTrue((output / ".verdiwm-public-release").is_file())
             self.assertTrue((output / "README_zh.md").is_file())
             self.assertTrue((output / "wmloop" / "experiments" / "lobo.py").is_file())
             self.assertTrue(
@@ -151,6 +159,36 @@ class GithubStagingTests(unittest.TestCase):
             )
             self.assertTrue((output / "docs" / "TRANSFERABLE_EXPERIENCE.md").is_file())
             self.assertTrue((output / "docs" / "RELEASE_CHECKLIST.md").is_file())
+            self.assertTrue(
+                (output / "docs" / "PORTRAIT_FIRST_AUTONOMOUS_RESEARCH_EXECUTION_PLAN.md").is_file()
+            )
+            self.assertTrue(
+                (output / "experiments" / "ctrl_world_autonomous_transfer_v1" / "controller.py").is_file()
+            )
+            self.assertTrue(
+                (output / "experiments" / "ctrl_world_hybrid_memory_transfer_v1" / "run.py").is_file()
+            )
+            self.assertTrue(
+                (output / "experiments" / "ctrl_world_research_loop_v2" / "research_intake.py").is_file()
+            )
+            self.assertTrue(
+                (output / "experiments" / "ctrl_world_acwm_guidance_v1" / "research_intake.py").is_file()
+            )
+            self.assertTrue(
+                (output / "experiments" / "ctrl_world_autonomous_transfer_v1" / "engineering_manifest.json").is_file()
+            )
+            self.assertTrue((output / "configs" / "plugins" / "automatic_module_abis_v1.json").is_file())
+            self.assertTrue(
+                (output / "examples" / "portrait_first_minimal_loop_v1" / "run.py").is_file()
+            )
+            self.assertEqual(
+                audit["portrait_first_validation"]["readiness_state"],
+                "ready_for_gap_planning",
+            )
+            self.assertEqual(
+                audit["portrait_first_validation"]["gap_plan_state"],
+                "ready_for_portfolio",
+            )
             self.assertTrue((output / "tests" / "test_acwm_multiseed_eval_summary.py").is_file())
             self.assertTrue((output / "tests" / "test_progressive_fidelity.py").is_file())
             self.assertTrue((output / "tests" / "test_stage_progressive_fidelity_sources.py").is_file())

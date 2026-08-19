@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "composition_id",
+    "receipt_digest",
+    "registry_id",
+    "registry_digest",
+    "registry_sha256",
+    "requested_capabilities",
+    "eligible_abi_ids",
+    "maximum_authority_level",
+    "effective_authority_level",
+    "selected_modules",
+    "capability_bindings",
+    "dependency_edges",
+    "external_bindings",
+    "composition_cost",
+    "side_effect_classes",
+    "side_effects",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-module-composition-receipt"]},
+    "state": {"enum": ["admitted"]},
+    "composition_id": {"type": "string", "pattern": "^composition-[0-9a-f]{24}$"},
+    "receipt_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "registry_id": {"type": "string", "minLength": 1},
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "registry_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "requested_capabilities": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "eligible_abi_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "maximum_authority_level": {"enum": ["L0", "L1", "L2"]},
+    "effective_authority_level": {"enum": ["L0", "L1", "L2"]},
+    "selected_modules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["module_id", "abi_id", "abi_version", "abi_digest", "provides", "requires", "authority_level", "side_effect_class", "admission_suite_id", "cost_model", "portable", "license_spdx_id"],
+        "properties": {
+          "module_id": {"type": "string", "minLength": 1},
+          "abi_id": {"type": "string", "minLength": 1},
+          "abi_version": {"type": "string", "minLength": 1},
+          "abi_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "provides": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "requires": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "authority_level": {"enum": ["L0", "L1", "L2"]},
+          "side_effect_class": {"type": "string", "minLength": 1},
+          "admission_suite_id": {"type": "string", "minLength": 1},
+          "cost_model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "cpu_seconds_upper_bound", "gpu_hours_upper_bound", "peak_memory_bytes_upper_bound"],
+            "properties": {
+              "kind": {"type": "string", "minLength": 1},
+              "cpu_seconds_upper_bound": {"type": "number", "minimum": 0},
+              "gpu_hours_upper_bound": {"type": "number", "minimum": 0},
+              "peak_memory_bytes_upper_bound": {"type": "integer", "minimum": 0}
+            }
+          },
+          "portable": {"enum": [true]},
+          "license_spdx_id": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "capability_bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requester_id", "capability", "provider_module_id", "provider_abi_id"],
+        "properties": {
+          "requester_id": {"type": "string", "minLength": 1},
+          "capability": {"type": "string", "minLength": 1},
+          "provider_module_id": {"type": "string", "minLength": 1},
+          "provider_abi_id": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "dependency_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["consumer_module_id", "required_capability", "provider_module_id", "consumer_input_port", "provider_output_port", "contract"],
+        "properties": {
+          "consumer_module_id": {"type": "string", "minLength": 1},
+          "required_capability": {"type": "string", "minLength": 1},
+          "provider_module_id": {"type": "string", "minLength": 1},
+          "consumer_input_port": {"type": "string", "minLength": 1},
+          "provider_output_port": {"type": "string", "minLength": 1},
+          "contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "external_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["module_id", "input_port", "contract"],
+        "properties": {
+          "module_id": {"type": "string", "minLength": 1},
+          "input_port": {"type": "string", "minLength": 1},
+          "contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "composition_cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu_seconds_upper_bound", "gpu_hours_upper_bound", "peak_memory_bytes_upper_bound"],
+      "properties": {
+        "cpu_seconds_upper_bound": {"type": "number", "minimum": 0},
+        "gpu_hours_upper_bound": {"type": "number", "minimum": 0},
+        "peak_memory_bytes_upper_bound": {"type": "integer", "minimum": 0}
+      }
+    },
+    "side_effect_classes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generated_module_imported", "evaluator_selection_authority", "gpu_budget_authority", "promotion_authority"],
+      "properties": {
+        "generated_module_imported": {"enum": [false]},
+        "evaluator_selection_authority": {"enum": [false]},
+        "gpu_budget_authority": {"enum": [false]},
+        "promotion_authority": {"enum": [false]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

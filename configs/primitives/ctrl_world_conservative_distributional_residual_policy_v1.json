@@ -43,7 +43,7 @@
     "targeted_atlas_part_2": "/path/to/verdiwm-runs/ctrl-world/mechanism-discovery-v13/mechanism-atlas.json",
     "targeted_atlas_part_2_sha256": "a9b9f7d072b3e18b37f581a941099822ea70a96debe4152228020902a719ccf6",
     "settled_reference_profiles": "configs/retrieval/ctrl_world_settled_mechanism_profiles_v2.json",
-    "settled_reference_profiles_sha256": "f107e0a3003ce805a59d3ad894f8f4f4d5cb526345ff6d743f86c19a01b2880d",
+    "settled_reference_profiles_sha256": "d78cb907e8e73e39898c79132a376c88cece4fe4e81042fd0d1719ce5a94dd53",
     "broad_paper_count": 80,
     "targeted_evidence_supported_count": 9,
     "current_missing_source_count": 0,

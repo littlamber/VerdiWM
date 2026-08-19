@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "plan_id", "plan_digest", "goal_ir_id", "goal_ir_digest", "portrait_id", "portrait_digest", "registry_id", "registry_digest", "graph_id", "graph_digest", "classification_counts", "manufacturing_requests", "composition_bindings", "knowledge_graph_digest", "knowledge_priors", "next_action", "authority", "side_effects", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-capability-gap-plan-receipt"]},
+    "state": {"enum": ["ready_for_portfolio", "requires_manufacturing", "requires_interface_extension", "missing_data_regime", "architecture_bound"]},
+    "plan_id": {"type": "string", "pattern": "^gap-plan-[0-9a-f]{24}$"},
+    "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "goal_ir_id": {"type": "string", "pattern": "^goal-ir-[0-9a-f]{24}$"},
+    "goal_ir_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+    "portrait_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "registry_id": {"type": "string", "minLength": 1},
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "graph_id": {"type": "string", "pattern": "^capability-graph-[0-9a-f]{24}$"},
+    "graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "classification_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["satisfied", "reusable", "composable", "manufacturable", "interface_extension_required", "data_blocked", "architecture_bound"],
+      "properties": {
+        "satisfied": {"type": "integer", "minimum": 0},
+        "reusable": {"type": "integer", "minimum": 0},
+        "composable": {"type": "integer", "minimum": 0},
+        "manufacturable": {"type": "integer", "minimum": 0},
+        "interface_extension_required": {"type": "integer", "minimum": 0},
+        "data_blocked": {"type": "integer", "minimum": 0},
+        "architecture_bound": {"type": "integer", "minimum": 0}
+      }
+    },
+    "manufacturing_requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["request_id", "requirement_id", "capability", "abi_id", "abi_version", "abi_digest", "reason", "dependency_abi_ids", "external_ports"],
+        "properties": {
+          "request_id": {"type": "string", "pattern": "^manufacture-[0-9a-f]{24}$"},
+          "requirement_id": {"type": "string", "pattern": "^requirement-[0-9a-f]{24}$"},
+          "capability": {"type": "string", "minLength": 1},
+          "abi_id": {"type": ["string", "null"]},
+          "abi_version": {"type": ["string", "null"]},
+          "abi_digest": {"type": ["string", "null"]},
+          "reason": {"type": "string", "minLength": 1},
+          "dependency_abi_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "external_ports": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["port", "contract"],
+              "properties": {
+                "port": {"type": "string", "minLength": 1},
+                "contract": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        }
+      }
+    },
+    "composition_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requirement_id", "capability", "composition_id", "composition_digest", "selected_abi_ids"],
+        "properties": {
+          "requirement_id": {"type": "string", "pattern": "^requirement-[0-9a-f]{24}$"},
+          "capability": {"type": "string", "minLength": 1},
+          "composition_id": {"type": "string", "pattern": "^composition-[0-9a-f]{24}$"},
+          "composition_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "selected_abi_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "knowledge_graph_digest": {"type": ["string", "null"]},
+    "knowledge_priors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["prior_id", "requirement_id", "capability", "source_node_id", "source_kind", "rank", "claim_scope", "model_family_match"],
+        "properties": {
+          "prior_id": {"type": "string", "pattern": "^knowledge-prior-[0-9a-f]{24}$"},
+          "requirement_id": {"type": "string", "pattern": "^requirement-[0-9a-f]{24}$"},
+          "capability": {"type": "string", "minLength": 1},
+          "source_node_id": {"type": "string", "minLength": 1},
+          "source_kind": {"type": "string", "minLength": 1},
+          "rank": {"type": "integer", "minimum": 1},
+          "claim_scope": {"enum": ["ranking_only", "target_local", "transfer_prior", "unknown"]},
+          "model_family_match": {"type": "boolean"}
+        }
+      }
+    },
+    "next_action": {"enum": ["compile_experiment_portfolio", "manufacture_leaf_modules", "extend_interface", "bind_data_regime", "stop_architecture_bound"]},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_manufacturing_authority", "gpu_authority", "evaluator_authority", "promotion_authority"],
+      "properties": {
+        "module_manufacturing_authority": {"enum": [false]},
+        "gpu_authority": {"enum": [false]},
+        "evaluator_authority": {"enum": [false]},
+        "promotion_authority": {"enum": [false]}
+      }
+    },
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_mutated", "generated_module_imported", "gpu_execution_started"],
+      "properties": {
+        "source_mutated": {"enum": [false]},
+        "generated_module_imported": {"enum": [false]},
+        "gpu_execution_started": {"enum": [false]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

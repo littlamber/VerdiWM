@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "plan_id", "portrait_binding", "probe_binding", "failures", "lanes", "source_requirements", "authority", "claim_boundary"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-failure-retrieval-plan"]},
+    "plan_id": {"type": "string", "pattern": "^failure-retrieval-[0-9a-f]{24}$"},
+    "portrait_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["portrait_id", "portrait_digest"],
+      "properties": {
+        "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+        "portrait_digest": {"type": "string", "pattern": "^(?:sha256:)?[0-9a-f]{64}$"}
+      }
+    },
+    "probe_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint_ids", "binding_digest"],
+      "properties": {
+        "fingerprint_ids": {"type": "array", "items": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"}},
+        "binding_digest": {"type": "string", "pattern": "^(?:sha256:)?[0-9a-f]{64}$"}
+      }
+    },
+    "failures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["failure_class", "code", "evidence_refs"],
+        "properties": {
+          "failure_class": {"enum": ["missing_capability", "missing_data", "training_instability", "rollout_regression", "no_admissible_candidate"]},
+          "code": {"type": "string", "minLength": 1},
+          "evidence_refs": {"type": "array", "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}}
+        }
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lane_id", "failure_class", "query_intents", "required_method_evidence", "excluded_source_roles"],
+        "properties": {
+          "lane_id": {"type": "string", "pattern": "^retrieval-lane-[0-9a-f]{24}$"},
+          "failure_class": {"type": "string", "minLength": 1},
+          "query_intents": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "required_method_evidence": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "excluded_source_roles": {"type": "array", "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "source_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["training_recipe_required", "implementation_detail_required", "falsification_required", "source_digest_required"],
+      "properties": {
+        "training_recipe_required": {"type": "boolean"},
+        "implementation_detail_required": {"const": true},
+        "falsification_required": {"const": true},
+        "source_digest_required": {"const": true}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ranking_only", "gpu_scheduling", "promotion"],
+      "properties": {
+        "ranking_only": {"const": true},
+        "gpu_scheduling": {"const": false},
+        "promotion": {"const": false}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

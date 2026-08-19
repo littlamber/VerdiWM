@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_id",
+    "policy_digest",
+    "parent_constitution",
+    "parent_protected_metric_ids",
+    "allowed_successor_roles",
+    "maximum_promoted_metric_count",
+    "required_evidence_stages",
+    "allowed_changes",
+    "effective_scope",
+    "history_mode",
+    "successor_freeze_required"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["wmloop-constitution-transition-policy"]},
+    "policy_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent_constitution": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "parent_protected_metric_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "allowed_successor_roles": {"type": "array", "minItems": 1, "items": {"enum": ["primary", "guard"]}},
+    "maximum_promoted_metric_count": {"type": "integer", "minimum": 1},
+    "required_evidence_stages": {"type": "array", "minItems": 5, "items": {"enum": ["static_check", "shadow_evaluation", "historical_calibration", "fresh_heldout", "canary"]}},
+    "allowed_changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "verifier", "protected_metrics", "allowed_actions"],
+      "properties": {
+        "goal": {"enum": ["unchanged"]},
+        "verifier": {"enum": ["unchanged"]},
+        "protected_metrics": {"enum": ["append_only"]},
+        "allowed_actions": {"enum": ["unchanged"]}
+      }
+    },
+    "effective_scope": {"enum": ["future_work_only"]},
+    "history_mode": {"enum": ["append_only"]},
+    "successor_freeze_required": {"enum": [true]}
+  }
+}

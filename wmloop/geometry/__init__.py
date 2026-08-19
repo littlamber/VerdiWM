@@ -15,11 +15,26 @@ from wmloop.geometry.evolution import (
 )
 from wmloop.geometry.assets import IRGChartSource, compose_irg_asset, validate_irg_asset
 from wmloop.geometry.irg import ResponseChart, estimate_response_chart, irg_distance
+from wmloop.geometry.evidence_ir import build_evidence_ir, validate_evidence_ir
 from wmloop.geometry.memory import (
     EffectContext,
     EffectMemory,
     EffectRecord,
     build_transferable_experience,
+)
+from wmloop.geometry.portable_experience import (
+    build_portable_experience,
+    validate_portable_experience,
+)
+from wmloop.geometry.portable_transfer_knowledge import (
+    build_mechanism_contract,
+    build_method_embodiment,
+    build_probe_fingerprint_summary,
+    build_transfer_boundary,
+    validate_mechanism_contract,
+    validate_method_embodiment,
+    validate_probe_fingerprint_summary,
+    validate_transfer_boundary,
 )
 from wmloop.geometry.transfer import TransferCertificate, evaluate_transfer_certificate
 from wmloop.geometry.types import (
@@ -38,6 +53,12 @@ __all__ = [
     "EffectMemory",
     "EffectRecord",
     "build_transferable_experience",
+    "build_evidence_ir",
+    "build_mechanism_contract",
+    "build_method_embodiment",
+    "build_portable_experience",
+    "build_probe_fingerprint_summary",
+    "build_transfer_boundary",
     "GeometryValidationError",
     "InterventionDescriptor",
     "IRGChartSource",
@@ -53,4 +74,10 @@ __all__ = [
     "irg_distance",
     "rank_probe_candidates",
     "validate_irg_asset",
+    "validate_evidence_ir",
+    "validate_mechanism_contract",
+    "validate_method_embodiment",
+    "validate_probe_fingerprint_summary",
+    "validate_portable_experience",
+    "validate_transfer_boundary",
 ]

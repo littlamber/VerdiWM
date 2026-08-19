@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "task_id", "task_type", "state", "output"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-llm-research-task-response"]},
+    "task_id": {"type": "string", "minLength": 1},
+    "task_type": {"enum": ["source_assessment", "experiment_plan", "module_generation", "open_method_generation", "evidence_interpretation"]},
+    "state": {"enum": ["completed"]},
+    "output": {"type": "object"}
+  }
+}

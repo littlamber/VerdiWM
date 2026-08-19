@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "transform_id", "source_semantics", "target_semantics", "invariants", "loss_policy", "implementation_ref", "verification_ref", "evidence_refs", "license_spdx_id", "redistribution_allowed", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-transformation-contract"]},
+    "transform_id": {"type": "string", "pattern": "^transformation-contract-[0-9a-f]{24}$"},
+    "source_semantics": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "target_semantics": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "invariants": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "loss_policy": {"enum": ["lossless", "bounded_loss"]},
+    "implementation_ref": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "verification_ref": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+    "license_spdx_id": {"type": "string", "minLength": 1},
+    "redistribution_allowed": {"enum": [true]},
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

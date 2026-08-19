@@ -7,7 +7,7 @@
   "selection_reason": "A single frozen replay is the lowest-cost diagnostic that uses the already admitted checkpoint and dataset while producing a receipt-bound failure signature.",
   "falsification_criterion": "The probe is blocked unless the child replay exits cleanly, exactly one paired video is archived, and the diagnostic JSON is schema-valid with physical-GPU evidence.",
   "command": [
-    "{verdiwm_python}",
+    "{python}",
     "-m",
     "wmloop.execute.external_evaluator_workload",
     "--artifact",
@@ -19,7 +19,7 @@
     "--metric-prefix",
     "diagnostic.",
     "--",
-    "{verdiwm_python}",
+    "{python}",
     "-m",
     "wmloop.diagnose.external_video_probe",
     "--video-pattern",
@@ -47,7 +47,7 @@
     "--",
     "{python}",
     "-c",
-    "import os,runpy; from config import wm_args; original=wm_args.__post_init__; wm_args.__post_init__=lambda self:(original(self),setattr(self,'val_id',self.val_id[:1]),setattr(self,'start_idx',self.start_idx[:1]),setattr(self,'instruction',self.instruction[:1]),setattr(self,'interact_num',1),setattr(self,'num_inference_steps',2),setattr(self,'save_dir',os.path.join(os.environ['VERDIWM_TRIAL_SCRATCH'],'external-output'))); runpy.run_path('scripts/rollout_replay_traj.py',run_name='__main__')",
+    "import os,runpy,imageio_ffmpeg,mediapy; mediapy.set_ffmpeg(imageio_ffmpeg.get_ffmpeg_exe()); from config import wm_args; original=wm_args.__post_init__; wm_args.__post_init__=lambda self:(original(self),setattr(self,'val_id',self.val_id[:1]),setattr(self,'start_idx',self.start_idx[:1]),setattr(self,'instruction',self.instruction[:1]),setattr(self,'interact_num',1),setattr(self,'num_inference_steps',2),setattr(self,'save_dir',os.path.join(os.environ['VERDIWM_TRIAL_SCRATCH'],'external-output'))); runpy.run_path('scripts/rollout_replay_traj.py',run_name='__main__')",
     "--dataset_root_path",
     "{asset:--dataset_root_path}",
     "--dataset_meta_info_path",
@@ -113,6 +113,8 @@
     }
   ],
   "environment": {
+    "PATH": "{runtime_path}",
+    "PYTHONPATH": "{verdiwm_root}",
     "PYTHONUNBUFFERED": "1",
     "HF_HUB_OFFLINE": "1",
     "TRANSFORMERS_OFFLINE": "1",

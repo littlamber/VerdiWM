@@ -11,6 +11,8 @@
     "repo_root",
     "sidecar_root",
     "onboarding_report_sha256",
+    "model_capability_ir_sha256",
+    "model_capability_semantic_digest",
     "source_revision",
     "source_tree_revision",
     "asset_bindings",
@@ -29,6 +31,8 @@
     "repo_root": {"type": "string", "minLength": 1},
     "sidecar_root": {"type": "string", "minLength": 1},
     "onboarding_report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model_capability_ir_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model_capability_semantic_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "source_revision": {"type": "object"},
     "source_tree_revision": {"type": "object"},
     "asset_bindings": {

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "method_ir",
+    "execution_contract",
+    "files",
+    "tests",
+    "interface_extensions",
+    "blockers",
+    "authority",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-open-method-proposal"]},
+    "state": {"enum": ["candidate_ready", "interface_extension_required", "data_regime_missing", "architecture_bound", "unmapped"]},
+    "method_ir": {"type": "object"},
+    "execution_contract": {"type": ["object", "null"]},
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "content_utf8", "role"],
+        "properties": {
+          "relative_path": {"type": "string", "minLength": 1},
+          "content_utf8": {"type": "string"},
+          "role": {"enum": ["implementation", "configuration", "test", "descriptor"]}
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command", "state"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "command": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "state": {"enum": ["declared"]}
+        }
+      }
+    },
+    "interface_extensions": {"type": "array", "items": {"type": "object"}},
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_mutation", "evaluator_mutation", "active_metric_mutation", "gpu_scheduling", "promotion"],
+      "properties": {
+        "source_mutation": {"const": false},
+        "evaluator_mutation": {"const": false},
+        "active_metric_mutation": {"const": false},
+        "gpu_scheduling": {"const": false},
+        "promotion": {"const": false}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

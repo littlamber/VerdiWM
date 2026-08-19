@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-frozen-verifier-policy",
+  "policy_id": "ctrl-world-acwm-frozen-verifier-v1",
+  "policy_digest": "b08e158cc122eba838c151edc355b28cb8885dd07fa58fef4b82ee2ab8d72832",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "implementation_sha256": "49fd8a41da9a4601c38f50c5c28442120c199f620a94d341deeed5a65bddc18e",
+  "selection_policy": "maximum_confirm_primary_improvement_v1",
+  "tie_breaker": "candidate_id_ascending",
+  "requires_screen_admission": true,
+  "requires_confirm_qualification": true,
+  "verdict_authority": "frozen_verifier_only"
+}

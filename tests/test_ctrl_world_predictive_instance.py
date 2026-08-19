@@ -44,33 +44,18 @@ class CtrlWorldPredictiveInstanceTests(unittest.TestCase):
         ):
             verify_constitutional_freeze(freeze, root=ROOT)
 
-    def test_ctrl_world_adapter_declares_candidate_compilation_inputs(self) -> None:
+    def test_ctrl_world_adapter_declares_portable_runtime_inputs(self) -> None:
         profile_path = ROOT / "configs/adapters/ctrl_world_predictive_v2.json"
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
         validate_document("adapter_profile", profile, root=ROOT)
-        self.assertEqual(
-            profile["candidate_catalog"],
-            "configs/methods/ctrl_world_predictive_v1.json",
-        )
-        self.assertIn("settlement_manifest_candidates", profile)
+        self.assertNotIn("candidate_catalog", profile)
+        self.assertNotIn("settlement_manifest_candidates", profile)
         parameters = {row["parameter"] for row in profile["asset_bindings"]}
         self.assertIn("--droid_subset_path", parameters)
         self.assertIn("--data_stat_path", parameters)
         local_share_prefix = "/" + "share" + "/project/"
         self.assertNotIn(local_share_prefix, profile_path.read_text(encoding="utf-8"))
 
-        catalog_path = ROOT / profile["candidate_catalog"]
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        validate_document("method_candidate_catalog", catalog, root=ROOT)
-        self.assertEqual(catalog["candidates"][0]["primitive_reference"], "first_frame_anchor")
-        environment = catalog["candidates"][0]["candidate_template"]["stages"][0][
-            "environment"
-        ]
-        self.assertEqual(environment["PYTHONPATH"], "{control_root}")
-        self.assertEqual(
-            catalog["capability_gaps"][0]["reason"],
-            "ADAPTER_RECIPE_NOT_IMPLEMENTED",
-        )
 
 
 if __name__ == "__main__":

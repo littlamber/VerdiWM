@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "audit_id",
+    "state",
+    "graph_digest",
+    "document_count",
+    "document_digests",
+    "path_free",
+    "semantic_documents_only",
+    "promoted_relation_count",
+    "promoted_relations_frozen_and_cas_bound",
+    "redistributable_content_count",
+    "licensed_content_only",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-portable-knowledge-quality-audit"]},
+    "audit_id": {"type": "string", "pattern": "^portable-knowledge-audit-[0-9a-f]{24}$"},
+    "state": {"enum": ["ready"]},
+    "graph_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "document_count": {"type": "integer", "minimum": 0},
+    "document_digests": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    },
+    "path_free": {"type": "boolean", "enum": [true]},
+    "semantic_documents_only": {"type": "boolean", "enum": [true]},
+    "promoted_relation_count": {"type": "integer", "minimum": 0},
+    "promoted_relations_frozen_and_cas_bound": {"type": "boolean", "enum": [true]},
+    "redistributable_content_count": {"type": "integer", "minimum": 0},
+    "licensed_content_only": {"type": "boolean", "enum": [true]},
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

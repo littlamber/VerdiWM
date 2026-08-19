@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-workflow-plugin-registry",
+  "registry_id": "core-workflows-v1",
+  "plugins": [
+    {"plugin_id": "experiment_repository_scaffold", "version": "v1", "role": "repository_hygiene", "input_contract": "research_proposal", "output_artifact": "experiment_engineering_manifest", "side_effect": "repo_metadata_only", "cost_model": "fixed_cpu", "cross_model_safe": true, "authority_level": "L1", "required_model_capabilities": []},
+    {"plugin_id": "training_scale_planner", "version": "v1", "role": "training_admission", "input_contract": "sample_manifests", "output_artifact": "training_scale_plan", "side_effect": "filesystem_read_only", "cost_model": "linear_in_manifest_rows_cpu", "cross_model_safe": true, "authority_level": "L1", "required_model_capabilities": ["training"]},
+    {"plugin_id": "checkpoint_ladder_eval", "version": "v1", "role": "checkpoint_verification", "input_contract": "training_scale_plan", "output_artifact": "checkpoint_verdict_receipt", "side_effect": "gpu_via_control_plane", "cost_model": "declared_gpu_hours_per_checkpoint", "cross_model_safe": true, "authority_level": "L1", "required_model_capabilities": ["training", "evaluation"]},
+    {"plugin_id": "long_horizon_rollout_eval", "version": "v1", "role": "world_model_evaluation", "input_contract": "frozen_evaluator", "output_artifact": "long_horizon_receipt", "side_effect": "gpu_via_control_plane", "cost_model": "declared_gpu_hours_by_horizon", "cross_model_safe": true, "authority_level": "L1", "required_model_capabilities": ["evaluation", "rollout"]},
+    {"plugin_id": "evidence_receipt_export", "version": "v1", "role": "knowledge_deposition", "input_contract": "settled_trial_receipt", "output_artifact": "transferable_experience_projection", "side_effect": "archive_via_control_plane", "cost_model": "linear_in_receipt_count_cpu", "cross_model_safe": true, "authority_level": "L1", "required_model_capabilities": []}
+  ],
+  "workflows": [
+    {"workflow_id": "world_model_training_experiment_v1", "workflow_version": "v1", "required_plugins": ["experiment_repository_scaffold", "training_scale_planner", "checkpoint_ladder_eval", "long_horizon_rollout_eval", "evidence_receipt_export"]}
+  ]
+}

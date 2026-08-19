@@ -141,9 +141,11 @@ def freeze(
             "launcher_sha256": _sha256(LAUNCHER),
             "aggregator": str(AGGREGATOR.resolve(strict=True)),
             "aggregator_sha256": _sha256(AGGREGATOR),
-            "ctrl_world_root": str(CTRL_WORLD_ROOT.resolve(strict=True)),
-            "dataset_root": str((CTRL_WORLD_ROOT / "dataset_example" / "droid_subset").resolve(strict=True)),
-            "data_stat": str((CTRL_WORLD_ROOT / "dataset_meta_info" / "droid_subset" / "stat.json").resolve(strict=True)),
+            # The freeze records external runtime bindings; the launcher performs
+            # strict existence checks when the actual held-out job is admitted.
+            "ctrl_world_root": str(CTRL_WORLD_ROOT.resolve()),
+            "dataset_root": str((CTRL_WORLD_ROOT / "dataset_example" / "droid_subset").resolve()),
+            "data_stat": str((CTRL_WORLD_ROOT / "dataset_meta_info" / "droid_subset" / "stat.json").resolve()),
             "svd_model_path": os.environ.get(
                 "VERDIWM_SVD_MODEL_PATH", "/path/to/models/stable-video-diffusion-img2vid"
             ),

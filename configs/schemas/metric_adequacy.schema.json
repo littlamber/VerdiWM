@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "metric_id",
+    "objective_alignment_claim",
+    "target_construct",
+    "direction",
+    "unit",
+    "aggregation",
+    "horizons",
+    "splits",
+    "role",
+    "required_guard_metrics",
+    "falsification_condition",
+    "anti_gaming_concerns",
+    "incremental_information_claim",
+    "evaluator_binding"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["wmloop-metric-adequacy"]},
+    "metric_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "objective_alignment_claim": {"type": "string", "minLength": 1},
+    "target_construct": {"type": "string", "minLength": 1},
+    "direction": {"enum": ["maximize", "minimize"]},
+    "unit": {"type": "string", "minLength": 1},
+    "aggregation": {"enum": ["mean", "median", "auc", "worst_case", "quantile", "rate", "count"]},
+    "horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+    "splits": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "role": {"enum": ["protected", "primary", "guard", "diagnostic"]},
+    "required_guard_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "falsification_condition": {"type": "string", "minLength": 1},
+    "anti_gaming_concerns": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "incremental_information_claim": {"type": "string", "minLength": 1},
+    "evaluator_binding": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "notes": {"type": "string", "minLength": 1}
+  }
+}

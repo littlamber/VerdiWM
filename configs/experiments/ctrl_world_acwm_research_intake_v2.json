@@ -1,0 +1,386 @@
+{
+  "schema_version": 2,
+  "artifact_type": "verdiwm-acwm-research-intake",
+  "policy_id": "ctrl-world-acwm-research-intake-v2",
+  "policy_digest": "ed0268fbdb9c7a5bb2a392132e778651d801425e10d5318d50079d9ae0404868",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "target_model_family": "ctrl-world",
+  "target_capabilities": [
+    "action_conditioning",
+    "frozen_backbone_adapter",
+    "history_conditioning",
+    "intermediate_residual_hooks",
+    "latent_history_access",
+    "paired_rollout_evaluation",
+    "training_rollout_feedback"
+  ],
+  "queries": [
+    "action conditioned world model long horizon rollout",
+    "world model training inference mismatch action conditioning",
+    "diffusion world model temporal memory rollout stability",
+    "multimodal vision-language action-conditioned world model long horizon",
+    "VLM video prediction temporal memory action conditioning",
+    "video-language model rollout consistency world model"
+  ],
+  "source_policy": {
+    "sources": ["arxiv", "openalex", "github"],
+    "max_results_per_source": 6,
+    "timeout_seconds": 15,
+    "response_byte_limit": 1000000,
+    "max_retries": 2,
+    "retry_backoff_seconds": 0.5
+  },
+  "idea_policy": {
+    "max_ideas": 8,
+    "min_external_sources": 1
+  },
+  "execution_policy": {
+    "required_stages": ["screen", "confirm", "frozen_verifier"],
+    "source_code_mutation": "materialization_required",
+    "promotion_authority": "frozen_verifier_only"
+  },
+  "mechanism_profiles": [
+    {
+      "profile_id": "hybrid_relevance_memory",
+      "priority": 110,
+      "source_role": "transferable_optimizer",
+      "track": "long_horizon_memory",
+      "transfer_mode": "mechanism_transfer",
+      "required_term_groups": [
+        ["hybrid memory"],
+        ["compresses memory into tokens"],
+        ["spatiotemporal relevance-driven retrieval mechanism"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "memory_token_compression",
+          "description": "Compress historical latent observations into bounded memory tokens.",
+          "evidence_terms": ["compresses memory into tokens"]
+        },
+        {
+          "component_id": "spatiotemporal_relevance_retrieval",
+          "description": "Retrieve historical tokens using an explicit spatiotemporal relevance score.",
+          "evidence_terms": ["spatiotemporal relevance-driven retrieval mechanism"]
+        }
+      ],
+      "required_capabilities": ["history_conditioning", "latent_history_access", "action_conditioning"],
+      "target_intervention": "Compress Ctrl-World history latents and aligned actions into bounded tokens, retrieve the top relevant historical states, and preserve chronological order before history conditioning.",
+      "forbidden_substitutions": [
+        "Do not replace relevance retrieval with a fixed recency window.",
+        "Do not claim hidden-subject tracking without an explicit tracking component.",
+        "Do not change the frozen ACWM contexts or protected metrics."
+      ],
+      "falsification_criterion": "Reject unless independent confirmation improves long_horizon_prediction_error and no protected ACWM metric regresses."
+    },
+    {
+      "profile_id": "masked_intermediate_action_adapter",
+      "priority": 109,
+      "source_role": "transferable_optimizer",
+      "track": "action_conditioning",
+      "transfer_mode": "mechanism_transfer",
+      "required_term_groups": [
+        ["avid"],
+        ["learned mask"],
+        ["modify the intermediate outputs"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "learned_action_mask",
+          "description": "Learn an action-conditioned mask that controls adapter injection.",
+          "evidence_terms": ["learned mask"]
+        },
+        {
+          "component_id": "intermediate_output_adapter",
+          "description": "Modify frozen-model intermediate outputs through a separate adapter.",
+          "evidence_terms": ["modify the intermediate outputs"]
+        }
+      ],
+      "required_capabilities": ["action_conditioning", "frozen_backbone_adapter", "intermediate_residual_hooks"],
+      "target_intervention": "Train a separate action-conditioned masked residual adapter on Ctrl-World intermediate features while keeping the pretrained video backbone frozen.",
+      "forbidden_substitutions": [
+        "Do not unfreeze the pretrained video backbone as a substitute for the adapter.",
+        "Do not replace the learned mask with a constant scalar gate.",
+        "Do not change the frozen ACWM evaluator."
+      ],
+      "falsification_criterion": "Reject unless the masked adapter improves paired action-conditioned prediction on confirmation with zero protected regressions."
+    },
+    {
+      "profile_id": "self_forcing_rollout_alignment",
+      "priority": 108,
+      "source_role": "transferable_optimizer",
+      "track": "training_inference_alignment",
+      "transfer_mode": "mechanism_transfer",
+      "required_term_groups": [
+        ["self-forcing", "self forcing"],
+        ["train inference mismatch", "training-inference mismatch", "teacher forcing"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "generated_history_training",
+          "description": "Expose training to model-generated history rather than teacher history alone.",
+          "evidence_terms": ["self-forcing", "self forcing"]
+        },
+        {
+          "component_id": "rollout_distribution_alignment",
+          "description": "Align the training conditioning distribution with autoregressive inference.",
+          "evidence_terms": ["train inference mismatch", "training-inference mismatch", "teacher forcing"]
+        }
+      ],
+      "required_capabilities": ["history_conditioning", "training_rollout_feedback"],
+      "target_intervention": "Use bounded detached Ctrl-World predictions as training history under a declared schedule and retain teacher targets only for supervision.",
+      "forbidden_substitutions": [
+        "Do not relabel ordinary teacher forcing as self-forcing.",
+        "Do not allow future targets to enter generated history conditioning.",
+        "Do not change held-out ACWM contexts."
+      ],
+      "falsification_criterion": "Reject unless confirmation reduces long-horizon prediction error without protected regressions."
+    },
+    {
+      "profile_id": "forward_inverse_cycle_verifier",
+      "priority": 107,
+      "source_role": "transferable_optimizer",
+      "track": "action_conditioning",
+      "transfer_mode": "mechanism_transfer",
+      "required_term_groups": [
+        ["world action verifier"],
+        ["state plausibility"],
+        ["action reachability"],
+        ["cycle consistency"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "state_plausibility_verifier",
+          "description": "Verify generated next-state plausibility independently from action reachability.",
+          "evidence_terms": ["state plausibility"]
+        },
+        {
+          "component_id": "action_reachability_verifier",
+          "description": "Infer whether a proposed transition is reachable under the declared action.",
+          "evidence_terms": ["action reachability"]
+        },
+        {
+          "component_id": "forward_inverse_cycle_consistency",
+          "description": "Enforce consistency among subgoals, inferred actions, and forward rollouts.",
+          "evidence_terms": ["cycle consistency"]
+        }
+      ],
+      "required_capabilities": ["inverse_dynamics_model", "state_plausibility_model", "cycle_consistency_training"],
+      "target_intervention": "Add separately verified state-plausibility and inverse-action branches, then train only through their declared cycle-consistency objective.",
+      "forbidden_substitutions": [
+        "Do not replace either verifier with the existing forward prediction loss.",
+        "Do not infer action reachability from pixel similarity alone.",
+        "Do not schedule GPU work while any verifier capability is missing."
+      ],
+      "falsification_criterion": "Reject unless both verifier branches are calibrated and confirmation improves the primary metric with no protected regression."
+    },
+    {
+      "profile_id": "latent_action_pretraining",
+      "priority": 106,
+      "source_role": "transferable_optimizer",
+      "track": "action_conditioning",
+      "transfer_mode": "mechanism_transfer",
+      "required_term_groups": [
+        ["adaworld"],
+        ["extracting latent actions"],
+        ["autoregressive world model"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "self_supervised_latent_action_extraction",
+          "description": "Extract transition-critical latent actions from unlabeled videos.",
+          "evidence_terms": ["extracting latent actions"]
+        },
+        {
+          "component_id": "latent_action_conditioned_world_model",
+          "description": "Condition an autoregressive world model on the learned latent actions.",
+          "evidence_terms": ["autoregressive world model"]
+        }
+      ],
+      "required_capabilities": ["unlabeled_video_pretraining", "latent_action_encoder", "autoregressive_pretraining_pipeline"],
+      "target_intervention": "Pretrain a latent-action encoder on unlabeled transitions and condition Ctrl-World on those latents before limited labeled-action adaptation.",
+      "forbidden_substitutions": [
+        "Do not use labeled robot actions as a substitute for latent-action extraction.",
+        "Do not skip the pretraining phase and claim AdaWorld transfer.",
+        "Do not schedule GPU work while the pretraining data contract is missing."
+      ],
+      "falsification_criterion": "Reject unless latent-action pretraining is complete and independently improves action-conditioned prediction."
+    },
+    {
+      "profile_id": "disentangled_latent_action",
+      "priority": 105,
+      "source_role": "transferable_optimizer",
+      "track": "action_conditioning",
+      "transfer_mode": "mechanism_transfer",
+      "required_term_groups": [
+        ["dila"],
+        ["content-structure disentanglement"],
+        ["predictive bottleneck"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "content_structure_disentanglement",
+          "description": "Separate visual content from transition structure in distinct pathways.",
+          "evidence_terms": ["content-structure disentanglement"]
+        },
+        {
+          "component_id": "latent_action_predictive_bottleneck",
+          "description": "Use latent-action prediction as the bottleneck that drives structure learning.",
+          "evidence_terms": ["predictive bottleneck"]
+        }
+      ],
+      "required_capabilities": ["content_structure_dual_pathway", "latent_action_encoder", "disentangled_training_objective"],
+      "target_intervention": "Add separate content and structure pathways and train the structure path through a latent-action predictive bottleneck.",
+      "forbidden_substitutions": [
+        "Do not call a single shared encoder disentangled.",
+        "Do not remove the latent-action predictive bottleneck.",
+        "Do not schedule GPU work without both pathway receipts."
+      ],
+      "falsification_criterion": "Reject unless both disentanglement and latent-action bottleneck checks pass before ACWM confirmation."
+    },
+    {
+      "profile_id": "dawm_offline_rl_transition_generator",
+      "priority": 104,
+      "source_role": "incompatible",
+      "track": "offline_rl_transition_generation",
+      "transfer_mode": "none",
+      "required_term_groups": [
+        ["dawm"],
+        ["return-to-go"],
+        ["inverse dynamics model"],
+        ["one-step td"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "return_conditioned_state_reward_generation",
+          "description": "Generate future state-reward trajectories conditioned on current state, action, and return-to-go.",
+          "evidence_terms": ["return-to-go", "state-reward trajectories"]
+        },
+        {
+          "component_id": "inverse_dynamics_action_inference",
+          "description": "Infer missing actions with a separate inverse dynamics model.",
+          "evidence_terms": ["inverse dynamics model"]
+        },
+        {
+          "component_id": "offline_rl_transition_export",
+          "description": "Export complete synthetic transitions for one-step temporal-difference learning.",
+          "evidence_terms": ["one-step td"]
+        }
+      ],
+      "required_capabilities": ["reward_trajectory_modeling", "return_to_go_conditioning", "inverse_dynamics_model", "offline_rl_transition_export"],
+      "target_intervention": "none",
+      "forbidden_substitutions": [
+        "Do not relabel bounded history selection as DAWM.",
+        "Do not omit reward, return-to-go, inverse dynamics, or offline-RL transition export.",
+        "Do not run the ACWM predictive protocol as evidence for DAWM's offline-RL claim."
+      ],
+      "falsification_criterion": "The source is incompatible with the current ACWM-only target contract and must not enter materialization."
+    },
+    {
+      "profile_id": "imagined_kinematic_consistency_diagnostic",
+      "priority": 103,
+      "source_role": "diagnostic_method",
+      "track": "long_horizon_diagnosis",
+      "transfer_mode": "diagnostic_only",
+      "required_term_groups": [
+        ["kinematic-consistency error"],
+        ["perturbation protocol"],
+        ["kinematic", "dynamic"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "imagined_kinematic_consistency_error",
+          "description": "Measure rollout departure from a closed-form kinematic null per step.",
+          "evidence_terms": ["kinematic-consistency error", "kinematic null"]
+        },
+        {
+          "component_id": "regime_boundary_perturbation",
+          "description": "Perturb physical conditions across a regime boundary and test diagnostic response.",
+          "evidence_terms": ["perturbation protocol", "regime boundary"]
+        }
+      ],
+      "required_capabilities": ["physics_regime_perturbation", "kinematic_null_model"],
+      "target_intervention": "Route to a diagnostic campaign; do not propose it as a model optimizer.",
+      "forbidden_substitutions": [
+        "Do not treat a diagnostic score as an optimization method.",
+        "Do not promote a model from diagnostic evidence.",
+        "Do not infer dynamics from a single unperturbed rollout."
+      ],
+      "falsification_criterion": "Reject the diagnostic if it does not respond across a declared physical regime boundary."
+    },
+    {
+      "profile_id": "nano_world_model_substrate",
+      "priority": 102,
+      "source_role": "research_substrate",
+      "track": "experimental_substrate",
+      "transfer_mode": "substrate_only",
+      "required_term_groups": [
+        ["nano world models"],
+        ["minimalist codebase"],
+        ["unified interface"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "minimal_research_codebase",
+          "description": "Provide a compact reproducible codebase for controlled world-model studies.",
+          "evidence_terms": ["minimalist codebase"]
+        },
+        {
+          "component_id": "unified_experiment_interface",
+          "description": "Expose unified interfaces for objectives, scales, conditioning, data, and evaluation.",
+          "evidence_terms": ["unified interface"]
+        }
+      ],
+      "required_capabilities": [],
+      "target_intervention": "Record as engineering inspiration; no optimizer candidate is implied.",
+      "forbidden_substitutions": [
+        "Do not invent a model intervention from a research substrate paper.",
+        "Do not spend GPU budget to validate software modularity alone.",
+        "Do not treat interface similarity as algorithmic transfer evidence."
+      ],
+      "falsification_criterion": "No optimizer experiment is admissible from this source without a separate mechanism-bearing source."
+    },
+    {
+      "profile_id": "world_model_policy_evaluation",
+      "priority": 101,
+      "source_role": "incompatible",
+      "track": "policy_evaluation",
+      "transfer_mode": "none",
+      "required_term_groups": [
+        ["policy evaluation"],
+        ["vision-language model", "vlm"],
+        ["rewards", "rewarding"]
+      ],
+      "excluded_terms": [],
+      "components": [
+        {
+          "component_id": "policy_rollout_environment",
+          "description": "Use the world model as an environment for policy rollouts.",
+          "evidence_terms": ["policy evaluation", "rolling out the policy"]
+        },
+        {
+          "component_id": "vision_language_reward",
+          "description": "Score policy rollouts with a vision-language reward model.",
+          "evidence_terms": ["vision-language model providing rewards", "rewarding the rollouts with a vision-language model"]
+        }
+      ],
+      "required_capabilities": ["policy_runtime", "vision_language_reward", "task_success_protocol"],
+      "target_intervention": "none",
+      "forbidden_substitutions": [
+        "Do not introduce task-success or VLM reward signals into the ACWM-only contract.",
+        "Do not claim predictive optimization from downstream policy correlation.",
+        "Do not execute a policy during ACWM measurement."
+      ],
+      "falsification_criterion": "The source targets policy evaluation and is outside the prohibited-signal ACWM contract."
+    }
+  ]
+}

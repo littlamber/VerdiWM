@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-research-intake",
+  "policy_id": "ctrl-world-acwm-research-intake-v1",
+  "policy_digest": "1e19dfef88550622c16bebfaee6891c2d8a814af05e8d0542781f6b06d87b945",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "queries": [
+    "action conditioned world model long horizon rollout",
+    "world model training inference mismatch action conditioning",
+    "diffusion world model temporal memory rollout stability",
+    "multimodal vision-language action-conditioned world model long horizon",
+    "VLM video prediction temporal memory action conditioning",
+    "video-language model rollout consistency world model"
+  ],
+  "source_policy": {
+    "sources": ["arxiv", "github"],
+    "max_results_per_source": 6,
+    "timeout_seconds": 15,
+    "response_byte_limit": 1000000
+  },
+  "idea_policy": {
+    "max_ideas": 12,
+    "min_external_sources": 1,
+    "allowed_tracks": ["action_conditioning", "long_horizon_memory", "training_inference_alignment", "rollout_stability"]
+  },
+  "execution_policy": {
+    "required_stages": ["screen", "confirm", "frozen_verifier"],
+    "source_code_mutation": "materialization_required",
+    "promotion_authority": "frozen_verifier_only"
+  }
+}

@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.control.intermediate_ir import build_model_capability_ir, ir_digest
 
 
 SCHEMA_VERSION = 1
@@ -49,6 +50,7 @@ _SKIP_DIRECTORIES = frozenset(
         ".ruff_cache",
         "node_modules",
         "wandb",
+        "swanlog",
         "runs",
         "outputs",
         "checkpoints",
@@ -111,6 +113,10 @@ _PACKAGE_IMPORT_ALIASES = {
     "tqdm": "tqdm",
     "wandb": "wandb",
 }
+_PIP_PLATFORM_WARNING = re.compile(
+    r"^[A-Za-z0-9_.-]+\s+\S+\s+is not supported on this platform$",
+    re.IGNORECASE,
+)
 _ENTRYPOINT_KEYWORDS = (
     "train",
     "eval",
@@ -745,7 +751,7 @@ def _discover_runtime(
         "ready"
         if selected["exists"]
         and not failures
-        and pip_check["state"] in {"ok", "not_run"}
+        and pip_check["state"] in {"ok", "warning", "not_run"}
         else "blocked"
     )
     return {
@@ -763,7 +769,10 @@ def _discover_runtime(
 def _runtime_candidates(repo: Path, explicit: Path | None) -> list[dict[str, object]]:
     raw: list[tuple[Path, str]] = []
     if explicit is not None:
-        raw.append((Path(explicit).expanduser().resolve(), "explicit"))
+        # Preserve a venv launcher symlink: resolving it changes ``sys.prefix``
+        # and can silently switch to the base interpreter without the venv's
+        # site-packages.  We only need an absolute path for durable reports.
+        raw.append((Path(explicit).expanduser().absolute(), "explicit"))
     for relative in (".venv/bin/python", "venv/bin/python", "env/bin/python"):
         raw.append((repo / relative, "repository_local"))
     raw.append((Path(sys.executable).resolve(), "current_process"))
@@ -892,11 +901,21 @@ def _probe_pip(path_info: Mapping[str, object], *, repo: Path) -> dict[str, obje
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return {"state": "error", "returncode": None, "detail": _bounded(str(exc))}
-    return {
-        "state": "ok" if result.returncode == 0 else "failed",
-        "returncode": result.returncode,
-        "detail": _bounded((result.stderr or result.stdout).strip()),
-    }
+    detail = _bounded("\n".join(
+        line.strip()
+        for line in (result.stdout + "\n" + result.stderr).splitlines()
+        if line.strip()
+    ))
+    if result.returncode == 0:
+        state = "ok"
+    else:
+        lines = [line.strip() for line in detail.splitlines() if line.strip()]
+        state = (
+            "warning"
+            if lines and all(_PIP_PLATFORM_WARNING.fullmatch(line) for line in lines)
+            else "failed"
+        )
+    return {"state": state, "returncode": result.returncode, "detail": detail}
 
 
 def _classify_capabilities(
@@ -1017,6 +1036,16 @@ def _load_evaluator_contract(path: Path | None) -> dict[str, object]:
     working_directory = payload.get("working_directory", ".")
     contract["working_directory"] = working_directory
     contract["conformance_imports"] = list(payload.get("conformance_imports", []))
+    entrypoint_probe = payload.get("entrypoint_probe", "help")
+    if entrypoint_probe != "help" and entrypoint_probe != "skip":
+        return {
+            "state": "blocked",
+            "source_path": str(resolved),
+            "required_fields": required,
+            "missing_fields": [],
+            "error": "EVALUATOR_ENTRYPOINT_PROBE_INVALID",
+        }
+    contract["entrypoint_probe"] = entrypoint_probe
     scheduler_template = payload.get("scheduler_template")
     if scheduler_template is not None:
         template_path = Path(str(scheduler_template))
@@ -1062,6 +1091,9 @@ def _invalid_evaluator_fields(payload: Mapping[str, Any]) -> list[str]:
         isinstance(item, str) and item.strip() for item in conformance_imports
     ):
         invalid.append("conformance_imports")
+    entrypoint_probe = payload.get("entrypoint_probe", "help")
+    if entrypoint_probe not in {"help", "skip"}:
+        invalid.append("entrypoint_probe")
     scheduler_template = payload.get("scheduler_template")
     if scheduler_template is not None and (
         not isinstance(scheduler_template, str) or not scheduler_template.strip()
@@ -1485,6 +1517,8 @@ def _write_bundle(
     )
     try:
         report_bytes = _canonical_json_bytes(report)
+        capability_ir = build_model_capability_ir(report)
+        capability_ir_bytes = _canonical_json_bytes(capability_ir)
         files = {
             "model_manifest.json": {
                 "schema_version": SCHEMA_VERSION,
@@ -1506,6 +1540,7 @@ def _write_bundle(
                 "artifact_type": "wmloop-capability-report",
                 "capabilities": report["capabilities"],
             },
+            "model-capability-ir.json": capability_ir,
             "evaluator_contract.json": report["evaluator_contract"],
             "conformance_report.json": report["conformance"],
             "generated_connector/connector.json": report["connector"],
@@ -1528,6 +1563,9 @@ def _write_bundle(
             "markdown_path": str(destination / "onboarding-report.md"),
             "source_revision": source_revision,
             "report_sha256": hashlib.sha256(report_bytes).hexdigest(),
+            "model_capability_ir_path": str(destination / "model-capability-ir.json"),
+            "model_capability_ir_sha256": hashlib.sha256(capability_ir_bytes).hexdigest(),
+            "model_capability_semantic_digest": ir_digest(capability_ir),
             "sidecar_root": str(destination),
             "source_output_written": False,
         }

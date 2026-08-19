@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "proposal_id",
+    "proposal_digest",
+    "parent_constitution",
+    "candidate_version",
+    "state",
+    "authority_level",
+    "objective",
+    "metric_contracts",
+    "protected_metric_ids",
+    "promoted_metric_ids",
+    "counterexample_refs",
+    "evidence_refs",
+    "changes",
+    "gates",
+    "governance"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1, 2]},
+    "artifact_type": {"enum": ["wmloop-constitution-proposal"]},
+    "proposal_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "proposal_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent_constitution": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "candidate_version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "state": {"enum": ["candidate", "shadow", "probation", "approved", "rejected", "revoked"]},
+    "authority_level": {"enum": ["L2"]},
+    "objective": {"type": "string", "minLength": 1},
+    "metric_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "artifact_type",
+          "metric_id",
+          "objective_alignment_claim",
+          "target_construct",
+          "direction",
+          "unit",
+          "aggregation",
+          "horizons",
+          "splits",
+          "role",
+          "required_guard_metrics",
+          "falsification_condition",
+          "anti_gaming_concerns",
+          "incremental_information_claim",
+          "evaluator_binding"
+        ],
+        "properties": {
+          "schema_version": {"type": "integer", "enum": [1]},
+          "artifact_type": {"enum": ["wmloop-metric-adequacy"]},
+          "metric_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+          "objective_alignment_claim": {"type": "string", "minLength": 1},
+          "target_construct": {"type": "string", "minLength": 1},
+          "direction": {"enum": ["maximize", "minimize"]},
+          "unit": {"type": "string", "minLength": 1},
+          "aggregation": {"enum": ["mean", "median", "auc", "worst_case", "quantile", "rate", "count"]},
+          "horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+          "splits": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "role": {"enum": ["protected", "primary", "guard", "diagnostic"]},
+          "required_guard_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "falsification_condition": {"type": "string", "minLength": 1},
+          "anti_gaming_concerns": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "incremental_information_claim": {"type": "string", "minLength": 1},
+          "evaluator_binding": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+          "notes": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "protected_metric_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "promoted_metric_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "counterexample_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+    "changes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "verifier", "protected_metrics", "allowed_actions"],
+      "properties": {
+        "goal": {"enum": ["unchanged", "candidate"]},
+        "verifier": {"enum": ["unchanged", "candidate"]},
+        "protected_metrics": {"enum": ["append_only"]},
+        "allowed_actions": {"enum": ["unchanged", "candidate"]}
+      }
+    },
+    "transition_policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "autonomous_promotion_metric_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "autonomous_promotion_role": {"enum": ["primary", "guard"]},
+    "autonomous_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "static_check_refs",
+        "shadow_evaluation_refs",
+        "historical_calibration_refs",
+        "fresh_heldout_refs",
+        "canary_refs",
+        "metric_adequacy_report_refs"
+      ],
+      "properties": {
+        "static_check_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+        "shadow_evaluation_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+        "historical_calibration_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+        "fresh_heldout_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+        "canary_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+        "metric_adequacy_report_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}}
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["incremental_predictive_value", "anti_goodhart_passed", "regression_passed", "independent_validation_passed", "canary_passed"],
+      "properties": {
+        "incremental_predictive_value": {"type": "boolean"},
+        "anti_goodhart_passed": {"type": "boolean"},
+        "regression_passed": {"type": "boolean"},
+        "independent_validation_passed": {"type": "boolean"},
+        "canary_passed": {"type": "boolean"}
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approval_required", "approval_refs", "approval_quorum"],
+      "properties": {
+        "approval_required": {"type": "boolean"},
+        "approval_refs": {"type": "array", "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+        "approval_quorum": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

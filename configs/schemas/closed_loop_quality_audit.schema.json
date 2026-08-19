@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "audit_id",
+    "state",
+    "checks",
+    "terminal_work_count",
+    "archived_work_count",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-closed-loop-quality-audit"]},
+    "audit_id": {"type": "string", "pattern": "^closed-loop-audit-[0-9a-f]{24}$"},
+    "state": {"enum": ["ready", "action_required"]},
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "duplicate_candidate",
+        "stale_portrait",
+        "protocol_drift",
+        "cleanup",
+        "authority",
+        "non_portability"
+      ],
+      "properties": {
+        "duplicate_candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "finding_codes"],
+          "properties": {
+            "state": {"enum": ["pass", "fail", "not_applicable"]},
+            "finding_codes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "stale_portrait": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "finding_codes"],
+          "properties": {
+            "state": {"enum": ["pass", "fail", "not_applicable"]},
+            "finding_codes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "protocol_drift": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "finding_codes"],
+          "properties": {
+            "state": {"enum": ["pass", "fail", "not_applicable"]},
+            "finding_codes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "finding_codes"],
+          "properties": {
+            "state": {"enum": ["pass", "fail", "not_applicable"]},
+            "finding_codes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "finding_codes"],
+          "properties": {
+            "state": {"enum": ["pass", "fail", "not_applicable"]},
+            "finding_codes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "non_portability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "finding_codes"],
+          "properties": {
+            "state": {"enum": ["pass", "fail", "not_applicable"]},
+            "finding_codes": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        }
+      }
+    },
+    "terminal_work_count": {"type": "integer", "minimum": 0},
+    "archived_work_count": {"type": "integer", "minimum": 0},
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

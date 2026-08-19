@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-candidate-batch",
+  "batch_id": "ctrl-world-acwm-guidance-screen-v1",
+  "batch_digest": "1c701d90a44da43dc70c6e304809562465e697ccefed2dbf796caa93439bba4f",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "stage": "screen",
+  "objective": "Calibrate an inference-only Ctrl-World guidance scale under the frozen ACWM screen protocol.",
+  "hypothesis": "A scale near the released default can strictly reduce paired long-horizon prediction error without regressing action conditioning or generated-history rollout fidelity.",
+  "falsification_criterion": "No candidate strictly improves the primary metric while preserving every protected metric; all candidates remain abstained.",
+  "selection_reason": "This is a source-preserving, one-parameter calibration that tests the complete eight-slot ACWM loop before admitting any training or model mutation.",
+  "expected_gpu_hours_per_candidate": 0.25,
+  "artifact_policy": "Keep every measurement, worker receipt, settlement, and normalized knowledge row outside the source tree; screen results are non-promotional.",
+  "candidates": [
+    {"candidate_id": "guidance-050", "candidate_kind": "inference_guidance_scale", "guidance_scale": 0.5},
+    {"candidate_id": "guidance-070", "candidate_kind": "inference_guidance_scale", "guidance_scale": 0.7},
+    {"candidate_id": "guidance-085", "candidate_kind": "inference_guidance_scale", "guidance_scale": 0.85},
+    {"candidate_id": "guidance-095", "candidate_kind": "inference_guidance_scale", "guidance_scale": 0.95},
+    {"candidate_id": "guidance-105", "candidate_kind": "inference_guidance_scale", "guidance_scale": 1.05},
+    {"candidate_id": "guidance-115", "candidate_kind": "inference_guidance_scale", "guidance_scale": 1.15},
+    {"candidate_id": "guidance-130", "candidate_kind": "inference_guidance_scale", "guidance_scale": 1.3},
+    {"candidate_id": "guidance-150", "candidate_kind": "inference_guidance_scale", "guidance_scale": 1.5}
+  ]
+}

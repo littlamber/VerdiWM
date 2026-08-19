@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "candidate_id",
+    "idea_id",
+    "implementation_files",
+    "intent_to_code",
+    "runtime_contract",
+    "negative_check",
+    "applicability_conditions",
+    "failure_boundaries",
+    "declared_compromises"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-materialized-method-descriptor"]},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "idea_id": {"type": "string", "minLength": 1},
+    "implementation_files": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "intent_to_code": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "runtime_contract": {"type": "string", "minLength": 12},
+    "negative_check": {"type": "string", "minLength": 12},
+    "applicability_conditions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "failure_boundaries": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "declared_compromises": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

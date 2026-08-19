@@ -27,7 +27,7 @@ from wmloop.execute.experiment_scheduler import (
 
 
 _PLACEHOLDER = re.compile(
-    r"\{(?:python|verdiwm_python|repo_root|control_root|model_parent|asset:--[A-Za-z0-9_-]+)\}"
+    r"\{(?:python|verdiwm_python|verdiwm_root|runtime_path|repo_root|control_root|model_parent|asset:--[A-Za-z0-9_-]+)\}"
 )
 _RUNTIME_PLACEHOLDERS = {
     "{scratch_dir}",
@@ -511,9 +511,23 @@ def _materialization_values(
     selected_python = runtime.get("selected_python")
     if not isinstance(selected_python, str) or not Path(selected_python).is_file():
         raise OnboardingCompilerError("ONBOARDING_COMPILER_RUNTIME_INVALID")
+    runtime_bin = Path(selected_python).parent
+    runtime_path = [str(runtime_bin)]
+    runtime_path.extend(
+        str(path)
+        for path in sorted(
+            runtime_bin.parent.glob(
+                "lib/python*/site-packages/imageio_ffmpeg/binaries"
+            )
+        )
+        if path.is_dir()
+    )
+    runtime_path.append(os.environ.get("PATH", ""))
     values = {
         "{python}": selected_python,
         "{verdiwm_python}": str(Path(__import__("sys").executable).absolute()),
+        "{verdiwm_root}": str(Path(__file__).resolve().parents[2]),
+        "{runtime_path}": os.pathsep.join(runtime_path),
         "{repo_root}": str(repo),
         "{control_root}": str(Path(__file__).resolve().parents[2]),
         "{model_parent}": str(repo.parent),

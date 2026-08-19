@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-experiment-engineering-manifest",
+  "experiment_id": "ctrl-world-autonomous-transfer-loop",
+  "version": "public-v1",
+  "objective": "Operate a durable portrait-first source-to-verified-knowledge control loop.",
+  "hypothesis": "A model portrait, exact capability planning, resource admission, and frozen verification prevent unsupported autonomous intervention.",
+  "falsification_criterion": "The controller duplicates terminal work, bypasses portrait readiness, exceeds admitted resources, or promotes an unverified result.",
+  "selection_reason": "The public package demonstrates the model-neutral control-plane contract without carrying local model or data bindings.",
+  "source": {
+    "readme": "experiments/ctrl_world_autonomous_transfer_v1/README.md",
+    "entrypoint": "experiments/ctrl_world_autonomous_transfer_v1/controller.py",
+    "test_path": "tests/test_portrait_first_public_example.py",
+    "revision": "public-release",
+    "dirty_policy": "reject_for_release"
+  },
+  "dataset": {
+    "train_manifest": "deployment_supplied",
+    "validation_manifest": "deployment_supplied",
+    "dataset_freeze": "deployment_bound",
+    "split_policy": "screen and confirm remain frozen and independent"
+  },
+  "scale_plan": "experiments/ctrl_world_autonomous_transfer_v1/scale_plan.json",
+  "evaluation": {
+    "metrics": ["recovery", "source_deduplication", "protocol_progression", "knowledge_settlement"],
+    "horizons": [1],
+    "seeds": [20260818],
+    "heldout_protocol": "deployment_bound"
+  },
+  "artifact_policy": {
+    "output_root": "deployment_supplied",
+    "required_artifacts": ["controller.db", "status.json", "stage receipts", "local audit graph", "portable knowledge graph"],
+    "archive_policy": "retain_scratch"
+  },
+  "reproduction": {
+    "command": "verdiwm-ctrl-world-autonomous-transfer --help",
+    "offline": true
+  }
+}

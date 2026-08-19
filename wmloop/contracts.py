@@ -195,8 +195,10 @@ def _validate(schema: Mapping[str, Any], value: Any, *, path: str) -> None:
         "minItems",
         "items",
         "enum",
+        "const",
         "pattern",
         "minLength",
+        "maxLength",
     }
     unknown = set(schema) - allowed
     if unknown:
@@ -206,9 +208,13 @@ def _validate(schema: Mapping[str, Any], value: Any, *, path: str) -> None:
         raise ContractValidationError(f"{path}: expected {_describe_type(expected)}")
     if "enum" in schema and value not in schema["enum"]:
         raise ContractValidationError(f"{path}: value is not an allowed enum")
+    if "const" in schema and value != schema["const"]:
+        raise ContractValidationError(f"{path}: value does not match const")
     if isinstance(value, str):
         if len(value) < schema.get("minLength", 0):
             raise ContractValidationError(f"{path}: string shorter than minLength")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            raise ContractValidationError(f"{path}: string longer than maxLength")
         if "pattern" in schema and re.search(str(schema["pattern"]), value) is None:
             raise ContractValidationError(f"{path}: string does not match pattern")
     if isinstance(value, (int, float)) and not isinstance(value, bool):

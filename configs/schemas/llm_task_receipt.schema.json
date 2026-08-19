@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "task_id", "task_type", "provider_alias", "model_alias", "prompt_template_digest", "input_digest", "request_digest", "response_sha256", "duration_seconds", "exit_code", "timed_out", "stdout_sha256", "stderr_sha256", "blockers", "side_effects", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-llm-task-receipt"]},
+    "state": {"enum": ["completed", "blocked"]},
+    "task_id": {"type": "string", "minLength": 1},
+    "task_type": {"type": "string", "minLength": 1},
+    "provider_alias": {"type": "string", "minLength": 1},
+    "model_alias": {"type": "string", "minLength": 1},
+    "prompt_template_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "input_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "response_sha256": {"type": ["string", "null"]},
+    "duration_seconds": {"type": "number", "minimum": 0},
+    "exit_code": {"type": ["integer", "null"]},
+    "timed_out": {"type": "boolean"},
+    "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "side_effects": {"type": "object"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-dual-evaluation-contract",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "scope": "acwm_only",
+  "evidence_source": "paired_ground_truth_rollout",
+  "prohibited_signal_ids": ["task_success", "task_progress", "safety_events"],
+  "surfaces": [
+    {
+      "surface_id": "paired_prediction",
+      "role": "primary",
+      "ground_truth_required": true
+    },
+    {
+      "surface_id": "giga_style_rollout",
+      "role": "protected",
+      "ground_truth_required": true
+    }
+  ],
+  "metrics": [
+    {
+      "metric_id": "long_horizon_prediction_error",
+      "surface_id": "paired_prediction",
+      "role": "primary",
+      "direction": "minimize",
+      "minimum_improvement": 0.0,
+      "maximum_regression": 0.0
+    },
+    {
+      "metric_id": "action_conditioning_error",
+      "surface_id": "paired_prediction",
+      "role": "protected",
+      "direction": "minimize",
+      "minimum_improvement": 0.0,
+      "maximum_regression": 0.0
+    },
+    {
+      "metric_id": "trajectory_fidelity_error",
+      "surface_id": "giga_style_rollout",
+      "role": "protected",
+      "direction": "minimize",
+      "minimum_improvement": 0.0,
+      "maximum_regression": 0.0
+    },
+    {
+      "metric_id": "horizon_drift_slope",
+      "surface_id": "giga_style_rollout",
+      "role": "protected",
+      "direction": "minimize",
+      "minimum_improvement": 0.0,
+      "maximum_regression": 0.0
+    }
+  ],
+  "stages": [
+    {
+      "stage": "screen",
+      "split": "dev",
+      "max_gpu_hours_per_candidate": 0.25
+    },
+    {
+      "stage": "confirm",
+      "split": "accept",
+      "max_gpu_hours_per_candidate": 2.0
+    }
+  ],
+  "protocol": {
+    "metric_version": 1,
+    "seed": 20260817,
+    "stages": [
+      {
+        "stage": "screen",
+        "paired_prediction_contexts": [
+          {"episode_id": "899", "start_idx": 8},
+          {"episode_id": "18599", "start_idx": 14}
+        ],
+        "rollout_contexts": [
+          {"episode_id": "899", "start_idx": 8}
+        ],
+        "paired_prediction_interactions": 2,
+        "rollout_interactions": 2,
+        "num_inference_steps": 4
+      },
+      {
+        "stage": "confirm",
+        "paired_prediction_contexts": [
+          {"episode_id": "199", "start_idx": 8},
+          {"episode_id": "1799", "start_idx": 8}
+        ],
+        "rollout_contexts": [
+          {"episode_id": "199", "start_idx": 8},
+          {"episode_id": "1799", "start_idx": 8}
+        ],
+        "paired_prediction_interactions": 4,
+        "rollout_interactions": 4,
+        "num_inference_steps": 8
+      }
+    ]
+  },
+  "resource_policy": {
+    "total_gpus": 8,
+    "per_candidate_gpus": 1,
+    "max_parallel_candidates": 8
+  }
+}

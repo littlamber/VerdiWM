@@ -33,11 +33,15 @@ uv sync --group dev
 uv run verdiwm doctor
 uv run python scripts/export/validate_public_example.py \
   examples/acwm_minimal_loop_cloth_next_forcing_v2
+uv run python examples/portrait_first_minimal_loop_v1/run.py
 ```
 
 `doctor` fails closed when the Python version, packaged schemas, adapter
 profile, or lightweight mechanism ontology is missing or malformed. The
 public example validator verifies its complete immutable evidence manifest.
+The portrait-first example exercises Goal IR, Model Capability IR, a probe
+fingerprint, Model Portrait readiness, and capability-gap planning on CPU. It
+validates control-plane contracts only and makes no model-quality claim.
 
 ## Run a campaign
 
@@ -78,6 +82,7 @@ embedded in the profile.
 | IRG local response charts, composed assets, and distances | Implemented, unit tested; eight joint-frame ACWM-Phys assets included |
 | Transfer certificate with explicit abstention | Implemented, unit tested |
 | Intervention-Effect Memory and counterexample discovery | Implemented, unit tested |
+| Lightweight RSI runtime IRs and manifest plugin registry | Capability, Experiment, and Evidence IR implemented with path-independent identities, tamper checks, and capability-gated compilation |
 | ACWM-Phys operational minimal loop | Included as a public evidence bundle |
 | Ctrl-World ACWM predictive-quality protocol | Dev chart admitted; independent paper split completed and correctly abstained |
 | Cosmos3-Nano ACWM forward-dynamics instance | GPU runtime and paired-GT evidence are complete; held-out directional probes have correctly abstained, so transfer and LOBO remain prohibited |
@@ -86,6 +91,7 @@ embedded in the profile.
 | Exact r31 semantic portability | The same typed CPBE action-embedding program compiles and executes on Ctrl-World and Cosmos3; bounded responses are small and mixed, so repair benefit and transfer remain unestablished |
 | Progressive-fidelity efficiency | Receipt-derived audit complete; current 512-step screen saves only 6.28% projected GPU hours and remains an optimization target |
 | Universal model onboarding | Four-field CLI, versioned adapter-profile resolution, read-only discovery, conformance, Campaign dispatch, cancellation, and reproduction implemented for the Ctrl-World golden path |
+| Ctrl-World ACWM scale gate | Two paired-ground-truth evaluation surfaces, Pareto admission, and WAM/task-success exclusion implemented; requires local runtime binding before GPU execution |
 | Evidence graph projection | Read-only deterministic graph of campaigns, models, probes, primitives, trials, receipts, verdicts, certificates, and provenance implemented |
 | Controlled self-evolution daemon | Candidate strategies, literature staging, bounded iterations, budget/lease gates, no-information stop, and resumable execution implemented; autonomous quality promotion remains prohibited |
 | Multi-seed causal replication of the bundled effect | Not established |
@@ -140,7 +146,10 @@ is `configs/probes/irg_base_v1.json`; see `configs/probes/README.md` for the
 mapping and current materialization status.
 
 See [Architecture](docs/ARCHITECTURE.md) and
-[Method to code](docs/METHOD_TO_CODE.md) for the detailed mapping. To bring up
+[Method to code](docs/METHOD_TO_CODE.md) for the detailed mapping. The
+[intermediate representation boundary](docs/INTERMEDIATE_REPRESENTATIONS.md)
+specifies the small Kernel, manifest plugins, reusable cache identities, and
+L0/L1/L2 authority split. To bring up
 a different model family, start with read-only
 [universal onboarding](docs/ONBOARDING.md), then follow the fail-closed
 [backbone instantiation guide](docs/BACKBONE_INSTANTIATION.md) for formal
@@ -210,16 +219,13 @@ Remove `--dry-run` only after every referenced report, plan, and receipt hash
 passes. Imported rows remain `exploratory`, never populate promoted cell
 priors, and retain their context-local claim boundary in the Evidence Graph.
 
-For adapter-backed campaigns, the method candidate compiler joins observed
-diagnostic signatures, typed literature methods, and imported terminal
-settlements before scheduling. Exact candidates that previously settled as
-not promoted remain negative constraints and cannot be silently replayed.
-Known methods enter the queue only when the adapter catalog binds every
-required hook, file, and bounded execution recipe; all other methods appear in
-`compiled/method-candidates/manifest.json` as explicit capability gaps. The
-Ctrl-World v2 profile currently compiles the frozen, inference-only anchor
-repair confirmation recipe and reports the conservative distributional
-residual policy as `ADAPTER_RECIPE_NOT_IMPLEMENTED`.
+For adapter-backed campaigns, the method candidate compiler remains an
+optional capability: it can join observed diagnostic signatures, typed
+literature methods, and imported terminal settlements before scheduling. Exact
+candidates that previously settled as not promoted remain negative constraints
+and cannot be silently replayed. The Ctrl-World v2 adapter no longer ships a
+legacy candidate catalog; new interventions must arrive as an owned experiment
+package and an explicitly selected workflow capability.
 
 To consume confirmed execution requests from the Campaign API, run the
 dispatcher alongside the API. It atomically claims pending manifests and then
@@ -528,6 +534,31 @@ The instance remains `pilot_draft` and formal launch is false. See
 [Cosmos3 forward dynamics](docs/COSMOS3_FORWARD_DYNAMICS.md) for the binding
 and promotion sequence.
 
+## System utility audit
+
+Before expanding GPU experiments, run the CPU audit over the checked-in public evidence:
+
+```bash
+uv run verdiwm audit \
+  --repo-root . \
+  --output-root results/reports/system-utility-audit-v1
+```
+
+The report separates operational usability, progressive-fidelity cost savings, selector quality, Ctrl-World local-chart admission, runtime portability, and formal transfer confirmation. A `partial` state is intentional: the control plane is usable while model-improvement and cross-backbone claims remain unestablished. The next bounded experiment is `configs/experiments/ctrl_world_experience_utility_canary_v1.json`.
+
+## Experiment engineering and training scale
+
+New experiments should live in a small owned package with an engineering
+manifest, README, entrypoint, CPU smoke test, generated scale plan, and offline
+reproduction command. Run `verdiwm lint-experiment` to check the source
+revision, dirty-tree policy, dataset freeze, held-out protocol, and required
+artifacts. Run `verdiwm plan-training` against frozen train/validation sample
+manifests to derive data fraction, episode diversity, effective batch size,
+steps per epoch, update caps, and checkpoint evaluation steps. Missing
+validation or insufficient episode diversity blocks admission instead of being
+hidden by an arbitrary epoch count. See
+[`docs/EXPERIMENT_ENGINEERING.md`](docs/EXPERIMENT_ENGINEERING.md).
+
 ## Repository layout
 
 ```text
@@ -550,6 +581,12 @@ repository plus Python artifacts with:
 ```bash
 scripts/ci/release_preflight.sh --output-dir dist/verdiwm-release
 ```
+
+Publish the generated `dist/verdiwm-release/repository/` tree rather than the
+development checkout, and preserve its `RELEASE_AUDIT.json` and
+`MANIFEST.sha256`. The staged repository is independently buildable and omits
+local deployment configs, state roots, model weights, datasets, credentials,
+and host-specific bindings; deployments supply those locally.
 
 The release gate and post-upload clone check are documented in
 [the release checklist](docs/RELEASE_CHECKLIST.md).

@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "work_order_id",
+    "work_order_digest",
+    "manufacturing_mode",
+    "decision",
+    "bindings",
+    "manufacturing_request",
+    "target_abi",
+    "dependency_closure",
+    "portfolio_entry_ids",
+    "evaluator_binding",
+    "protected_metrics",
+    "authority",
+    "artifact_policy",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-module-manufacturing-work-order"]},
+    "work_order_id": {"type": "string", "pattern": "^module-manufacturing-[0-9a-f]{24}$"},
+    "work_order_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "manufacturing_mode": {"enum": ["observation", "intervention"]},
+    "decision": {"enum": ["manufacture_registered_abi"]},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "portrait_id",
+        "portrait_digest",
+        "goal_binding",
+        "goal_ir_id",
+        "goal_ir_digest",
+        "requirement_graph_id",
+        "requirement_graph_digest",
+        "gap_plan_id",
+        "gap_plan_digest",
+        "portfolio_id",
+        "portfolio_digest",
+        "observation_plan_id",
+        "observation_plan_digest",
+        "observation_task_id"
+      ],
+      "properties": {
+        "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+        "portrait_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "goal_binding": {"type": ["string", "null"], "pattern": "^(cas://|urn:|sha256:)"},
+        "goal_ir_id": {"type": ["string", "null"], "pattern": "^goal-ir-[0-9a-f]{24}$"},
+        "goal_ir_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "requirement_graph_id": {"type": ["string", "null"], "pattern": "^capability-graph-[0-9a-f]{24}$"},
+        "requirement_graph_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "gap_plan_id": {"type": ["string", "null"], "pattern": "^gap-plan-[0-9a-f]{24}$"},
+        "gap_plan_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "portfolio_id": {"type": ["string", "null"], "pattern": "^experiment-portfolio-[0-9a-f]{24}$"},
+        "portfolio_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "observation_plan_id": {"type": ["string", "null"], "pattern": "^adaptive-probe-plan-[0-9a-f]{24}$"},
+        "observation_plan_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "observation_task_id": {"type": ["string", "null"], "pattern": "^observation-task-[0-9a-f]{24}$"}
+      }
+    },
+    "manufacturing_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "requirement_id",
+        "capability",
+        "abi_id",
+        "abi_version",
+        "abi_digest",
+        "reason",
+        "dependency_abi_ids",
+        "external_ports",
+        "probe_coverage_key"
+      ],
+      "properties": {
+        "request_id": {"type": "string", "minLength": 1},
+        "requirement_id": {"type": ["string", "null"], "pattern": "^requirement-[0-9a-f]{24}$"},
+        "capability": {"type": "string", "minLength": 1},
+        "abi_id": {"type": "string", "minLength": 1},
+        "abi_version": {"type": ["string", "null"]},
+        "abi_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "reason": {"type": "string", "minLength": 1},
+        "dependency_abi_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "external_ports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["port", "contract"],
+            "properties": {
+              "port": {"type": "string", "minLength": 1},
+              "contract": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "probe_coverage_key": {"type": ["string", "null"], "pattern": "^probe-coverage-[0-9a-f]{24}$"}
+      }
+    },
+    "target_abi": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_id",
+        "registry_digest",
+        "module_id",
+        "abi_id",
+        "abi_version",
+        "abi_digest",
+        "provides",
+        "requires",
+        "side_effect_class",
+        "authority_level",
+        "execution_mode"
+      ],
+      "properties": {
+        "registry_id": {"type": "string", "minLength": 1},
+        "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "module_id": {"type": "string", "minLength": 1},
+        "abi_id": {"type": "string", "minLength": 1},
+        "abi_version": {"type": ["string", "null"]},
+        "abi_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "provides": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "requires": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "side_effect_class": {"type": "string", "minLength": 1},
+        "authority_level": {"enum": ["L0", "L1", "L2"]},
+        "execution_mode": {"type": ["string", "null"]}
+      }
+    },
+    "dependency_closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["modules", "edges"],
+      "properties": {
+        "modules": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "module_id", "abi_id", "abi_version", "abi_digest", "provides", "requires", "admission_state"],
+            "properties": {
+              "role": {"enum": ["target", "dependency"]},
+              "module_id": {"type": "string", "minLength": 1},
+              "abi_id": {"type": "string", "minLength": 1},
+              "abi_version": {"type": ["string", "null"]},
+              "abi_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "provides": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "requires": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "admission_state": {"enum": ["implementation_required", "admitted_dependency", "shadow_template"]}
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["consumer_module_id", "required_capability", "provider_module_id", "contract"],
+            "properties": {
+              "consumer_module_id": {"type": "string", "minLength": 1},
+              "required_capability": {"type": "string", "minLength": 1},
+              "provider_module_id": {"type": "string", "minLength": 1},
+              "contract": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "portfolio_entry_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^portfolio-entry-[0-9a-f]{24}$"}
+    },
+    "evaluator_binding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["evaluator_id", "contract_digest", "verifier", "heldout_protocol"],
+      "properties": {
+        "evaluator_id": {"type": "string", "minLength": 1},
+        "contract_digest": {"type": "string", "pattern": "^(sha256:)?[0-9a-f]{64}$"},
+        "verifier": {"type": "string", "minLength": 1},
+        "heldout_protocol": {"type": "string", "minLength": 1}
+      }
+    },
+    "protected_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_authority",
+        "isolated_workspace_write",
+        "target_tree_mutation",
+        "evaluator_selection",
+        "split_selection",
+        "metric_selection",
+        "budget_selection",
+        "gpu_scheduling",
+        "promotion",
+        "verdict_exposure"
+      ],
+      "properties": {
+        "execution_authority": {"enum": ["read_only", "shadow_only", "implementation_only"]},
+        "isolated_workspace_write": {"type": "boolean"},
+        "target_tree_mutation": {"enum": [false]},
+        "evaluator_selection": {"enum": [false]},
+        "split_selection": {"enum": [false]},
+        "metric_selection": {"enum": [false]},
+        "budget_selection": {"enum": [false]},
+        "gpu_scheduling": {"enum": [false]},
+        "promotion": {"enum": [false]},
+        "verdict_exposure": {"enum": [false]}
+      }
+    },
+    "artifact_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archive_policy", "cleanup_policy"],
+      "properties": {
+        "archive_policy": {"enum": ["archive_all_terminal"]},
+        "cleanup_policy": {"enum": ["after_content_addressed_receipt"]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

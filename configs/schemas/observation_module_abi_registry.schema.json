@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "registry_id", "registry_digest", "abis"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-observation-module-abi-registry"]},
+    "registry_id": {"type": "string", "minLength": 1},
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "abis": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "abi_id",
+          "module_kind",
+          "admission_state",
+          "provides",
+          "requires",
+          "required_hooks",
+          "supported_probe_protocols",
+          "typed_inputs",
+          "typed_outputs",
+          "side_effect_class",
+          "authority_level",
+          "execution_mode",
+          "verdict_exposure_allowed",
+          "active_metric_mutation_allowed",
+          "active_evaluator_mutation_allowed",
+          "conformance_tests",
+          "negative_tests",
+          "cost_model"
+        ],
+        "properties": {
+          "abi_id": {"type": "string", "minLength": 1},
+          "module_kind": {"enum": ["read_only_adapter", "diagnostic_probe_extension"]},
+          "admission_state": {"enum": ["admitted", "shadow_template"]},
+          "provides": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "requires": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "required_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "supported_probe_protocols": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "typed_inputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "contract"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "contract": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "typed_outputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "contract"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "contract": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "side_effect_class": {"enum": ["filesystem_read_only", "controller_owned_shadow_probe"]},
+          "authority_level": {"enum": ["L1"]},
+          "execution_mode": {"enum": ["cpu_only", "shadow_via_controller"]},
+          "verdict_exposure_allowed": {"enum": [false]},
+          "active_metric_mutation_allowed": {"enum": [false]},
+          "active_evaluator_mutation_allowed": {"enum": [false]},
+          "conformance_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "negative_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "cost_model": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

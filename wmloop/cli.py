@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from importlib.metadata import PackageNotFoundError, version
 import json
 import os
@@ -16,6 +17,32 @@ from wmloop.control.campaign_dispatcher import (
     CampaignDispatchError,
     DispatcherOptions,
     run_dispatcher,
+)
+from wmloop.control.research_proposal import (
+    ResearchProposalError,
+    compile_proposal_to_experiment_manifest,
+    load_compiled_experiment_manifest,
+    write_compiled_experiment_manifest,
+)
+from wmloop.evaluate.system_utility import (
+    SystemUtilityAuditError,
+    run_system_utility_audit,
+)
+from wmloop.experiments.engineering import (
+    ExperimentEngineeringError,
+    lint_experiment_manifest,
+)
+from wmloop.experiments.training_scale import (
+    TrainingScaleError,
+    build_training_scale_plan,
+    write_training_scale_plan,
+)
+from wmloop.retrieve.training_recipes import (
+    TrainingRecipeError,
+    find_training_recipe,
+    load_training_recipe_registry,
+    require_admitted_recipe,
+    summarize_training_recipes,
 )
 
 
@@ -138,6 +165,29 @@ def _doctor(args: argparse.Namespace) -> int:
 
 def _run(args: argparse.Namespace) -> int:
     store = _store(args.state_root)
+    engineering_lint = None
+    compiled_manifest = None
+    if args.compiled_manifest is not None:
+        compiled_manifest = load_compiled_experiment_manifest(args.compiled_manifest)
+        compiled_engineering = Path(
+            str(compiled_manifest["engineering"]["manifest_path"])
+        ).resolve()
+        if args.engineering_manifest is not None:
+            if Path(args.engineering_manifest).expanduser().resolve() != compiled_engineering:
+                raise ResearchProposalError("COMPILED_EXPERIMENT_ENGINEERING_BINDING_MISMATCH")
+        else:
+            args.engineering_manifest = compiled_engineering
+    if args.engineering_manifest is not None:
+        engineering_lint = lint_experiment_manifest(
+            args.engineering_manifest,
+            repo_root=args.engineering_repo_root,
+            root=(args.schema_root or Path(__file__).resolve().parents[1]).expanduser().resolve(),
+        )
+        if engineering_lint["state"] != "ready":
+            raise ExperimentEngineeringError(
+                "EXPERIMENT_ENGINEERING_BLOCKED:"
+                + ",".join(str(item) for item in engineering_lint["blockers"])
+            )
     payload: dict[str, Any] = {
         "goal": args.goal,
         "model": args.model,
@@ -145,6 +195,20 @@ def _run(args: argparse.Namespace) -> int:
         "budget": args.budget,
         "adapter": args.adapter,
     }
+    if engineering_lint is not None:
+        payload["engineering_manifest"] = {
+            "path": engineering_lint["manifest_path"],
+            "manifest_sha256": engineering_lint["source"]["manifest_sha256"],
+            "source_revision": engineering_lint["source"]["revision"],
+            "source_dirty": engineering_lint["source"]["dirty"],
+        }
+    if compiled_manifest is not None:
+        payload["compiled_manifest"] = {
+            "path": str(Path(args.compiled_manifest).expanduser().resolve()),
+            "sha256": hashlib.sha256(
+                Path(args.compiled_manifest).expanduser().resolve().read_bytes()
+            ).hexdigest(),
+        }
     if args.campaign_id:
         payload["campaign_id"] = args.campaign_id
     if args.adapter_profile:
@@ -226,6 +290,88 @@ def _import_settlements(args: argparse.Namespace) -> int:
     return 0
 
 
+def _audit(args: argparse.Namespace) -> int:
+    root = (args.repo_root or Path.cwd()).expanduser().resolve()
+    config = args.config or root / "configs" / "experiments" / "system_utility_audit_v1.json"
+    manifest = run_system_utility_audit(
+        config_path=config,
+        repo_root=root,
+        output_root=args.output_root,
+    )
+    _print(manifest)
+    return 3 if args.require_effect and manifest["research_effect_state"] != "established" else 0
+
+
+def _plan_training(args: argparse.Namespace) -> int:
+    root = (
+        args.schema_root
+        or args.repo_root
+        or Path(__file__).resolve().parents[1]
+    ).expanduser().resolve()
+    training_profile = None
+    if args.training_recipe:
+        registry = load_training_recipe_registry(
+            args.training_recipe_registry,
+            root=root,
+        )
+        training_profile = require_admitted_recipe(registry, args.training_recipe)
+    plan = build_training_scale_plan(
+        train_manifest=args.train_manifest,
+        val_manifest=args.val_manifest,
+        stage=args.stage,
+        batch_size=args.batch_size,
+        gradient_accumulation=args.gradient_accumulation,
+        world_size=args.world_size,
+        sequence_length=args.sequence_length,
+        requested_seed_count=args.seed_count,
+        training_profile=training_profile,
+        root=root,
+    )
+    if args.output:
+        write_training_scale_plan(plan, args.output)
+    _print(plan)
+    return 0 if plan["state"] == "ready" else 3
+
+
+def _training_recipes(args: argparse.Namespace) -> int:
+    root = (args.repo_root or Path(__file__).resolve().parents[1]).expanduser().resolve()
+    registry_path = args.registry or root / "configs" / "retrieval" / "world_model_training_recipes_v1.json"
+    registry = load_training_recipe_registry(registry_path, root=root)
+    if args.recipe_id:
+        # Keep full recipe details available for an explicit audit query while
+        # the default output remains a compact ranking/index artifact.
+        _print({"index": summarize_training_recipes(registry, recipe_id=args.recipe_id), "recipe": find_training_recipe(registry, args.recipe_id)})
+    else:
+        _print(summarize_training_recipes(registry))
+    return 0
+
+
+def _lint_experiment(args: argparse.Namespace) -> int:
+    result = lint_experiment_manifest(
+        args.manifest,
+        repo_root=args.repo_root,
+        root=(args.schema_root or Path.cwd()).expanduser().resolve(),
+    )
+    _print(result)
+    return 0 if result["state"] == "ready" else 3
+
+
+def _compile_proposal(args: argparse.Namespace) -> int:
+    manifest = compile_proposal_to_experiment_manifest(
+        args.proposal,
+        engineering_manifest_path=args.engineering_manifest,
+        training_scale_plan_path=args.training_scale_plan,
+        model_capability_ir_path=args.model_capability_ir,
+        workflow_registry_path=args.workflow_registry,
+        engineering_repo_root=args.engineering_repo_root,
+        root=(args.schema_root or Path(__file__).resolve().parents[1]).expanduser().resolve(),
+    )
+    if args.output:
+        write_compiled_experiment_manifest(manifest, args.output)
+    _print(manifest)
+    return 0 if manifest["state"] == "ready" else 3
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="verdiwm", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -244,6 +390,10 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--adapter", default="auto")
     run.add_argument("--adapter-profile", type=Path)
     run.add_argument("--runtime-python", type=Path)
+    run.add_argument("--engineering-manifest", type=Path)
+    run.add_argument("--compiled-manifest", type=Path)
+    run.add_argument("--engineering-repo-root", type=Path)
+    run.add_argument("--schema-root", type=Path)
     run.add_argument("--asset", action="append", type=_asset, default=[])
     run.add_argument("--campaign-id")
     run.add_argument("--state-root", type=Path, default=_default_state_root())
@@ -288,6 +438,75 @@ def _parser() -> argparse.ArgumentParser:
     )
     settlement_import.add_argument("--dry-run", action="store_true")
     settlement_import.set_defaults(handler=_import_settlements)
+
+    audit = commands.add_parser(
+        "audit",
+        help="summarize operational usability and evidence-backed research utility",
+    )
+    audit.add_argument("--config", type=Path)
+    audit.add_argument("--repo-root", type=Path)
+    audit.add_argument("--output-root", type=Path, required=True)
+    audit.add_argument(
+        "--require-effect",
+        action="store_true",
+        help="return 3 unless the configured effect gates are established",
+    )
+    audit.set_defaults(handler=_audit)
+
+    plan_training = commands.add_parser(
+        "plan-training",
+        help="derive a bounded world-model training scale from sample manifests",
+    )
+    plan_training.add_argument("--train-manifest", type=Path, required=True)
+    plan_training.add_argument("--val-manifest", type=Path, required=True)
+    plan_training.add_argument("--stage", choices=("smoke", "screen", "pilot", "confirm"), default="screen")
+    plan_training.add_argument("--batch-size", type=int, default=1)
+    plan_training.add_argument("--gradient-accumulation", type=int, default=1)
+    plan_training.add_argument("--world-size", type=int, default=1)
+    plan_training.add_argument("--sequence-length", type=int)
+    plan_training.add_argument("--seed-count", type=int)
+    plan_training.add_argument("--training-recipe", help="admitted local recipe id; shadow-only literature is rejected")
+    plan_training.add_argument(
+        "--training-recipe-registry",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "configs" / "retrieval" / "world_model_training_recipes_v1.json",
+    )
+    plan_training.add_argument("--schema-root", type=Path)
+    plan_training.add_argument("--repo-root", type=Path)
+    plan_training.add_argument("--output", type=Path)
+    plan_training.set_defaults(handler=_plan_training)
+
+    lint_experiment = commands.add_parser(
+        "lint-experiment",
+        help="lint an experiment engineering manifest and owned source surface",
+    )
+    lint_experiment.add_argument("--manifest", type=Path, required=True)
+    lint_experiment.add_argument("--repo-root", type=Path)
+    lint_experiment.add_argument("--schema-root", type=Path)
+    lint_experiment.set_defaults(handler=_lint_experiment)
+
+    compile_proposal = commands.add_parser(
+        "compile-proposal",
+        help="bind an LLM research proposal to an experiment and scale plan without executing it",
+    )
+    compile_proposal.add_argument("--proposal", type=Path, required=True)
+    compile_proposal.add_argument("--engineering-manifest", type=Path, required=True)
+    compile_proposal.add_argument("--training-scale-plan", type=Path, required=True)
+    compile_proposal.add_argument("--model-capability-ir", type=Path)
+    compile_proposal.add_argument("--workflow-registry", type=Path)
+    compile_proposal.add_argument("--engineering-repo-root", type=Path)
+    compile_proposal.add_argument("--schema-root", type=Path)
+    compile_proposal.add_argument("--output", type=Path)
+    compile_proposal.set_defaults(handler=_compile_proposal)
+
+    training_recipes = commands.add_parser(
+        "training-recipes",
+        help="list auditable world-model training recipes and their evidence tiers",
+    )
+    training_recipes.add_argument("--registry", type=Path)
+    training_recipes.add_argument("--recipe-id")
+    training_recipes.add_argument("--repo-root", type=Path)
+    training_recipes.set_defaults(handler=_training_recipes)
     return parser
 
 
@@ -295,7 +514,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         return int(args.handler(args))
-    except (CampaignAPIError, CampaignDispatchError) as exc:
+    except (
+        CampaignAPIError,
+        CampaignDispatchError,
+        SystemUtilityAuditError,
+        TrainingScaleError,
+        ExperimentEngineeringError,
+        TrainingRecipeError,
+        ResearchProposalError,
+    ) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 

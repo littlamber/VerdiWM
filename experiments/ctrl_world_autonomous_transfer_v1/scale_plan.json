@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-autonomous-controller-scale-plan",
+  "training": false,
+  "physical_gpu_indices": [0, 1, 2, 3, 4, 5],
+  "gpus_per_candidate": 1,
+  "max_parallel_gpu_jobs": 6,
+  "admission_unit": "one frozen screen or confirm stage",
+  "queue_policy": "portfolio-ranked independent screens before evidence-bound confirmation reallocation",
+  "claim_boundary": "This is a controller resource plan, not a training-scale or scientific result."
+}

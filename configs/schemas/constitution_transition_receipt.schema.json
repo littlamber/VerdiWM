@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "receipt_id",
+    "receipt_digest",
+    "state",
+    "policy_id",
+    "policy_digest",
+    "parent_constitution",
+    "proposal_id",
+    "proposal_digest",
+    "authorized_metric_ids",
+    "successor_metric_role",
+    "effective_scope",
+    "successor_freeze_required",
+    "historical_verdicts_preserved",
+    "verdict_authority",
+    "blockers"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["wmloop-constitution-transition-receipt"]},
+    "receipt_id": {"type": "string", "pattern": "^constitution-transition-[0-9a-f]{24}$"},
+    "receipt_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "state": {"enum": ["authorized", "blocked"]},
+    "policy_id": {"type": "string", "minLength": 1},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parent_constitution": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "proposal_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "authorized_metric_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "successor_metric_role": {"enum": ["primary", "guard", "none"]},
+    "effective_scope": {"enum": ["future_work_only"]},
+    "successor_freeze_required": {"enum": [true]},
+    "historical_verdicts_preserved": {"enum": [true]},
+    "verdict_authority": {"enum": [false]},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  }
+}

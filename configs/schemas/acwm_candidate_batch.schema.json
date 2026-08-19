@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "batch_id",
+    "batch_digest",
+    "contract_id",
+    "contract_digest",
+    "stage",
+    "objective",
+    "hypothesis",
+    "falsification_criterion",
+    "selection_reason",
+    "expected_gpu_hours_per_candidate",
+    "artifact_policy",
+    "candidates"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-candidate-batch"]},
+    "batch_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "batch_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stage": {"enum": ["screen", "confirm"]},
+    "objective": {"type": "string", "minLength": 1},
+    "hypothesis": {"type": "string", "minLength": 1},
+    "falsification_criterion": {"type": "string", "minLength": 1},
+    "selection_reason": {"type": "string", "minLength": 1},
+    "expected_gpu_hours_per_candidate": {"type": "number", "exclusiveMinimum": 0},
+    "artifact_policy": {"type": "string", "minLength": 1},
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "candidate_kind", "guidance_scale"],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+          "candidate_kind": {"enum": ["inference_guidance_scale"]},
+          "guidance_scale": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    }
+  }
+}

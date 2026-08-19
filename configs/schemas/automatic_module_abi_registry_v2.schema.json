@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "registry_id", "registry_digest", "abis"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [2]},
+    "artifact_type": {"enum": ["verdiwm-automatic-module-abi-registry"]},
+    "registry_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "abis": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "abi_id",
+          "module_id",
+          "abi_version",
+          "abi_digest",
+          "model_family",
+          "candidate_kind",
+          "provides",
+          "requires",
+          "typed_inputs",
+          "typed_outputs",
+          "dependencies",
+          "side_effect_class",
+          "authority_level",
+          "admission_suite",
+          "cost_model",
+          "portability",
+          "license",
+          "implementation_metadata",
+          "module_path",
+          "test_path",
+          "test_template",
+          "evaluator",
+          "required_symbol",
+          "positional_parameters",
+          "keyword_parameters",
+          "required_model_capabilities",
+          "capability_aliases",
+          "required_hooks",
+          "allowed_imports",
+          "maximum_source_bytes",
+          "estimated_gpu_hours",
+          "candidate_parameters",
+          "forbidden_changed_paths",
+          "implementation_contract"
+        ],
+        "properties": {
+          "abi_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "module_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "abi_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+          "abi_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "model_family": {"type": "string", "minLength": 1},
+          "candidate_kind": {"type": "string", "minLength": 1},
+          "provides": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "requires": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "typed_inputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "contract", "source"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "contract": {"type": "string", "minLength": 1},
+                "source": {"enum": ["external", "dependency"]}
+              }
+            }
+          },
+          "typed_outputs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "contract"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "contract": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["capability", "module_id", "version_constraint", "input_port", "output_port"],
+              "properties": {
+                "capability": {"type": "string", "minLength": 1},
+                "module_id": {"type": "string", "minLength": 1},
+                "version_constraint": {"type": "string", "minLength": 1},
+                "input_port": {"type": "string", "minLength": 1},
+                "output_port": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "side_effect_class": {"enum": ["pure_transform", "filesystem_read_only", "controller_owned_write", "controller_owned_process", "controller_owned_gpu"]},
+          "authority_level": {"enum": ["L0", "L1", "L2"]},
+          "admission_suite": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["suite_id", "conformance_tests", "negative_tests", "evaluator_binding", "test_template_binding"],
+            "properties": {
+              "suite_id": {"type": "string", "minLength": 1},
+              "conformance_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "negative_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "evaluator_binding": {"type": "string", "minLength": 1},
+              "test_template_binding": {"type": "string", "minLength": 1}
+            }
+          },
+          "cost_model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "cpu_seconds_upper_bound", "gpu_hours_upper_bound", "peak_memory_bytes_upper_bound"],
+            "properties": {
+              "kind": {"enum": ["deterministic_upper_bound", "measured_upper_bound"]},
+              "cpu_seconds_upper_bound": {"type": "number", "minimum": 0},
+              "gpu_hours_upper_bound": {"type": "number", "minimum": 0},
+              "peak_memory_bytes_upper_bound": {"type": "integer", "minimum": 0}
+            }
+          },
+          "portability": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["portable", "path_free_identity", "content_addressed_implementation", "model_family_scope"],
+            "properties": {
+              "portable": {"enum": [true]},
+              "path_free_identity": {"enum": [true]},
+              "content_addressed_implementation": {"enum": [true]},
+              "model_family_scope": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+            }
+          },
+          "license": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["spdx_id", "redistribution_allowed"],
+            "properties": {
+              "spdx_id": {"type": "string", "minLength": 1},
+              "redistribution_allowed": {"enum": [true]}
+            }
+          },
+          "implementation_metadata": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_digest_required", "generated_source_import_during_admission_allowed", "module_path_role"],
+            "properties": {
+              "source_digest_required": {"enum": [true]},
+              "generated_source_import_during_admission_allowed": {"enum": [false]},
+              "module_path_role": {"enum": ["kernel_assigned_repository_destination"]}
+            }
+          },
+          "module_path": {"type": "string", "minLength": 1},
+          "test_path": {"type": "string", "minLength": 1},
+          "test_template": {"type": "string", "minLength": 1},
+          "evaluator": {"type": "string", "minLength": 1},
+          "required_symbol": {"type": "string", "minLength": 1},
+          "positional_parameters": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "keyword_parameters": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "required_model_capabilities": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "capability_aliases": {"type": "object"},
+          "required_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "allowed_imports": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "maximum_source_bytes": {"type": "integer", "minimum": 1},
+          "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+          "candidate_parameters": {"type": "object"},
+          "forbidden_changed_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "implementation_contract": {"type": "object"}
+        }
+      }
+    }
+  }
+}

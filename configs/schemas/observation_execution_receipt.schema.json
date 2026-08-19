@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "request_id",
+    "task_id",
+    "abi_id",
+    "adapter_digest",
+    "input_digest",
+    "request_sha256",
+    "response_sha256",
+    "response_ref",
+    "resource_class",
+    "gpu_lease",
+    "duration_seconds",
+    "exit_code",
+    "timed_out",
+    "stdout_sha256",
+    "stderr_sha256",
+    "blockers",
+    "side_effects",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-observation-execution-receipt"]},
+    "state": {"enum": ["completed", "blocked"]},
+    "request_id": {"type": "string", "pattern": "^observation-execution-[0-9a-f]{24}$"},
+    "task_id": {"type": "string", "pattern": "^observation-task-[0-9a-f]{24}$"},
+    "abi_id": {"type": "string", "minLength": 1},
+    "adapter_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "input_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "request_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "response_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "response_ref": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+    "resource_class": {"enum": ["cpu_only", "diagnostic_gpu"]},
+    "gpu_lease": {"type": ["object", "null"]},
+    "duration_seconds": {"type": "number", "minimum": 0},
+    "exit_code": {"type": ["integer", "null"]},
+    "timed_out": {"type": "boolean"},
+    "stdout_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "stderr_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_mutated",
+        "intervention_executed",
+        "active_metric_mutated",
+        "active_evaluator_mutated",
+        "verdict_exposed",
+        "promotion_authority"
+      ],
+      "properties": {
+        "source_mutated": {"enum": [false]},
+        "intervention_executed": {"enum": [false]},
+        "active_metric_mutated": {"enum": [false]},
+        "active_evaluator_mutated": {"enum": [false]},
+        "verdict_exposed": {"enum": [false]},
+        "promotion_authority": {"enum": [false]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

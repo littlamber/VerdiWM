@@ -140,7 +140,7 @@
           "additionalProperties": false,
           "required": ["state", "returncode", "detail"],
           "properties": {
-            "state": {"type": "string", "enum": ["ok", "failed", "not_run", "error"]},
+            "state": {"type": "string", "enum": ["ok", "warning", "failed", "not_run", "error"]},
             "returncode": {"type": ["integer", "null"]},
             "detail": {"type": "string"}
           }
@@ -181,6 +181,7 @@
         "verifier": {"type": "string"},
         "working_directory": {"type": "string"},
         "conformance_imports": {"type": "array", "items": {"type": "string"}},
+        "entrypoint_probe": {"type": "string", "enum": ["help", "skip"]},
         "scheduler_template_path": {"type": "string"},
         "scheduler_template_sha256": {"type": ["string", "null"]}
       }

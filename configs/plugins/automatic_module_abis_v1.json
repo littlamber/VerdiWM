@@ -1,0 +1,108 @@
+{
+  "schema_version": 2,
+  "artifact_type": "verdiwm-automatic-module-abi-registry",
+  "registry_id": "automatic-module-abis-v1",
+  "registry_digest": "ebb2f41a6a7a5ded0cea4eda414b55512446f3c15586204ce291706e856891b6",
+  "abis": [
+    {
+      "abi_id": "history_selection_v1",
+      "module_id": "history_selection",
+      "abi_version": "1.0.0",
+      "abi_digest": "e6b34604ba96856194cbc28f5c3f8c970e2cba7b8b4dc755f5166c3c4020d07a",
+      "model_family": "ctrl-world",
+      "candidate_kind": "materialized_history_retrieval",
+      "provides": ["bounded_relevance_history_selection"],
+      "requires": [],
+      "typed_inputs": [
+        {"name": "history", "contract": "torch-float-tensor-btchw-v1", "source": "external"},
+        {"name": "history_actions", "contract": "torch-float-tensor-bta-v1", "source": "external"},
+        {"name": "query_state", "contract": "torch-float-tensor-bchw-v1", "source": "external"},
+        {"name": "query_action", "contract": "torch-float-tensor-ba-v1", "source": "external"}
+      ],
+      "typed_outputs": [
+        {"name": "selection", "contract": "verdiwm-history-selection-result-v1"}
+      ],
+      "dependencies": [],
+      "side_effect_class": "pure_transform",
+      "authority_level": "L0",
+      "admission_suite": {
+        "suite_id": "history-selection-fixed-admission-v1",
+        "conformance_tests": [
+          "test_history_selection_abi_contract",
+          "test_history_selection_exact_ties_are_deterministic_and_chronological"
+        ],
+        "negative_tests": ["test_history_selection_invalid_inputs_fail_closed"],
+        "evaluator_binding": "experiments/ctrl_world_hybrid_memory_transfer_v1/evaluate.py",
+        "test_template_binding": "experiments/ctrl_world_autonomous_transfer_v1/history_selection_abi_test.py"
+      },
+      "cost_model": {
+        "kind": "measured_upper_bound",
+        "cpu_seconds_upper_bound": 300.0,
+        "gpu_hours_upper_bound": 2.58,
+        "peak_memory_bytes_upper_bound": 17179869184
+      },
+      "portability": {
+        "portable": true,
+        "path_free_identity": true,
+        "content_addressed_implementation": true,
+        "model_family_scope": ["ctrl-world"]
+      },
+      "license": {
+        "spdx_id": "Apache-2.0",
+        "redistribution_allowed": true
+      },
+      "implementation_metadata": {
+        "source_digest_required": true,
+        "generated_source_import_during_admission_allowed": false,
+        "module_path_role": "kernel_assigned_repository_destination"
+      },
+      "module_path": "models/hybrid_relevance_memory.py",
+      "test_path": "tests/test_automatic_history_selection.py",
+      "test_template": "experiments/ctrl_world_autonomous_transfer_v1/history_selection_abi_test.py",
+      "evaluator": "experiments/ctrl_world_hybrid_memory_transfer_v1/evaluate.py",
+      "required_symbol": "retrieve_relevant_history",
+      "positional_parameters": ["history", "history_actions", "query_state", "query_action"],
+      "keyword_parameters": ["max_items", "token_grid_size", "spatial_weight", "action_weight", "temporal_weight"],
+      "required_model_capabilities": ["action_conditioned", "evaluation", "inference", "rollout"],
+      "capability_aliases": {
+        "action_conditioning": "action_conditioned",
+        "history_conditioning": "inference",
+        "latent_history_access": "inference",
+        "paired_rollout_evaluation": "evaluation"
+      },
+      "required_hooks": ["history_conditioning", "latent_history_access", "action_conditioning"],
+      "allowed_imports": ["__future__", "dataclasses", "math", "torch", "typing"],
+      "maximum_source_bytes": 65536,
+      "estimated_gpu_hours": 2.58,
+      "candidate_parameters": {
+        "max_items": 6,
+        "token_grid_size": 4,
+        "spatial_weight": 0.55,
+        "action_weight": 0.3,
+        "temporal_weight": 0.15
+      },
+      "forbidden_changed_paths": [
+        "config.py",
+        "models/ctrl_world.py",
+        "eval.py",
+        "scripts/eval_all.sh",
+        "scripts/evaluate_ctrl_world_acwm_dual.py",
+        "dataset/**",
+        "results/**",
+        "runs/**"
+      ],
+      "implementation_contract": {
+        "input_contract": "history [B,T,C,H,W], aligned actions [B,T,A], current latent [B,C,H,W], and query action [B,A] are finite floating tensors",
+        "selection_contract": "compress every history latent to a bounded spatial token, combine spatial, action, and temporal relevance, choose stable top-k items, and restore chronological order",
+        "output_contract": "return an object with history, actions, indices, weights, and memory_tokens; weights are finite and normalized per batch",
+        "negative_contract": "invalid ranks, shapes, dtypes, non-finite values, bounds, token grids, or relevance weights raise ValueError",
+        "integration_contract": "the separately frozen evaluator invokes the module immediately before Ctrl-World history conditioning",
+        "prohibited_substitutions": [
+          "fixed recency-only selection when relevance retrieval is required",
+          "evaluator, split, metric, budget, or GPU policy changes",
+          "filesystem, environment, network, process, dynamic import, serialization, or CUDA access"
+        ]
+      }
+    }
+  ]
+}

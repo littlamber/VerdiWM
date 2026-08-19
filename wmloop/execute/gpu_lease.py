@@ -114,6 +114,93 @@ class GpuLeaseManager:
                 raise GpuLeaseError(f"GPU_LEASE_UNAVAILABLE{suffix}")
             time.sleep(min(poll_seconds, max(deadline - time.monotonic(), 0.0)))
 
+    def acquire_many(
+        self,
+        allowed_indices: Sequence[int],
+        count: int,
+        *,
+        wait_seconds: float = 0.0,
+        poll_seconds: float = 2.0,
+    ) -> list[GpuLease]:
+        """Atomically acquire ``count`` leases from one admitted GPU set.
+
+        A distributed worker must never start with a partial world.  We therefore
+        probe and lock the complete set in one attempt and release every lock if
+        any member is unavailable.
+        """
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+            raise GpuLeaseError("GPU_LEASE_COUNT_INVALID")
+        candidates = _normalize_indices(allowed_indices)
+        if count > len(candidates):
+            raise GpuLeaseError("GPU_LEASE_COUNT_EXCEEDS_CANDIDATES")
+        if wait_seconds < 0 or poll_seconds <= 0:
+            raise GpuLeaseError("GPU_LEASE_WAIT_POLICY_INVALID")
+        deadline = time.monotonic() + wait_seconds
+        last_blockers: list[str] = []
+        while True:
+            leases, blockers = self._try_acquire_many(candidates, count)
+            if leases is not None:
+                return leases
+            last_blockers = blockers
+            if time.monotonic() >= deadline:
+                suffix = ":" + ",".join(last_blockers[:8]) if last_blockers else ""
+                raise GpuLeaseError(f"GPU_LEASE_UNAVAILABLE{suffix}")
+            time.sleep(min(poll_seconds, max(deadline - time.monotonic(), 0.0)))
+
+    def _try_acquire_many(
+        self, candidates: Sequence[int], count: int
+    ) -> tuple[list[GpuLease] | None, list[str]]:
+        """Lock a complete set, rolling back on the first unavailable member."""
+        self._lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        snapshot = self._snapshot_provider()
+        by_index = {
+            int(item["index"]): item
+            for item in _mapping_sequence(snapshot.get("gpus"))
+            if _is_int(item.get("index"))
+        }
+        apps_by_uuid: dict[str, list[Mapping[str, object]]] = {}
+        for app in _mapping_sequence(snapshot.get("compute_apps")):
+            apps_by_uuid.setdefault(str(app.get("gpu_uuid") or ""), []).append(app)
+        leases: list[GpuLease] = []
+        blockers: list[str] = []
+        for index in candidates:
+            lock_path = self._lock_root / f"gpu-{index}.lock"
+            handle = lock_path.open("a+", encoding="ascii")
+            os.chmod(lock_path, 0o600)
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                handle.close()
+                blockers.append(f"{index}:LEASE_HELD")
+                break
+            gpu = by_index.get(index)
+            uuid = str(gpu.get("uuid") or "") if gpu else ""
+            memory = _number(gpu.get("memory_used_mib")) if gpu else None
+            utilization = _number(gpu.get("utilization_gpu_percent")) if gpu else None
+            apps = apps_by_uuid.get(uuid, [])
+            reason = None
+            if gpu is None:
+                reason = "GPU_NOT_FOUND"
+            elif memory is None or utilization is None or not uuid:
+                reason = "GPU_SNAPSHOT_INVALID"
+            elif memory > self._memory_threshold:
+                reason = f"MEMORY_BUSY:{memory}"
+            elif utilization > self._utilization_threshold:
+                reason = f"UTILIZATION_BUSY:{utilization}"
+            elif apps:
+                reason = "COMPUTE_APP_PRESENT"
+            if reason is not None:
+                blockers.append(f"{index}:{reason}")
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                handle.close()
+                break
+            leases.append(GpuLease(index=index, uuid=uuid, name=str(gpu.get("name") or "unknown"), lock_path=lock_path, _handle=handle))
+            if len(leases) == count:
+                return leases, blockers
+        for lease in leases:
+            lease.release()
+        return None, blockers
+
     def _try_acquire(self, candidates: Sequence[int]) -> tuple[GpuLease | None, list[str]]:
         self._lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         snapshot = self._snapshot_provider()

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "plan_id",
+    "observation_id",
+    "portrait_id",
+    "readiness_id",
+    "goal_binding",
+    "registry_id",
+    "registry_digest",
+    "state",
+    "tasks",
+    "authority",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-adaptive-probe-plan"]},
+    "plan_id": {"type": "string", "pattern": "^adaptive-probe-plan-[0-9a-f]{24}$"},
+    "observation_id": {"type": "string", "pattern": "^portrait-observation-[0-9a-f]{24}$"},
+    "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+    "readiness_id": {"type": "string", "pattern": "^portrait-readiness-[0-9a-f]{24}$"},
+    "goal_binding": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "registry_id": {"type": "string", "minLength": 1},
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "state": {"enum": ["ready_for_observation", "blocked"]},
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task_id",
+          "task_type",
+          "blocker",
+          "abi_id",
+          "probe_coverage_key",
+          "interface_extension_id",
+          "execution_authority",
+          "reason"
+        ],
+        "properties": {
+          "task_id": {"type": "string", "pattern": "^observation-task-[0-9a-f]{24}$"},
+          "task_type": {
+            "enum": [
+              "reuse_existing_probe",
+              "manufacture_shadow_probe",
+              "generate_interface_extension",
+              "run_read_only_adapter",
+              "requires_evaluator_binding",
+              "missing_data_regime",
+              "architecture_bound"
+            ]
+          },
+          "blocker": {"type": "string", "minLength": 1},
+          "abi_id": {"type": ["string", "null"]},
+          "probe_coverage_key": {"type": ["string", "null"], "pattern": "^probe-coverage-[0-9a-f]{24}$"},
+          "interface_extension_id": {"type": ["string", "null"], "pattern": "^interface-extension-[0-9a-f]{24}$"},
+          "execution_authority": {"enum": ["read_only", "shadow_only", "none"]},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intervention_gpu_authority",
+        "promotion_authority",
+        "active_metric_mutation",
+        "active_evaluator_mutation",
+        "novel_probe_authority"
+      ],
+      "properties": {
+        "intervention_gpu_authority": {"enum": [false]},
+        "promotion_authority": {"enum": [false]},
+        "active_metric_mutation": {"enum": [false]},
+        "active_evaluator_mutation": {"enum": [false]},
+        "novel_probe_authority": {"enum": ["shadow_only"]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

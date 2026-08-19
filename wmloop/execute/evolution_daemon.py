@@ -57,6 +57,8 @@ class EvolutionDaemonOptions:
     state_root: Path
     evaluator_contract: Path
     probe_contract: Path | None = None
+    candidate_catalog: Path | None = None
+    settlement_manifest: Path | None = None
     runtime_python: Path | None = None
     asset_bindings: tuple[tuple[str, Path], ...] = ()
     probe_imports: bool = True
@@ -147,6 +149,11 @@ def run_evolution_daemon(
                 iteration_root=iteration_root,
                 previous_probe_signatures=_previous_signatures(state),
             )
+            literature_query = _iteration_literature_query(
+                options,
+                strategy=str(materialized["strategy"]),
+                failure_signatures=_previous_signatures(state),
+            )
             pipeline_options = AutonomousPipelineOptions(
                 repo_root=options.repo_root,
                 output_root=iteration_root / "pipeline",
@@ -167,8 +174,10 @@ def run_evolution_daemon(
                     options.budget_require_high_cost_approval
                 ),
                 probe_contract=materialized["probe_contract"],
+                candidate_catalog=options.candidate_catalog,
+                settlement_manifest=options.settlement_manifest,
                 retrieval_db=options.retrieval_db,
-                literature_query=options.literature_query,
+                literature_query=literature_query,
                 literature_max_results=options.literature_max_results,
                 literature_timeout_seconds=options.literature_timeout_seconds,
             )
@@ -185,6 +194,7 @@ def run_evolution_daemon(
                 "iteration": iteration,
                 "started_at": _utc_now(),
                 "strategy": materialized["strategy"],
+                "literature_query": literature_query,
                 "candidate_batch_sha256": materialized["candidate_batch_sha256"],
             }
             try:
@@ -338,6 +348,7 @@ def _materialize_iteration(
     if probe is not None:
         probe["probe_id"] = probe_id
     batch = copy.deepcopy(template)
+    _require_confirmation_ladder(batch)
     batch["campaign_id"] = campaign_id
     batch["max_selected_candidates"] = min(
         int(batch["max_selected_candidates"]), options.batch_size
@@ -372,20 +383,23 @@ def _materialize_iteration(
         for stage in candidate.get("stages", []):
             if not isinstance(stage, dict):
                 continue
+            stage_name = str(stage.get("stage") or "")
             environment = stage.setdefault("environment", {})
             if isinstance(environment, dict) and probe_id is not None:
                 environment["VERDIWM_PROBE_ID"] = probe_id
             if strategy == "horizon_extension":
+                stage_floor = {"screen": 2, "gate": 4, "confirm": 8}[stage_name]
                 stage["command"] = _replace_command_value(
                     stage.get("command", []),
                     _INTERACT_NUM,
-                    min(8, 2 + iteration),
+                    min(12, stage_floor + iteration - 1),
                 )
             elif strategy == "inference_budget":
+                stage_floor = {"screen": 2, "gate": 4, "confirm": 6}[stage_name]
                 stage["command"] = _replace_command_value(
                     stage.get("command", []),
                     _INFERENCE_STEPS,
-                    min(8, 2 + 2 * iteration),
+                    min(12, stage_floor + 2 * (iteration - 1)),
                 )
     validate_document("auto_experiment_candidate_batch", batch)
     if probe is not None:
@@ -432,6 +446,45 @@ def _materialize_iteration(
     iteration_root.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.replace(temporary, iteration_root)
     return materialized
+
+
+def _require_confirmation_ladder(batch: Mapping[str, object]) -> None:
+    """Reject unattended evolution that can never reach formal evidence."""
+
+    candidates = batch.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        raise EvolutionDaemonError("EVOLUTION_CANDIDATES_INVALID")
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            raise EvolutionDaemonError("EVOLUTION_CANDIDATES_INVALID")
+        stages = candidate.get("stages")
+        if not isinstance(stages, list):
+            raise EvolutionDaemonError("EVOLUTION_CONFIRMATION_LADDER_REQUIRED")
+        names = [
+            str(stage.get("stage"))
+            for stage in stages
+            if isinstance(stage, Mapping)
+        ]
+        if names != ["screen", "gate", "confirm"]:
+            raise EvolutionDaemonError("EVOLUTION_CONFIRMATION_LADDER_REQUIRED")
+
+
+def _iteration_literature_query(
+    options: EvolutionDaemonOptions,
+    *,
+    strategy: str,
+    failure_signatures: Sequence[str],
+) -> str:
+    """Create a fresh external-search view for every immutable iteration."""
+
+    base = (options.literature_query or "world model optimization").strip()
+    terms = [base, strategy.replace("_", " ")]
+    terms.extend(
+        signature.replace("_", " ")
+        for signature in failure_signatures
+        if signature.strip()
+    )
+    return " ".join(dict.fromkeys(term for term in terms if term))[:512]
 
 
 def _replace_command_value(
@@ -498,6 +551,14 @@ def _validate_options(options: EvolutionDaemonOptions) -> None:
         probe = Path(options.probe_contract).expanduser().resolve()
         if not probe.is_file() or probe.is_symlink():
             raise EvolutionDaemonError("EVOLUTION_PROBE_CONTRACT_INVALID")
+    if options.candidate_catalog is not None:
+        catalog = Path(options.candidate_catalog).expanduser().resolve()
+        if not catalog.is_file() or catalog.is_symlink():
+            raise EvolutionDaemonError("EVOLUTION_CANDIDATE_CATALOG_INVALID")
+    if options.settlement_manifest is not None:
+        settlement = Path(options.settlement_manifest).expanduser().resolve()
+        if not settlement.is_file() or settlement.is_symlink():
+            raise EvolutionDaemonError("EVOLUTION_SETTLEMENT_MANIFEST_INVALID")
     if state == output or state in output.parents or output in state.parents:
         raise EvolutionDaemonError("EVOLUTION_STATE_OUTPUT_OVERLAP")
     if (
@@ -554,6 +615,26 @@ def _input_document(options: EvolutionDaemonOptions) -> dict[str, object]:
         "probe_contract": (
             str(Path(options.probe_contract).resolve())
             if options.probe_contract is not None
+            else None
+        ),
+        "candidate_catalog": (
+            str(Path(options.candidate_catalog).resolve())
+            if options.candidate_catalog is not None
+            else None
+        ),
+        "candidate_catalog_sha256": (
+            digest(Path(options.candidate_catalog))
+            if options.candidate_catalog is not None
+            else None
+        ),
+        "settlement_manifest": (
+            str(Path(options.settlement_manifest).resolve())
+            if options.settlement_manifest is not None
+            else None
+        ),
+        "settlement_manifest_sha256": (
+            digest(Path(options.settlement_manifest))
+            if options.settlement_manifest is not None
             else None
         ),
         "probe_contract_sha256": (
@@ -846,6 +927,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--state-root", type=Path, required=True)
     parser.add_argument("--evaluator-contract", type=Path, required=True)
     parser.add_argument("--probe-contract", type=Path)
+    parser.add_argument("--candidate-catalog", type=Path)
+    parser.add_argument("--settlement-manifest", type=Path)
     parser.add_argument("--runtime-python", type=Path)
     parser.add_argument("--asset", action="append", default=[], metavar="PARAM=PATH")
     parser.add_argument("--no-import-probe", action="store_true")
@@ -875,6 +958,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 state_root=args.state_root,
                 evaluator_contract=args.evaluator_contract,
                 probe_contract=args.probe_contract,
+                candidate_catalog=args.candidate_catalog,
+                settlement_manifest=args.settlement_manifest,
                 runtime_python=args.runtime_python,
                 asset_bindings=tuple(_parse_asset(value) for value in args.asset),
                 probe_imports=not args.no_import_probe,

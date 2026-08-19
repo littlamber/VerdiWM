@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "capability_id",
+    "model_family",
+    "source_revision",
+    "capabilities",
+    "execution_interfaces",
+    "hooks",
+    "asset_classes",
+    "evaluator",
+    "authority",
+    "provenance"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-model-capability-ir"]},
+    "capability_id": {"type": "string", "minLength": 1},
+    "model_family": {"type": "string", "minLength": 1},
+    "source_revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"enum": ["git_commit", "source_tree_sha256", "none"]},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability", "state", "evidence_count"],
+        "properties": {
+          "capability": {"type": "string", "minLength": 1},
+          "state": {"enum": ["available", "unavailable", "unknown"]},
+          "evidence_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "execution_interfaces": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "contract_id", "state"],
+        "properties": {
+          "kind": {"type": "string", "minLength": 1},
+          "contract_id": {"type": "string", "minLength": 1},
+          "state": {"enum": ["available", "unavailable", "unknown"]}
+        }
+      }
+    },
+    "hooks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["hook", "state", "semantic_role", "binding_contract"],
+        "properties": {
+          "hook": {"type": "string", "minLength": 1},
+          "state": {"enum": ["available", "unavailable", "unknown"]},
+          "semantic_role": {"type": "string", "minLength": 1},
+          "binding_contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "asset_classes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evaluator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "evaluator_id", "contract_digest", "verifier"],
+      "properties": {
+        "state": {"enum": ["ready", "binding_required", "blocked"]},
+        "evaluator_id": {"type": ["string", "null"]},
+        "contract_digest": {"type": ["string", "null"]},
+        "verifier": {"type": ["string", "null"]}
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_mutation_allowed", "claim_authority"],
+      "properties": {
+        "source_mutation_allowed": {"enum": [false]},
+        "claim_authority": {"enum": ["none", "target_verifier"]}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_artifact_type", "source_digest"],
+      "properties": {
+        "source_artifact_type": {"type": "string", "minLength": 1},
+        "source_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

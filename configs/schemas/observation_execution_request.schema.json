@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "request_id",
+    "task_id",
+    "task_type",
+    "abi_id",
+    "plan_id",
+    "portrait_id",
+    "execution_authority",
+    "task",
+    "probe_requirement",
+    "runtime_bindings",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-observation-execution-request"]},
+    "request_id": {"type": "string", "pattern": "^observation-execution-[0-9a-f]{24}$"},
+    "task_id": {"type": "string", "pattern": "^observation-task-[0-9a-f]{24}$"},
+    "task_type": {"enum": ["reuse_existing_probe", "run_read_only_adapter"]},
+    "abi_id": {"type": "string", "minLength": 1},
+    "plan_id": {"type": "string", "pattern": "^adaptive-probe-plan-[0-9a-f]{24}$"},
+    "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+    "execution_authority": {"enum": ["read_only", "shadow_only"]},
+    "task": {"type": "object"},
+    "probe_requirement": {"type": ["object", "null"]},
+    "runtime_bindings": {"type": "object"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

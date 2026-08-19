@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "experiment_id", "version", "objective", "hypothesis", "falsification_criterion", "selection_reason", "source", "dataset", "scale_plan", "evaluation", "artifact_policy", "reproduction"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-experiment-engineering-manifest"]},
+    "experiment_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "objective": {"type": "string", "minLength": 1},
+    "hypothesis": {"type": "string", "minLength": 1},
+    "falsification_criterion": {"type": "string", "minLength": 1},
+    "selection_reason": {"type": "string", "minLength": 1},
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["readme", "entrypoint", "test_path", "revision", "dirty_policy"],
+      "properties": {
+        "readme": {"type": "string", "minLength": 1},
+        "entrypoint": {"type": "string", "minLength": 1},
+        "test_path": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "dirty_policy": {"enum": ["reject", "allow_with_receipt"]}
+      }
+    },
+    "dataset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["train_manifest", "validation_manifest", "dataset_freeze", "split_policy"],
+      "properties": {
+        "train_manifest": {"type": "string", "minLength": 1},
+        "validation_manifest": {"type": "string", "minLength": 1},
+        "dataset_freeze": {"type": "string", "minLength": 1},
+        "split_policy": {"type": "string", "minLength": 1}
+      }
+    },
+    "scale_plan": {"type": "string", "minLength": 1},
+    "evaluation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metrics", "horizons", "seeds", "heldout_protocol"],
+      "properties": {
+        "metrics": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "seeds": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
+        "heldout_protocol": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifact_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["output_root", "required_artifacts", "archive_policy"],
+      "properties": {
+        "output_root": {"type": "string", "minLength": 1},
+        "required_artifacts": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "archive_policy": {"enum": ["archive_then_delete", "retain_scratch"]}
+      }
+    },
+    "reproduction": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "offline"],
+      "properties": {"command": {"type": "string", "minLength": 1}, "offline": {"type": "boolean"}}
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-acwm-autoloop",
+  "loop_id": "ctrl-world-acwm-guidance-autoloop-v1",
+  "loop_digest": "51c13acee182c762000ec06fd9b218dee8b63c43f2b607fc5a029ac8e1903f27",
+  "contract_id": "ctrl-world-acwm-dual-evaluation-v1",
+  "contract_digest": "96e686584f7b5f8a7d71d3d2fcdd29bf7cf10e954f454739fe97d070c83e014d",
+  "max_refinement_rounds": 1,
+  "watch_poll_seconds": 60,
+  "seed_policy": {
+    "policy_id": "guidance_boundary_refinement",
+    "required_confirm_blocker": "PROTECTED_REGRESSION:horizon_drift_slope",
+    "candidate_kind": "inference_guidance_scale",
+    "guidance_candidates": [
+      {"candidate_id": "guidance-1005", "guidance_scale": 1.005},
+      {"candidate_id": "guidance-1010", "guidance_scale": 1.01},
+      {"candidate_id": "guidance-1015", "guidance_scale": 1.015},
+      {"candidate_id": "guidance-1020", "guidance_scale": 1.02},
+      {"candidate_id": "guidance-1025", "guidance_scale": 1.025},
+      {"candidate_id": "guidance-1030", "guidance_scale": 1.03},
+      {"candidate_id": "guidance-1035", "guidance_scale": 1.035},
+      {"candidate_id": "guidance-1040", "guidance_scale": 1.04}
+    ]
+  },
+  "stop_conditions": [
+    "qualified_for_frozen_verifier",
+    "no_screen_admission",
+    "max_refinement_rounds",
+    "no_new_frozen_inbox_idea"
+  ]
+}

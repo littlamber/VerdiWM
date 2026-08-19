@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
 
 from wmloop.control.adapter_profiles import (
@@ -27,10 +27,17 @@ from wmloop.control.adapter_profiles import (
     compile_adapter_execution,
     parse_gpu_budget,
 )
+from wmloop.control.automatic_campaign import (
+    AutomaticCampaignError,
+    automatic_campaign_id,
+    campaign_key,
+    compile_revision,
+    isolate_execution_for_revision,
+)
 from wmloop.experiments.evidence_graph import query_evidence_graph
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _TRANSITIONS = {
     "created": {"confirmed", "queued", "cancelled"},
     "confirmed": {"queued", "cancelled"},
@@ -67,6 +74,12 @@ class CampaignStore:
             raise CampaignAPIError("CAMPAIGN_ID_INVALID")
         return self.root / f"{campaign_id}.json"
 
+    def _revision_path(self, campaign_id: str, revision_id: str) -> Path:
+        if not revision_id or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in revision_id):
+            raise CampaignAPIError("REVISION_ID_INVALID")
+        self._path(campaign_id)
+        return self.root / "revisions" / campaign_id / f"{revision_id}.json"
+
     def _write(self, path: Path, value: dict[str, Any]) -> None:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -82,8 +95,6 @@ class CampaignStore:
                 os.unlink(temp_name)
 
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
-        campaign_id = str(payload.get("campaign_id") or uuid.uuid4().hex)
-        self._path(campaign_id)
         goal = _required_text(payload, "goal", "GOAL_REQUIRED")
         model = _required_text(payload, "model", "MODEL_REQUIRED")
         dataset = _required_text(payload, "dataset", "DATASET_REQUIRED")
@@ -91,16 +102,19 @@ class CampaignStore:
             budget_hours = parse_gpu_budget(payload.get("budget"))
         except AdapterProfileError as exc:
             raise CampaignAPIError(str(exc)) from exc
+        key = campaign_key(
+            model=model,
+            dataset=dataset,
+            goal=goal,
+            budget_gpu_hours=budget_hours,
+            adapter=(str(payload["adapter"]) if payload.get("adapter") is not None else None),
+        )
+        campaign_id = str(payload.get("campaign_id") or automatic_campaign_id(key))
+        self._path(campaign_id)
         request_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
-        with self._lock:
-            path = self._path(campaign_id)
-            if path.exists():
-                existing = json.loads(path.read_text(encoding="utf-8"))
-                if existing.get("request_hash") != request_hash:
-                    raise CampaignAPIError("CAMPAIGN_ID_CONFLICT")
-                return existing
 
         execution = payload.get("execution")
+        automatically_compiled = execution is None
         adapter_profile = payload.get("adapter")
         model_family = payload.get("model_family")
         capability_level = payload.get("capability_level")
@@ -142,9 +156,40 @@ class CampaignStore:
             capability_level = resolved.capability_level
             constitution_freeze = resolved.constitution_freeze
         _validate_execution(execution)
+        assert isinstance(execution, dict)
+        try:
+            revision = compile_revision(
+                campaign_id=campaign_id,
+                campaign_key_value=key,
+                goal=goal,
+                model=model,
+                dataset=dataset,
+                budget_gpu_hours=budget_hours,
+                adapter_profile=(str(adapter_profile) if adapter_profile is not None else None),
+                constitution_freeze=(str(constitution_freeze) if constitution_freeze is not None else None),
+                execution=execution,
+                resource_request=(
+                    payload.get("resource_request")
+                    if isinstance(payload.get("resource_request"), Mapping)
+                    else None
+                ),
+            )
+        except AutomaticCampaignError as exc:
+            raise CampaignAPIError(str(exc)) from exc
+        if payload.get("resource_request") is not None and not isinstance(payload.get("resource_request"), Mapping):
+            raise CampaignAPIError("RESOURCE_REQUEST_OBJECT_REQUIRED")
+        if automatically_compiled:
+            execution = isolate_execution_for_revision(
+                execution, revision_id=str(revision["revision_id"])
+            )
         record = {
             "schema_version": SCHEMA_VERSION,
             "campaign_id": campaign_id,
+            "campaign_key": key,
+            "revision_id": revision["revision_id"],
+            "revision_digest": revision["revision_digest"],
+            "revision": revision,
+            "resource_allocation": revision["resource_allocation"],
             "goal": goal,
             "model": model,
             "dataset": dataset,
@@ -159,13 +204,48 @@ class CampaignStore:
             "updated_at": _now(),
             "request_hash": request_hash,
         }
+        for field in ("engineering_manifest", "compiled_manifest"):
+            if payload.get(field) is not None:
+                record[field] = payload[field]
         with self._lock:
             path = self._path(campaign_id)
             if path.exists():
                 existing = json.loads(path.read_text(encoding="utf-8"))
                 if existing.get("request_hash") != record["request_hash"]:
                     raise CampaignAPIError("CAMPAIGN_ID_CONFLICT")
-                return existing
+                if existing.get("revision_id") == record["revision_id"]:
+                    return existing
+                # A draft has no dispatcher claim or GPU side effect yet, so a changed
+                # source/policy snapshot may safely supersede it automatically.
+                if str(existing.get("status")) not in {"created", "completed", "failed", "cancelled"}:
+                    raise CampaignAPIError("CAMPAIGN_REVISION_ACTIVE")
+                history = list(existing.get("revision_history", []))
+                history.append(
+                    {
+                        "revision_id": existing.get("revision_id"),
+                        "revision_digest": existing.get("revision_digest"),
+                        "status": existing.get("status"),
+                        "revision_ref": existing.get("revision_ref"),
+                    }
+                )
+                record["revision_history"] = history
+                record["prior_revision_id"] = existing.get("revision_id")
+            revision_path = self._revision_path(campaign_id, str(record["revision_id"]))
+            revision_document = {
+                "schema_version": 1,
+                "artifact_type": "verdiwm-campaign-revision-record",
+                "campaign_id": campaign_id,
+                "revision": record["revision"],
+                "execution": record["execution"],
+                "request_hash": record["request_hash"],
+            }
+            if revision_path.exists():
+                existing_revision = json.loads(revision_path.read_text(encoding="utf-8"))
+                if existing_revision != revision_document:
+                    raise CampaignAPIError("CAMPAIGN_REVISION_CONFLICT")
+            else:
+                self._write(revision_path, revision_document)
+            record["revision_ref"] = str(revision_path)
             self._write(path, record)
         return record
 
@@ -223,13 +303,25 @@ class CampaignStore:
                 "schema_version": 1,
                 "artifact_type": "verdiwm-campaign-dispatch",
                 "campaign_id": campaign_id,
+                "revision_id": record.get("revision_id"),
+                "revision_digest": record.get("revision_digest"),
+                "resource_allocation": record.get("resource_allocation"),
                 "state": "pending",
                 "execution": execution,
                 "execution_hash": hashlib.sha256(
-                    _canonical(execution).encode()
+                    _canonical(
+                        {
+                            "execution": execution,
+                            "revision_id": record.get("revision_id"),
+                            "resource_allocation": record.get("resource_allocation"),
+                        }
+                    ).encode()
                 ).hexdigest(),
                 "created_at": _now(),
             }
+            for field in ("engineering_manifest", "compiled_manifest"):
+                if record.get(field) is not None:
+                    dispatch[field] = record[field]
             dispatch_path = self.root / "dispatch" / "pending" / f"{campaign_id}.json"
             if dispatch_path.exists():
                 existing = json.loads(dispatch_path.read_text(encoding="utf-8"))
@@ -308,6 +400,32 @@ class CampaignStore:
         with self._lock:
             record = self.get(campaign_id)
             record["dispatch_ref"] = str(Path(dispatch_path).resolve())
+            record["updated_at"] = _now()
+            self._write(self._path(campaign_id), record)
+            return record
+
+    def record_autonomous_deployment(
+        self, campaign_id: str, deployment: Mapping[str, object]
+    ) -> dict[str, Any]:
+        """Bind a non-dispatcher controller to the active immutable revision.
+
+        Ctrl-World's durable controller owns execution itself, so it must not be
+        represented as a generic pipeline dispatch.  This marker prevents an
+        automatic source revision from replacing a live controller's state.
+        """
+
+        deployment_ref = deployment.get("controller_config")
+        if not isinstance(deployment_ref, str) or not Path(deployment_ref).is_absolute():
+            raise CampaignAPIError("AUTONOMOUS_DEPLOYMENT_REF_INVALID")
+        with self._lock:
+            record = self.get(campaign_id)
+            if str(record.get("status")) not in {"created", "confirmed", "queued", "running"}:
+                raise CampaignAPIError("STATUS_TRANSITION_INVALID")
+            revision_id = deployment.get("revision_id")
+            if revision_id != record.get("revision_id"):
+                raise CampaignAPIError("AUTONOMOUS_DEPLOYMENT_REVISION_MISMATCH")
+            record["status"] = "running"
+            record["autonomous_deployment"] = dict(deployment)
             record["updated_at"] = _now()
             self._write(self._path(campaign_id), record)
             return record

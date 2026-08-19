@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "registry_id", "provenance", "recipes"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-world-model-training-recipe-registry"]},
+    "registry_id": {"type": "string", "minLength": 1},
+    "provenance": {
+      "type": "object", "additionalProperties": false, "required": ["retrieved_at", "sources"],
+      "properties": {
+        "retrieved_at": {"type": "string", "minLength": 1},
+        "sources": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["source_id", "kind", "title", "url", "evidence_tier", "notes"],
+            "properties": {
+              "source_id": {"type": "string", "minLength": 1},
+              "kind": {"enum": ["paper", "official_repo", "official_project_page", "official_blog"]},
+              "title": {"type": "string", "minLength": 1},
+              "url": {"type": "string", "minLength": 1},
+              "published": {"type": ["string", "null"]},
+              "evidence_tier": {"enum": ["paper_explicit", "official_repo_config", "official_project_page", "official_blog"]},
+              "notes": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    },
+    "recipes": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["recipe_id", "backbone", "family", "phase", "status", "evidence_tier", "source_ids", "objective", "dataset", "sequence", "optimization", "compute", "checkpoint_policy", "planner_policy", "known_fields", "undisclosed_fields", "evidence", "limitations"],
+        "properties": {
+          "recipe_id": {"type": "string", "minLength": 1},
+          "backbone": {"type": "string", "minLength": 1},
+          "family": {"type": "string", "minLength": 1},
+          "phase": {"enum": ["pretraining", "finetuning", "post_training", "ablation", "rl_world_model"]},
+          "status": {"enum": ["shadow_only", "local_validated", "reusable_optimization_memory"]},
+          "evidence_tier": {"enum": ["paper_explicit", "official_repo_config", "official_project_page", "official_blog"]},
+          "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "objective": {"type": "string", "minLength": 1},
+          "dataset": {
+            "type": "object", "additionalProperties": false, "required": ["name", "examples", "hours", "episodes", "scale_description"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "examples": {"type": ["integer", "null"], "minimum": 0},
+              "hours": {"type": ["number", "null"], "minimum": 0},
+              "episodes": {"type": ["integer", "null"], "minimum": 0},
+              "scale_description": {"type": "string", "minLength": 1}
+            }
+          },
+          "sequence": {
+            "type": "object", "additionalProperties": false, "required": ["frames", "fps", "horizon_description"],
+            "properties": {
+              "frames": {"type": ["integer", "array", "null"], "minimum": 1, "items": {"type": "integer", "minimum": 1}},
+              "fps": {"type": ["number", "array", "null"], "minimum": 0, "items": {"type": "number", "minimum": 0}},
+              "horizon_description": {"type": "string", "minLength": 1}
+            }
+          },
+          "optimization": {
+            "type": "object", "additionalProperties": false, "required": ["batch_size", "global_batch_size", "gradient_accumulation", "learning_rate", "warmup_steps", "total_steps", "epochs", "scheduler"],
+            "properties": {
+              "batch_size": {"type": ["integer", "null"], "minimum": 1},
+              "global_batch_size": {"type": ["integer", "null"], "minimum": 1},
+              "gradient_accumulation": {"type": ["integer", "null"], "minimum": 1},
+              "learning_rate": {"type": ["number", "null"], "exclusiveMinimum": 0},
+              "warmup_steps": {"type": ["integer", "null"], "minimum": 0},
+              "total_steps": {"type": ["integer", "null"], "minimum": 1},
+              "epochs": {"type": ["number", "null"], "exclusiveMinimum": 0},
+              "scheduler": {"type": ["string", "null"]}
+            }
+          },
+          "compute": {
+            "type": "object", "additionalProperties": false, "required": ["hardware", "devices", "notes"],
+            "properties": {
+              "hardware": {"type": "string", "minLength": 1},
+              "devices": {"type": ["integer", "null"], "minimum": 1},
+              "notes": {"type": "string", "minLength": 1}
+            }
+          },
+          "checkpoint_policy": {"type": "string", "minLength": 1},
+          "planner_policy": {"enum": ["ranking_only", "candidate_only", "admitted"]},
+          "planning": {
+            "type": "object", "additionalProperties": false,
+            "properties": {
+              "dataset_fraction": {"type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 1},
+              "target_epochs": {"type": ["number", "null"], "exclusiveMinimum": 0},
+              "min_steps": {"type": ["integer", "null"], "minimum": 1},
+              "max_steps": {"type": ["integer", "null"], "minimum": 1},
+              "min_episodes": {"type": ["integer", "null"], "minimum": 1},
+              "steps_per_epoch": {"type": ["integer", "null"], "minimum": 1},
+              "checkpoint_ladder": {"type": ["array", "null"], "minItems": 1, "items": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}},
+              "early_stop": {"type": ["string", "null"]}
+            }
+          },
+          "known_fields": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "undisclosed_fields": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "evidence": {
+            "type": "array", "minItems": 1,
+            "items": {
+              "type": "object", "additionalProperties": false, "required": ["field", "claim", "locator"],
+              "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "claim": {"type": "string", "minLength": 1},
+                "locator": {"type": "string", "minLength": 1}
+              }
+            }
+          },
+          "limitations": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    }
+  }
+}

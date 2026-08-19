@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "execution_id", "method_id", "protocol_version", "entrypoints", "inputs", "outputs", "isolation", "claim_boundary"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-candidate-execution-contract"]},
+    "execution_id": {"type": "string", "pattern": "^candidate-execution-[0-9a-f]{24}$"},
+    "method_id": {"type": "string", "pattern": "^method-ir-[0-9a-f]{24}$"},
+    "protocol_version": {"enum": [1]},
+    "entrypoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calibrate", "train", "infer"],
+      "properties": {
+        "calibrate": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "train": {"type": ["array", "null"], "items": {"type": "string", "minLength": 1}},
+        "infer": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "semantic_contract", "required"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "semantic_contract": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"}
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "semantic_contract", "required"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "semantic_contract": {"type": "string", "minLength": 1},
+          "required": {"type": "boolean"}
+        }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["network_access", "source_write_access", "evaluator_access", "credential_access", "gpu_lease_required"],
+      "properties": {
+        "network_access": {"const": false},
+        "source_write_access": {"const": false},
+        "evaluator_access": {"const": false},
+        "credential_access": {"const": false},
+        "gpu_lease_required": {"const": true}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_id",
+    "policy_digest",
+    "contract_id",
+    "contract_digest",
+    "implementation_sha256",
+    "selection_policy",
+    "tie_breaker",
+    "requires_screen_admission",
+    "requires_confirm_qualification",
+    "verdict_authority"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-frozen-verifier-policy"]},
+    "policy_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "selection_policy": {"enum": ["maximum_confirm_primary_improvement_v1"]},
+    "tie_breaker": {"enum": ["candidate_id_ascending"]},
+    "requires_screen_admission": {"enum": [true]},
+    "requires_confirm_qualification": {"enum": [true]},
+    "verdict_authority": {"enum": ["frozen_verifier_only"]}
+  }
+}

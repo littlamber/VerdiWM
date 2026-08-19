@@ -102,7 +102,7 @@ verdiwm-onboard /path/to/model \
   --runtime-python /path/to/environment/bin/python
 ```
 
-The command performs no dependency installation, model import, training, inference, rollout, or GPU allocation. Dependency imports and `pip check` run in bounded subprocesses with CUDA hidden.
+The command performs no dependency installation, model import, training, inference, rollout, or GPU allocation. Dependency imports and `pip check` run in bounded subprocesses with CUDA hidden. A `pip check` platform-metadata warning (for example, decord's unsupported-wheel notice) is recorded as `warning` only when every reported line is that known warning class; import failures and real dependency conflicts remain blocking.
 
 ## Sidecar Contract
 
@@ -113,6 +113,7 @@ The command performs no dependency installation, model import, training, inferen
   runtime_lock.json
   asset_manifest.json
   capability_report.json
+  model-capability-ir.json
   evaluator_contract.json
   generated_connector/
     connector.json
@@ -121,7 +122,12 @@ The command performs no dependency installation, model import, training, inferen
   onboarding-report.md
 ```
 
-`manifest.json` is the stable machine entrypoint. `optimization_launch_allowed` remains `false` until a separate conformance runner produces a passing receipt.
+`manifest.json` is the stable machine entrypoint. It binds both the file hash
+and semantic digest of `model-capability-ir.json`. The Capability IR contains
+semantic capabilities, content revision, interfaces, asset classes, and frozen
+evaluator identity; it excludes checkout, runtime, checkpoint, and dataset
+paths. `optimization_launch_allowed` remains `false` until a separate
+conformance runner verifies those bindings and produces a passing receipt.
 
 ## Admission States
 
@@ -146,9 +152,16 @@ An evaluator contract is an external frozen JSON file. Keeping it outside the im
   "metrics": ["success_rate"],
   "verifier": "task_success_receipt_v1",
   "conformance_imports": ["torch"],
+  "entrypoint_probe": "help",
   "scheduler_template": "/path/to/candidate-batch-template.json"
 }
 ```
+
+`entrypoint_probe` defaults to `help`. Set it to `skip` only when importing the
+entrypoint itself performs heavyweight model construction or other side effects
+that make `--help` unsafe. In that case conformance still runs the declared
+imports and records the deferred probe; a bounded runtime smoke must execute the
+real command before any screen or training queue is admitted.
 
 Bind it with:
 
@@ -185,7 +198,10 @@ uv run verdiwm-run /path/to/Ctrl-World \
 
 `--no-import-probe` skips the onboarding metadata probe only. The isolated
 conformance stage still performs the declared real imports and evaluator help
-check before it can authorize compilation.
+check (unless the contract explicitly sets `entrypoint_probe` to `skip`) before
+it can authorize compilation. A deferred probe never counts as model-quality
+evidence; the subsequent runtime smoke must produce the physical-GPU and
+artifact receipt.
 
 ## Running the full pipeline in the background
 

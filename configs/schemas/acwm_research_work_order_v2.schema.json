@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "idea_id", "idea_sha256", "policy_id", "contract", "source_grounding", "materialization_contract", "required_before_gpu", "required_execution_stages", "forbidden_actions", "execution_authority", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [2]},
+    "artifact_type": {"enum": ["verdiwm-acwm-research-materialization-work-order"]},
+    "idea_id": {"type": "string", "minLength": 1},
+    "idea_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_id": {"type": "string", "minLength": 1},
+    "contract": {"type": "object"},
+    "source_grounding": {"type": "object"},
+    "materialization_contract": {"type": "object"},
+    "required_before_gpu": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "required_execution_stages": {"type": "array", "minItems": 3, "items": {"enum": ["screen", "confirm", "frozen_verifier"]}},
+    "forbidden_actions": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "execution_authority": {"enum": ["none_until_materialized_and_compiled"]},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "portfolio_id",
+    "portfolio_digest",
+    "bindings",
+    "hypothesis_batch_digest",
+    "ranking_policy",
+    "ranked_candidates",
+    "entries",
+    "budget",
+    "next_action",
+    "authority",
+    "side_effects",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-experiment-portfolio"]},
+    "state": {"enum": ["ready_for_resource_admission", "blocked_budget"]},
+    "portfolio_id": {"type": "string", "pattern": "^experiment-portfolio-[0-9a-f]{24}$"},
+    "portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_ir_id",
+        "goal_ir_digest",
+        "portrait_id",
+        "portrait_digest",
+        "requirement_graph_id",
+        "requirement_graph_digest",
+        "gap_plan_id",
+        "gap_plan_digest"
+      ],
+      "properties": {
+        "goal_ir_id": {"type": "string", "pattern": "^goal-ir-[0-9a-f]{24}$"},
+        "goal_ir_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+        "portrait_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "requirement_graph_id": {"type": "string", "pattern": "^capability-graph-[0-9a-f]{24}$"},
+        "requirement_graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "gap_plan_id": {"type": "string", "pattern": "^gap-plan-[0-9a-f]{24}$"},
+        "gap_plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "hypothesis_batch_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ranking_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "information_gain_weight",
+        "uncertainty_weight",
+        "competition_weight",
+        "diversity_weight",
+        "cost_weight"
+      ],
+      "properties": {
+        "policy_id": {"type": "string", "minLength": 1},
+        "information_gain_weight": {"type": "number", "minimum": 0},
+        "uncertainty_weight": {"type": "number", "minimum": 0},
+        "competition_weight": {"type": "number", "minimum": 0},
+        "diversity_weight": {"type": "number", "minimum": 0},
+        "cost_weight": {"type": "number", "minimum": 0}
+      }
+    },
+    "ranked_candidates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "candidate_digest",
+          "mechanism_id",
+          "rank",
+          "selected",
+          "score",
+          "score_components",
+          "estimated_bundle_gpu_hours",
+          "selection_reason"
+        ],
+        "properties": {
+          "candidate_id": {"type": "string", "pattern": "^experiment-candidate-[0-9a-f]{24}$"},
+          "candidate_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "mechanism_id": {"type": "string", "pattern": "^mechanism-[0-9a-f]{24}$"},
+          "rank": {"type": "integer", "minimum": 1},
+          "selected": {"type": "boolean"},
+          "score": {"type": "number"},
+          "score_components": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["information_gain", "uncertainty", "competition", "diversity", "cost"],
+            "properties": {
+              "information_gain": {"type": "number", "minimum": 0, "maximum": 1},
+              "uncertainty": {"type": "number", "minimum": 0, "maximum": 1},
+              "competition": {"type": "number", "minimum": 0, "maximum": 1},
+              "diversity": {"type": "number", "minimum": 0, "maximum": 1},
+              "cost": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          },
+          "estimated_bundle_gpu_hours": {"type": "number", "minimum": 0},
+          "selection_reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "entry_id",
+          "candidate_id",
+          "mechanism_id",
+          "role",
+          "hypothesis",
+          "falsification_criterion",
+          "expected_portrait_changes",
+          "applicability",
+          "intervention",
+          "dependencies",
+          "required_module_capabilities",
+          "replication",
+          "cost",
+          "protected_metrics",
+          "evaluator",
+          "artifact_policy",
+          "unresolved_risks",
+          "selection_reason"
+        ],
+        "properties": {
+          "entry_id": {"type": "string", "pattern": "^portfolio-entry-[0-9a-f]{24}$"},
+          "candidate_id": {"type": ["string", "null"], "pattern": "^experiment-candidate-[0-9a-f]{24}$"},
+          "mechanism_id": {"type": ["string", "null"], "pattern": "^mechanism-[0-9a-f]{24}$"},
+          "role": {"enum": ["baseline", "mechanism_test", "negative_control", "ablation"]},
+          "hypothesis": {"type": "string", "minLength": 1},
+          "falsification_criterion": {"type": "string", "minLength": 1},
+          "expected_portrait_changes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "applicability": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["structural_conditions", "behavioral_conditions"],
+            "properties": {
+              "structural_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "behavioral_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}}
+            }
+          },
+          "intervention": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["operator", "semantic_target"],
+            "properties": {
+              "operator": {"enum": ["none", "mechanism_intervention", "no_op_control", "remove_component"]},
+              "semantic_target": {"type": "string", "minLength": 1}
+            }
+          },
+          "dependencies": {"type": "array", "items": {"type": "string", "pattern": "^portfolio-entry-[0-9a-f]{24}$"}},
+          "required_module_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "replication": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["count", "seeds"],
+            "properties": {
+              "count": {"type": "integer", "minimum": 1},
+              "seeds": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 0}}
+            }
+          },
+          "cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["per_replication_gpu_hours", "total_gpu_hours"],
+            "properties": {
+              "per_replication_gpu_hours": {"type": "number", "minimum": 0},
+              "total_gpu_hours": {"type": "number", "minimum": 0}
+            }
+          },
+          "protected_metrics": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "evaluator": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["evaluator_id", "contract_digest", "verifier", "heldout_protocol"],
+            "properties": {
+              "evaluator_id": {"type": "string", "minLength": 1},
+              "contract_digest": {"type": "string", "pattern": "^(sha256:)?[0-9a-f]{64}$"},
+              "verifier": {"type": "string", "minLength": 1},
+              "heldout_protocol": {"type": "string", "minLength": 1}
+            }
+          },
+          "artifact_policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["required_artifact_classes", "archive_policy", "cleanup_policy"],
+            "properties": {
+              "required_artifact_classes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+              "archive_policy": {"enum": ["archive_all_terminal"]},
+              "cleanup_policy": {"enum": ["after_content_addressed_receipt"]}
+            }
+          },
+          "unresolved_risks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "selection_reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximum_hypotheses", "selected_hypotheses", "max_total_gpu_hours", "estimated_total_gpu_hours", "minimum_replications"],
+      "properties": {
+        "maximum_hypotheses": {"type": "integer", "minimum": 1},
+        "selected_hypotheses": {"type": "integer", "minimum": 0},
+        "max_total_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+        "estimated_total_gpu_hours": {"type": "number", "minimum": 0},
+        "minimum_replications": {"type": "integer", "minimum": 1}
+      }
+    },
+    "next_action": {"enum": ["manufacture_modules", "resource_admission", "stop_budget"]},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module_manufacturing_authority", "gpu_authority", "evaluator_authority", "promotion_authority"],
+      "properties": {
+        "module_manufacturing_authority": {"enum": [false]},
+        "gpu_authority": {"enum": [false]},
+        "evaluator_authority": {"enum": [false]},
+        "promotion_authority": {"enum": [false]}
+      }
+    },
+    "side_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_mutated", "gpu_execution_started", "evaluator_modified"],
+      "properties": {
+        "source_mutated": {"enum": [false]},
+        "gpu_execution_started": {"enum": [false]},
+        "evaluator_modified": {"enum": [false]}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

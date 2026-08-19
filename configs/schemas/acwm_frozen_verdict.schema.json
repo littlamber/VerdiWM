@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "verification_state",
+    "verdict_authority",
+    "decision",
+    "contract_id",
+    "contract_digest",
+    "contract_ref",
+    "policy_id",
+    "policy_digest",
+    "policy_ref",
+    "verifier_implementation_sha256",
+    "verifier_ref",
+    "selection_policy",
+    "primary_metric_id",
+    "tie_breaker",
+    "selected_candidate",
+    "candidates",
+    "campaign_refs",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-acwm-frozen-verdict"]},
+    "verification_state": {"enum": ["verified"]},
+    "verdict_authority": {"enum": [true]},
+    "decision": {"enum": ["selected", "abstained"]},
+    "contract_id": {"type": "string", "minLength": 1},
+    "contract_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "contract_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "policy_id": {"type": "string", "minLength": 1},
+    "policy_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "policy_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "verifier_implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "verifier_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "selection_policy": {"enum": ["maximum_confirm_primary_improvement_v1"]},
+    "primary_metric_id": {"type": "string", "minLength": 1},
+    "tie_breaker": {"enum": ["candidate_id_ascending"]},
+    "selected_candidate": {"type": ["object", "null"]},
+    "candidates": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "campaign_refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "screen_summary",
+        "screen_input_lock",
+        "screen_batch",
+        "screen_baseline",
+        "confirm_summary",
+        "confirm_input_lock",
+        "confirm_batch",
+        "confirm_baseline"
+      ],
+      "properties": {
+        "screen_summary": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "screen_input_lock": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "screen_batch": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "screen_baseline": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "confirm_summary": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "confirm_input_lock": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "confirm_batch": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+        "confirm_baseline": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "readiness_id",
+    "portrait_id",
+    "portrait_digest",
+    "model_capability_id",
+    "model_capability_digest",
+    "goal_binding",
+    "coverage_policy_id",
+    "requirements",
+    "coverage",
+    "evaluator_binding",
+    "state",
+    "blockers",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-portrait-readiness-receipt"]},
+    "readiness_id": {"type": "string", "pattern": "^portrait-readiness-[0-9a-f]{24}$"},
+    "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+    "portrait_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "model_capability_id": {"type": "string", "minLength": 1},
+    "model_capability_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "goal_binding": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "coverage_policy_id": {"type": "string", "minLength": 1},
+    "requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilities",
+        "execution_interfaces",
+        "hooks",
+        "probe_coverage",
+        "operational_metrics",
+        "evaluator_required"
+      ],
+      "properties": {
+        "capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "execution_interfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "contract_id"],
+            "properties": {
+              "kind": {"type": "string", "minLength": 1},
+              "contract_id": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "probe_coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "probe_protocol_id",
+              "probe_protocol_version",
+              "diagnostic_role",
+              "context_class",
+              "split",
+              "horizons",
+              "dose_values",
+              "minimum_replication_count",
+              "coverage_key"
+            ],
+            "properties": {
+              "probe_protocol_id": {"type": "string", "minLength": 1},
+              "probe_protocol_version": {"type": "string", "pattern": "^v[0-9]+$"},
+              "diagnostic_role": {"enum": ["diagnostic", "ranking", "transfer_screen"]},
+              "context_class": {"type": "string", "minLength": 1},
+              "split": {"type": "string", "minLength": 1},
+              "horizons": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "integer", "minimum": 1}
+              },
+              "dose_values": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "number"}
+              },
+              "minimum_replication_count": {"type": "integer", "minimum": 1},
+              "coverage_key": {"type": "string", "pattern": "^probe-coverage-[0-9a-f]{24}$"}
+            }
+          }
+        },
+        "operational_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "evaluator_required": {"type": "boolean"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "satisfied_capabilities",
+        "satisfied_execution_interfaces",
+        "satisfied_hooks",
+        "satisfied_probe_keys",
+        "satisfied_fingerprint_ids",
+        "satisfied_operational_metrics"
+      ],
+      "properties": {
+        "satisfied_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "satisfied_execution_interfaces": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "satisfied_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "satisfied_probe_keys": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^probe-coverage-[0-9a-f]{24}$"}
+        },
+        "satisfied_fingerprint_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"}
+        },
+        "satisfied_operational_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "evaluator_binding": {
+      "type": ["string", "null"],
+      "pattern": "^(cas://|urn:|sha256:)"
+    },
+    "state": {
+      "enum": [
+        "ready_for_gap_planning",
+        "requires_static_onboarding",
+        "requires_probe_coverage",
+        "requires_interface_extension",
+        "requires_evaluator_binding",
+        "conflicting_evidence",
+        "stale_portrait"
+      ]
+    },
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}
+    }
+  }
+}

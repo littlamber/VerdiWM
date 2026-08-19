@@ -177,6 +177,51 @@ class EffectMemory:
         destination.write_text(text, encoding="utf-8")
         return destination
 
+    def portable_experiences(
+        self,
+        *,
+        certificates: Mapping[str, object] | None = None,
+        applicability: Mapping[str, object] | None = None,
+        anti_conditions: Sequence[str] = (),
+    ) -> tuple[dict[str, object], ...]:
+        """Return path-independent derived views of the existing effect memory."""
+
+        from wmloop.geometry.portable_experience import build_portable_experience
+
+        supplied = certificates or {}
+        return tuple(
+            build_portable_experience(
+                record,
+                transfer_certificate=supplied.get(record.record_id),
+                applicability=applicability,
+                anti_conditions=anti_conditions,
+            )
+            for record in self.records()
+        )
+
+    def write_portable_jsonl(
+        self,
+        path: Path,
+        *,
+        certificates: Mapping[str, object] | None = None,
+        applicability: Mapping[str, object] | None = None,
+        anti_conditions: Sequence[str] = (),
+    ) -> Path:
+        """Persist a deterministic portable projection as a derived view."""
+
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        rows = self.portable_experiences(
+            certificates=certificates,
+            applicability=applicability,
+            anti_conditions=anti_conditions,
+        )
+        destination.write_text(
+            "".join(json.dumps(row, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        return destination
+
 
 def build_transferable_experience(
     effect: EffectRecord,

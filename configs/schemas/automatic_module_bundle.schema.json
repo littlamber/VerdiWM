@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "bundle_digest", "candidate_id", "idea_id", "abi_id", "module_path", "test_path", "descriptor_path", "module_source", "module_source_sha256", "test_source", "test_source_sha256", "descriptor"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-automatic-module-bundle"]},
+    "bundle_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "idea_id": {"type": "string", "minLength": 1},
+    "abi_id": {"type": "string", "minLength": 1},
+    "module_path": {"type": "string", "minLength": 1},
+    "test_path": {"type": "string", "minLength": 1},
+    "descriptor_path": {"type": "string", "minLength": 1},
+    "module_source": {"type": "string", "minLength": 1},
+    "module_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "test_source": {"type": "string", "minLength": 1},
+    "test_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "descriptor": {"type": "object"}
+  }
+}

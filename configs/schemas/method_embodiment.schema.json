@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "embodiment_id",
+    "mechanism_id",
+    "materialization_class",
+    "implementation_revision",
+    "interface_contracts",
+    "implementation_state",
+    "claim_boundary",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-method-embodiment"]},
+    "embodiment_id": {"type": "string", "pattern": "^embodiment-[0-9a-f]{24}$"},
+    "mechanism_id": {"type": "string", "pattern": "^mechanism-[0-9a-f]{24}$"},
+    "materialization_class": {"enum": ["source_faithful", "derived_embodiment", "interface_extension", "architecture_bound"]},
+    "implementation_revision": {"type": "string", "minLength": 3, "pattern": "^[a-zA-Z0-9._:-]+$"},
+    "interface_contracts": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "implementation_state": {"enum": ["proposed", "implemented", "blocked", "screened", "confirmed"]},
+    "claim_boundary": {"type": "string", "minLength": 1},
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}
+    }
+  }
+}

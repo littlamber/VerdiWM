@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "registry_id", "registry_digest", "abis"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-automatic-module-abi-registry"]},
+    "registry_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "registry_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "abis": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["abi_id", "model_family", "candidate_kind", "module_path", "test_path", "test_template", "evaluator", "required_symbol", "positional_parameters", "keyword_parameters", "required_model_capabilities", "capability_aliases", "required_hooks", "allowed_imports", "maximum_source_bytes", "estimated_gpu_hours", "candidate_parameters", "forbidden_changed_paths", "implementation_contract"],
+        "properties": {
+          "abi_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+          "model_family": {"type": "string", "minLength": 1},
+          "candidate_kind": {"type": "string", "minLength": 1},
+          "module_path": {"type": "string", "minLength": 1},
+          "test_path": {"type": "string", "minLength": 1},
+          "test_template": {"type": "string", "minLength": 1},
+          "evaluator": {"type": "string", "minLength": 1},
+          "required_symbol": {"type": "string", "minLength": 1},
+          "positional_parameters": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "keyword_parameters": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "required_model_capabilities": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "capability_aliases": {"type": "object"},
+          "required_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "allowed_imports": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "maximum_source_bytes": {"type": "integer", "minimum": 1},
+          "estimated_gpu_hours": {"type": "number", "exclusiveMinimum": 0},
+          "candidate_parameters": {"type": "object"},
+          "forbidden_changed_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+          "implementation_contract": {"type": "object"}
+        }
+      }
+    }
+  }
+}

@@ -36,6 +36,11 @@ done
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
+public_release=false
+if [[ -f .verdiwm-public-release ]]; then
+  public_release=true
+fi
+
 command -v git >/dev/null || { echo "release preflight requires git" >&2; exit 2; }
 command -v uv >/dev/null || { echo "release preflight requires uv" >&2; exit 2; }
 
@@ -61,7 +66,11 @@ staging_dir="$work_dir/modelscope-repository"
 venv_dir="$work_dir/venv"
 mkdir -p "$artifact_dir"
 
-scripts/ci/check_control_plane.sh
+if $public_release; then
+  scripts/ci/check_public_release.sh
+else
+  scripts/ci/check_control_plane.sh
+fi
 uv build --sdist --wheel --out-dir "$artifact_dir"
 
 wheel_path="$(find "$artifact_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
@@ -69,12 +78,12 @@ sdist_path="$(find "$artifact_dir" -maxdepth 1 -type f -name 'verdiwm-*.tar.gz' 
 test -n "$wheel_path"
 test -n "$sdist_path"
 
-python - "$wheel_path" "$sdist_path" <<'PY'
+python - "$wheel_path" "$sdist_path" "$public_release" <<'PY'
 import sys
 import tarfile
 import zipfile
 
-wheel_path, sdist_path = sys.argv[1:]
+wheel_path, sdist_path, public_release_arg = sys.argv[1:]
 wheel_required = {
     "wmloop/cli.py",
     "wmloop/geometry/memory.py",
@@ -116,7 +125,12 @@ forbidden_exact = {
     "MANIFEST.sha256",
     "RELEASE_AUDIT.json",
 }
-forbidden_prefixes = (".hypothesis/", "examples/", "figures/", "ops/")
+public_release = public_release_arg == "true"
+forbidden_prefixes = (
+    (".hypothesis/", "figures/", "ops/")
+    if public_release
+    else (".hypothesis/", "examples/", "figures/", "ops/")
+)
 unexpected = sorted(
     name
     for name in sdist_names
@@ -155,6 +169,23 @@ with open(sys.argv[1], encoding="utf-8") as handle:
 if audit.get("state") != "ready" or not all(audit.get("checks", {}).values()):
     raise SystemExit("release staging audit is not ready")
 PY
+
+staged_artifact_dir="$work_dir/public-tree-artifacts"
+mkdir -p "$staged_artifact_dir"
+(
+  cd "$staging_dir"
+  uv build --sdist --wheel --out-dir "$staged_artifact_dir"
+  uv run python scripts/export/validate_portrait_first_public_example.py \
+    examples/portrait_first_minimal_loop_v1 >/dev/null
+)
+staged_wheel_path="$(find "$staged_artifact_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
+test -n "$staged_wheel_path"
+staged_venv_dir="$work_dir/public-tree-venv"
+uv venv --python 3.10 "$staged_venv_dir"
+uv pip install --python "$staged_venv_dir/bin/python" --no-deps --offline "$staged_wheel_path"
+"$staged_venv_dir/bin/verdiwm" --help >/dev/null
+"$staged_venv_dir/bin/verdiwm" doctor >/dev/null
+"$staged_venv_dir/bin/verdiwm-ctrl-world-autonomous-transfer" --help >/dev/null
 
 if [[ -n "$output_dir" ]]; then
   if [[ -e "$output_dir" ]]; then

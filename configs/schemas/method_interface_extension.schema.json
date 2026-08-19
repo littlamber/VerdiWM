@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "extension_id",
+    "method_id",
+    "requested_surface",
+    "semantic_role",
+    "typed_inputs",
+    "typed_outputs",
+    "side_effect_class",
+    "conformance_tests",
+    "negative_tests",
+    "authority",
+    "state",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-method-interface-extension"]},
+    "extension_id": {"type": "string", "pattern": "^method-interface-extension-[0-9a-f]{24}$"},
+    "method_id": {"type": "string", "pattern": "^method-ir-[0-9a-f]{24}$"},
+    "requested_surface": {"type": "string", "minLength": 1},
+    "semantic_role": {"type": "string", "minLength": 1},
+    "typed_inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "contract"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "typed_outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "contract"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "contract": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "side_effect_class": {
+      "enum": ["read_only_observation", "training_hook", "inference_hook", "data_transform", "candidate_intervention"]
+    },
+    "conformance_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "negative_tests": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_mutation", "evaluator_mutation", "active_metric_mutation", "gpu_scheduling", "promotion"],
+      "properties": {
+        "source_mutation": {"const": false},
+        "evaluator_mutation": {"const": false},
+        "active_metric_mutation": {"const": false},
+        "gpu_scheduling": {"const": false},
+        "promotion": {"const": false}
+      }
+    },
+    "state": {"enum": ["proposed", "conformance_passed", "rejected"]},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

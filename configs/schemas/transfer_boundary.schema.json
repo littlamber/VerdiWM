@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "boundary_id",
+    "mechanism_id",
+    "embodiment_id",
+    "source_fingerprint_id",
+    "target_fingerprint_id",
+    "target_model_capability_id",
+    "required_capabilities",
+    "anti_conditions",
+    "outcome_state",
+    "claim_scope",
+    "boundary_statement",
+    "evaluator_binding",
+    "verdict_ref",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-transfer-boundary"]},
+    "boundary_id": {"type": "string", "pattern": "^transfer-boundary-[0-9a-f]{24}$"},
+    "mechanism_id": {"type": "string", "pattern": "^mechanism-[0-9a-f]{24}$"},
+    "embodiment_id": {"type": "string", "pattern": "^embodiment-[0-9a-f]{24}$"},
+    "source_fingerprint_id": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"},
+    "target_fingerprint_id": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"},
+    "target_model_capability_id": {"type": "string", "minLength": 1},
+    "required_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "anti_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "outcome_state": {"enum": ["exploratory", "screen_only", "target_confirmed", "verified_negative_boundary", "licensed_transfer"]},
+    "claim_scope": {"enum": ["ranking_only", "target_local", "transfer_prior"]},
+    "boundary_statement": {"type": "string", "minLength": 1},
+    "evaluator_binding": {"type": ["string", "null"]},
+    "verdict_ref": {"type": ["string", "null"]},
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}
+    }
+  }
+}

@@ -699,6 +699,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "tenacity" },
+    { name = "tomli" },
 ]
 
 [package.dev-dependencies]
@@ -718,6 +719,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.8,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "tenacity", specifier = ">=9,<10" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2,<3" },
 ]
 
 [package.metadata.requires-dev]

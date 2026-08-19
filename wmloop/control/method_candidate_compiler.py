@@ -196,7 +196,40 @@ def _candidate_blockers(
                     "path": str(path),
                 }
             )
+    blockers.extend(_materialization_receipt_blockers(candidate))
     return blockers
+
+
+def _materialization_receipt_blockers(
+    candidate: Mapping[str, object],
+) -> list[dict[str, object]]:
+    raw_path = candidate.get("materialization_receipt_path")
+    expected = candidate.get("materialization_receipt_sha256")
+    if raw_path is None and expected is None:
+        return []
+    if not isinstance(raw_path, str) or not raw_path or not isinstance(expected, str):
+        return [{"code": "MATERIALIZATION_RECEIPT_BINDING_MISSING"}]
+    path = Path(raw_path)
+    if path.is_symlink() or not path.is_file():
+        return [{"code": "MATERIALIZATION_RECEIPT_MISSING", "path": raw_path}]
+    payload = path.read_bytes()
+    if _sha256(payload) != expected:
+        return [{"code": "MATERIALIZATION_RECEIPT_HASH_MISMATCH", "path": raw_path}]
+    try:
+        receipt = json.loads(payload)
+    except json.JSONDecodeError:
+        return [{"code": "MATERIALIZATION_RECEIPT_INVALID", "path": raw_path}]
+    side_effects = receipt.get("side_effects") if isinstance(receipt, Mapping) else None
+    if (
+        not isinstance(receipt, Mapping)
+        or receipt.get("artifact_type") != "verdiwm-automatic-materialization-receipt"
+        or receipt.get("state") != "ready_for_candidate_compilation"
+        or receipt.get("candidate_id") != candidate.get("candidate_id")
+        or not isinstance(side_effects, Mapping)
+        or side_effects.get("candidate_compilation_authority") is not True
+    ):
+        return [{"code": "MATERIALIZATION_RECEIPT_NOT_ADMITTED", "path": raw_path}]
+    return []
 
 
 def _load_settlement_constraints(path: Path | None) -> list[dict[str, object]]:

@@ -147,7 +147,25 @@
     "settlement_state": "settled_abstained",
     "state": "ready"
   },
-  "file_count_before_manifest": 1035,
+  "file_count_before_manifest": 1331,
+  "portrait_first_validation": {
+    "artifact_type": "verdiwm-public-portrait-first-demo",
+    "authority": {
+      "gpu_authority": false,
+      "module_manufacturing_authority": false,
+      "promotion_authority": false
+    },
+    "capability_id": "model-capability-59744411b3e971008b5020a4",
+    "claim_boundary": "This CPU fixture validates control-plane contracts only; it makes no model-quality claim.",
+    "gap_plan_id": "gap-plan-752ae8a681488793de15a097",
+    "gap_plan_state": "ready_for_portfolio",
+    "portrait_id": "model-portrait-6a3f2db56ece8bf4c3b193e8",
+    "readiness_id": "portrait-readiness-94eef0f51d7f67a4285613fb",
+    "readiness_state": "ready_for_gap_planning",
+    "requirement_classification": "satisfied",
+    "schema_version": 1,
+    "state": "ready"
+  },
   "public_example_validation": {
     "artifact_count": 9,
     "artifact_type": "verdiwm-public-example-validation",
@@ -173,22 +191,6 @@
     "showcase_confirmed_case_count": 4,
     "state": "ready"
   },
-  "r31_cross_backbone_runtime_validation": {
-    "artifact_type": "verdiwm-r31-cross-backbone-runtime-bundle",
-    "backbones": [
-      "ctrl_world",
-      "cosmos3"
-    ],
-    "cold_vs_warm_identifiable": false,
-    "dose_count_per_backbone": 3,
-    "model_improvement_established": false,
-    "observed_confirm_count": 0,
-    "probe_id": "cpbe_residual_63f088b0d5",
-    "r31_exact_portability_ready": true,
-    "runtime_invariants_passed": true,
-    "state": "ready",
-    "transfer_established": false
-  },
   "release_notes": [
     "Training data, model checkpoints, run outputs, archive databases, and vendor checkouts are excluded.",
     "VerdiWM source code is distributed under Apache-2.0; external assets retain their upstream terms."
@@ -196,7 +198,7 @@
   "schema_version": 1,
   "source_license": "Apache-2.0",
   "state": "ready",
-  "total_bytes_before_manifest": 23367577,
+  "total_bytes_before_manifest": 26451736,
   "training_seed_horizon_validation": {
     "artifact_type": "verdiwm-public-training-seed-horizon-bundle-validation",
     "manifest_entry_count": 16,

@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "portrait_id",
+    "model_capability_id",
+    "model_capability_digest",
+    "model_family",
+    "source_revision",
+    "parent_portrait_id",
+    "transition_ref",
+    "structural_profile",
+    "behavioral_fingerprints",
+    "operational_profile",
+    "coverage",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-model-portrait"]},
+    "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+    "model_capability_id": {"type": "string", "minLength": 1},
+    "model_capability_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "model_family": {"type": "string", "minLength": 1},
+    "source_revision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {"enum": ["git_commit", "source_tree_sha256", "none"]},
+        "value": {"type": "string", "minLength": 1}
+      }
+    },
+    "parent_portrait_id": {
+      "type": ["string", "null"],
+      "pattern": "^model-portrait-[0-9a-f]{24}$"
+    },
+    "transition_ref": {
+      "type": ["string", "null"],
+      "pattern": "^(cas://|urn:|sha256:)"
+    },
+    "structural_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capabilities",
+        "execution_interfaces",
+        "hooks",
+        "asset_classes",
+        "evaluator"
+      ],
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["capability", "state", "evidence_count"],
+            "properties": {
+              "capability": {"type": "string", "minLength": 1},
+              "state": {"enum": ["available", "unavailable", "unknown"]},
+              "evidence_count": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "execution_interfaces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "contract_id", "state"],
+            "properties": {
+              "kind": {"type": "string", "minLength": 1},
+              "contract_id": {"type": "string", "minLength": 1},
+              "state": {"enum": ["available", "unavailable", "unknown"]}
+            }
+          }
+        },
+        "hooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["hook", "state", "semantic_role", "binding_contract"],
+            "properties": {
+              "hook": {"type": "string", "minLength": 1},
+              "state": {"enum": ["available", "unavailable", "unknown"]},
+              "semantic_role": {"type": "string", "minLength": 1},
+              "binding_contract": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "asset_classes": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        },
+        "evaluator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "evaluator_id", "contract_digest", "verifier"],
+          "properties": {
+            "state": {"enum": ["ready", "binding_required", "blocked"]},
+            "evaluator_id": {"type": ["string", "null"]},
+            "contract_digest": {"type": ["string", "null"]},
+            "verifier": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
+    "behavioral_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fingerprint_id",
+          "model_capability_id",
+          "probe_protocol_id",
+          "probe_protocol_version",
+          "diagnostic_role",
+          "context_class",
+          "split",
+          "horizons",
+          "dose_values",
+          "replication_count",
+          "response_digest",
+          "coverage_key",
+          "state"
+        ],
+        "properties": {
+          "fingerprint_id": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"},
+          "model_capability_id": {"type": "string", "minLength": 1},
+          "probe_protocol_id": {"type": "string", "minLength": 1},
+          "probe_protocol_version": {"type": "string", "pattern": "^v[0-9]+$"},
+          "diagnostic_role": {"enum": ["diagnostic", "ranking", "transfer_screen"]},
+          "context_class": {"type": "string", "minLength": 1},
+          "split": {"type": "string", "minLength": 1},
+          "horizons": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "integer", "minimum": 1}
+          },
+          "dose_values": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "number"}
+          },
+          "replication_count": {"type": "integer", "minimum": 1},
+          "response_digest": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+          "coverage_key": {"type": "string", "pattern": "^probe-coverage-[0-9a-f]{24}$"},
+          "state": {"enum": ["current", "stale"]}
+        }
+      }
+    },
+    "operational_profile": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["metric", "state", "summary", "evidence_refs"],
+        "properties": {
+          "metric": {"type": "string", "minLength": 1},
+          "state": {"enum": ["observed", "unknown", "unavailable"]},
+          "summary": {"type": "string", "minLength": 1},
+          "evidence_refs": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available_capabilities",
+        "unknown_capabilities",
+        "unavailable_capabilities",
+        "available_execution_interfaces",
+        "unknown_execution_interfaces",
+        "unavailable_execution_interfaces",
+        "available_hooks",
+        "unknown_hooks",
+        "unavailable_hooks",
+        "observed_probe_keys",
+        "stale_fingerprint_ids",
+        "conflicts",
+        "unknown_operational_metrics"
+      ],
+      "properties": {
+        "available_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unknown_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unavailable_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "available_execution_interfaces": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unknown_execution_interfaces": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unavailable_execution_interfaces": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "available_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unknown_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "unavailable_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "observed_probe_keys": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^probe-coverage-[0-9a-f]{24}$"}
+        },
+        "stale_fingerprint_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"}
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["coverage_key", "fingerprint_ids"],
+            "properties": {
+              "coverage_key": {"type": "string", "pattern": "^probe-coverage-[0-9a-f]{24}$"},
+              "fingerprint_ids": {
+                "type": "array",
+                "minItems": 2,
+                "items": {"type": "string", "pattern": "^fingerprint-[0-9a-f]{24}$"}
+              }
+            }
+          }
+        },
+        "unknown_operational_metrics": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}
+    }
+  }
+}

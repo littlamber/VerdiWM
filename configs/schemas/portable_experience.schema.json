@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "artifact_type", "portable_knowledge", "applicability", "anti_conditions", "evidence_refs", "portability"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "artifact_type": {"enum": ["verdiwm-transferable-experience"]},
+    "portable_knowledge": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_family", "capability_class", "goal_protocol", "outcome_protocol", "dataset_regime", "horizons", "primitive"],
+      "properties": {
+        "model_family": {"type": "string", "minLength": 1},
+        "capability_class": {"type": "string", "minLength": 1},
+        "goal_protocol": {"type": "string", "minLength": 1},
+        "outcome_protocol": {"type": "string", "minLength": 1},
+        "dataset_regime": {"type": "string", "minLength": 1},
+        "horizons": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "primitive": {"type": "string", "minLength": 1}
+      }
+    },
+    "applicability": {"type": "object"},
+    "anti_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evidence_refs": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}},
+    "portability": {
+      "type": "object", "additionalProperties": false,
+      "required": ["knowledge_scope", "runtime_bindings_excluded", "evidence_ref_schemes"],
+      "properties": {
+        "knowledge_scope": {"type": "string", "minLength": 1},
+        "runtime_bindings_excluded": {"enum": [true]},
+        "evidence_ref_schemes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-system-utility-audit",
+  "audit_id": "system_utility_audit_v1",
+  "inputs": [
+    {
+      "id": "minimal_loop",
+      "path": "examples/acwm_minimal_loop_cloth_next_forcing_v2/minimal-loop-proof.json",
+      "artifact_type": "verdiwm-minimal-loop-proof"
+    },
+    {
+      "id": "progressive_fidelity",
+      "path": "examples/acwm_progressive_fidelity_efficiency_v1/summary.json",
+      "artifact_type": "verdiwm-public-progressive-fidelity-efficiency"
+    },
+    {
+      "id": "selector_replay",
+      "path": "examples/acwm_selector_ablation_v1/selector-replay.json",
+      "artifact_type": "verdiwm-acwm-selector-cpu-replay"
+    },
+    {
+      "id": "ctrl_world_local_chart",
+      "path": "examples/ctrl_world_target_local_irg_v1/settlement.json",
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-settlement"
+    },
+    {
+      "id": "ctrl_world_formal_chart",
+      "path": "examples/ctrl_world_paper_split_abstention_v1/settlement.json",
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-settlement"
+    },
+    {
+      "id": "cross_backbone_runtime",
+      "path": "examples/r31_cross_backbone_runtime_v1/bundle.json",
+      "artifact_type": "verdiwm-r31-cross-backbone-runtime-bundle"
+    },
+    {
+      "id": "ctrl_world_profiles",
+      "path": "configs/retrieval/ctrl_world_settled_mechanism_profiles_v2.json",
+      "artifact_type": "wmloop-mechanism-reference-profiles"
+    }
+  ],
+  "thresholds": {
+    "minimum_gpu_hour_reduction": 0.05,
+    "minimum_positive_recall": 0.7,
+    "maximum_selector_negative_selection": 0.25,
+    "minimum_selector_choice_divergence_environment_count": 1,
+    "minimum_confirm_receipts": 1
+  },
+  "next_work": [
+    "obtain a formally admitted Ctrl-World chart on an independent target split",
+    "promote only target-side confirmed mechanisms after frozen verification",
+    "re-run the canary after selector discrimination is measurable"
+  ]
+}

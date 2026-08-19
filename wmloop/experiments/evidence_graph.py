@@ -199,6 +199,9 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
         "receipt_ref": "receipt",
         "verdict_ref": "verdict",
         "certificate_status": "certificate",
+        "source_id": "research_source",
+        "assessment_digest": "source_assessment",
+        "implementation_revision": "implementation",
     }
     for field, kind in kind_map.items():
         value = payload.get(field)
@@ -222,8 +225,12 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
             "receipt_ref": "supported_by_receipt",
             "verdict_ref": "supported_by_verdict",
             "certificate_status": "has_certificate",
+            "source_id": "derived_from_research_source",
+            "assessment_digest": "bound_to_source_assessment",
+            "implementation_revision": "implemented_by_revision",
         }[field]
         graph.edge(root, relation, child, evidence=source)
+    _project_portable_experience(graph, payload, root=root, source=source)
     settlement = payload.get("settlement")
     settlement_state = settlement.get("state") if isinstance(settlement, Mapping) else None
     evidence_scope = (
@@ -236,7 +243,50 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
         or settlement_state == "settled"
         or payload.get("verification_state") in {"settled", "verified"}
     )
-    if is_settled and evidence_scope == "exploratory":
+    stage = str(
+        payload.get("stage")
+        or (settlement.get("stage") if isinstance(settlement, Mapping) else "")
+        or ""
+    )
+    verification_state = str(payload.get("verification_state") or "")
+    verdict_ref = payload.get("verdict_ref")
+    frozen_verifier_bound = (
+        verification_state == "verified"
+        and stage == "confirm"
+        and isinstance(verdict_ref, str)
+        and _is_content_addressed(verdict_ref)
+    )
+    outcome = str(payload.get("outcome") or "")
+    verified_negative = (
+        verification_state == "verified"
+        and outcome in {"rejected_at_screen", "rejected_at_confirm"}
+        and isinstance(verdict_ref, str)
+        and _is_content_addressed(verdict_ref)
+    )
+    verified_operational_failure = (
+        verification_state == "verified"
+        and outcome == "operational_failure"
+        and isinstance(verdict_ref, str)
+        and _is_content_addressed(verdict_ref)
+    )
+    if verified_negative:
+        negative = graph.node(
+            "verified_negative_evidence",
+            f"{artifact}:{identity}:{ordinal}",
+            source=source,
+            artifact_type=artifact,
+            outcome=outcome,
+        )
+        graph.edge(root, "provides_verified_negative_boundary", negative, evidence=source)
+    elif verified_operational_failure:
+        operational = graph.node(
+            "verified_operational_failure",
+            f"{artifact}:{identity}:{ordinal}",
+            source=source,
+            artifact_type=artifact,
+        )
+        graph.edge(root, "records_verified_operational_failure", operational, evidence=source)
+    elif is_settled and (evidence_scope == "exploratory" or stage in {"screen", "gate"}):
         exploratory = graph.node(
             "exploratory_evidence",
             f"{artifact}:{identity}:{ordinal}",
@@ -249,12 +299,29 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
             exploratory,
             evidence=source,
         )
-    elif is_settled:
+    elif frozen_verifier_bound:
         verified = graph.node("verified_evidence", f"{artifact}:{identity}:{ordinal}", source=source, artifact_type=artifact)
         graph.edge(root, "provides_verified_evidence", verified, evidence=source)
+    elif is_settled and stage == "confirm":
+        confirmed = graph.node(
+            "confirmation_pending_verifier",
+            f"{artifact}:{identity}:{ordinal}",
+            source=source,
+            artifact_type=artifact,
+        )
+        graph.edge(root, "provides_target_confirmation", confirmed, evidence=source)
+    elif is_settled:
+        unclassified = graph.node(
+            "settled_unclassified_evidence",
+            f"{artifact}:{identity}:{ordinal}",
+            source=source,
+            artifact_type=artifact,
+        )
+        graph.edge(root, "provides_unclassified_evidence", unclassified, evidence=source)
     licensed_certificate = (
         payload.get("certificate_status") == "licensed"
         and payload.get("stage") == "confirm"
+        and frozen_verifier_bound
     ) or (
         payload.get("artifact_type") == "verdiwm-transfer-certificate"
         and payload.get("status") == "licensed"
@@ -272,6 +339,63 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
             if isinstance(value, (str, int)):
                 child = graph.node("evidence", str(value), source=source)
                 graph.edge(root, relation, child, evidence=source)
+
+
+def _project_portable_experience(
+    graph: EvidenceGraph,
+    payload: Mapping[str, Any],
+    *,
+    root: str,
+    source: str,
+) -> None:
+    if payload.get("artifact_type") != "verdiwm-transferable-experience":
+        return
+    knowledge = payload.get("portable_knowledge")
+    evidence_ir = payload.get("evidence_ir")
+    if not isinstance(knowledge, Mapping) or not isinstance(evidence_ir, Mapping):
+        return
+    mappings = (
+        ("model_family", "backbone", "observed_on_backbone"),
+        ("capability_class", "capability", "requires_capability"),
+        ("goal_protocol", "goal_protocol", "evaluated_under_goal"),
+        ("outcome_protocol", "outcome_protocol", "measured_by_outcome"),
+        ("dataset_regime", "dataset_regime", "observed_in_regime"),
+        ("primitive", "primitive", "tests_primitive"),
+    )
+    for field, kind, relation in mappings:
+        value = knowledge.get(field)
+        if isinstance(value, str) and value:
+            child = graph.node(kind, value, source=source, value=value)
+            graph.edge(root, relation, child, evidence=source)
+    for condition in payload.get("anti_conditions", []):
+        if isinstance(condition, str) and condition:
+            child = graph.node("anti_condition", condition, source=source)
+            graph.edge(root, "bounded_by", child, evidence=source)
+    status = evidence_ir.get("status")
+    authority = evidence_ir.get("authority")
+    if not isinstance(status, Mapping) or not isinstance(authority, Mapping):
+        return
+    if (
+        status.get("state") == "transfer_licensed"
+        and authority.get("claim_scope") == "transfer_prior"
+        and _is_content_addressed(authority.get("goal_binding"))
+        and _is_content_addressed(authority.get("evaluator_binding"))
+    ):
+        licensed = graph.node(
+            "transfer_license",
+            str(evidence_ir.get("evidence_id") or payload.get("portable_experience_id")),
+            source=source,
+            status="licensed",
+        )
+        graph.edge(root, "licenses_transfer_prior", licensed, evidence=source)
+
+
+def _is_content_addressed(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    if value.startswith(("cas://", "urn:")):
+        return len(value.split(":", 1)[1]) > 0
+    return value.startswith("sha256:") and len(value) == len("sha256:") + 64
 
 
 def write_evidence_graph(
@@ -491,3 +615,7 @@ def main() -> int:
     args = parser.parse_args()
     print(json.dumps(write_evidence_graph(input_root=args.input_root, output_root=args.output_root, archive_db=args.archive_db), sort_keys=True))
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
