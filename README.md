@@ -6,6 +6,10 @@ This release is intentionally small. It proves the control-plane loop with a
 CPU fixture adapter; model-specific runtimes are external adapters and are not
 part of the kernel.
 
+Users provide access manifests, not research infrastructure. The system can
+generate and test a thin model/data adapter from SDK documentation and a data
+manifest; see `docs/USER_BOUNDARY.md`.
+
 The kernel owns contracts, receipts, budgets, experiment state, verification,
 and knowledge projection. An adapter owns model loading, inference, probes, and
 interventions. A knowledge record contains semantic identities and evidence
