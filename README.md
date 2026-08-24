@@ -28,6 +28,11 @@ python -m venv .venv
 .venv/bin/verdi graph --state-root state/demo
 ```
 
+For optional AI autonomy, set `VERDI_AI_BASE_URL`, `VERDI_AI_API_KEY`, and
+`VERDI_AI_MODEL`. Any OpenAI-compatible endpoint works; the same provider is
+used for planning, both extraction routes, metric selection, and probe
+evolution.
+
 The demo runs: onboarding -> probe fingerprint -> model portrait -> paired
 screen -> frozen verification -> positive/null/harmful knowledge projection.
 It is a contract test, not a claim about a real model.

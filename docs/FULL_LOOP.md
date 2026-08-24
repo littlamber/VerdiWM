@@ -41,3 +41,19 @@ The fixture adapter demonstrates the wiring offline. It is not scientific
 evidence for a real world model. Real network search, AI providers, evaluators,
 and workers are injected at runtime and remain outside the Kernel dependency
 set.
+
+## Evaluator vs Worker
+
+The **experiment worker** performs the expensive action: it may train a
+candidate, run rollouts, render predictions, or apply an inference-time
+intervention. It returns raw artifacts and measurements through the model
+adapter. The **evaluator** is the frozen judge: it loads the held-out split,
+computes the selected metrics, checks protected metrics, and emits the outcome
+classification. A worker can be GPU/distributed while an evaluator can be CPU
+or a separate service. Keeping them separate prevents a training process from
+grading itself with mutable data or metrics.
+
+All AI roles use one OpenAI-compatible provider. Configure
+`VERDI_AI_BASE_URL`, `VERDI_AI_API_KEY`, and `VERDI_AI_MODEL`; planner,
+`paper_extractor`, `code_extractor`, metric advisor, and probe evolver calls
+share that endpoint while retaining distinct role prompts and audit fields.

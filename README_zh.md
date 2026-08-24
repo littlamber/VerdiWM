@@ -12,4 +12,8 @@ python -m venv .venv
 .venv/bin/verdi graph --state-root state/demo
 ```
 
+如需启用 AI 自主能力，只需配置 `VERDI_AI_BASE_URL`、
+`VERDI_AI_API_KEY`、`VERDI_AI_MODEL`。所有规划、双路文献/代码抽取、指标
+选择和探针进化都走同一个 OpenAI 兼容接口，只通过 role 区分任务。
+
 设计原则：内核轻量化、模块化、模型解耦；探针用于诊断和画像，知识图谱只沉淀带边界和验证凭据的可迁移知识，不把单模型技巧伪装成通用结论。

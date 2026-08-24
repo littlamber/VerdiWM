@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .contracts import CapabilityIR, Evidence, Portrait, canonical_digest
-from .ideas import AutonomousResearchPlanner, CandidateIdea, DualRouteIdeator
+from .ideas import AIJsonRoute, AutonomousResearchPlanner, CandidateIdea, DualRouteIdeator
 from .knowledge import KnowledgeGraph
 from .metrics import MetricAdvisor
 from .probes import ProbeEvolution, ProbeRegistry
@@ -22,7 +22,7 @@ class ResearchSystem:
     def __init__(self, bindings: RuntimeBindings, *, retriever: OnlineRetriever | None = None, ideator: DualRouteIdeator | None = None):
         self.bindings = bindings
         self.retriever = retriever
-        self.ideator = ideator
+        self.ideator = ideator or (DualRouteIdeator((AIJsonRoute(bindings.ai, "paper_extractor"), AIJsonRoute(bindings.ai, "code_extractor"))) if bindings.ai else None)
         self.metrics = MetricAdvisor(bindings.ai)
         self.probe_evolution = ProbeEvolution(bindings.ai)
         self.probes = ProbeRegistry()

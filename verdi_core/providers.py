@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -18,6 +19,14 @@ class OpenAICompatibleProvider:
     api_key: str | None = None
     timeout: float = 60.0
     provider_id: str = "openai-compatible"
+
+    @classmethod
+    def from_env(cls) -> "OpenAICompatibleProvider | None":
+        base_url = os.getenv("VERDI_AI_BASE_URL")
+        model = os.getenv("VERDI_AI_MODEL")
+        if not base_url or not model:
+            return None
+        return cls(base_url=base_url, model=model, api_key=os.getenv("VERDI_AI_API_KEY"))
 
     def complete(self, *, role: str, prompt: str) -> str:
         url = self.base_url.rstrip("/") + "/chat/completions"

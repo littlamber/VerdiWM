@@ -34,6 +34,22 @@ class IdeaRoute(Protocol):
     def extract(self, documents: list[dict[str, Any]], context: dict[str, Any]) -> list[dict[str, Any]]: ...
 
 
+class AIJsonRoute:
+    """An IdeaRoute backed by the shared OpenAI-compatible provider."""
+
+    def __init__(self, ai: AIProvider, role: str):
+        self.ai = ai
+        self.route_id = role
+
+    def extract(self, documents: list[dict[str, Any]], context: dict[str, Any]) -> list[dict[str, Any]]:
+        prompt = json.dumps({"context": context, "documents": documents, "instruction": "Extract research ideas as a JSON list. Each item must contain title, mechanism, expected_effect, required_capabilities, risks, evidence_basis."}, sort_keys=True)
+        try:
+            value = json.loads(self.ai.complete(role=self.route_id, prompt=prompt))
+            return value if isinstance(value, list) else value.get("ideas", [])
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            return []
+
+
 class AutonomousResearchPlanner:
     def __init__(self, ai: AIProvider):
         self.ai = ai
