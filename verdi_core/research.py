@@ -62,7 +62,6 @@ class ResearchSystem:
                 RetrievalLedger(self.bindings.state_root).append(acquired)
                 ingest = DocumentIngestor(Path(self.bindings.state_root) / "retrieval" / "inbox")
                 ingested = []
-                documents.extend(document.__dict__ for document in acquired)
                 for document in acquired:
                     if document.local_path and Path(document.local_path).is_file():
                         ingested.append(ingest.ingest_file(Path(document.local_path), source_url=document.url))
@@ -71,6 +70,7 @@ class ResearchSystem:
                     payload = document.__dict__
                     self.state.put_document(document.document_id, payload)
                     documents.append(payload)
+                documents.extend(document.__dict__ for document in acquired if document.status == "human_download" or not document.local_path)
                 benchmark_review = self.metrics.review_benchmarks(objective, documents[:20])
 
         ideas: list[CandidateIdea] = []

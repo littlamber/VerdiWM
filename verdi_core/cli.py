@@ -42,6 +42,10 @@ def main(argv: list[str] | None = None) -> int:
     export = commands.add_parser("export")
     export.add_argument("--state-root", type=Path, required=True)
     export.add_argument("--output", type=Path, required=True)
+    resume = commands.add_parser("resume")
+    resume.add_argument("--state-root", type=Path, required=True)
+    runs = commands.add_parser("runs")
+    runs.add_argument("--state-root", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "doctor":
         print(json.dumps({"state": "ready", "kernel": "model-agnostic", "adapter_contract": "v1"}, sort_keys=True))
@@ -81,6 +85,14 @@ def main(argv: list[str] | None = None) -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(state.export_json(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(json.dumps({"state": "exported", "output": str(args.output)}, sort_keys=True))
+        return 0
+    if args.command == "runs":
+        state = SQLiteState(args.state_root / "knowledge" / "knowledge.sqlite3")
+        print(json.dumps(state.list_rows("runs"), indent=2, sort_keys=True))
+        return 0
+    if args.command == "resume":
+        state = SQLiteState(args.state_root / "knowledge" / "knowledge.sqlite3")
+        print(json.dumps({"state": "ready", "queued": [row["experiment_id"] for row in state.list_rows("experiments") if row["state"] in {"queued", "runtime_failed"}]}, sort_keys=True))
         return 0
     if args.command == "graph":
         state = SQLiteState(args.state_root / "knowledge" / "knowledge.sqlite3")
