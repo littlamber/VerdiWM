@@ -31,6 +31,5 @@ class FixtureWorldAdapter:
             "baseline": ("null", 0.0, True),
             "bounded-repair": ("confirmed_positive", 0.12, True),
             "overdose-control": ("harmful", -0.18, False),
-        }[str(intervention["hypothesis_id"])]
+        }.get(str(intervention.get("hypothesis_id")), ("abstain", 0.0, True))
         return {"outcome": outcome[0], "delta": outcome[1], "protected_ok": outcome[2], "split": split}
-

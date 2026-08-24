@@ -11,6 +11,13 @@ and knowledge projection. An adapter owns model loading, inference, probes, and
 interventions. A knowledge record contains semantic identities and evidence
 references, never local paths or credentials.
 
+The complete composition layer is included in `verdi_core`: retrieval with
+HTML/PDF and human handoff, autonomous search planning, dual-route idea
+extraction, AI-assisted metric selection, probe evolution, and a replaceable
+scheduler. See `docs/FULL_LOOP.md` for the lifecycle. These modules are
+provider-agnostic; only the model SDK and optional AI/search providers are
+injected by the user.
+
 ## Quick start
 
 ```bash
@@ -38,4 +45,3 @@ The release intentionally does not include Ctrl-World, Cosmos, model weights,
 datasets, GPU launchers, or historical experiment bundles. Those belong in
 separate adapter/domain repositories after this clean loop passes publication
 and restart tests.
-
