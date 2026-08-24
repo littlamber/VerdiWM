@@ -1,5 +1,10 @@
 # Full Autonomous Loop
 
+> Status: this document describes the intended composition and the currently
+> available provider interfaces. The CLI fixture path is fully runnable; the
+> real web/AI/model path is an alpha integration and still requires a concrete
+> search backend, document parser, model adapter, and domain evaluator.
+
 The clean system is a composition root around one user-provided model SDK. A
 cycle runs the following stages:
 
