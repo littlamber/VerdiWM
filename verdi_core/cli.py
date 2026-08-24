@@ -48,7 +48,18 @@ def main(argv: list[str] | None = None) -> int:
     runs.add_argument("--state-root", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "doctor":
-        print(json.dumps({"state": "ready", "kernel": "model-agnostic", "adapter_contract": "v1"}, sort_keys=True))
+        provider = OpenAICompatibleProvider.from_env()
+        print(json.dumps({
+            "state": "ready",
+            "kernel": "model-agnostic",
+            "adapter_contract": "v1",
+            "ai": {
+                "configured": provider is not None,
+                "provider": provider.provider_id if provider else None,
+                "model": provider.model if provider else None,
+                "reasoning_effort": provider.reasoning_effort if provider else None,
+            },
+        }, sort_keys=True))
         return 0
     if args.command == "demo":
         print(json.dumps(run_loop(FixtureWorldAdapter(), state_root=args.state_root), indent=2, sort_keys=True))
