@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from .contracts import canonical_digest
+from .storage import SQLiteState
 
 
 @dataclass(frozen=True)
@@ -90,12 +91,33 @@ class OnlineRetriever:
         return AcquiredDocument("human_download", hit.url, str(self.inbox), None, str(last_error) if last_error else "no URL")
 
 
+class OfflineRetriever:
+    """Deterministic source backend used by the no-network release demo."""
+
+    def __init__(self, documents: list[tuple[str, str]], *, state_root: Path):
+        self.inbox = Path(state_root) / "retrieval" / "inbox"
+        self.inbox.mkdir(parents=True, exist_ok=True)
+        self.documents = documents
+
+    def retrieve(self, queries: list[str], *, limit: int = 20) -> list[AcquiredDocument]:
+        acquired = []
+        for index, (title, text) in enumerate(self.documents[:limit]):
+            path = self.inbox / f"fixture-{index}.html"
+            path.write_text(f"<html><title>{title}</title><body><p>{text}</p></body></html>", encoding="utf-8")
+            acquired.append(AcquiredDocument("acquired_html", f"fixture://{index}", str(path), "text/html"))
+        return acquired
+
+
 class RetrievalLedger:
     def __init__(self, state_root: Path):
         self.path = Path(state_root) / "retrieval" / "ledger.jsonl"
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.state = SQLiteState(Path(state_root) / "knowledge" / "knowledge.sqlite3")
 
     def append(self, documents: list[AcquiredDocument]) -> None:
         with self.path.open("a", encoding="utf-8") as handle:
             for document in documents:
-                handle.write(json.dumps(asdict(document), sort_keys=True) + "\n")
+                record = asdict(document)
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+                document_id = canonical_digest({"url": record.get("url"), "local_path": record.get("local_path"), "status": record.get("status")})[7:31]
+                self.state.put_document(document_id, record)

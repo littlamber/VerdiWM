@@ -12,6 +12,12 @@ python -m venv .venv
 .venv/bin/verdi graph --state-root state/demo
 ```
 
+要在无网络、无真实模型时验证完整的模型无关科研组合闭环：
+
+```bash
+.venv/bin/verdi cycle --offline --state-root state/cycle --objective quality
+```
+
 如需启用 AI 自主能力，只需配置 `VERDI_AI_BASE_URL`、
 `VERDI_AI_API_KEY`、`VERDI_AI_MODEL`。所有规划、双路文献/代码抽取、指标
 选择和探针进化都走同一个 OpenAI 兼容接口，只通过 role 区分任务。

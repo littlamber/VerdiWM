@@ -32,6 +32,12 @@ python -m venv .venv
 .venv/bin/verdi graph --state-root state/demo
 ```
 
+To exercise the complete model-independent composition without network access:
+
+```bash
+.venv/bin/verdi cycle --offline --state-root state/cycle --objective quality
+```
+
 For optional AI autonomy, set `VERDI_AI_BASE_URL`, `VERDI_AI_API_KEY`, and
 `VERDI_AI_MODEL`. Any OpenAI-compatible endpoint works; the same provider is
 used for planning, both extraction routes, metric selection, and probe

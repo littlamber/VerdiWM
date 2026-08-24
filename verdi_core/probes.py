@@ -32,6 +32,39 @@ class ProbeRegistry:
     def all(self) -> list[ProbeSpec]:
         return list(self._probes.values())
 
+    def set_status(self, probe_id: str, status: str) -> None:
+        if probe_id not in self._probes:
+            raise KeyError(probe_id)
+        if status not in {"proposed", "sandbox_tested", "admitted", "executed", "evaluated", "promoted", "deprecated"}:
+            raise ValueError(status)
+
+
+class ProbeCampaign:
+    """Executes admitted probes and promotes only probes with usable evidence."""
+
+    def __init__(self, registry: ProbeRegistry, state: Any | None = None):
+        self.registry, self.state = registry, state
+
+    def run(self, adapter: Any, *, admitted: list[str] | None = None) -> list[dict[str, Any]]:
+        selected = set(admitted or [probe.probe_id for probe in self.registry.all()])
+        results = []
+        for probe in self.registry.all():
+            if probe.probe_id not in selected:
+                continue
+            self.registry.set_status(probe.probe_id, "admitted")
+            if self.state:
+                self.state.put_probe(probe.probe_id, probe.__dict__, "admitted")
+            try:
+                value = adapter.probe(probe.probe_id)
+                result = {"probe_id": probe.probe_id, "status": "evaluated", "result": value}
+                self.registry.set_status(probe.probe_id, "evaluated")
+                if self.state:
+                    self.state.put_probe(probe.probe_id, result, "evaluated")
+            except Exception as exc:
+                result = {"probe_id": probe.probe_id, "status": "abstain", "error": str(exc)}
+            results.append(result)
+        return results
+
 
 class ProbeEvolution:
     def __init__(self, ai: AIProvider | None = None):

@@ -44,3 +44,33 @@ class MetricAdvisor:
         if not plan.protected:
             missing.append("protected metric or explicit no-protection declaration")
         return not missing, missing
+
+    def review_benchmarks(self, objective: str, sources: list[dict[str, Any]]) -> dict[str, Any]:
+        """Ask the shared AI to identify benchmark gaps; never auto-promotes a metric."""
+        if self.ai is None:
+            return {"status": "abstain", "reason": "AI provider not configured", "gaps": []}
+        prompt = json.dumps({"objective": objective, "sources": sources, "instruction": "Compare these benchmark descriptions. Return JSON with benchmark_names, coverage_gaps, confounds, and proposed_diagnostics."}, sort_keys=True)
+        try:
+            value = json.loads(self.ai.complete(role="benchmark_reviewer", prompt=prompt))
+            if not isinstance(value, dict):
+                raise TypeError("benchmark review must be an object")
+            return {"status": "reviewed", **value}
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            return {"status": "abstain", "reason": "invalid benchmark review", "gaps": []}
+
+
+class MetricRegistry:
+    """Approved metric implementations are explicit and independently testable."""
+
+    def __init__(self):
+        self._metrics: dict[str, Any] = {}
+
+    def register(self, metric_id: str, evaluator: Any) -> None:
+        if metric_id in self._metrics:
+            raise ValueError(f"metric already registered: {metric_id}")
+        self._metrics[metric_id] = evaluator
+
+    def evaluate(self, metric_id: str, prediction: Any, target: Any) -> float:
+        if metric_id not in self._metrics:
+            raise KeyError(metric_id)
+        return float(self._metrics[metric_id](prediction, target))
