@@ -14,7 +14,7 @@ references, never local paths or credentials.
 The complete composition layer is included in `verdi_core`: retrieval with
 HTML/PDF and human handoff, autonomous search planning, dual-route idea
 extraction, AI-assisted metric selection, probe evolution, and a replaceable
-scheduler. See `docs/FULL_LOOP.md` for the lifecycle. These modules are
+scheduler, worker, and frozen evaluator. See `docs/FULL_LOOP.md` for the lifecycle. These modules are
 provider-agnostic; only the model SDK and optional AI/search providers are
 injected by the user.
 
