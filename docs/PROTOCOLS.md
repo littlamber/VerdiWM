@@ -20,3 +20,8 @@ edges:
 These are compatibility profiles, not runtime requirements. Any integration
 must preserve deterministic identities, held-out verification, append-only
 evidence, and explicit positive/null/harmful/abstain outcomes.
+
+`verdi_core.providers` includes generic HTTP implementations for an
+OpenAI-compatible chat endpoint and a JSON search endpoint. They are configured
+by the caller; no API vendor, model family, or search provider is compiled into
+the Kernel.

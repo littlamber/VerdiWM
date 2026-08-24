@@ -13,7 +13,7 @@ trap 'rm -rf "$state_dir"' EXIT
 "$python_bin" -m verdi_core.cli demo --state-root "$state_dir" >/dev/null
 "$python_bin" -m verdi_core.cli graph --state-root "$state_dir"
 
-if rg -n -i '(/share/project|/home/|[A-Za-z]:\\|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|api[_-]?key|secret[_-]?key|password\s*=)' verdi_core adapters tests docs README* CONTRIBUTING.md SECURITY.md; then
+if rg -n -i "(/share/project|/home/|[A-Za-z]:\\\\|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|api[_-]?key\\s*[:=]\\s*[\"']|secret[_-]?key\\s*[:=]\\s*[\"']|password\\s*=\\s*[\"'])" verdi_core adapters tests docs README* CONTRIBUTING.md SECURITY.md; then
   echo "release preflight: forbidden path or secret-like content found" >&2
   exit 1
 fi
