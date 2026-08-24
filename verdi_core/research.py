@@ -66,11 +66,16 @@ class ResearchSystem:
                     if document.local_path and Path(document.local_path).is_file():
                         ingested.append(ingest.ingest_file(Path(document.local_path), source_url=document.url))
                 ingested.extend(ingest.scan_inbox())
+                unique_documents: dict[str, Any] = {}
                 for document in ingested:
+                    unique_documents[document.document_id] = document
+                for document in unique_documents.values():
                     payload = document.__dict__
                     self.state.put_document(document.document_id, payload)
                     documents.append(payload)
-                documents.extend(document.__dict__ for document in acquired if document.status == "human_download" or not document.local_path)
+                for document in acquired:
+                    if document.status == "human_download" or not document.local_path:
+                        documents.append(document.__dict__)
                 benchmark_review = self.metrics.review_benchmarks(objective, documents[:20])
 
         ideas: list[CandidateIdea] = []
