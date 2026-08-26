@@ -6,6 +6,7 @@ from typing import Any
 import math
 
 from .evidence import classify_paired_effect
+from .benchmark_metrics import evaluate_metric_bundle
 
 
 class GenericEvaluator:
@@ -15,6 +16,20 @@ class GenericEvaluator:
 
     def evaluate(self, artifacts: dict[str, Any], *, split: str, metrics: dict[str, Any]) -> dict[str, Any]:
         raw = artifacts.get("raw_result", artifacts)
+        # When an adapter returns a baseline/candidate bundle, the Kernel owns
+        # the verdict gate.  An adapter may not hide a protected regression in
+        # a weighted aggregate or a self-declared outcome.
+        if isinstance(raw, dict) and "baseline_metrics" in raw and "candidate_metrics" in raw and metrics.get("metric_definitions"):
+            plan = {
+                "primary": metrics.get("primary"),
+                "protected": metrics.get("protected", ()),
+                "diagnostic": metrics.get("diagnostic", ()),
+                "definitions": metrics.get("metric_definitions", ()),
+                "practical_threshold": metrics.get("practical_threshold", 0.0),
+                "catalog_digest": metrics.get("catalog_digest", ""),
+            }
+            result = evaluate_metric_bundle(raw, plan, split=split)
+            return {**result, "evaluator_id": self.evaluator_id, "metrics": metrics}
         if "outcome" in raw:
             outcome = str(raw["outcome"])
         else:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .runtime import AIProvider
+from .benchmark_metrics import MetricCatalog, WorldArenaMetricCatalog, validate_metric_selection
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,13 @@ class MetricPlan:
     threshold_rationale: str = ""
     primary_direction: str = "maximize"
     protected_directions: tuple[str, ...] = ()
+    benchmark: str = ""
+    catalog_digest: str = ""
+    metric_definitions: tuple[dict[str, Any], ...] = ()
+    evaluation_order: tuple[str, ...] = ()
+    pilot_metrics: tuple[str, ...] = ()
+    promotion_metrics: tuple[str, ...] = ()
+    selection_state: str = "legacy"
 
 
 class MetricAdvisor:
@@ -44,6 +52,52 @@ class MetricAdvisor:
             return MetricPlan(primary, protected, diagnostic, str(value.get("heldout_split", "heldout")), str(value.get("rationale", "")), threshold, str(value.get("threshold_rationale", "")), primary_direction, protected_directions)
         except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
             return MetricPlan(objective, tuple(constraints), tuple(available_signals), "heldout", "invalid advisor response; fallback", primary_direction="maximize", protected_directions=("maximize",) * len(constraints))
+
+    def select_benchmark(
+        self,
+        objective: str,
+        model_report: dict[str, Any],
+        available_signals: list[str],
+        *,
+        catalog: MetricCatalog | None = None,
+    ) -> dict[str, Any]:
+        """Select suitable benchmark metrics, then validate deterministically."""
+        catalog = catalog or WorldArenaMetricCatalog.default()
+        payload = catalog.as_prompt_payload(model_report, available_signals)
+        if self.ai is None:
+            return {"state": "abstain", "reason": "AI provider not configured", **payload}
+        prompt = json.dumps({
+            "objective": objective,
+            "model_report": model_report,
+            "available_signals": available_signals,
+            "benchmark_catalog": payload,
+            "instruction": "Choose one formal primary, zero or more formal protected metrics, and diagnostic metrics. Use only eligible catalog metric_id values. Prefer low-cost metrics for pilot, but include a dynamics or long-horizon metric when eligible. Return JSON with primary, protected, diagnostic, evaluation_order, practical_threshold, rationale. Never promote a metric lacking machine ground truth.",
+        }, sort_keys=True)
+        try:
+            selection = json.loads(self.ai.complete(role="benchmark_metric_advisor", prompt=prompt))
+            if not isinstance(selection, dict):
+                raise TypeError("benchmark selection must be an object")
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            selection = {}
+        result = validate_metric_selection(selection, catalog, model_report, available_signals)
+        if result.get("state") != "validated":
+            # A provider failure must not invent metrics or stop a safe pilot.
+            # Pick only catalogued, machine-grounded entries using a stable
+            # deterministic order; the reason remains visible in the audit.
+            eligible, rejected = catalog.candidates(model_report, available_signals)
+            formal = [item for item in eligible if not item.diagnostic_only and item.ground_truth and "primary" in item.role_candidates]
+            protected = [item for item in eligible if not item.diagnostic_only and item.ground_truth and "protected" in item.role_candidates]
+            diagnostics = [item for item in eligible if "diagnostic" in item.role_candidates]
+            if formal and protected:
+                primary = formal[0].metric_id
+                fallback = {"primary": primary, "protected": [item.metric_id for item in protected if item.metric_id != primary][:3], "diagnostic": [item.metric_id for item in diagnostics if item.metric_id != primary][:3], "rationale": "deterministic catalog fallback after advisor failure"}
+                result = validate_metric_selection(fallback, catalog, model_report, available_signals)
+                result["advisor_fallback"] = True
+            else:
+                result = {"state": "abstain", "reason": "no eligible formal benchmark metrics", "rejected": rejected, **payload}
+        result["practical_threshold"] = selection.get("practical_threshold")
+        result["threshold_rationale"] = str(selection.get("threshold_rationale", ""))
+        return result
 
     def adequate(self, plan: MetricPlan) -> tuple[bool, list[str]]:
         missing: list[str] = []

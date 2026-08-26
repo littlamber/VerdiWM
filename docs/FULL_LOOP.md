@@ -33,9 +33,13 @@ for video labels pause independently and do not block unrelated ideas.
 2. **Probe and portrait.** The probe registry executes available diagnostics and
    produces a fingerprint and a readiness portrait. Probe evolution can ask the
    configured AI provider for new probes when failures leave an unexplained gap.
-3. **Select metrics.** `MetricAdvisor` asks the AI provider to choose primary,
-   protected, diagnostic, and held-out metrics from available signals. The
-   Kernel checks adequacy and never assumes one benchmark is authoritative.
+3. **Discover and select metrics.** `MetricCatalogDiscovery` turns pinned
+   benchmark documents/code into provenance-tagged metric records. The AI then
+   selects primary, protected, diagnostic, and held-out metrics from only the
+   records compatible with the portrait, capabilities, and observed data. The
+   Kernel rejects unavailable or non-ground-truth metrics as formal verdict
+   sources, stages lower-cost pilots before expensive long-horizon checks, and
+   never assumes one benchmark is authoritative.
 4. **Plan retrieval.** `AutonomousResearchPlanner` chooses search queries and
    adjacent fields from the objective and portrait. It does not contain a fixed
    list of disciplines.

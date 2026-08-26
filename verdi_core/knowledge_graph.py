@@ -205,6 +205,28 @@ def project_model_portrait(
     return portrait_node
 
 
+def project_metric_plan(state: Any, *, model_id: str, plan: Mapping[str, Any], source: str = "benchmark_selector") -> str:
+    """Record metric eligibility, selection, and evaluator provenance in L0-L5."""
+    model_node = _node_id("model", model_id)
+    plan_key = model_id + ":" + str(plan.get("catalog_digest", "")) + ":" + str(plan.get("primary", ""))
+    plan_node = _node_id("metric_plan", plan_key)
+    state.put_graph_node(plan_node, kind="metric_plan", key=plan_key, layer="L4", status=str(plan.get("state", "unknown")), payload={"model_id": model_id, "source": source, **dict(plan)})
+    state.add_graph_edge(model_node, "selected_metric_plan", plan_node)
+    for definition in plan.get("definitions", ()):
+        if not isinstance(definition, Mapping) or not definition.get("metric_id"):
+            continue
+        metric_id = str(definition["metric_id"])
+        metric_node = _node_id("metric", metric_id)
+        state.put_graph_node(metric_node, kind="metric", key=metric_id, layer="L0", status=str(definition.get("implementation_status", "catalogued")), payload=dict(definition))
+        state.add_graph_edge(plan_node, "uses_metric", metric_node)
+        if definition.get("evaluator_ref"):
+            evaluator_key = str(definition["evaluator_ref"])
+            evaluator_node = _node_id("evaluator", evaluator_key)
+            state.put_graph_node(evaluator_node, kind="evaluator", key=evaluator_key, layer="L5", status="declared", payload={"evaluator_ref": evaluator_key, "metric_id": metric_id})
+            state.add_graph_edge(metric_node, "evaluated_by", evaluator_node)
+    return plan_node
+
+
 def import_settlement_entries(state: Any, entries: Sequence[Mapping[str, Any]], *, model_id: str = "ctrl-world", campaign_id: str = "ctrl-world") -> dict[str, int]:
     """Import compact settlement entries without leaking local paths in exports."""
     counts = {"methods": 0, "evidence": 0, "edges": 0}

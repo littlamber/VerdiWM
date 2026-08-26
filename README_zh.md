@@ -81,6 +81,12 @@ bundle 目录可作为一个社区 artifact 上传，包含 `knowledge.sqlite3`�
   --architecture dit --capability rollout
 ```
 
+## Benchmark 感知评测
+
+Kernel 内置 WorldArena 指标目录和 benchmark-aware selector。系统根据模型画像、公共探针、目标、可观测数据字段和固定 benchmark 来源，由 AI 选择实际适配的 primary、protected、diagnostic 指标；但 Kernel 会独立拒绝缺少所需数据/能力、缺少机器可复现 ground truth 的正式指标。primary 改善不能掩盖任何 protected 指标回退。
+
+评测按成本分层：先运行低/中成本 pilot，只有 non-harmful 候选才进入昂贵的长时域指标。缺少 evaluator 时，受限 `EngineeringAgent` 可以在隔离 worktree 中实现，但必须通过 contract tests、冻结 split 哈希、参考 fixture 对齐和重复性测试才可以作为正式 verdict。详见 [`docs/BENCHMARK_METRICS.md`](docs/BENCHMARK_METRICS.md)。
+
 ## 发布边界
 
 GitHub / ModelScope 发布 Kernel 源码和测试；模型适配器、知识图谱 bundle、权重、数据集、日志、视频和 checkpoint 使用独立、可版本化的 artifact。详见 [`PUBLISHING.md`](PUBLISHING.md)、[`docs/FULL_LOOP.md`](docs/FULL_LOOP.md) 和 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)。真实科学结论必须依赖固定 held-out evaluator 和独立复现。

@@ -128,6 +128,22 @@ held-out validation.  A new model can rank prior methods with:
   --architecture dit --capability rollout
 ```
 
+## Benchmark-Aware Evaluation
+
+The Kernel includes a WorldArena metric catalog and a benchmark-aware selector.
+From the model portrait, public probe results, objective, observable data
+signals, and pinned benchmark sources, the configured AI selects eligible
+primary, protected, and diagnostic metrics. The Kernel rejects a proposed
+formal metric when its required data/capability is absent, or when it lacks
+machine-readable ground truth. A primary improvement cannot compensate for a
+protected regression.
+
+Evaluation is cost-aware: low/medium-cost metrics form a pilot, while expensive
+long-horizon metrics run only for a non-harmful candidate. A missing evaluator
+can be materialized in an isolated worktree, but it cannot be promoted until
+contract tests, frozen-split hashing, reference-fixture alignment, and repeat
+checks pass. See [`docs/BENCHMARK_METRICS.md`](docs/BENCHMARK_METRICS.md).
+
 For optional AI autonomy, set `VERDI_AI_BASE_URL`, `VERDI_AI_API_KEY`, and
 `VERDI_AI_MODEL`. Any OpenAI-compatible endpoint works; the same provider is
 used for planning, both extraction routes, metric selection, and probe
