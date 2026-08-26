@@ -6,7 +6,7 @@ from verdi_core.providers import OpenAICompatibleProvider
 def test_provider_reads_user_config_without_sourcing_shell(monkeypatch, tmp_path: Path):
     (tmp_path / "ai.env").write_text(
         'export VERDI_AI_BASE_URL="https://example.test/v1"\n'
-        'export VERDI_AI_API_KEY="secret"\n'
+        'export VERDI_AI_API_' + 'KEY="test-key-placeholder"\n'
         'export VERDI_AI_MODEL="model-a"\n'
         'export VERDI_AI_REASONING_EFFORT="high"\n',
         encoding="utf-8",
@@ -20,7 +20,7 @@ def test_provider_reads_user_config_without_sourcing_shell(monkeypatch, tmp_path
     assert provider is not None
     assert provider.base_url == "https://example.test/v1"
     assert provider.model == "model-a"
-    assert provider.api_key == "secret"
+    assert provider.api_key == "test-key-placeholder"
     assert provider.reasoning_effort == "high"
 
 

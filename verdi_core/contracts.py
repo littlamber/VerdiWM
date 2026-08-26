@@ -65,6 +65,10 @@ class Evidence:
     protected_ok: bool
     verifier_digest: str
     claim_boundary: str
+    metric_direction: str = "maximize"
+    ci95: tuple[float, float] | None = None
+    split: str = ""
+    artifact_digest: str = ""
 
 
 def to_document(value: Any) -> dict[str, Any]:
@@ -73,4 +77,3 @@ def to_document(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
     raise TypeError(f"unsupported contract: {type(value)!r}")
-

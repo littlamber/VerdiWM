@@ -10,6 +10,24 @@ from .contracts import canonical_digest
 from .runtime import AIProvider
 
 
+def public_probe_specs() -> list[ProbeSpec]:
+    """Return the cross-model semantic probe families.
+
+    Adapters may advertise only a subset.  Unsupported probes are retained in
+    the portrait so absence is not mistaken for a healthy measurement.
+    """
+    from .knowledge_graph import PUBLIC_PROBE_FAMILIES
+
+    return [
+        ProbeSpec(
+            probe_id=str(item["probe_id"]),
+            question="Measure " + str(item["semantic_variable"]),
+            dimensions=tuple(str(value) for value in item["diagnostic_dimensions"]),
+        )
+        for item in PUBLIC_PROBE_FAMILIES
+    ]
+
+
 @dataclass(frozen=True)
 class ProbeSpec:
     probe_id: str
@@ -22,11 +40,13 @@ class ProbeSpec:
 class ProbeRegistry:
     def __init__(self, probes: list[ProbeSpec] | None = None):
         self._probes = {probe.probe_id: probe for probe in probes or []}
+        self._statuses = {probe.probe_id: "proposed" for probe in self._probes.values()}
 
     def register(self, probe: ProbeSpec) -> bool:
         if probe.probe_id in self._probes:
             return False
         self._probes[probe.probe_id] = probe
+        self._statuses[probe.probe_id] = "proposed"
         return True
 
     def all(self) -> list[ProbeSpec]:
@@ -37,6 +57,10 @@ class ProbeRegistry:
             raise KeyError(probe_id)
         if status not in {"proposed", "sandbox_tested", "admitted", "executed", "evaluated", "promoted", "deprecated"}:
             raise ValueError(status)
+        self._statuses[probe_id] = status
+
+    def status(self, probe_id: str) -> str:
+        return self._statuses[probe_id]
 
 
 class ProbeCampaign:
@@ -61,7 +85,9 @@ class ProbeCampaign:
                 if self.state:
                     self.state.put_probe(probe.probe_id, result, "evaluated")
             except Exception as exc:
-                result = {"probe_id": probe.probe_id, "status": "abstain", "error": str(exc)}
+                result = {"probe_id": probe.probe_id, "status": "unsupported", "error": str(exc), "dimensions": list(probe.dimensions)}
+                if self.state:
+                    self.state.put_probe(probe.probe_id, result, "unsupported")
             results.append(result)
         return results
 

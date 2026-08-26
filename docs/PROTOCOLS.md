@@ -21,6 +21,11 @@ These are compatibility profiles, not runtime requirements. Any integration
 must preserve deterministic identities, held-out verification, append-only
 evidence, and explicit positive/null/harmful/abstain outcomes.
 
+The evidence profile also carries metric direction (`maximize` or `minimize`),
+paired held-out deltas, a practical threshold, uncertainty intervals, artifact
+integrity receipts, and a claim boundary separating model-level fidelity from
+physical task success.
+
 `verdi_core.providers` includes generic HTTP implementations for an
 OpenAI-compatible chat endpoint and a JSON search endpoint. They are configured
 by the caller; no API vendor, model family, or search provider is compiled into

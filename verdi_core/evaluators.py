@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any
 import math
 
+from .evidence import classify_paired_effect
+
 
 class GenericEvaluator:
     """Classifies normalized worker output without knowing model internals."""
@@ -17,6 +19,9 @@ class GenericEvaluator:
             outcome = str(raw["outcome"])
         else:
             delta = float(raw.get("delta", 0.0))
+            if "baseline" in raw and "candidate" in raw:
+                direction = str(metrics.get("primary_direction", "maximize"))
+                delta = float(raw["candidate"] - raw["baseline"] if direction == "maximize" else raw["baseline"] - raw["candidate"])
             protected_ok = bool(raw.get("protected_ok", False))
             outcome = "confirmed_positive" if delta > 0 and protected_ok else ("harmful" if delta < 0 or not protected_ok else "null")
         return {
@@ -46,3 +51,31 @@ class StatisticalEvaluator(GenericEvaluator):
             if result["outcome"] == "confirmed_positive" and (mean <= 0 or stderr >= max(0.01, abs(mean) * 0.5)):
                 result["outcome"] = "abstain"
         return result
+
+
+class PairedMetricEvaluator(GenericEvaluator):
+    """Adapter-facing evaluator for direction-normalized paired held-out deltas."""
+
+    evaluator_id = "verdi-paired-metric-evaluator-v1"
+
+    def evaluate(self, artifacts: dict[str, Any], *, split: str, metrics: dict[str, Any]) -> dict[str, Any]:
+        raw = artifacts.get("raw_result", artifacts)
+        values = [float(value) for value in raw.get("replicate_deltas", [])]
+        result = classify_paired_effect(
+            values,
+            practical_threshold=float(metrics.get("practical_threshold", 0.0)),
+            protected_ok=bool(raw.get("protected_ok", True)),
+            min_replicates=int(metrics.get("min_replicates", 2)),
+            bootstrap_samples=int(metrics.get("bootstrap_samples", 10000)),
+            seed=int(metrics.get("seed", 20260825)),
+        )
+        return {
+            **result,
+            "ci95": [result["ci95_low"], result["ci95_high"]] if "ci95_low" in result else None,
+            "metric_direction": str(metrics.get("primary_direction", "maximize")),
+            "claim_boundary": str(raw.get("claim_boundary", "paired held-out metric evidence; task success requires domain evaluation.")),
+            "artifact_digest": str(raw.get("artifact_digest", "")),
+            "split": split,
+            "evaluator_id": self.evaluator_id,
+            "metrics": metrics,
+        }

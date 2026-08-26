@@ -9,8 +9,9 @@ from typing import Any
 from .contracts import CapabilityIR, Evidence, Portrait, canonical_digest
 from .ideas import AIJsonRoute, AutonomousResearchPlanner, CandidateIdea, DualRouteIdeator
 from .knowledge import KnowledgeGraph
+from .knowledge_graph import project_model_portrait
 from .metrics import MetricAdvisor
-from .probes import ProbeCampaign, ProbeEvolution, ProbeRegistry, ProbeSpec
+from .probes import ProbeCampaign, ProbeEvolution, ProbeRegistry, ProbeSpec, public_probe_specs
 from .retrieval import RetrievalLedger, RetrievalRequest, OnlineRetriever
 from .runtime import RuntimeBindings
 from .scheduler import ExperimentJob, LocalScheduler
@@ -31,7 +32,10 @@ class ResearchSystem:
         self.evaluator = evaluator or GenericEvaluator()
         self.metrics = MetricAdvisor(bindings.ai)
         self.probe_evolution = ProbeEvolution(bindings.ai)
-        self.probes = ProbeRegistry([ProbeSpec("action-sensitivity", "Does the model respond predictably to action changes?", ("action", "horizon"))])
+        # Public semantic probes are attempted for every adapter.  Unsupported
+        # hooks are recorded explicitly and may be materialized by an adapter
+        # repair workflow later; they are never treated as healthy responses.
+        self.probes = ProbeRegistry(public_probe_specs() + [ProbeSpec("action-sensitivity", "Does the model respond predictably to action changes?", ("action", "horizon"))])
         self.state = SQLiteState(Path(bindings.state_root) / "knowledge" / "knowledge.sqlite3")
         self.scheduler = LocalScheduler(float(bindings.options.get("budget", 1.0)), state=self.state)
 
@@ -47,6 +51,16 @@ class ResearchSystem:
             capability_digest=canonical_digest(capability.__dict__),
             fingerprint_ids=fingerprint_ids,
             readiness="ready_for_experiment",
+        )
+        project_model_portrait(
+            self.state,
+            model_id=capability.model_id,
+            revision=capability.revision,
+            capabilities=capability.capabilities,
+            hooks=capability.hooks,
+            architecture_facets=tuple(str(value) for value in report.get("architecture_facets", report.get("architecture", [])) or []),
+            probe_results=probe_results,
+            portrait_id=portrait.portrait_id,
         )
         run_id = "run-" + canonical_digest({"objective": objective, "portrait_id": portrait.portrait_id})[7:23]
         metric_plan = self.metrics.select(objective, list(capability.capabilities), constraints)
@@ -107,9 +121,44 @@ class ResearchSystem:
                 hypothesis_id=str(item["job_id"]), outcome=str(result.get("outcome", "abstain")),
                 delta=float(result.get("delta", 0.0)), protected_ok=bool(result.get("protected_ok", False)),
                 verifier_digest=canonical_digest({"evaluator": self.evaluator.evaluator_id, "split": metric_plan.heldout_split}),
-                claim_boundary="adapter-provided evidence; requires target-side review.",
+                claim_boundary=str(result.get("claim_boundary", "adapter-provided evidence; requires target-side review.")),
+                metric_direction=str(result.get("metric_direction", getattr(metric_plan, "primary_direction", "maximize"))),
+                ci95=tuple(result["ci95"]) if isinstance(result.get("ci95"), (list, tuple)) and len(result["ci95"]) == 2 else None,
+                split=str(result.get("split", metric_plan.heldout_split)),
+                artifact_digest=str(result.get("artifact_digest", result.get("artifact_integrity", {}).get("manifest_digest", ""))),
             )))
         result = {"state": "settled", "run_id": run_id, "capability": capability.__dict__, "portrait": portrait.__dict__, "metrics": metric_plan.__dict__, "metrics_adequate": adequate, "metrics_missing": missing, "benchmark_review": benchmark_review, "search_plan": search_plan.__dict__ if search_plan else None, "idea_count": len(ideas), "scheduled": scheduled, "evidence_count": len(evidence)}
         self.state._put("runs", "run_id", {"run_id": run_id, "created_at": "runtime", "objective": objective, "state": "settled", "payload_json": json.dumps(result, sort_keys=True)})
         result["probes"] = probe_results
         return result
+
+    def replan(self, campaign: dict[str, Any], context: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """Retrieve and ideate a fresh batch after a non-positive campaign.
+
+        This callback is intentionally side-effect bounded: it only stages
+        sources and ideas.  Training/evaluation remains the CampaignSupervisor
+        responsibility, and an absent provider/retriever yields no guesses.
+        """
+        if self.bindings.ai is None or self.retriever is None or self.ideator is None:
+            return []
+        context = context or {}
+        objective = str(campaign.get("objective", ""))
+        portrait = campaign.get("portrait", {}) if isinstance(campaign.get("portrait"), dict) else {}
+        plan = AutonomousResearchPlanner(self.bindings.ai).plan(objective, portrait)
+        acquired = self.retriever.retrieve(list(plan.queries))
+        ingest = DocumentIngestor(Path(self.bindings.state_root) / "retrieval" / "inbox")
+        documents: dict[str, dict[str, Any]] = {}
+        for item in acquired:
+            if item.local_path and Path(item.local_path).is_file():
+                doc = ingest.ingest_file(Path(item.local_path), source_url=item.url)
+                documents[doc.document_id] = doc.__dict__
+            elif item.status == "human_download":
+                documents["remote:" + str(item.url)] = item.__dict__
+        for doc in ingest.scan_inbox():
+            documents[doc.document_id] = doc.__dict__
+        for payload in documents.values():
+            document_id = str(payload.get("document_id") or "remote-" + canonical_digest(payload)[7:23])
+            payload.setdefault("document_id", document_id)
+            self.state.put_document(document_id, payload)
+        ideas = self.ideator.extract(list(documents.values()), {"objective": objective, "portrait": portrait, "round": context.get("round")})
+        return [idea.__dict__ for idea in ideas]

@@ -8,6 +8,26 @@
 The clean system is a composition root around one user-provided model SDK. A
 cycle runs the following stages:
 
+For restartable multi-idea campaigns, `CampaignSupervisor` persists the same
+stage transitions and attempt receipts in the kernel SQLite state. The CLI
+entry points are:
+
+```text
+verdi campaign run --state-root ... --run-id ... --model-id ... --objective ... --ideas ideas.json --runner module:function
+verdi campaign autonomous-run --state-root ... --run-id ... --model-id ... --objective ... --ideas ideas.json --runner module:function --worktree-root ... --output-root ...
+verdi campaign resume --state-root ... --run-id ... --model-id ... --runner module:function --watch
+verdi campaign status --state-root ... --run-id ...
+verdi campaign release-human --state-root ... --run-id ... --idea-id ... --labels labels.json
+```
+
+Each idea advances through static/environment/GPU smoke, short training,
+replication, adaptive full training, and held-out evaluation. A positive result
+must include the configured number of independent replicates; otherwise it is
+settled as `abstain`. A full-train runner can return `continue_long_train` to
+request another checkpoint interval, allowing the held-out controller to stop
+at plateau or near-overfit while retaining the best checkpoint. Ideas waiting
+for video labels pause independently and do not block unrelated ideas.
+
 1. **Bind and inspect.** `RuntimeBindings` is the single model binding point.
    The adapter reports capabilities, hooks, revision, and evaluator identity.
 2. **Probe and portrait.** The probe registry executes available diagnostics and
@@ -33,19 +53,52 @@ cycle runs the following stages:
    it without changing contracts.
 8. **Execute through the adapter.** Only the adapter touches model runtime,
    data loaders, inference, training, or interventions. Unknown or unsupported
-   interventions must return `abstain`, not be silently reinterpreted.
-9. **Freeze and verify.** Results are classified as positive, null, harmful, or
-   abstain using the selected held-out evaluator and protected metrics.
-10. **Project knowledge.** Settled evidence is appended idempotently to the
-    knowledge ledger with provenance, verifier digest, and claim boundary.
-11. **Replan.** The next cycle retrieves by portrait/fingerprint similarity,
+   interventions must return `abstain`, not be silently reinterpreted. Environment
+   preflight, deterministic seeds, retry receipts, and artifact hashes are
+   recorded before promotion.
+9. **Repair and continue.** If a failure is actionable, the configured AI may
+   propose a scoped patch. The kernel applies it in a fresh detached worktree,
+   runs tests against the patched worktree, and only then resumes the experiment.
+10. **Adaptive long training.** An early held-out improvement promotes the
+   candidate to continued training. Checkpoint evaluations keep the best
+   held-out result and stop at a plateau, repeated train-improves/held-out-
+   worsens pattern, or an explicit resource cap. Training loss alone never
+   promotes or stops a candidate.
+11. **Freeze and verify.** Results are classified as positive, null, harmful, or
+   abstain using direction-aware primary metrics, protected metrics, paired
+   replicates, and frozen uncertainty estimates.
+12. **Project knowledge.** Settled evidence is appended idempotently to the
+   knowledge ledger with provenance, verifier digest, and claim boundary.
+13. **Replan.** The next cycle retrieves by portrait/fingerprint similarity,
     failures, uncertainty, and information gain. New probes and ideas are
     proposed only where evidence shows a gap.
+
+## Layered knowledge and transfer routing
+
+The knowledge projection is split into six stable layers: ontology (`L0`),
+model portraits and probe fingerprints (`L1`), methods and sources (`L2`),
+experiments and evidence (`L3`), transfer assessments (`L4`), and provenance
+(`L5`). SQLite stores the local query projection; append-only records are the
+community merge surface. `graph.json` and `transfer_index.json` are portable
+exports, and `graph.html` is a dependency-free interactive viewer.
+
+Transfer routing compares structured architecture facets independently from
+probe-derived diagnostic dimensions. A diagnostic match can queue a bounded
+target experiment even when backbones differ. Missing hooks trigger an
+AI-authored adapter/plugin or isolated model-worktree materialization attempt;
+only a failed materialization or failed conformance blocks execution. A graph
+match is never target evidence: the target must still pass the frozen evaluator
+and replication gate.
 
 The fixture adapter demonstrates the wiring offline. It is not scientific
 evidence for a real world model. Real network search, AI providers, evaluators,
 and workers are injected at runtime and remain outside the Kernel dependency
 set.
+
+`autonomous-run` is the single-command composition path: the caller starts the
+campaign, while the configured AI receives bounded tool actions for repair and
+retry. Pass `--replanner module:function` when a research adapter is available
+so an all-non-positive batch can trigger another retrieval/ideation round.
 
 ## Evaluator vs Worker
 

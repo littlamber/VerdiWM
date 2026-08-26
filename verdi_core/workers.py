@@ -10,9 +10,14 @@ from dataclasses import dataclass
 import json
 import subprocess
 import urllib.request
+from dataclasses import replace
+from pathlib import Path
+import uuid
 from typing import Any, Protocol
 
 from .adapter import ModelAdapter
+from .autonomy import AutonomousRepairLoop
+from .evidence import verify_artifacts
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,36 @@ class AdapterWorker:
         return {"job_id": task.job_id, "intervention": intervention, "raw_result": result}
 
 
+class RepairingWorker:
+    """Retry a failed adapter task after an automatically verified patch."""
+
+    def __init__(self, worker: Worker, repair_loop: AutonomousRepairLoop, *, repository: Path, allowed_paths: list[str], destination_root: Path, tests: list[list[str]] | None = None):
+        self.worker = worker
+        self.repair_loop = repair_loop
+        self.repository = Path(repository)
+        self.allowed_paths = list(allowed_paths)
+        self.destination_root = Path(destination_root)
+        self.tests = tests or []
+
+    def execute(self, task: ExperimentTask) -> dict[str, Any]:
+        try:
+            return self.worker.execute(task)
+        except Exception as failure:
+            destination = self.destination_root / f"{task.job_id}-repair-{uuid.uuid4().hex[:10]}"
+            repair = self.repair_loop.run(
+                self.repository,
+                objective=str(task.hypothesis.get("objective", task.hypothesis.get("title", "repair failed experiment"))),
+                failure={"type": type(failure).__name__, "message": str(failure), "job_id": task.job_id},
+                allowed_paths=self.allowed_paths,
+                destination=destination,
+                tests=self.tests,
+                resume=lambda worktree, _receipt: self.worker.execute(replace(task, hypothesis={**task.hypothesis, "worktree": str(worktree)})),
+            )
+            if repair.get("state") != "approved" or "resumed" not in repair.get("execution", {}):
+                raise RuntimeError(f"automatic repair did not resume task: {repair}") from failure
+            return {"repair": repair, "resumed_result": repair["execution"]["resumed"]}
+
+
 class LocalPythonWorker:
     """Runs a user-approved Python entrypoint in a subprocess boundary.
 
@@ -57,6 +92,11 @@ class LocalPythonWorker:
         value = json.loads(completed.stdout)
         if not isinstance(value, dict):
             raise ValueError("local worker output must be a JSON object")
+        if "artifacts" in value:
+            integrity = verify_artifacts(value["artifacts"])
+            value["artifact_integrity"] = integrity
+            if integrity["state"] != "complete":
+                raise RuntimeError("worker artifacts failed integrity validation")
         return value
 
 

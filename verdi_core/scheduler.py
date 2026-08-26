@@ -36,21 +36,24 @@ class LocalScheduler:
             try:
                 result = None
                 last_error = None
+                attempts: list[dict[str, Any]] = []
                 for attempt in range(retries + 1):
                     try:
                         result = worker(job)
+                        attempts.append({"attempt": attempt + 1, "state": "completed", "seed": job.payload.get("seed")})
                         break
                     except Exception as exc:
                         last_error = exc
+                        attempts.append({"attempt": attempt + 1, "state": "runtime_failed", "error": str(exc), "seed": job.payload.get("seed")})
                 if result is None:
                     raise last_error or RuntimeError("worker returned no result")
-                results.append({"job_id": job.job_id, "state": "settled", "result": result})
+                results.append({"job_id": job.job_id, "state": "settled", "attempts": attempts, "result": result})
                 if self.state:
-                    self.state.put_experiment(job.job_id, {**job.payload, "result": result}, "settled")
+                    self.state.put_experiment(job.job_id, {**job.payload, "result": result, "attempts": attempts}, "settled")
             except Exception as exc:  # worker isolation boundary
-                results.append({"job_id": job.job_id, "state": "runtime_failed", "error": str(exc)})
+                results.append({"job_id": job.job_id, "state": "runtime_failed", "attempts": attempts, "error": str(exc)})
                 if self.state:
-                    self.state.put_experiment(job.job_id, {**job.payload, "error": str(exc)}, "runtime_failed")
+                    self.state.put_experiment(job.job_id, {**job.payload, "error": str(exc), "attempts": attempts}, "runtime_failed")
         return results
 
     def resume(self, worker: Callable[[ExperimentJob], dict[str, Any]], *, retries: int = 0) -> list[dict[str, Any]]:

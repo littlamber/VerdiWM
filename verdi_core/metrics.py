@@ -16,6 +16,10 @@ class MetricPlan:
     diagnostic: tuple[str, ...]
     heldout_split: str
     rationale: str
+    practical_threshold: float | None = None
+    threshold_rationale: str = ""
+    primary_direction: str = "maximize"
+    protected_directions: tuple[str, ...] = ()
 
 
 class MetricAdvisor:
@@ -24,16 +28,22 @@ class MetricAdvisor:
 
     def select(self, objective: str, available_signals: list[str], constraints: list[str]) -> MetricPlan:
         if self.ai is None:
-            return MetricPlan(objective, tuple(constraints), tuple(available_signals), "heldout", "explicit fallback")
-        prompt = json.dumps({"objective": objective, "signals": available_signals, "constraints": constraints, "instruction": "Select primary, protected, diagnostic metrics and justify sufficiency."}, sort_keys=True)
+            return MetricPlan(objective, tuple(constraints), tuple(available_signals), "heldout", "explicit fallback", primary_direction="maximize", protected_directions=("maximize",) * len(constraints))
+        prompt = json.dumps({"objective": objective, "signals": available_signals, "constraints": constraints, "instruction": "Select primary, protected, diagnostic metrics and their directions (maximize or minimize). Also propose a practical improvement threshold for this specific task from baseline variance, measurement noise, and user impact. Return primary_direction and protected_directions. Do not use training loss as the primary metric."}, sort_keys=True)
         try:
             value = json.loads(self.ai.complete(role="metric_advisor", prompt=prompt))
             primary = str(value["primary"])
             protected = tuple(str(v) for v in value.get("protected", constraints))
             diagnostic = tuple(str(v) for v in value.get("diagnostic", available_signals))
-            return MetricPlan(primary, protected, diagnostic, str(value.get("heldout_split", "heldout")), str(value.get("rationale", "")))
+            raw_threshold = value.get("practical_threshold")
+            threshold = float(raw_threshold) if isinstance(raw_threshold, (int, float)) and float(raw_threshold) > 0 else None
+            primary_direction = str(value.get("primary_direction", "maximize"))
+            protected_directions = tuple(str(v) for v in value.get("protected_directions", ["maximize"] * len(protected)))
+            if primary_direction not in {"maximize", "minimize"} or any(v not in {"maximize", "minimize"} for v in protected_directions):
+                raise ValueError("invalid metric direction")
+            return MetricPlan(primary, protected, diagnostic, str(value.get("heldout_split", "heldout")), str(value.get("rationale", "")), threshold, str(value.get("threshold_rationale", "")), primary_direction, protected_directions)
         except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
-            return MetricPlan(objective, tuple(constraints), tuple(available_signals), "heldout", "invalid advisor response; fallback")
+            return MetricPlan(objective, tuple(constraints), tuple(available_signals), "heldout", "invalid advisor response; fallback", primary_direction="maximize", protected_directions=("maximize",) * len(constraints))
 
     def adequate(self, plan: MetricPlan) -> tuple[bool, list[str]]:
         missing: list[str] = []
