@@ -51,3 +51,39 @@ def test_autonomous_campaign_uses_detached_worktree_when_repository_given(tmp_pa
     ]) == 0
     assert (repo / "sentinel.txt").read_text(encoding="utf-8") == "original\n"
     assert (tmp_path / "worktrees" / "run" / "fixture-idea-detached" / "static_check" / ".git").is_file()
+
+
+def test_autonomous_campaign_resumes_existing_blocked_run(tmp_path: Path, capsys) -> None:
+    state_root = tmp_path / "state"
+    ideas = tmp_path / "ideas.json"
+    ideas.write_text(json.dumps({"ideas": [{"idea_id": "fixture-resume"}]}), encoding="utf-8")
+    assert main([
+        "campaign", "autonomous-run", "--state-root", str(state_root),
+        "--run-id", "resume-run", "--model-id", "fixture", "--objective", "quality",
+        "--ideas", str(ideas), "--runner", "adapters.fixture_campaign:runner",
+        "--worktree-root", str(tmp_path / "worktrees"), "--output-root", str(tmp_path / "out"),
+        "--offline",
+    ]) == 0
+    first = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert first["state"] == "stopped"
+
+    # Replacing the persisted state with a blocked stage models a transient
+    # resource wait without involving a real GPU or mutating the fixture repo.
+    state = SQLiteState(state_root / "knowledge" / "knowledge.sqlite3")
+    row = state.list_rows("runs")[0]
+    payload = json.loads(row["payload_json"])
+    item = payload["ideas"]["fixture-resume"]
+    item["state"] = "blocked"
+    item["stage_index"] = 0
+    payload["state"] = "blocked"
+    state._put("runs", "run_id", {"run_id": "resume-run", "created_at": payload["created_at"], "objective": payload["objective"], "state": "blocked", "payload_json": json.dumps(payload, sort_keys=True)})
+
+    assert main([
+        "campaign", "autonomous-run", "--state-root", str(state_root),
+        "--run-id", "resume-run", "--model-id", "fixture", "--objective", "quality",
+        "--ideas", str(ideas), "--runner", "adapters.fixture_campaign:runner",
+        "--worktree-root", str(tmp_path / "worktrees"), "--output-root", str(tmp_path / "out"),
+        "--offline",
+    ]) == 0
+    resumed = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert resumed["state"] == "stopped"

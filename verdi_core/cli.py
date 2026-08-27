@@ -236,7 +236,11 @@ def main(argv: list[str] | None = None) -> int:
                 existing_run = False
             if not existing_run:
                 supervisor.create(run_id=args.run_id, objective=args.objective, ideas=ideas)
-            first = True
+            # An existing campaign may be blocked on an external resource.
+            # Resume it through the autonomous supervisor so its current stage
+            # is retried; run_until_blocked would return immediately for a
+            # persisted blocked state.
+            first = not existing_run
             while True:
                 result = supervisor.run_until_blocked(args.run_id) if first else supervisor.resume(args.run_id)
                 first = False
