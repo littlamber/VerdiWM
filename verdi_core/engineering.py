@@ -358,6 +358,10 @@ class AutonomousStageRunner:
             result = self.stage_runner(idea, stage, context)
         except Exception as exc:
             result = {"state": "runtime_failed", "reason": f"{type(exc).__name__}: {exc}"}
+        # A missing GPU or other external capacity is retryable, but cannot be
+        # resolved by changing source code. Preserve it for campaign resume.
+        if result.get("blocker_type") == "resource_unavailable":
+            return result
         repairs = int(context.get("engineering_repairs", 0))
         if result.get("state") not in {"runtime_failed", "blocked", "requires_code_patch"} and not result.get("requires_engineering_repair"):
             return result

@@ -93,9 +93,12 @@ class CampaignSupervisor:
             except Exception as error:
                 result = {"state": "runtime_failed", "error": f"{type(error).__name__}: {error}"}
             # A model-specific runner may fail because a hook or dependency is
-            # missing.  Let the engineering agent repair in an isolated scope,
+            # missing. Let the engineering agent repair in an isolated scope,
             # then retry the same stage before marking the idea blocked.
-            if result.get("state") in {"runtime_failed", "blocked", "requires_code_patch"} and self.repair_runner is not None and not context.get("repair_attempted"):
+            # External resource waits are intentionally different: code repair
+            # cannot create an idle GPU or a missing dataset entitlement.
+            repairable = result.get("blocker_type") != "resource_unavailable"
+            if repairable and result.get("state") in {"runtime_failed", "blocked", "requires_code_patch"} and self.repair_runner is not None and not context.get("repair_attempted"):
                 repaired = self.repair_runner(item["idea"], stage, {**context, "repair_attempted": True}, result)
                 if isinstance(repaired, dict):
                     result = repaired

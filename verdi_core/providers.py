@@ -6,7 +6,13 @@ import json
 import os
 from pathlib import Path
 import re
-import tomllib
+try:  # Python 3.11+
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10 remains a supported runtime.
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:
+        tomllib = None  # type: ignore[assignment]
 import urllib.parse
 import urllib.request
 import time
@@ -92,7 +98,7 @@ def _load_local_settings() -> dict[str, str]:
                 value = next((item for item in match.groups()[1:] if item is not None), "")
                 result[match.group(1)] = value
     toml_file = config_dir / "config.toml"
-    if toml_file.is_file():
+    if toml_file.is_file() and tomllib is not None:
         try:
             llm = tomllib.loads(toml_file.read_text(encoding="utf-8")).get("llm", {})
             if isinstance(llm, dict):

@@ -37,3 +37,20 @@ def test_environment_overrides_local_config(monkeypatch, tmp_path: Path):
 
     assert provider is not None
     assert (provider.base_url, provider.model) == ("https://env.test/v1", "env")
+
+
+def test_provider_can_use_env_file_when_toml_parser_is_unavailable(monkeypatch, tmp_path: Path):
+    (tmp_path / "ai.env").write_text(
+        'VERDI_AI_BASE_URL="https://local.test/v1"\nVERDI_AI_MODEL="local"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("VERDI_CONFIG_DIR", str(tmp_path))
+    for name in ("VERDI_AI_BASE_URL", "VERDI_AI_API_KEY", "VERDI_AI_MODEL", "VERDI_AI_REASONING_EFFORT"):
+        monkeypatch.delenv(name, raising=False)
+    import verdi_core.providers as providers
+
+    monkeypatch.setattr(providers, "tomllib", None)
+    provider = providers.OpenAICompatibleProvider.from_env()
+
+    assert provider is not None
+    assert (provider.base_url, provider.model) == ("https://local.test/v1", "local")

@@ -89,3 +89,19 @@ def test_autonomous_stage_runner_repairs_then_retries_without_operator(tmp_path:
     assert result["state"] == "completed"
     assert result["engineering"]["state"] == "repaired_and_retried"
     assert calls["count"] == 2
+
+
+def test_autonomous_stage_runner_preserves_resource_block(tmp_path: Path) -> None:
+    calls = {"repair": 0}
+
+    def stage_runner(idea, stage, context):
+        return {"state": "blocked", "blocker_type": "resource_unavailable", "retryable": True}
+
+    def factory(idea, stage, context):
+        calls["repair"] += 1
+        raise AssertionError("resource waits must not invoke engineering repair")
+
+    wrapped = AutonomousStageRunner(stage_runner, factory)
+    result = wrapped({"idea_id": "a"}, "gpu_smoke", {})
+    assert result["blocker_type"] == "resource_unavailable"
+    assert calls["repair"] == 0

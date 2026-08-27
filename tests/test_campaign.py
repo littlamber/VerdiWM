@@ -162,6 +162,31 @@ def test_campaign_repair_runner_retries_failed_stage(tmp_path: Path) -> None:
     assert calls["repair"] == 1
 
 
+def test_campaign_does_not_repair_external_resource_wait(tmp_path: Path) -> None:
+    calls = {"stage": 0, "repair": 0}
+
+    def runner(idea, stage, context):
+        calls["stage"] += 1
+        return {
+            "state": "blocked",
+            "reason": "gpu_capacity_unavailable",
+            "blocker_type": "resource_unavailable",
+            "retryable": True,
+        }
+
+    def repair(idea, stage, context, failure):
+        calls["repair"] += 1
+        return {"state": "completed"}
+
+    supervisor = CampaignSupervisor(tmp_path, model_id="fixture", stage_runner=runner, repair_runner=repair)
+    supervisor.create(run_id="run-resource", objective="improve", ideas=[{"idea_id": "a"}])
+    result = supervisor.run_until_blocked("run-resource")
+
+    assert result["state"] == "blocked"
+    assert result["ideas"]["a"]["failure"]["retryable"] is True
+    assert calls == {"stage": 1, "repair": 0}
+
+
 def test_campaign_auto_replans_after_non_positive_batch(tmp_path: Path) -> None:
     rounds = []
 
