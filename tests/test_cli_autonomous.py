@@ -87,3 +87,21 @@ def test_autonomous_campaign_resumes_existing_blocked_run(tmp_path: Path, capsys
     ]) == 0
     resumed = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert resumed["state"] == "stopped"
+
+
+def test_autonomous_campaign_can_settle_five_requested_ideas(tmp_path: Path, capsys) -> None:
+    ideas = tmp_path / "ideas.json"
+    ideas.write_text(json.dumps({"ideas": [{"idea_id": f"fixture-five-{index}"} for index in range(5)]}), encoding="utf-8")
+    assert main([
+        "campaign", "autonomous-run", "--state-root", str(tmp_path / "state"),
+        "--run-id", "five-run", "--model-id", "fixture", "--objective", "quality",
+        "--ideas", str(ideas), "--runner", "adapters.fixture_campaign:runner",
+        "--worktree-root", str(tmp_path / "worktrees"), "--output-root", str(tmp_path / "out"),
+        "--offline", "--max-ideas", "5", "--settle-count", "5", "--continue-after-positive",
+    ]) == 0
+    result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert result["state"] == "stopped"
+    state = SQLiteState(tmp_path / "state" / "knowledge" / "knowledge.sqlite3")
+    payload = json.loads(state.list_rows("runs")[0]["payload_json"])
+    assert len(payload["ideas"]) == 5
+    assert all(item["state"] == "settled" for item in payload["ideas"].values())

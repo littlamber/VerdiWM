@@ -1,4 +1,7 @@
 from pathlib import Path
+import time
+
+import pytest
 
 from verdi_core.providers import OpenAICompatibleProvider
 
@@ -39,6 +42,15 @@ def test_environment_overrides_local_config(monkeypatch, tmp_path: Path):
     assert (provider.base_url, provider.model) == ("https://env.test/v1", "env")
 
 
+def test_environment_configures_total_timeout(monkeypatch):
+    monkeypatch.setenv("VERDI_AI_BASE_URL", "https://env.test/v1")
+    monkeypatch.setenv("VERDI_AI_MODEL", "env")
+    monkeypatch.setenv("VERDI_AI_TOTAL_TIMEOUT", "7")
+    provider = OpenAICompatibleProvider.from_env()
+    assert provider is not None
+    assert provider.total_timeout == 7
+
+
 def test_provider_can_use_env_file_when_toml_parser_is_unavailable(monkeypatch, tmp_path: Path):
     (tmp_path / "ai.env").write_text(
         'VERDI_AI_BASE_URL="https://local.test/v1"\nVERDI_AI_MODEL="local"\n',
@@ -54,3 +66,26 @@ def test_provider_can_use_env_file_when_toml_parser_is_unavailable(monkeypatch, 
 
     assert provider is not None
     assert (provider.base_url, provider.model) == ("https://local.test/v1", "local")
+
+
+def test_provider_enforces_wall_clock_deadline(monkeypatch):
+    """A peer that keeps a socket open cannot stall autonomous recovery."""
+    import verdi_core.providers as providers
+
+    class HangingResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            time.sleep(0.2)
+            return b'{"choices": []}'
+
+    monkeypatch.setattr(providers.urllib.request, "urlopen", lambda *_args, **_kwargs: HangingResponse())
+    provider = OpenAICompatibleProvider("https://example.test/v1", "model", total_timeout=0.03, timeout=0.03, max_retries=0)
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="total timeout"):
+        provider.complete(role="engineering_agent", prompt="repair")
+    assert time.monotonic() - started < 0.15

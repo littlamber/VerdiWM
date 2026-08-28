@@ -1,21 +1,45 @@
-# VerdiWM Clean v0.1.0
+# VerdiWM
 
-VerdiWM is a model-agnostic research control plane for testing world-model
-improvement ideas and retaining evidence that can be transferred to another
-model. It owns the workflow around a model: contracts, budgets, isolated
-worktrees, stage receipts, frozen evaluation gates, retries, and knowledge
-projection. The model-specific adapter owns loading, inference, probes,
-interventions, and the domain evaluator.
+**A lightweight, model-agnostic control plane for reliable world-model Auto Research.**
 
-This repository is the lightweight Kernel release. It contains a CPU fixture
-adapter so the complete control-plane contract can be verified without a GPU,
-model weights, a dataset, or an AI provider. It does not contain Ctrl-World,
-model checkpoints, datasets, private credentials, or historical experiment
-bundles. Those belong in separate adapter and artifact repositories.
+English | [简体中文](README_zh.md)
 
-## Start In Five Minutes
+VerdiWM runs the work around a world model: diagnose behavior, schedule bounded
+interventions, execute them in isolated worktrees, evaluate frozen held-out
+splits, and retain auditable evidence. Your model-specific code stays behind a
+small adapter; the Kernel does not depend on a model framework, GPU launcher,
+or vendor API.
 
-Use the following path to verify that the installation is healthy:
+> **Release status: v0.1.0 Kernel.** The control-plane contracts and offline
+> fixture path are tested. A real world-model adapter, domain evaluator, and
+> live provider credentials are still required for scientific claims.
+
+## Why VerdiWM?
+
+Most Auto Research systems optimize a score and keep experiment summaries.
+VerdiWM is designed to retain the stronger object: a bounded, reviewable claim
+with its conditions, evidence, counter-evidence, and provenance.
+
+```text
+goal
+  -> inspect + diagnostic probes
+  -> model portrait and failure fingerprint
+  -> retrieve and propose bounded interventions
+  -> isolated execution with receipts
+  -> frozen held-out verification
+  -> positive / null / harmful / abstain evidence
+  -> portable graph and bounded transfer candidates
+```
+
+The graph is therefore not a recipe replay system. It is a search and
+decision surface: known failures are excluded, uncertain boundaries become
+experiments, and transfer is only a ranked hypothesis until the target model
+passes its own conformance and held-out checks.
+
+## Five-minute local demo
+
+Requires Python 3.10-3.12. The fixture uses no GPU, model weights, network, or
+AI provider.
 
 ```bash
 python -m venv .venv
@@ -25,13 +49,12 @@ python -m venv .venv
 .venv/bin/verdi graph --state-root state/demo
 ```
 
-Expected result: `verdi doctor` reports a model-agnostic kernel, the demo
-finishes without network access, and `verdi graph` reports the fixture's
-portrait, fingerprint, and evidence records. The state directory is local
-runtime data and can be deleted after the smoke test.
+The demo runs the complete control-plane path: onboarding, probes, portrait,
+fingerprint, frozen verification, and evidence projection. Its metrics are
+contract-test fixtures, not results for a real world model.
 
-To exercise retrieval, idea extraction, scheduling, evaluation, and knowledge
-projection as one offline composition test:
+To exercise retrieval, idea extraction, scheduling, evaluation, and restartable
+state as one offline composition:
 
 ```bash
 .venv/bin/verdi cycle --offline \
@@ -39,120 +62,69 @@ projection as one offline composition test:
   --objective "improve held-out quality"
 ```
 
-Run the release checks before opening a pull request or publishing a package:
+Inspect or export the resulting local knowledge state:
 
 ```bash
-./scripts/release_preflight.sh
-python -m build                 # optional wheel/sdist build
-```
-
-## Choose Your Entry Point
-
-| You have | Start with | What it proves |
-| --- | --- | --- |
-| No model or GPU | `verdi demo` | Basic contracts and graph projection |
-| A model-independent integration | `verdi cycle --offline` | Research composition and restart behavior |
-| A real model and evaluator | `verdi campaign ...` | Isolated, restartable experiment stages |
-| An existing community graph | `verdi graph-bundle` and `verdi transfer` | Import/export and migration ranking |
-
-## Connect A Real Model
-
-Users do not implement the scheduler, worker, evaluator, retrieval system, or
-knowledge graph. Provide a thin adapter implementing the `ModelAdapter`
-protocol, plus a data/evaluator manifest:
-
-```text
-model SDK or HTTP API + data manifest + objective
-    -> adapter and evaluator draft
-    -> contract tests and metric adequacy checks
-    -> human approval of permissions and assumptions
-    -> autonomous campaign with isolated artifacts
-```
-
-The adapter should expose `inspect`, `probe`, `intervene`, and `evaluate`.
-Adapters may support only the capabilities they can honestly provide; an
-unsupported probe is recorded as unsupported rather than silently omitted. See
-[`docs/USER_BOUNDARY.md`](docs/USER_BOUNDARY.md),
-[`docs/PROTOCOLS.md`](docs/PROTOCOLS.md), and
-[`docs/MIGRATION.md`](docs/MIGRATION.md).
-
-An external adapter supplies the stage runner to the Kernel:
-
-```bash
-.venv/bin/verdi campaign autonomous-run \
-  --state-root state/run \
-  --run-id run-001 \
-  --model-id my-world-v1 \
-  --objective "improve held-out quality" \
-  --ideas ideas.json \
-  --runner my_adapter:stage_runner \
-  --replanner my_adapter:replan \
-  --worktree-root state/worktrees \
-  --output-root state/artifacts
-```
-
-The Kernel never writes the original model checkout, pushes code, uploads
-artifacts, escalates privileges, or reads outside the declared run boundary.
-Failed stages can be diagnosed and retried in an isolated worktree. A real
-scientific claim still requires a fixed held-out evaluator and replicated
-evidence; a completed training process alone is not evidence of improvement.
-
-The graph command can export a portable community view. A bundle keeps
-the SQLite query snapshot, append-only records, a transfer index, and a
-dependency-free interactive HTML graph:
-
-```bash
+.venv/bin/verdi knowledge --state-root state/demo
 .venv/bin/verdi graph-bundle \
   --state-root state/demo \
   --output-root state/demo-community-bundle
 ```
 
-Share the resulting directory as one community artifact. It contains
-`knowledge.sqlite3` for local queries, `graph.json` and `knowledge.jsonl` for
-interchange, `transfer_index.json` for migration ranking, and `graph.html` for
-a dependency-free interactive viewer. Portable exports replace machine-local
-paths with content-addressed artifact references. Large logs, videos, and
-checkpoints stay outside the database and can be uploaded as separate versioned
-artifacts.
+## Use it with a real model
 
-The knowledge graph is layered (`L0` ontology, `L1` model portraits and probe
-fingerprints, `L2` methods and sources, `L3` experiments and evidence, `L4`
-transfer reasoning, `L5` provenance).  Large logs, videos, and checkpoints are
-artifact references with content hashes rather than database blobs.  The
-transfer index is ranking-only: a target model must still pass conformance and
-held-out validation.  A new model can rank prior methods with:
+The user-facing boundary is intentionally small:
 
-```bash
-.venv/bin/verdi transfer --state-root state/demo \
-  --target-model-id new-world --diagnostic history_dependence \
-  --architecture dit --capability rollout
+```text
+model SDK or HTTP endpoint + data manifest + objective
+    -> thin adapter and evaluator
+    -> contract tests and metric-adequacy checks
+    -> human approval of permissions and assumptions
+    -> isolated, restartable campaign
 ```
 
-## Benchmark-Aware Evaluation
+Implement the `ModelAdapter` protocol (`inspect`, `probe`, `intervene`, and
+`evaluate`) or wrap an existing SDK/HTTP service. Declare only capabilities
+that are actually available. Unsupported probes or interventions must become
+an explicit `abstain`, never a silently skipped result.
 
-The Kernel includes a WorldArena metric catalog and a benchmark-aware selector.
-From the model portrait, public probe results, objective, observable data
-signals, and pinned benchmark sources, the configured AI selects eligible
-primary, protected, and diagnostic metrics. The Kernel rejects a proposed
-formal metric when its required data/capability is absent, or when it lacks
-machine-readable ground truth. A primary improvement cannot compensate for a
-protected regression.
+```python
+from typing import Any
 
-Evaluation is cost-aware: low/medium-cost metrics form a pilot, while expensive
-long-horizon metrics run only for a non-harmful candidate. A missing evaluator
-can be materialized in an isolated worktree, but it cannot be promoted until
-contract tests, frozen-split hashing, reference-fixture alignment, and repeat
-checks pass. See [`docs/BENCHMARK_METRICS.md`](docs/BENCHMARK_METRICS.md).
+class MyWorldAdapter:
+    adapter_id = "my-world"
+    version = "2026-01"
 
-For optional AI autonomy, set `VERDI_AI_BASE_URL`, `VERDI_AI_API_KEY`, and
-`VERDI_AI_MODEL`. Any OpenAI-compatible endpoint works; the same provider is
-used for planning, both extraction routes, metric selection, and probe
-evolution.
+    def inspect(self) -> dict[str, Any]:
+        return {
+            "model_id": "my-world-v1",
+            "revision": "git-sha-or-image-digest",
+            "capabilities": ["inference", "rollout", "evaluation", "intervention"],
+            "hooks": ["action-conditioning"],
+            "evaluator_id": "my-heldout-evaluator-v1",
+        }
 
-To run a restartable campaign with AI-managed repair from one command, use
-the `autonomous-run` entry point. The adapter supplies the model-specific
-stage runner; the kernel creates isolated worktrees, records AI/tool audits,
-and retries actionable failures:
+    def probe(self, probe_id: str) -> dict[str, Any]:
+        ...
+
+    def intervene(self, hypothesis: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    def evaluate(self, intervention: dict[str, Any], split: str) -> dict[str, Any]:
+        ...
+```
+
+The Kernel never edits the original checkout, pushes code, uploads artifacts,
+or escalates privileges. Model loading, training, rollouts, data access, and
+domain-specific evaluator semantics remain in the adapter package. See
+[`docs/USER_BOUNDARY.md`](docs/USER_BOUNDARY.md) and
+[`docs/PROTOCOLS.md`](docs/PROTOCOLS.md).
+
+## Run a campaign
+
+Give VerdiWM ideas and an adapter-owned stage runner. The supervisor persists
+stage transitions, retries, receipts, and evidence in SQLite, so a stopped run
+can be resumed without duplicating settled records.
 
 ```bash
 .venv/bin/verdi campaign autonomous-run \
@@ -167,39 +139,131 @@ and retries actionable failures:
   --output-root state/artifacts
 ```
 
-For an offline control-plane smoke test, replace the provider with
-`--offline` and use `adapters.fixture_campaign:runner`. This verifies the
-repair/retry and replicated-positive stop gates without claiming model
-science.
+For a deterministic control-plane check, add `--offline` and use the fixture
+runner. Other useful commands are:
 
-The optional `EngineeringAgent` adds a bounded tool loop for code inspection,
-isolated worktree edits, tests, command execution, failure diagnosis, retry,
-and artifact collection. GPT-5.6 is a suitable backend; a Codex backend can be
-added later without changing Kernel contracts. The agent cannot write the
-original checkout, push or upload externally, escalate privileges, or exceed
-the run's declared path, GPU, timeout, and budget policy.
+```bash
+.venv/bin/verdi campaign status --state-root state/run --run-id run-001
+.venv/bin/verdi campaign resume --state-root state/run --run-id run-001 \
+  --model-id my-world-v1 --runner my_adapter:stage_runner
+```
 
-The demo runs: onboarding -> probe fingerprint -> model portrait -> paired
-screen -> frozen verification -> positive/null/harmful knowledge projection.
-It is a contract test, not a claim about a real model.
+The optional AI provider is OpenAI-compatible. Set `VERDI_AI_BASE_URL`,
+`VERDI_AI_API_KEY`, and `VERDI_AI_MODEL` to enable planning, source extraction,
+metric selection, probe evolution, and bounded engineering repair. Without
+those variables, use the deterministic `--offline` path.
 
-## Adapter boundary
+## Evidence and evaluation
 
-An adapter implements `inspect`, `probe`, `evaluate`, and `intervene` methods
-behind the small `ModelAdapter` protocol. Capability level L0 only needs
-`inspect` and `evaluate`; L1 adds probes; L2 adds interventions; L3 adds
-reproduction/export. Adding an adapter must not require editing the kernel.
+Every promoted result is tied to a frozen objective, data split, evaluator,
+metric direction, seed policy, budget, artifact digest, and claim boundary.
+Outcomes include `confirmed_positive`, `null`, `harmful`, and `abstain`.
 
-## Repository And Release Boundary
+The benchmark-aware selector can propose WorldArena-style object consistency,
+action consistency, and downstream task-success metrics when the adapter
+actually exposes the required data and ground truth. A primary improvement
+cannot hide a protected-metric regression. Expensive long-horizon checks run
+only after cheaper pilot checks pass.
 
-The release intentionally does not include Ctrl-World, Cosmos, model weights,
-datasets, GPU launchers, or historical experiment bundles. Publish the Kernel,
-each domain adapter, community knowledge bundles, and large model artifacts as
-separate versioned repositories or releases. This keeps installation small and
-lets a new user choose the model and artifact versions they actually have
-access to.
+For a scientific claim, the evaluator should additionally provide:
 
-For the full lifecycle and evidence boundaries, read
-[`docs/FULL_LOOP.md`](docs/FULL_LOOP.md). For publishing, use
-[`PUBLISHING.md`](PUBLISHING.md) and inspect the release checklist before
-creating a GitHub release.
+- frozen train/validation/held-out splits and their hashes;
+- independent seeds and replicated runs;
+- protected metrics and uncertainty intervals;
+- downstream task success, not only local probe improvement;
+- complete code, configuration, checkpoint, and runtime receipts;
+- non-local or cross-model validation when transfer is claimed.
+
+The CPU fixture proves the control-plane contract only. It must not be cited as
+evidence that a real world model improved. The current release checklist still
+has open gates for a real external adapter/evaluator and live integrations:
+[`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+
+## Knowledge graph and transfer
+
+The portable projection is layered:
+
+| Layer | Contents |
+| --- | --- |
+| L0 | ontology and contracts |
+| L1 | model portraits and probe fingerprints |
+| L2 | methods, sources, and interventions |
+| L3 | experiments and evidence |
+| L4 | transfer assessments and boundaries |
+| L5 | provenance and integrity receipts |
+
+SQLite is the local query projection. Append-only JSONL, `graph.json`,
+`transfer_index.json`, and a dependency-free `graph.html` form the community
+bundle. Logs, videos, and checkpoints remain versioned artifact references,
+rather than database blobs.
+
+```bash
+.venv/bin/verdi transfer --state-root state/demo \
+  --target-model-id new-world \
+  --diagnostic history_dependence \
+  --architecture dit \
+  --capability rollout
+```
+
+Transfer output is ranking only. The target model must still pass adapter
+conformance, frozen held-out evaluation, replication, and protected-metric
+gates.
+
+## Mechanism search
+
+`VerdiWM-mechanism-search` is the incubating research layer for a typed
+Mechanism DSL and candidate-program search. It supports failure modes,
+composable operators, preconditions, anti-conditions, falsifiable predictions,
+budget-aware selection, semantic deduplication, and claim revision
+(`retain`, `shrink`, `split`, `revoke`).
+
+It is deliberately separate from this Kernel while the interface is being
+validated against a real adapter. Only model-independent search and claim
+logic should eventually move into the Kernel; model-specific patch materializers,
+training commands, weights, datasets, and evaluators stay in external adapter
+repositories. The incubator is released as a companion repository so its
+experimental interface and dependencies do not expand this Kernel release.
+
+## Repository layout
+
+```text
+verdi_core/       model-agnostic contracts, orchestration, evidence, storage
+adapters/         CPU fixtures only
+tests/            contract and lifecycle tests
+docs/             architecture, protocols, evaluation, migration, release
+scripts/          release checks
+```
+
+Ctrl-World, Cosmos, checkpoints, datasets, GPU launchers, private credentials,
+and historical experiment bundles are intentionally outside this repository.
+The companion Ctrl-World adapter binds user-owned assets through environment
+variables and never modifies the upstream checkout.
+
+## Development and release
+
+```bash
+python -m pytest -q
+./scripts/release_preflight.sh
+python -m build
+```
+
+Before publishing, read [`PUBLISHING.md`](PUBLISHING.md) and the release
+checklist. Keep changes model-agnostic and dependency-light; add model-specific
+logic to an adapter instead of `verdi_core`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and [`SECURITY.md`](SECURITY.md).
+
+## Roadmap
+
+The next research milestone is evidence-gated mechanism search: connect typed
+candidate programs to the Boundary-Aware Research Evidence Graph, choose
+experiments by information gain, and revise claims when counterexamples appear.
+The engineering order remains conservative:
+
+1. complete the real external adapter and evaluator validation chain;
+2. replicate across seeds, held-out splits, and non-local conditions;
+3. validate mechanism search on that adapter;
+4. then fold stable model-independent components back into the Kernel.
+
+## License
+
+VerdiWM is released under the [Apache License 2.0](LICENSE).

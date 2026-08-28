@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .campaign import CampaignSupervisor, RepairRunner, Replanner, StageRunner
 from .engineering import AutonomousStageRunner, EngineeringAgent, EngineeringSandbox, EngineeringTools
@@ -64,13 +64,22 @@ def autonomous_campaign(
             allowed_gpus=allowed_gpus,
         )
         tools = EngineeringTools(sandbox, sandbox.output_root / "tool-audit.jsonl")
-        return EngineeringAgent(ai, tools)
+        # Repairs are intentionally bounded independently of the campaign's
+        # stage budget. A provider outage must become a durable abstention in
+        # minutes, not hold the supervisor for all 32 model turns.
+        return EngineeringAgent(ai, tools, max_steps=12)
 
     def repair(idea: dict[str, Any], stage: str, context: dict[str, Any], failure: dict[str, Any]) -> dict[str, Any] | None:
         agent = factory(idea, stage, context)
         result = agent.run(objective=f"Repair {stage} for {idea.get('idea_id', 'idea')}", context={"failure": failure, "idea": idea})
         if result.get("state") not in {"completed", "approved", "settled"}:
             return {"state": "abstain", "engineering": result}
+        materialized = result.get("result", {}).get("materialized_patch")
+        if isinstance(materialized, Mapping) and isinstance(materialized.get("diff"), str):
+            patches = idea.setdefault("materialized_patches", [])
+            digest = str(materialized.get("digest", ""))
+            if not any(str(item.get("digest")) == digest for item in patches if isinstance(item, Mapping)):
+                patches.append({"diff": materialized["diff"], "digest": digest, "source": "autonomous_engineering"})
         return stage_runner(idea, stage, {**context, "engineering_receipt": result, "repaired": True})
 
     supervisor = CampaignSupervisor(

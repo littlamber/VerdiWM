@@ -100,6 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     campaign_auto.add_argument("--readable-root", type=Path, action="append", default=[])
     campaign_auto.add_argument("--offline", action="store_true", help="use deterministic fixture engineering AI")
     campaign_auto.add_argument("--settle-count", type=int)
+    campaign_auto.add_argument("--max-ideas", type=int, default=4)
     campaign_auto.add_argument("--continue-after-positive", action="store_true")
     campaign_auto.add_argument("--watch", action="store_true")
     campaign_auto.add_argument("--poll-seconds", type=float, default=30.0)
@@ -205,11 +206,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.campaign_command == "autonomous-run":
             if args.settle_count is not None and args.settle_count < 1:
                 raise SystemExit("--settle-count must be at least 1")
+            if args.max_ideas < 1:
+                raise SystemExit("--max-ideas must be at least 1")
             ai = FixtureEngineeringAI() if args.offline else OpenAICompatibleProvider.from_env()
             if ai is None:
                 print(json.dumps({"state": "abstain", "reason": "autonomous-run requires VERDI_AI_* or --offline"}, sort_keys=True))
                 return 0
             policy = CampaignPolicy(
+                max_ideas=max(args.max_ideas, args.settle_count or 0),
                 stop_on_first_positive=not args.continue_after_positive and args.settle_count is None,
                 target_settled_ideas=args.settle_count,
                 poll_seconds=args.poll_seconds,

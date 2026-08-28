@@ -162,6 +162,27 @@ def test_campaign_repair_runner_retries_failed_stage(tmp_path: Path) -> None:
     assert calls["repair"] == 1
 
 
+def test_campaign_skips_supervisor_repair_after_wrapped_runner_attempt(tmp_path: Path) -> None:
+    calls = {"repair": 0}
+
+    def runner(idea, stage, context):
+        return {
+            "state": "requires_code_patch",
+            "reason": "wrapped repair already attempted",
+            "engineering": {"state": "abstain", "reason": "provider_failed"},
+        }
+
+    def repair(idea, stage, context, failure):
+        calls["repair"] += 1
+        return {"state": "completed"}
+
+    supervisor = CampaignSupervisor(tmp_path, model_id="fixture", stage_runner=runner, repair_runner=repair)
+    supervisor.create(run_id="run-wrapped-repair", objective="improve", ideas=[{"idea_id": "a"}])
+    result = supervisor.run_until_blocked("run-wrapped-repair")
+    assert result["state"] == "settled"
+    assert calls["repair"] == 0
+
+
 def test_campaign_does_not_repair_external_resource_wait(tmp_path: Path) -> None:
     calls = {"stage": 0, "repair": 0}
 
@@ -185,6 +206,18 @@ def test_campaign_does_not_repair_external_resource_wait(tmp_path: Path) -> None
     assert result["state"] == "blocked"
     assert result["ideas"]["a"]["failure"]["retryable"] is True
     assert calls == {"stage": 1, "repair": 0}
+
+
+def test_campaign_settles_nonretryable_abstention_as_evidence(tmp_path: Path) -> None:
+    def runner(idea, stage, context):
+        return {"state": "abstain", "reason": "engineering_provider_failed"}
+
+    supervisor = CampaignSupervisor(tmp_path, model_id="fixture", stage_runner=runner)
+    supervisor.create(run_id="run-abstain", objective="improve", ideas=[{"idea_id": "a"}])
+    result = supervisor.run_until_blocked("run-abstain")
+    assert result["state"] == "settled"
+    assert result["ideas"]["a"]["settlement"]["outcome"] == "abstain"
+    assert supervisor.state.count("evidence") == 1
 
 
 def test_campaign_auto_replans_after_non_positive_batch(tmp_path: Path) -> None:

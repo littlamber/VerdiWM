@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from adapters.fixture_world import FixtureWorldAdapter
-from verdi_core.ideas import DualRouteIdeator
+from verdi_core.ideas import AutonomousResearchPlanner, DualRouteIdeator, relevant_source_documents
 from verdi_core.research import ResearchSystem
 from verdi_core.retrieval import OnlineRetriever, SearchHit
 from verdi_core.runtime import RuntimeBindings
@@ -47,3 +47,25 @@ def test_default_dual_ai_routes_use_shared_provider(tmp_path: Path) -> None:
     system = ResearchSystem(bindings, retriever=OnlineRetriever(FakeSearch(), state_root=tmp_path, timeout=0.01))
     report = system.run_cycle(objective="quality", constraints=["safety"])
     assert report["idea_count"] == 1
+
+
+def test_research_planner_extracts_query_from_structured_plan() -> None:
+    class StructuredAI:
+        def complete(self, *, role, prompt):
+            return '{"queries":[{"query":"video diffusion temporal robustness","rationale":"targeted"}],"rationale":"gap driven","adjacent_fields":[]}'
+
+    plan = AutonomousResearchPlanner(StructuredAI()).plan("improve", {})
+    assert plan.queries == ("video diffusion temporal robustness",)
+
+
+def test_source_relevance_rejects_unrelated_search_noise() -> None:
+    documents = [
+        {"title": "Video diffusion world models", "text": "Temporal action-conditioned diffusion model training", "source_url": "https://example.test/relevant"},
+        {"title": "Groundwater governance", "text": "A randomized field experiment", "source_url": "https://example.test/noise"},
+    ]
+    selected = relevant_source_documents(
+        documents,
+        objective="improve world model sampling robustness",
+        portrait={"architecture_facets": ["diffusion", "spatio_temporal_unet"], "capabilities": ["action_conditioned"]},
+    )
+    assert [item["source_url"] for item in selected] == ["https://example.test/relevant"]

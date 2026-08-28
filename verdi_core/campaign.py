@@ -98,7 +98,12 @@ class CampaignSupervisor:
             # External resource waits are intentionally different: code repair
             # cannot create an idle GPU or a missing dataset entitlement.
             repairable = result.get("blocker_type") != "resource_unavailable"
-            if repairable and result.get("state") in {"runtime_failed", "blocked", "requires_code_patch"} and self.repair_runner is not None and not context.get("repair_attempted"):
+            # ``autonomous_campaign`` wraps the stage runner with
+            # ``AutonomousStageRunner``, which already owns one repair attempt.
+            # Do not invoke the supervisor-level hook a second time for the
+            # same failure; duplicate provider calls used to stall persistence
+            # for several minutes per idea.
+            if repairable and result.get("state") in {"runtime_failed", "blocked", "requires_code_patch"} and self.repair_runner is not None and not context.get("repair_attempted") and not isinstance(result.get("engineering"), dict):
                 repaired = self.repair_runner(item["idea"], stage, {**context, "repair_attempted": True}, result)
                 if isinstance(repaired, dict):
                     result = repaired
@@ -113,7 +118,18 @@ class CampaignSupervisor:
                 # Preserve the exact request (including an optional batch
                 # manifest) so release-time validation can be deterministic.
                 item["human_request"] = result
-            elif result.get("state") in {"runtime_failed", "blocked", "abstain"}:
+            elif result.get("state") == "abstain" or (
+                result.get("state") == "requires_code_patch"
+                and isinstance(result.get("engineering"), dict)
+                and result["engineering"].get("state") == "abstain"
+            ):
+                # A non-retryable abstention is a scientific result in its
+                # own right. Settle it into Evidence so failed ideas remain
+                # discoverable; transient resource blocks stay below.
+                settled = {**result, "state": "completed", "outcome": "abstain", "reason": result.get("reason", "abstained")}
+                event["result"] = settled
+                self._settle_idea(campaign, idea_id, item, settled)
+            elif result.get("state") in {"runtime_failed", "blocked", "requires_code_patch"}:
                 item["state"] = str(result["state"])
                 item["failure"] = result
             elif stage == "full_train" and (result.get("continue_long_train") or result.get("state") == "continue_long_train" or result.get("action") == "continue_long_train"):

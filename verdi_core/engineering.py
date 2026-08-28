@@ -68,6 +68,11 @@ def _inside(path: Path, roots: Iterable[Path]) -> bool:
     return any(resolved == root.resolve() or root.resolve() in resolved.parents for root in roots)
 
 
+def _resolve_from(path: Path, base: Path) -> Path:
+    """Resolve agent-relative paths against the declared sandbox cwd."""
+    return (base / path).resolve() if not path.is_absolute() else path.expanduser().resolve()
+
+
 @dataclass(frozen=True)
 class EngineeringSandbox:
     """Filesystem and process authority for one autonomous run."""
@@ -161,36 +166,56 @@ class EngineeringTools:
         return self._record(name, result)
 
     def _inspect_files(self, args: dict[str, Any]) -> dict[str, Any]:
-        root = self.sandbox.check_read(Path(str(args.get("path", self.sandbox.worktree))))
-        pattern = str(args.get("pattern", "*"))
+        requested_paths = args.get("paths")
+        if requested_paths is None and "path" not in args and isinstance(args.get("root"), str):
+            requested_paths = [args["root"]]
+        if isinstance(requested_paths, Sequence) and not isinstance(requested_paths, (str, bytes)):
+            roots = [_resolve_from(Path(str(value)), self.default_cwd) for value in requested_paths]
+            results = []
+            for requested in roots:
+                result = self._inspect_files({**args, "path": str(requested), "paths": None})
+                results.append(result)
+            return {"state": "ok", "paths": results}
+        root = self.sandbox.check_read(_resolve_from(Path(str(args.get("path", args.get("root", self.sandbox.worktree)))), self.default_cwd))
+        patterns = args.get("patterns")
+        pattern = str(args.get("pattern", patterns[0] if isinstance(patterns, Sequence) and patterns else "*"))
         limit = max(1, min(int(args.get("limit", 200)), 2000))
+        max_depth = max(0, min(int(args.get("depth", args.get("max_depth", 1))), 8))
         rows = []
         for path in sorted(root.glob(pattern))[:limit]:
             if path.is_symlink() or not _inside(path, (*self.sandbox.writable_roots, *self.sandbox.readable_roots)):
+                continue
+            if len(path.relative_to(root).parts) - 1 > max_depth:
                 continue
             rows.append({"path": str(path.relative_to(root)), "kind": "dir" if path.is_dir() else "file", "size": path.stat().st_size if path.is_file() else None})
         return {"state": "ok", "root": str(root), "files": rows}
 
     def _read_file(self, args: dict[str, Any]) -> dict[str, Any]:
-        path = self.sandbox.check_read(Path(str(args["path"])))
+        requested_paths = args.get("paths")
+        if isinstance(requested_paths, Sequence) and not isinstance(requested_paths, (str, bytes)):
+            results = [self._read_file({**args, "path": str(value), "paths": None}) for value in requested_paths]
+            return {"state": "ok", "files": results}
+        path = self.sandbox.check_read(_resolve_from(Path(str(args["path"])), self.default_cwd))
         limit = max(1, min(int(args.get("max_bytes", 120000)), 500000))
         data = path.read_bytes()[:limit]
         return {"state": "ok", "path": str(path), "truncated": path.stat().st_size > limit, "content": data.decode("utf-8", "replace")}
 
     def _git_diff(self, args: dict[str, Any]) -> dict[str, Any]:
-        cwd = self.sandbox.check_read(Path(str(args.get("cwd", self.default_cwd))))
+        cwd = self.sandbox.check_read(_resolve_from(Path(str(args.get("cwd", self.default_cwd))), self.default_cwd))
         argv = self.sandbox.validate_command(["git", "diff", "--no-ext-diff"], cwd=cwd)
         completed = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=self.sandbox.max_command_seconds, check=False)
         return {"state": "ok" if completed.returncode == 0 else "failed", "returncode": completed.returncode, "stdout": completed.stdout[-120000:], "stderr": completed.stderr[-20000:]}
 
     def _apply_patch(self, args: dict[str, Any]) -> dict[str, Any]:
-        diff = str(args.get("diff", ""))
+        # Accept the common provider spelling ``patch`` as an alias while
+        # keeping ``diff`` as the canonical action-schema field.
+        diff = str(args.get("diff", args.get("patch", "")))
         if not diff.strip():
             raise EngineeringPolicyError("empty patch")
         patch_path = self.sandbox.output_root / ".engineering-candidate.patch"
         patch_path = self.sandbox.check_write(patch_path)
         patch_path.write_text(diff, encoding="utf-8")
-        cwd = self.sandbox.check_write(Path(str(args.get("cwd", self.default_cwd))))
+        cwd = self.sandbox.check_write(_resolve_from(Path(str(args.get("cwd", self.default_cwd))), self.default_cwd))
         check = subprocess.run(["git", "apply", "--check", str(patch_path)], cwd=cwd, capture_output=True, text=True, timeout=self.sandbox.max_command_seconds, check=False)
         if check.returncode:
             patch_path.unlink(missing_ok=True)
@@ -207,7 +232,7 @@ class EngineeringTools:
             argv = [str(value) for value in raw]
         else:
             raise EngineeringPolicyError("run_command requires argv")
-        cwd = self.sandbox.check_write(Path(str(args.get("cwd", self.default_cwd))))
+        cwd = self.sandbox.check_write(_resolve_from(Path(str(args.get("cwd", self.default_cwd))), self.default_cwd))
         argv = self.sandbox.validate_command(argv, cwd=cwd)
         timeout = min(float(args.get("timeout_seconds", self.sandbox.max_command_seconds)), self.sandbox.max_command_seconds)
         env = os.environ.copy()
@@ -226,8 +251,14 @@ class EngineeringTools:
         return self._run_command({"argv": command, "cwd": args.get("cwd", self.default_cwd), "timeout_seconds": args.get("timeout_seconds", self.sandbox.max_command_seconds)})
 
     def _create_worktree(self, args: dict[str, Any]) -> dict[str, Any]:
-        repository = self.sandbox.check_read(Path(str(args["repository"])))
-        destination = self.sandbox.check_write(Path(str(args["destination"])))
+        # Autonomous repairs are already given a dedicated detached worktree.
+        # Some providers still request one with a generic ``path``/``branch``
+        # schema; acknowledge the existing isolation rather than making an
+        # unsafe nested worktree or raising a KeyError on an optional action.
+        if "repository" not in args or "destination" not in args:
+            return {"state": "ok", "worktree": str(self.sandbox.worktree), "reason": "existing_isolated_worktree"}
+        repository = self.sandbox.check_read(_resolve_from(Path(str(args["repository"])), self.default_cwd))
+        destination = self.sandbox.check_write(_resolve_from(Path(str(args["destination"])), self.default_cwd))
         if destination.exists():
             raise EngineeringPolicyError("refusing to overwrite existing worktree")
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -236,7 +267,7 @@ class EngineeringTools:
         return {"state": "ok", "worktree": str(destination), "revision": revision}
 
     def _collect_artifacts(self, args: dict[str, Any]) -> dict[str, Any]:
-        root = self.sandbox.check_read(Path(str(args.get("root", self.sandbox.worktree))))
+        root = self.sandbox.check_read(_resolve_from(Path(str(args.get("root", self.sandbox.worktree))), self.default_cwd))
         pattern = str(args.get("pattern", "**/*"))
         limit = max(1, min(int(args.get("limit", 200)), 2000))
         artifacts = []
@@ -268,6 +299,8 @@ class EngineeringAgent:
     ai: AIProvider
     tools: EngineeringTools
     max_steps: int = 32
+    max_read_only_steps: int = 12
+    max_repeated_action: int = 3
     role: str = "engineering_agent"
     audit_path: Path | None = None
 
@@ -280,23 +313,73 @@ class EngineeringAgent:
     def run(self, *, objective: str, context: Mapping[str, Any] | None = None) -> dict[str, Any]:
         transcript: list[dict[str, Any]] = []
         instruction = self._prompt(objective, context or {}, transcript)
+        read_only_steps = 0
+        last_action_digest: str | None = None
+        repeated_action_count = 0
         for step in range(self.max_steps):
-            raw = self.ai.complete(role=self.role, prompt=instruction)
+            try:
+                raw = self.ai.complete(role=self.role, prompt=instruction)
+            except Exception as exc:
+                result = {"state": "abstain", "reason": "engineering_provider_failed", "error": f"{type(exc).__name__}: {exc}", "step": step}
+                self._audit_ai(step=step, prompt=instruction, response=json.dumps(result, sort_keys=True))
+                return {"state": "abstain", "result": _redact(result), "steps": step + 1, "events": list(self.tools.events)}
             self._audit_ai(step=step, prompt=instruction, response=raw)
-            action = self._parse_action(raw)
-            if action is None:
+            actions = self._parse_actions(raw)
+            if not actions:
                 result = {"state": "abstain", "reason": "invalid_engineering_action", "step": step}
                 transcript.append({"assistant": _redact(raw), "result": result})
                 instruction = self._prompt(objective, context or {}, transcript)
                 continue
-            if action.get("action") == "done":
-                result = dict(action.get("args", {}))
-                result.setdefault("state", "completed")
-                return {"state": result.get("state", "completed"), "result": _redact(result), "steps": step + 1, "events": list(self.tools.events)}
-            tool_result = self.tools.execute(action)
-            transcript.append({"assistant_action": _redact(action), "tool_result": _redact(tool_result)})
+            for action in actions:
+                if action.get("action") == "done":
+                    result = dict(action.get("args", {}))
+                    result.setdefault("state", "completed")
+                    materialized = self._capture_materialized_patch()
+                    if materialized is not None:
+                        result["materialized_patch"] = materialized
+                    return {"state": result.get("state", "completed"), "result": _redact(result), "steps": step + 1, "events": list(self.tools.events)}
+                action_digest = hashlib.sha256(json.dumps(action, sort_keys=True).encode("utf-8")).hexdigest()
+                if action_digest == last_action_digest:
+                    repeated_action_count += 1
+                else:
+                    last_action_digest = action_digest
+                    repeated_action_count = 1
+                if repeated_action_count >= self.max_repeated_action:
+                    return {
+                        "state": "abstain",
+                        "reason": "engineering_repeated_action_budget_exhausted",
+                        "steps": step + 1,
+                        "events": list(self.tools.events),
+                    }
+                tool_result = self.tools.execute(action)
+                transcript.append({"assistant_action": _redact(action), "tool_result": _redact(tool_result)})
+                if action.get("action") in {"inspect_files", "read_file", "git_diff"}:
+                    read_only_steps += 1
+                    if read_only_steps >= self.max_read_only_steps:
+                        return {
+                            "state": "abstain",
+                            "reason": "engineering_read_only_budget_exhausted",
+                            "steps": step + 1,
+                            "events": list(self.tools.events),
+                        }
+                else:
+                    read_only_steps = 0
             instruction = self._prompt(objective, context or {}, transcript)
         return {"state": "abstain", "reason": "engineering_step_budget_exhausted", "steps": self.max_steps, "events": list(self.tools.events)}
+
+    def _capture_materialized_patch(self) -> dict[str, str] | None:
+        """Capture the repair so model adapters can replay it in later stages."""
+        worktree = self.tools.sandbox.worktree
+        if not (worktree / ".git").exists():
+            return None
+        completed = subprocess.run(
+            ["git", "diff", "--binary", "--no-ext-diff", "HEAD"],
+            cwd=worktree, capture_output=True, text=True,
+            timeout=self.tools.sandbox.max_command_seconds, check=False,
+        )
+        if completed.returncode != 0 or not completed.stdout.strip():
+            return None
+        return {"diff": completed.stdout, "digest": _digest(completed.stdout)}
 
     def _audit_ai(self, *, step: int, prompt: str, response: str) -> None:
         # Keep only digests and bounded redacted excerpts; prompts may contain
@@ -317,6 +400,12 @@ class EngineeringAgent:
         return json.dumps({
             "objective": objective,
             "context": _redact(dict(context)),
+            "sandbox": {
+                "worktree": str(self.tools.sandbox.worktree),
+                "output_root": str(self.tools.sandbox.output_root),
+                "default_cwd": str(self.tools.default_cwd),
+                "note": "You are already in an isolated worktree. Edit and test there; do not create another worktree unless an explicit repository and destination are supplied.",
+            },
             "allowed_actions": sorted(_ALLOWED_ACTIONS),
             "action_schema": {"action": "one allowed action", "args": "object; for done include state/reason"},
             "rules": [
@@ -331,13 +420,39 @@ class EngineeringAgent:
 
     @staticmethod
     def _parse_action(raw: str) -> dict[str, Any] | None:
+        actions = EngineeringAgent._parse_actions(raw)
+        if not actions:
+            return None
+        # Preserve the historical single-action compatibility contract:
+        # when a tool action is followed by a terminal result, callers that
+        # can consume only one action must observe the terminal decision.
+        first = actions[0]
+        terminal = next((action for action in reversed(actions) if action.get("action") == "done"), None)
+        return terminal if first.get("action") != "done" and terminal is not None else first
+
+    @staticmethod
+    def _parse_actions(raw: str) -> list[dict[str, Any]]:
+        """Recover every valid action object from prose or concatenated JSON."""
         try:
             value = json.loads(raw.strip())
+            candidates = value if isinstance(value, list) else [value]
         except (TypeError, json.JSONDecodeError):
-            return None
-        if not isinstance(value, dict) or not isinstance(value.get("action"), str):
-            return None
-        return value
+            # Providers occasionally include prose or concatenate multiple
+            # actions. A terminal ``done`` in such a response is authoritative:
+            # executing only its first tool action and discarding the terminal
+            # result leaves a campaign waiting for an unnecessary next turn.
+            decoder = json.JSONDecoder()
+            candidates = []
+            for index, character in enumerate(str(raw)):
+                if character != "{":
+                    continue
+                try:
+                    candidate, _ = decoder.raw_decode(str(raw)[index:])
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(candidate, dict):
+                    candidates.append(candidate)
+        return [candidate for candidate in candidates if isinstance(candidate, dict) and isinstance(candidate.get("action"), str)]
 
 
 @dataclass
@@ -370,10 +485,16 @@ class AutonomousStageRunner:
         agent = self.agent_factory(idea, stage, context)
         receipt = agent.run(
             objective=str(idea.get("objective", idea.get("title", f"repair {stage} for {idea.get('idea_id', 'idea')}"))),
-            context={"stage": stage, "failure": _redact(result), "idea_id": idea.get("idea_id")},
+            context={"stage": stage, "failure": _redact(result), "idea": _redact(idea)},
         )
         if receipt.get("state") not in {"completed", "approved", "settled"}:
             return {**result, "engineering": receipt}
+        materialized = receipt.get("result", {}).get("materialized_patch")
+        if isinstance(materialized, Mapping) and isinstance(materialized.get("diff"), str):
+            patches = idea.setdefault("materialized_patches", [])
+            digest = str(materialized.get("digest", _digest(materialized["diff"])))
+            if not any(str(item.get("digest")) == digest for item in patches if isinstance(item, Mapping)):
+                patches.append({"diff": materialized["diff"], "digest": digest, "source": "autonomous_engineering"})
         retry_context = {**context, "engineering_repairs": repairs + 1, "engineering_receipt": receipt}
         retried = self.stage_runner(idea, stage, retry_context)
         return {**retried, "engineering": {"state": "repaired_and_retried", "attempt": repairs + 1, "receipt": receipt}}
