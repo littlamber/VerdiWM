@@ -118,7 +118,8 @@ before reinstalling.
 - Evidence graph and effect memory that retain positive, null, and harmful
   outcomes with provenance.
 - Research modes and a local workbench for repeated experiments.
-- Optional extension points for new model families and evaluators.
+- First-contact executor bootstrap for new model families through bounded,
+  conformance-checked adapter generation.
 
 The core loop and extension boundaries are documented in
 [Architecture](docs/ARCHITECTURE.md), [Onboarding](docs/ONBOARDING.md), and
@@ -127,12 +128,14 @@ contains the supported research modes.
 
 ## Scope and status
 
-The public release is an early research release (`0.1.0`, Alpha). The
-control plane, schemas, CLI, examples, and workbench are usable, but support
-for a particular model family still depends on an adapter profile and the
-assets required by its evaluator. Successful orchestration is not evidence
-that a repair improves model quality; quality claims require the model's
-actual runtime, data, and frozen verification protocol.
+The public release is `1.0.0` (stable). The control plane, schemas, CLI,
+examples, workbench, automatic mechanism composition, and first-contact model
+bootstrap pass the reproducible release gate. A new model family can acquire a
+conformance-checked adapter automatically when a deployment supplies a trusted
+base profile and bounded repair provider. Scientific assets and evaluator
+semantics cannot be inferred safely: successful orchestration is not evidence
+that a repair improves model quality, and quality claims still require the
+model's actual runtime, data, and frozen verification protocol.
 
 For release checks and contribution guidance, see
 [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the

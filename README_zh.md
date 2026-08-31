@@ -113,10 +113,11 @@ uv run python -m wmloop.control.workbench --port 8765
 
 ## 范围与版本状态
 
-当前公开版本为 early research release（`0.1.0`，Alpha）。控制面、schema、CLI、
-示例和 workbench 已可使用，但具体模型族仍取决于对应 adapter profile 及
-evaluator 所需资产。编排成功不等于模型质量提升；任何质量结论都必须基于真实
-模型运行时、数据和冻结的验证协议。
+当前公开版本为 `1.0.0`（稳定版）。控制面、schema、CLI、示例、workbench、
+机制自动组合和新模型首次接入流程均通过可复现发布门禁。部署提供可信基础
+profile 和受约束修复 provider 后，新模型族可以自动生成并验证 adapter。系统
+不会猜测科学资产或 evaluator 语义：编排成功不等于模型质量提升，任何质量结论
+仍必须基于真实模型运行时、数据和冻结的验证协议。
 
 发布检查、贡献和安全说明分别见 [CONTRIBUTING.md](CONTRIBUTING.md)、
 [SECURITY.md](SECURITY.md) 以及仓库中的 `RELEASE_AUDIT.json`。
