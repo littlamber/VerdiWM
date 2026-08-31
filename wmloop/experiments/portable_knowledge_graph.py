@@ -44,6 +44,7 @@ from wmloop.geometry.portable_transfer_knowledge import (
     validate_probe_fingerprint_summary,
     validate_transfer_boundary,
 )
+from wmloop.geometry.mechanism_relations import validate_mechanism_relation
 from wmloop.geometry.types import GeometryValidationError
 
 
@@ -458,6 +459,9 @@ def _project_document(graph: _PortableKnowledgeGraph, document: Mapping[str, obj
     elif artifact == "verdiwm-mechanism-contract":
         validate_mechanism_contract(document)
         _project_mechanism(graph, document)
+    elif artifact == "verdiwm-mechanism-relation":
+        validate_mechanism_relation(document)
+        _project_mechanism_relation(graph, document)
     elif artifact == "verdiwm-method-embodiment":
         validate_method_embodiment(document)
         _project_embodiment(graph, document)
@@ -1076,6 +1080,34 @@ def _project_mechanism(graph: _PortableKnowledgeGraph, document: Mapping[str, ob
     for reference in document["source_evidence_refs"]:
         evidence = graph.node("evidence", str(reference))
         graph.edge(root, "derived_from_evidence", evidence, evidence=str(reference))
+
+
+def _project_mechanism_relation(
+    graph: _PortableKnowledgeGraph, document: Mapping[str, object]
+) -> None:
+    """Project a pairwise claim while retaining its evidence and boundary."""
+
+    root = graph.node(
+        "mechanism_relation",
+        str(document["relation_id"]),
+        relation_type=document["relation_type"],
+        composition_operator=document["composition_operator"],
+        interaction_effect=document["interaction_effect"],
+        uncertainty=document["uncertainty"],
+        verification_state=document["verification_state"],
+        claim_scope=document["claim_scope"],
+    )
+    graph.edge(root, "relates_source", graph.node("mechanism", str(document["source_mechanism_id"])))
+    graph.edge(root, "relates_target", graph.node("mechanism", str(document["target_mechanism_id"])))
+    for condition in document["condition_set"]:
+        graph.edge(root, "requires_condition", graph.node("condition", str(condition)))
+    for anti_condition in document["anti_conditions"]:
+        graph.edge(root, "bounded_by", graph.node("anti_condition", str(anti_condition)))
+    for ablation in document["required_ablations"]:
+        graph.edge(root, "requires_ablation", graph.node("ablation", str(ablation)))
+    for reference in document["evidence_refs"]:
+        evidence = graph.node("evidence", str(reference))
+        graph.edge(root, "cites_evidence", evidence, evidence=str(reference))
 
 
 def _project_embodiment(graph: _PortableKnowledgeGraph, document: Mapping[str, object]) -> None:

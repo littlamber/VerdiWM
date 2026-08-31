@@ -22,6 +22,18 @@ from wmloop.geometry.memory import (
     EffectRecord,
     build_transferable_experience,
 )
+from wmloop.geometry.mechanism_relations import (
+    COMPOSITION_OPERATORS,
+    RELATION_TYPES,
+    VERIFICATION_STATES,
+    MechanismRelation,
+    build_mechanism_relation,
+    propose_mechanism_relation,
+    classify_interaction,
+    interaction_effect,
+    relation_from_dict,
+    validate_mechanism_relation,
+)
 from wmloop.geometry.portable_experience import (
     build_portable_experience,
     validate_portable_experience,
@@ -52,7 +64,16 @@ __all__ = [
     "EffectContext",
     "EffectMemory",
     "EffectRecord",
+    "MechanismRelation",
+    "RELATION_TYPES",
+    "COMPOSITION_OPERATORS",
+    "VERIFICATION_STATES",
     "build_transferable_experience",
+    "build_mechanism_relation",
+    "propose_mechanism_relation",
+    "classify_interaction",
+    "interaction_effect",
+    "relation_from_dict",
     "build_evidence_ir",
     "build_mechanism_contract",
     "build_method_embodiment",
@@ -79,5 +100,6 @@ __all__ = [
     "validate_method_embodiment",
     "validate_probe_fingerprint_summary",
     "validate_portable_experience",
+    "validate_mechanism_relation",
     "validate_transfer_boundary",
 ]

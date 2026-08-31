@@ -89,10 +89,13 @@ class EffectRecord:
 class EffectMemory:
     """Deduplicated collection retaining positive, null, and harmful effects."""
 
-    def __init__(self, records: Iterable[EffectRecord] = ()) -> None:
+    def __init__(self, records: Iterable[EffectRecord] = (), relations: Iterable[object] = ()) -> None:
         self._records: dict[str, EffectRecord] = {}
+        self._relations: dict[str, object] = {}
         for record in records:
             self.add(record)
+        for relation in relations:
+            self.add_relation(relation)
 
     def add(self, record: EffectRecord) -> None:
         if record.record_id in self._records:
@@ -101,6 +104,57 @@ class EffectMemory:
 
     def records(self) -> tuple[EffectRecord, ...]:
         return tuple(self._records[key] for key in sorted(self._records))
+
+    def add_relation(self, relation: object) -> None:
+        """Store a validated mechanism relation alongside effect records."""
+
+        from wmloop.geometry.mechanism_relations import MechanismRelation, relation_from_dict
+
+        if isinstance(relation, Mapping):
+            relation = relation_from_dict(relation)
+        if not isinstance(relation, MechanismRelation):
+            raise GeometryValidationError("MECHANISM_RELATION_INVALID")
+        if relation.relation_id in self._relations:
+            raise GeometryValidationError(f"MECHANISM_RELATION_DUPLICATE:{relation.relation_id}")
+        self._relations[relation.relation_id] = relation
+
+    def relations(self) -> tuple[object, ...]:
+        return tuple(self._relations[key] for key in sorted(self._relations))
+
+    def query_relations(
+        self,
+        *,
+        mechanism_id: str | None = None,
+        relation_type: str | None = None,
+        verification_state: str | None = None,
+    ) -> tuple[object, ...]:
+        """Query pairwise mechanism knowledge without mixing it into effects."""
+
+        return tuple(
+            relation
+            for relation in self.relations()
+            if (
+                mechanism_id is None
+                or relation.source_mechanism_id == mechanism_id
+                or relation.target_mechanism_id == mechanism_id
+            )
+            and (relation_type is None or relation.relation_type == relation_type)
+            and (verification_state is None or relation.verification_state == verification_state)
+        )
+
+    def write_relation_jsonl(self, path: Path) -> Path:
+        """Persist deterministic relationship artifacts as a derived view."""
+
+        destination = Path(path)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        rows = []
+        for relation in self.relations():
+            rows.append(relation.to_dict())
+        destination.write_text(
+            "".join(json.dumps(row, sort_keys=True, ensure_ascii=False, allow_nan=False) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+        return destination
 
     def query(
         self,

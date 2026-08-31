@@ -18,8 +18,10 @@ from wmloop.control.capability_gap_planner import (
 from wmloop.control.model_portrait import ModelPortraitError, validate_model_portrait
 from wmloop.geometry.evidence_ir import reject_runtime_bindings
 from wmloop.geometry.portable_transfer_knowledge import (
+    build_mechanism_contract,
     validate_mechanism_contract,
 )
+from wmloop.geometry.mechanism_relations import validate_mechanism_relation
 from wmloop.geometry.types import GeometryValidationError
 
 
@@ -35,6 +37,132 @@ _RANKING_WEIGHTS = {
     "cost_weight": 0.10,
 }
 _ENTRY_ROLES = {"baseline", "mechanism_test", "negative_control", "ablation"}
+
+
+def build_relation_hypothesis_batch(
+    *,
+    relation: Mapping[str, object],
+    source_mechanism: Mapping[str, object],
+    target_mechanism: Mapping[str, object],
+    expected_portrait_changes: Sequence[str],
+    required_module_capabilities: Sequence[str],
+    information_gain: float,
+    uncertainty: float,
+    estimated_screen_gpu_hours: float,
+    selection_reason: str = "relation_candidate_from_settled_evidence",
+) -> dict[str, object]:
+    """Turn a pairwise relation into the existing portfolio input contract.
+
+    The resulting mechanism is the A+B composition. Its two required
+    component-removal ablations become the A-only and B-only counterfactuals in
+    ``_portfolio_entries``. No relation is promoted by this adapter; the
+    resulting batch still requires normal resource admission and verification.
+    """
+
+    validate_mechanism_relation(relation)
+    validate_mechanism_contract(source_mechanism)
+    validate_mechanism_contract(target_mechanism)
+    if not expected_portrait_changes or any(not str(value).strip() for value in expected_portrait_changes):
+        raise ExperimentPortfolioError("RELATION_EXPECTED_CHANGES_INVALID")
+    if any(not str(value).strip() for value in required_module_capabilities):
+        raise ExperimentPortfolioError("RELATION_MODULE_CAPABILITIES_INVALID")
+    source_id = str(relation["source_mechanism_id"])
+    target_id = str(relation["target_mechanism_id"])
+    if source_id != str(source_mechanism["mechanism_id"]) or target_id != str(target_mechanism["mechanism_id"]):
+        raise ExperimentPortfolioError("RELATION_MECHANISM_BINDING_MISMATCH")
+    source_caps = [str(value) for value in source_mechanism["required_capabilities"]]
+    target_caps = [str(value) for value in target_mechanism["required_capabilities"]]
+    source_interfaces = [str(value) for value in source_mechanism["target_interface_requirements"]]
+    target_interfaces = [str(value) for value in target_mechanism["target_interface_requirements"]]
+    relation_type = str(relation["relation_type"])
+    combined = build_mechanism_contract(
+        causal_claim=(
+            f"The {relation_type} composition of {source_id} and {target_id} "
+            "improves the declared outcome beyond the single-mechanism counterfactuals."
+        ),
+        intervention_semantics=(
+            f"compose[{relation['composition_operator']}]({source_id},{target_id})"
+        ),
+        required_capabilities=sorted(set(source_caps + target_caps)),
+        optional_capabilities=sorted(
+            set(str(value) for value in source_mechanism["optional_capabilities"])
+            | set(str(value) for value in target_mechanism["optional_capabilities"])
+        ),
+        target_interface_requirements=sorted(set(source_interfaces + target_interfaces)),
+        prohibited_substitutions=sorted(
+            set(str(value) for value in source_mechanism["prohibited_substitutions"])
+            | set(str(value) for value in target_mechanism["prohibited_substitutions"])
+        ),
+        required_ablations=sorted(
+            {f"remove:{source_id}", f"remove:{target_id}"}
+            | set(str(value) for value in relation["required_ablations"])
+        ),
+        falsification_criterion=(
+            "The composition is falsified when the combined effect does not exceed "
+            "the additive single-mechanism contrast, or when a protected metric regresses."
+        ),
+        known_anti_conditions=sorted(
+            set(str(value) for value in source_mechanism["known_anti_conditions"])
+            | set(str(value) for value in target_mechanism["known_anti_conditions"])
+            | set(str(value) for value in relation["anti_conditions"])
+        ),
+        source_evidence_refs=sorted(
+            set(str(value) for value in source_mechanism["source_evidence_refs"])
+            | set(str(value) for value in target_mechanism["source_evidence_refs"])
+            | set(str(value) for value in relation["evidence_refs"])
+        ),
+    )
+    return {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-experiment-hypothesis-batch",
+        "candidates": [{
+            "mechanism_contract": combined,
+            "expected_portrait_changes": sorted(set(str(value) for value in expected_portrait_changes)),
+            "structural_conditions": sorted(set(str(value) for value in relation["condition_set"])),
+            "behavioral_conditions": [],
+            "discriminates_from": [],
+            "required_module_capabilities": sorted(set(str(value) for value in required_module_capabilities)),
+            "information_gain": float(information_gain),
+            "uncertainty": float(uncertainty),
+            "estimated_screen_gpu_hours": float(estimated_screen_gpu_hours),
+            "selection_reason": selection_reason,
+        }],
+    }
+
+
+def compile_relation_experiment_portfolio(
+    *,
+    relation: Mapping[str, object],
+    source_mechanism: Mapping[str, object],
+    target_mechanism: Mapping[str, object],
+    expected_portrait_changes: Sequence[str],
+    required_module_capabilities: Sequence[str],
+    information_gain: float,
+    uncertainty: float,
+    estimated_screen_gpu_hours: float,
+    portfolio_arguments: Mapping[str, object],
+) -> dict[str, object]:
+    """Compile a relation candidate through the normal portfolio pipeline.
+
+    ``portfolio_arguments`` contains the regular goal, portrait, requirement,
+    policy, and evaluator inputs accepted by :func:`compile_experiment_portfolio`.
+    Keeping this as a thin adapter guarantees relation experiments inherit the
+    same budget, admission, and frozen-evaluator policy as ordinary hypotheses.
+    """
+
+    batch = build_relation_hypothesis_batch(
+        relation=relation,
+        source_mechanism=source_mechanism,
+        target_mechanism=target_mechanism,
+        expected_portrait_changes=expected_portrait_changes,
+        required_module_capabilities=required_module_capabilities,
+        information_gain=information_gain,
+        uncertainty=uncertainty,
+        estimated_screen_gpu_hours=estimated_screen_gpu_hours,
+    )
+    arguments = dict(portfolio_arguments)
+    arguments["hypothesis_batch"] = batch
+    return compile_experiment_portfolio(**arguments)  # type: ignore[arg-type]
 
 
 def compile_experiment_portfolio(
