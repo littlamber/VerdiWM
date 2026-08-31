@@ -19,6 +19,7 @@ from wmloop.control.mechanism_composition import (
     MechanismCompositionError,
     compile_mechanism_composition,
     discover_mechanism_compositions,
+    discover_from_memory,
     execute_mechanism_composition,
     binding_from_embodiment,
 )
@@ -269,3 +270,20 @@ def test_embodiment_carries_its_reusable_execution_binding() -> None:
     binding = binding_from_embodiment(registry=registry, embodiment=embodiment)
     assert binding["primitive"] == "drift_token_trim"
     assert binding["mechanism_id"] == mechanism["mechanism_id"]
+
+
+def test_discovery_can_consume_deposited_embodiments_directly() -> None:
+    from wmloop.geometry import EffectContext, EffectRecord
+
+    root = Path(__file__).resolve().parents[1]
+    registry = PrimitiveRegistry.from_root(root)
+    context = EffectContext("campaign", "model", "capability", "goal", "outcome", "chart", "heldout", (16,))
+    effects = [
+        EffectRecord("a", "drift_token_trim", context, "confirmed", 0.3, 0.02, 0.2, 0.0, {"frozen": True}, 2, (REF,)),
+        EffectRecord("b", "cfg_guidance_schedule", context, "confirmed", 0.2, 0.02, 0.1, 0.0, {"frozen": True}, 2, (REF,)),
+    ]
+    embodiments = [
+        {"mechanism_id": "mechanism-a", "executable_binding": {"primitive": "drift_token_trim", "params": {"keep_tokens": 8}, "implementation_revision": "r1"}},
+        {"mechanism_id": "mechanism-b", "executable_binding": {"primitive": "cfg_guidance_schedule", "params": {"guidance_start": 1.0, "guidance_end": 0.5}, "implementation_revision": "r1"}},
+    ]
+    assert len(discover_from_memory(registry=registry, effect_records=effects, embodiments=embodiments)) == 1

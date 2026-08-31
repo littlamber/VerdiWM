@@ -111,6 +111,26 @@ def discover_mechanism_compositions(
     return tuple(candidates[:maximum_candidates])
 
 
+def discover_from_memory(
+    *,
+    registry: PrimitiveRegistry,
+    effect_records: Sequence[EffectRecord],
+    embodiments: Sequence[Mapping[str, object]],
+    existing_relations: Sequence[object] = (),
+    maximum_candidates: int = 8,
+) -> tuple[dict[str, object], ...]:
+    """Discover compositions directly from deposited method embodiments."""
+
+    bindings = [binding_from_embodiment(registry=registry, embodiment=embodiment) for embodiment in embodiments]
+    return discover_mechanism_compositions(
+        registry=registry,
+        effect_records=effect_records,
+        executable_bindings=bindings,
+        existing_relations=existing_relations,
+        maximum_candidates=maximum_candidates,
+    )
+
+
 def bind_executable_mechanism(
     *,
     registry: PrimitiveRegistry,
