@@ -128,7 +128,7 @@ contains the supported research modes.
 
 ## Scope and status
 
-The public release is `1.0.0` (stable). The control plane, schemas, CLI,
+The public release is `1.0.1` (stable). The control plane, schemas, CLI,
 examples, workbench, automatic mechanism composition, and first-contact model
 bootstrap pass the reproducible release gate. A new model family can acquire a
 conformance-checked adapter automatically when a deployment supplies a trusted

@@ -81,6 +81,18 @@ def bootstrap_model_executor(
             "adapter_repair",
             "ADAPTER_REPAIR_INPUTS_REQUIRED",
             detail="Provide a trusted base profile and configured repair provider for first-contact bootstrap.",
+            required_inputs=[
+                {
+                    "key": "base_profile_path",
+                    "kind": "trusted_artifact",
+                    "action": "Provide or approve a versioned adapter profile whose evaluator and constitution are trusted.",
+                },
+                {
+                    "key": "llm_adapter",
+                    "kind": "bounded_provider",
+                    "action": "Configure the approved provider used only for adapter-and-test generation.",
+                },
+            ],
         )
     runner = repair_runner
     if runner is None:
@@ -176,7 +188,14 @@ def _ready_manifest(
     return body
 
 
-def _blocked_manifest(stage: str, code: str, *, detail: str | None = None, repair: Mapping[str, object] | None = None) -> dict[str, object]:
+def _blocked_manifest(
+    stage: str,
+    code: str,
+    *,
+    detail: str | None = None,
+    repair: Mapping[str, object] | None = None,
+    required_inputs: list[Mapping[str, object]] | None = None,
+) -> dict[str, object]:
     body: dict[str, object] = {
         "schema_version": 1,
         "artifact_type": "verdiwm-model-executor-bootstrap",
@@ -184,6 +203,7 @@ def _blocked_manifest(stage: str, code: str, *, detail: str | None = None, repai
         "stage": stage,
         "blocker": {"code": code, **({"detail": detail} if detail else {})},
         "repair_manifest": dict(repair) if repair is not None else None,
+        "required_inputs": [dict(item) for item in (required_inputs or [])],
         "authority": {"gpu_scheduling": False, "promotion": False},
         "claim_boundary": "No executor is available; no training, evaluation, or promotion may start.",
     }

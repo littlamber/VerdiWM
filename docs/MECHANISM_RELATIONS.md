@@ -93,3 +93,8 @@ failed conformance checks produce an explicit `EXECUTOR_BOOTSTRAP_BLOCKED`
 error. This is intentional: a first-contact model can become executable by
 learning an adapter, but the system must not claim readiness when the missing
 piece is scientific rather than an interface contract.
+
+When human input is required, the blocked bootstrap manifest exposes a
+`required_inputs` list with stable keys and plain-language actions. A CLI or
+workbench can present those requests directly to the operator, collect the
+approved profile/provider configuration, and retry the same immutable request.

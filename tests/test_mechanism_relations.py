@@ -303,6 +303,7 @@ def test_unknown_model_bootstrap_blocks_without_repair_authority(monkeypatch: py
     )
     assert result["state"] == "blocked"
     assert result["blocker"]["code"] == "ADAPTER_REPAIR_INPUTS_REQUIRED"
+    assert {item["key"] for item in result["required_inputs"]} == {"base_profile_path", "llm_adapter"}
 
 
 def test_bootstrap_retries_compile_after_bounded_repair(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
