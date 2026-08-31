@@ -91,6 +91,23 @@ quick-start/causal-discovery/hybrid modes, campaign control, task details,
 and an interactive evidence graph. It is a local UI; it does not upload
 models or data.
 
+### Windows policy errors
+
+Some Windows installations block the generated `.venv\\Scripts\\*.exe`
+console launchers with “Application Control policy has blocked this file”.
+Run the modules through Python instead:
+
+```powershell
+uv run python -m wmloop.cli doctor
+uv run python -m wmloop.control.workbench --port 8765
+```
+
+If `uv run python --version` is blocked too, the machine's application-control
+policy must allow the installed Python/uv binaries; this is an administrator
+or IT policy change, not a VerdiWM error. When the repository was extracted
+from a downloaded ZIP, use the file Properties dialog's **Unblock** option
+before reinstalling.
+
 ## What it provides
 
 - Intent-to-contract compilation with typed goals, metrics, probes, trials,

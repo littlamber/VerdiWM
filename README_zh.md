@@ -84,6 +84,20 @@ uv run verdiwm-workbench --port 8765
 混合模式、任务控制、任务详情和交互式证据图谱。它只在本机运行，不会上传模型
 或数据。
 
+### Windows 策略拦截
+
+部分 Windows 环境会以“应用程序控制策略已阻止此文件”为由拦截
+`.venv\\Scripts\\*.exe` 启动器。可以改用 Python 模块入口：
+
+```powershell
+uv run python -m wmloop.cli doctor
+uv run python -m wmloop.control.workbench --port 8765
+```
+
+如果连 `uv run python --version` 也被拦截，需要由管理员或 IT 在应用程序控制
+策略中允许已安装的 Python/uv；这不是 VerdiWM 代码错误。从下载的 ZIP 解压时，
+请先在 ZIP 文件属性中勾选“解除锁定”，再重新安装依赖。
+
 ## 主要能力
 
 - 将自然语言目标编译为带类型的目标、指标、探针、试验、判定和证据契约。
