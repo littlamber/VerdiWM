@@ -54,3 +54,24 @@ comparable context, computes the interaction contrast, aggregates uncertainty
 and gates, and emits a `confirmed`, `rejected`, `candidate`, or `abstained`
 relation artifact. That artifact can then be passed to
 `build_portable_knowledge_graph()` for durable relationship edges.
+
+For actual execution, `wmloop.control.mechanism_composition` provides a
+registry-bound compiler. `bind_executable_mechanism()` binds a semantic method
+to one reviewed primitive and its validated parameters;
+`compile_mechanism_composition()` derives four executable cells, including an
+empty baseline and automatic A-only/B-only ablations. A single generic
+executor can consume those cells and return `EffectRecord` objects via
+`execute_mechanism_composition()`. This keeps model-specific code behind one
+backend boundary instead of requiring a separate runner for every method pair.
+
+`discover_mechanism_compositions()` closes the candidate-selection step. It
+scans confirmed effects and executable bindings, requires comparable goal and
+outcome contexts, rejects registry conflicts, excludes pairs with an existing
+relation, and ranks compatible pairs using settled lower bounds, uncertainty,
+mechanism-family diversity, and hook diversity. Its output already contains
+the four-cell execution plan.
+
+To make a deposited method reusable by discovery, include an optional
+`executable_binding` in its `verdiwm-method-embodiment` record. It names the
+registered `primitive`, validated `params`, and implementation revision. The
+binding is semantic metadata only; runtime source paths remain excluded.

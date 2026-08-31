@@ -75,6 +75,7 @@ def build_method_embodiment(
     implementation_state: str,
     claim_boundary: str,
     evidence_refs: Sequence[str],
+    executable_binding: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Build one implementation embodiment without exposing source paths."""
 
@@ -89,6 +90,8 @@ def build_method_embodiment(
         "claim_boundary": claim_boundary,
         "evidence_refs": list(evidence_refs),
     }
+    if executable_binding is not None:
+        body["executable_binding"] = dict(executable_binding)
     body["embodiment_id"] = _stable_id("embodiment", body)
     validate_method_embodiment(body)
     return body

@@ -1,1 +1,23 @@
 """Control-plane utilities for receipts, backups, and operational gates."""
+
+from wmloop.control.mechanism_composition import (
+    MechanismCompositionError,
+    bind_executable_mechanism,
+    binding_from_embodiment,
+    compile_mechanism_composition,
+    discover_mechanism_compositions,
+    execute_mechanism_composition,
+    validate_composition_plan,
+    write_composition_plan,
+)
+
+__all__ = [
+    "MechanismCompositionError",
+    "bind_executable_mechanism",
+    "binding_from_embodiment",
+    "compile_mechanism_composition",
+    "discover_mechanism_compositions",
+    "execute_mechanism_composition",
+    "validate_composition_plan",
+    "write_composition_plan",
+]

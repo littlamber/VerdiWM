@@ -1119,6 +1119,14 @@ def _project_embodiment(graph: _PortableKnowledgeGraph, document: Mapping[str, o
         implementation_revision=document["implementation_revision"],
     )
     graph.edge(root, "embodies_mechanism", graph.node("mechanism", str(document["mechanism_id"])))
+    executable = document.get("executable_binding")
+    if isinstance(executable, Mapping) and isinstance(executable.get("primitive"), str):
+        graph.edge(
+            root,
+            "executes_primitive",
+            graph.node("primitive", str(executable["primitive"])),
+            implementation_revision=str(executable.get("implementation_revision") or ""),
+        )
     for interface in document["interface_contracts"]:
         graph.edge(root, "uses_interface", graph.node("interface_contract", str(interface)))
     for reference in document["evidence_refs"]:

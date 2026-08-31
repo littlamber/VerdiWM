@@ -1,4 +1,5 @@
 from pathlib import Path
+from collections.abc import Mapping
 
 import pytest
 
@@ -14,7 +15,16 @@ from wmloop.geometry import (
 )
 from wmloop.experiments.portable_knowledge_graph import build_portable_knowledge_graph
 from wmloop.control.experiment_portfolio import build_relation_hypothesis_batch, validate_hypothesis_batch
+from wmloop.control.mechanism_composition import (
+    MechanismCompositionError,
+    compile_mechanism_composition,
+    discover_mechanism_compositions,
+    execute_mechanism_composition,
+    binding_from_embodiment,
+)
+from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.geometry.portable_transfer_knowledge import build_mechanism_contract
+from wmloop.geometry.portable_transfer_knowledge import build_method_embodiment
 
 
 REF = "cas://sha256/" + "a" * 64
@@ -177,3 +187,85 @@ def test_memory_settle_relation_persists_result() -> None:
         composition_operator="parallel", required_ablations=["remove:mechanism-a", "remove:mechanism-b"],
     )
     assert relation in memory.relations()
+
+
+def test_composition_compiler_derives_four_cells_without_pair_specific_runner() -> None:
+    registry = PrimitiveRegistry.from_root(Path(__file__).resolve().parents[1])
+    source = {"mechanism_id": "mechanism-a", "primitive": "drift_token_trim", "params": {"keep_tokens": 8}}
+    target = {"mechanism_id": "mechanism-b", "primitive": "cfg_guidance_schedule", "params": {"guidance_start": 1.0, "guidance_end": 0.5}}
+    plan = compile_mechanism_composition(registry=registry, source=source, target=target)
+    assert [row["kind"] for row in plan["cells"]] == ["baseline", "source_only", "target_only", "combined"]
+    assert plan["cells"][3]["interventions"] == [plan["source"], plan["target"]]
+
+
+def test_composition_executor_settles_generic_effect_records() -> None:
+    from wmloop.geometry import EffectContext, EffectRecord
+
+    registry = PrimitiveRegistry.from_root(Path(__file__).resolve().parents[1])
+    plan = compile_mechanism_composition(
+        registry=registry,
+        source={"mechanism_id": "mechanism-a", "primitive": "drift_token_trim", "params": {"keep_tokens": 8}},
+        target={"mechanism_id": "mechanism-b", "primitive": "cfg_guidance_schedule", "params": {"guidance_start": 1.0, "guidance_end": 0.5}},
+    )
+    context = EffectContext("campaign", "model", "capability", "goal", "outcome", "chart", "heldout", (16,))
+    effects = {"baseline": 0.1, "source_only": 0.3, "target_only": 0.2, "combined": 0.7}
+
+    def executor(cell: object) -> EffectRecord:
+        row = cell
+        assert isinstance(row, Mapping)
+        kind = str(row["kind"])
+        primitive = {"baseline": "baseline", "source_only": "mechanism-a", "target_only": "mechanism-b", "combined": "composition"}[kind]
+        value = effects[kind]
+        return EffectRecord(f"{kind}-effect", primitive, context, "confirmed", value, 0.01, 0.05, 0.0, {"frozen": True}, 2, (REF,))
+
+    result = execute_mechanism_composition(plan=plan, executor=executor)
+    assert result["relation"]["verification_state"] == "confirmed"
+
+
+def test_composition_rejects_registry_conflicts() -> None:
+    registry = PrimitiveRegistry.from_root(Path(__file__).resolve().parents[1])
+    with pytest.raises(MechanismCompositionError):
+        compile_mechanism_composition(
+            registry=registry,
+            source={"mechanism_id": "a", "primitive": "next_forcing", "params": {"probability": 0.5}},
+            target={"mechanism_id": "b", "primitive": "self_forcing_finetune", "params": {"probability": 0.5}},
+        )
+
+
+def test_discovery_selects_compatible_confirmed_methods_from_memory() -> None:
+    from wmloop.geometry import EffectContext, EffectRecord
+
+    registry = PrimitiveRegistry.from_root(Path(__file__).resolve().parents[1])
+    context = EffectContext("campaign", "model", "capability", "goal", "outcome", "chart", "heldout", (16,))
+    effects = [
+        EffectRecord("a", "drift_token_trim", context, "confirmed", 0.3, 0.02, 0.2, 0.0, {"frozen": True}, 2, (REF,)),
+        EffectRecord("b", "cfg_guidance_schedule", context, "confirmed", 0.2, 0.02, 0.1, 0.0, {"frozen": True}, 2, (REF,)),
+    ]
+    candidates = discover_mechanism_compositions(
+        registry=registry,
+        effect_records=effects,
+        executable_bindings=[
+            {"mechanism_id": "mechanism-a", "primitive": "drift_token_trim", "params": {"keep_tokens": 8}},
+            {"mechanism_id": "mechanism-b", "primitive": "cfg_guidance_schedule", "params": {"guidance_start": 1.0, "guidance_end": 0.5}},
+        ],
+    )
+    assert len(candidates) == 1
+    assert candidates[0]["rationale"]["registry_compatible"] is True
+    assert [row["kind"] for row in candidates[0]["plan"]["cells"]] == ["baseline", "source_only", "target_only", "combined"]
+
+
+def test_embodiment_carries_its_reusable_execution_binding() -> None:
+    registry = PrimitiveRegistry.from_root(Path(__file__).resolve().parents[1])
+    mechanism = build_mechanism_contract(
+        causal_claim="A claim", intervention_semantics="A", required_capabilities=["cap-a"],
+        required_ablations=["a-component"], falsification_criterion="A fails", source_evidence_refs=[REF],
+    )
+    embodiment = build_method_embodiment(
+        mechanism_id=mechanism["mechanism_id"], materialization_class="derived_embodiment",
+        implementation_revision="rev-1", interface_contracts=["capability:cap-a"],
+        implementation_state="confirmed", claim_boundary="target local", evidence_refs=[REF],
+        executable_binding={"primitive": "drift_token_trim", "params": {"keep_tokens": 8}, "implementation_revision": "rev-1"},
+    )
+    binding = binding_from_embodiment(registry=registry, embodiment=embodiment)
+    assert binding["primitive"] == "drift_token_trim"
+    assert binding["mechanism_id"] == mechanism["mechanism_id"]
