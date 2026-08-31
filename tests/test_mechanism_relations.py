@@ -9,6 +9,7 @@ from wmloop.geometry import (
     classify_interaction,
     interaction_effect,
     propose_mechanism_relation,
+    settle_mechanism_relation,
     relation_from_dict,
 )
 from wmloop.experiments.portable_knowledge_graph import build_portable_knowledge_graph
@@ -117,3 +118,62 @@ def test_relation_adapter_creates_composition_and_component_ablations() -> None:
     assert set(mechanism["required_ablations"]) >= {
         f"remove:{source['mechanism_id']}", f"remove:{target['mechanism_id']}"
     }
+
+
+def test_settlement_closes_effect_records_to_confirmed_relation() -> None:
+    from wmloop.geometry import EffectContext, EffectRecord
+
+    context = EffectContext(
+        campaign_id="campaign", backbone_family="model", capability_class="capability",
+        goal_schema="goal", outcome_schema="outcome", chart_id="chart",
+        data_regime="heldout", horizons=(16,),
+    )
+
+    def record(record_id: str, primitive: str, effect: float) -> EffectRecord:
+        return EffectRecord(
+            record_id=record_id, primitive=primitive, context=context, status="confirmed",
+            mean_effect=effect, standard_error=0.01, lower_bound=0.1, goal_threshold=0.0,
+            validity_gates={"frozen": True}, replication_count=2, evidence_refs=(REF,),
+        )
+
+    relation = settle_mechanism_relation(
+        baseline=record("baseline", "baseline", 0.1),
+        source=record("source", "mechanism-a", 0.3),
+        target=record("target", "mechanism-b", 0.2),
+        combined=record("combined", "composition", 0.7),
+        source_mechanism_id="mechanism-a", target_mechanism_id="mechanism-b",
+        composition_operator="parallel", required_ablations=["remove:mechanism-a", "remove:mechanism-b"],
+    )
+    assert relation["verification_state"] == "confirmed"
+    assert relation["relation_type"] == "positive_synergy"
+
+
+def test_memory_settle_relation_persists_result() -> None:
+    from wmloop.geometry import EffectContext, EffectRecord
+
+    context = EffectContext(
+        campaign_id="campaign", backbone_family="model", capability_class="capability",
+        goal_schema="goal", outcome_schema="outcome", chart_id="chart",
+        data_regime="heldout", horizons=(16,),
+    )
+
+    def record(record_id: str, primitive: str, effect: float) -> EffectRecord:
+        return EffectRecord(
+            record_id=record_id, primitive=primitive, context=context, status="confirmed",
+            mean_effect=effect, standard_error=0.01, lower_bound=0.1, goal_threshold=0.0,
+            validity_gates={"frozen": True}, replication_count=2, evidence_refs=(REF,),
+        )
+
+    memory = EffectMemory((
+        record("baseline", "baseline", 0.1), record("source", "mechanism-a", 0.3),
+        record("target", "mechanism-b", 0.2), record("combined", "composition", 0.7),
+    ))
+    relation = memory.settle_relation(
+        baseline=memory.query(primitive="baseline")[0],
+        source=memory.query(primitive="mechanism-a")[0],
+        target=memory.query(primitive="mechanism-b")[0],
+        combined=memory.query(primitive="composition")[0],
+        source_mechanism_id="mechanism-a", target_mechanism_id="mechanism-b",
+        composition_operator="parallel", required_ablations=["remove:mechanism-a", "remove:mechanism-b"],
+    )
+    assert relation in memory.relations()

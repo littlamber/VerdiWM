@@ -258,6 +258,91 @@ def propose_mechanism_relation(
     )
 
 
+def settle_mechanism_relation(
+    *,
+    baseline: object,
+    source: object,
+    target: object,
+    combined: object,
+    source_mechanism_id: str,
+    target_mechanism_id: str,
+    composition_operator: str,
+    required_ablations: Sequence[str],
+    evidence_refs: Sequence[str] = (),
+    condition_set: Sequence[str] = (),
+    anti_conditions: Sequence[str] = (),
+    synergy_threshold: float = 0.0,
+) -> dict[str, object]:
+    """Settle four compatible effect records into one relation artifact.
+
+    This is the receipt-to-knowledge boundary. It accepts the existing
+    ``EffectRecord`` shape without coupling the geometry layer to a particular
+    trainer or evaluator implementation.
+    """
+
+    from wmloop.geometry.memory import EffectRecord
+
+    records = (baseline, source, target, combined)
+    if any(not isinstance(record, EffectRecord) for record in records):
+        raise GeometryValidationError("MECHANISM_RELATION_EFFECT_RECORD_INVALID")
+    typed = tuple(record for record in records if isinstance(record, EffectRecord))
+    context_fields = ("backbone_family", "capability_class", "goal_schema", "outcome_schema", "data_regime", "horizons")
+    first = typed[0].context
+    for record in typed[1:]:
+        if any(getattr(record.context, field) != getattr(first, field) for field in context_fields):
+            raise GeometryValidationError("MECHANISM_RELATION_CONTEXT_MISMATCH")
+    if source.primitive != source_mechanism_id or target.primitive != target_mechanism_id:
+        raise GeometryValidationError("MECHANISM_RELATION_PRIMITIVE_BINDING_MISMATCH")
+    refs = tuple(dict.fromkeys(str(value) for record in typed for value in record.evidence_refs))
+    refs = tuple(dict.fromkeys((*refs, *(str(value) for value in evidence_refs))))
+    if not refs:
+        raise GeometryValidationError("MECHANISM_RELATION_EVIDENCE_REF_INVALID")
+    relation_type, effect = classify_interaction(
+        baseline=baseline.mean_effect,
+        source=source.mean_effect,
+        target=target.mean_effect,
+        combined=combined.mean_effect,
+        synergy_threshold=synergy_threshold,
+        uncertainty=math.sqrt(sum(record.standard_error**2 for record in typed)),
+    )
+    uncertainty = math.sqrt(sum(record.standard_error**2 for record in typed))
+    all_confirmed = all(record.status == "confirmed" for record in typed)
+    all_gates = all(all(record.validity_gates.values()) for record in typed)
+    authoritative = all_confirmed and all_gates and bool(required_ablations)
+    if relation_type == "abstained":
+        relation_state = "abstained"
+        relation_type = "conditional_compatibility"
+    elif authoritative:
+        relation_state = "confirmed" if relation_type != "antagonism" else "rejected"
+    else:
+        relation_state = "candidate"
+    return build_mechanism_relation(
+        source_mechanism_id=source_mechanism_id,
+        target_mechanism_id=target_mechanism_id,
+        relation_type=relation_type,
+        composition_operator=composition_operator,
+        baseline_effect=baseline.mean_effect,
+        source_effect=source.mean_effect,
+        target_effect=target.mean_effect,
+        combined_effect=combined.mean_effect,
+        uncertainty=uncertainty,
+        replication_count=min(record.replication_count for record in typed),
+        required_ablations=required_ablations,
+        evidence_refs=refs,
+        condition_set=condition_set,
+        anti_conditions=anti_conditions,
+        claim_scope="target_local" if relation_state in {"confirmed", "rejected"} else "ranking_only",
+        verification_state=relation_state,
+        validity_gates={
+            "four_cell_comparison": True,
+            "effect_records_confirmed": all_confirmed,
+            "effect_record_gates": all_gates,
+            "required_ablations_declared": bool(required_ablations),
+        },
+        notes=(f"interaction_effect={effect:.8g}",),
+    )
+
+
 def validate_mechanism_relation(document: Mapping[str, object]) -> None:
     if not isinstance(document, Mapping):
         raise GeometryValidationError("MECHANISM_RELATION_DOCUMENT_INVALID")

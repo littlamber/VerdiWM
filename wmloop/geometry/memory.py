@@ -118,6 +118,15 @@ class EffectMemory:
             raise GeometryValidationError(f"MECHANISM_RELATION_DUPLICATE:{relation.relation_id}")
         self._relations[relation.relation_id] = relation
 
+    def settle_relation(self, **kwargs: object) -> object:
+        """Aggregate four stored effect records and retain the relation result."""
+
+        from wmloop.geometry.mechanism_relations import relation_from_dict, settle_mechanism_relation
+
+        relation = settle_mechanism_relation(**kwargs)
+        self.add_relation(relation)
+        return relation_from_dict(relation)
+
     def relations(self) -> tuple[object, ...]:
         return tuple(self._relations[key] for key in sorted(self._relations))
 

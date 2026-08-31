@@ -46,3 +46,11 @@ composition candidate. The normal portfolio then schedules the shared
 baseline, composition test, no-op control, and component-removal ablations
 (A-only and B-only), preserving the existing budget and frozen-evaluator
 admission rules.
+
+After those four cells settle, call
+`wmloop.geometry.mechanism_relations.settle_mechanism_relation()` or
+`EffectMemory.settle_relation()`. The adapter checks that all records share a
+comparable context, computes the interaction contrast, aggregates uncertainty
+and gates, and emits a `confirmed`, `rejected`, `candidate`, or `abstained`
+relation artifact. That artifact can then be passed to
+`build_portable_knowledge_graph()` for durable relationship edges.
