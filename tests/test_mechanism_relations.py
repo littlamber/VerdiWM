@@ -25,6 +25,7 @@ from wmloop.control.mechanism_composition import (
 )
 from wmloop.control.adapter_profiles import AdapterProfileError, ResolvedAdapter
 from wmloop.control.model_executor_bootstrap import bootstrap_model_executor
+from wmloop.control.campaign_api import CampaignStore
 from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.geometry.portable_transfer_knowledge import build_mechanism_contract
 from wmloop.geometry.portable_transfer_knowledge import build_method_embodiment
@@ -329,3 +330,39 @@ def test_bootstrap_retries_compile_after_bounded_repair(monkeypatch: pytest.Monk
     assert result["state"] == "ready"
     assert result["source"] == "repaired_profile"
     assert calls["compile"] == 2
+
+
+def test_campaign_store_routes_first_contact_through_bootstrap(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    execution = {
+        "kind": "pipeline",
+        "repo_root": str(tmp_path / "model"),
+        "output_root": str(tmp_path / "runs"),
+        "evaluator_contract": str(tmp_path / "evaluator.json"),
+        "budget_total_gpu_hours": 1.0,
+        "asset_bindings": {"--config": str(tmp_path / "config.json")},
+        "probe_imports": False,
+    }
+    bootstrap = {
+        "state": "ready",
+        "source": "repaired_profile",
+        "profile_id": "family-profile",
+        "model_family": "new-family",
+        "capability_level": "L1",
+        "execution": execution,
+        "constitution_freeze": "freeze",
+        "bootstrap_digest": "d" * 64,
+    }
+    monkeypatch.setattr("wmloop.control.campaign_api.bootstrap_model_executor", lambda **_: bootstrap)
+    store = CampaignStore(tmp_path / "campaigns", project_root=tmp_path)
+    record = store.create(
+        {
+            "campaign_id": "first-contact",
+            "model": str(tmp_path / "model"),
+            "dataset": str(tmp_path / "data.jsonl"),
+            "goal": "improve quality",
+            "budget": 1.0,
+            "executor_bootstrap": {"llm_adapter": {"provider": "test"}},
+        }
+    )
+    assert record["executor_bootstrap"]["source"] == "repaired_profile"
+    assert record["adapter_profile"] == "family-profile"

@@ -28,6 +28,7 @@ from wmloop.control.adapter_profiles import (
     compile_adapter_execution,
     parse_gpu_budget,
 )
+from wmloop.control.model_executor_bootstrap import bootstrap_model_executor
 from wmloop.control.model_run import ModelRunError, compile_model_run
 from wmloop.control.research_modes import (
     ResearchModeError,
@@ -72,9 +73,10 @@ def _canonical(value: Any) -> str:
 class CampaignStore:
     """Atomic JSON-backed campaign store suitable for a single API instance."""
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, *, project_root: Path | None = None):
         self.root = Path(root).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.project_root = (Path(project_root) if project_root is not None else Path(__file__).resolve().parents[2]).expanduser().resolve()
         self._lock = threading.RLock()
 
     def _path(self, campaign_id: str) -> Path:
@@ -130,28 +132,29 @@ class CampaignStore:
         adapter_repair = payload.get("adapter_repair")
         if adapter_repair is not None:
             _validate_adapter_repair_binding(adapter_repair)
+        executor_bootstrap = payload.get("executor_bootstrap")
+        if executor_bootstrap is not None:
+            _validate_executor_bootstrap_request(executor_bootstrap)
         automatically_compiled = execution is None
         adapter_profile = payload.get("adapter")
         model_family = payload.get("model_family")
         capability_level = payload.get("capability_level")
         constitution_freeze = payload.get("constitution_freeze")
+        bootstrap_manifest: dict[str, object] | None = None
         if execution is None:
             assets = payload.get("assets")
             if assets is not None and not isinstance(assets, dict):
                 raise CampaignAPIError("ASSET_OVERRIDES_OBJECT_REQUIRED")
-            try:
-                resolved = compile_adapter_execution(
-                    campaign_id=campaign_id,
+            if isinstance(executor_bootstrap, Mapping):
+                options = dict(executor_bootstrap)
+                bootstrap_manifest = bootstrap_model_executor(
                     model=Path(model),
                     data=Path(dataset),
                     goal=goal,
                     budget=budget_hours,
                     campaign_root=self.root,
-                    adapter=(
-                        str(payload["adapter"])
-                        if payload.get("adapter") is not None
-                        else None
-                    ),
+                    project_root=self.project_root,
+                    adapter=(str(payload["adapter"]) if payload.get("adapter") is not None else None),
                     adapter_profile_path=(
                         Path(str(payload["adapter_profile_path"]))
                         if payload.get("adapter_profile_path") is not None
@@ -163,14 +166,64 @@ class CampaignStore:
                         else None
                     ),
                     asset_overrides=assets,
+                    base_profile_path=(
+                        Path(str(options["base_profile_path"]))
+                        if options.get("base_profile_path") is not None
+                        else None
+                    ),
+                    llm_adapter=(
+                        options.get("llm_adapter")
+                        if isinstance(options.get("llm_adapter"), Mapping)
+                        else None
+                    ),
+                    repair_output_root=(
+                        Path(str(options["repair_output_root"]))
+                        if options.get("repair_output_root") is not None
+                        else None
+                    ),
+                    max_attempts=int(options.get("max_attempts", 3)),
                 )
-            except AdapterProfileError as exc:
-                raise CampaignAPIError(str(exc)) from exc
-            execution = resolved.execution
-            adapter_profile = resolved.profile_id
-            model_family = resolved.model_family
-            capability_level = resolved.capability_level
-            constitution_freeze = resolved.constitution_freeze
+                if bootstrap_manifest.get("state") != "ready":
+                    blocker = bootstrap_manifest.get("blocker")
+                    code = blocker.get("code") if isinstance(blocker, Mapping) else "EXECUTOR_BOOTSTRAP_BLOCKED"
+                    raise CampaignAPIError(f"EXECUTOR_BOOTSTRAP_BLOCKED:{code}")
+                resolved_execution = bootstrap_manifest.get("execution")
+                if not isinstance(resolved_execution, dict):
+                    raise CampaignAPIError("EXECUTOR_BOOTSTRAP_EXECUTION_INVALID")
+                execution = resolved_execution
+                adapter_profile = bootstrap_manifest.get("profile_id")
+                model_family = bootstrap_manifest.get("model_family")
+                capability_level = bootstrap_manifest.get("capability_level")
+                constitution_freeze = bootstrap_manifest.get("constitution_freeze")
+            else:
+                try:
+                    resolved = compile_adapter_execution(
+                        campaign_id=campaign_id,
+                        model=Path(model),
+                        data=Path(dataset),
+                        goal=goal,
+                        budget=budget_hours,
+                        campaign_root=self.root,
+                        adapter=(str(payload["adapter"]) if payload.get("adapter") is not None else None),
+                        adapter_profile_path=(
+                            Path(str(payload["adapter_profile_path"]))
+                            if payload.get("adapter_profile_path") is not None
+                            else None
+                        ),
+                        runtime_python=(
+                            Path(str(payload["runtime_python"]))
+                            if payload.get("runtime_python") is not None
+                            else None
+                        ),
+                        asset_overrides=assets,
+                    )
+                except AdapterProfileError as exc:
+                    raise CampaignAPIError(str(exc)) from exc
+                execution = resolved.execution
+                adapter_profile = resolved.profile_id
+                model_family = resolved.model_family
+                capability_level = resolved.capability_level
+                constitution_freeze = resolved.constitution_freeze
         if training_scale_plan is not None:
             assert isinstance(execution, dict)
             execution = dict(execution)
@@ -286,6 +339,8 @@ class CampaignStore:
         for field in ("engineering_manifest", "compiled_manifest", "adapter_repair"):
             if payload.get(field) is not None:
                 record[field] = payload[field]
+        if bootstrap_manifest is not None:
+            record["executor_bootstrap"] = bootstrap_manifest
         with self._lock:
             path = self._path(campaign_id)
             if path.exists():
@@ -322,6 +377,8 @@ class CampaignStore:
                 revision_document["model_run"] = model_run
             if payload.get("adapter_repair") is not None:
                 revision_document["adapter_repair"] = payload["adapter_repair"]
+            if bootstrap_manifest is not None:
+                revision_document["executor_bootstrap"] = bootstrap_manifest
             if revision_path.exists():
                 existing_revision = json.loads(revision_path.read_text(encoding="utf-8"))
                 if existing_revision != revision_document:
@@ -696,6 +753,29 @@ def _validate_adapter_repair_binding(value: object) -> None:
         or authority.get("promotion") is not False
     ):
         raise CampaignAPIError("ADAPTER_REPAIR_MANIFEST_INVALID")
+
+
+def _validate_executor_bootstrap_request(value: object) -> None:
+    """Validate the provider boundary without accepting executable code."""
+
+    if not isinstance(value, Mapping):
+        raise CampaignAPIError("EXECUTOR_BOOTSTRAP_REQUEST_INVALID")
+    base_profile = value.get("base_profile_path")
+    if base_profile is not None and (
+        not isinstance(base_profile, str) or not Path(base_profile).is_absolute()
+    ):
+        raise CampaignAPIError("EXECUTOR_BOOTSTRAP_BASE_PROFILE_INVALID")
+    repair_root = value.get("repair_output_root")
+    if repair_root is not None and (
+        not isinstance(repair_root, str) or not Path(repair_root).is_absolute()
+    ):
+        raise CampaignAPIError("EXECUTOR_BOOTSTRAP_OUTPUT_ROOT_INVALID")
+    llm_adapter = value.get("llm_adapter")
+    if llm_adapter is not None and not isinstance(llm_adapter, Mapping):
+        raise CampaignAPIError("EXECUTOR_BOOTSTRAP_LLM_ADAPTER_INVALID")
+    attempts = value.get("max_attempts", 3)
+    if isinstance(attempts, bool) or not isinstance(attempts, int) or not 1 <= attempts <= 5:
+        raise CampaignAPIError("EXECUTOR_BOOTSTRAP_ATTEMPTS_INVALID")
 
 
 def _reproduction_execution(
