@@ -28,6 +28,46 @@ class ModelExecutorBootstrapError(RuntimeError):
 AdapterRepairRunner = Callable[..., Mapping[str, object]]
 
 
+def bootstrap_request_template(*, model: str, data: str, goal: str) -> dict[str, object]:
+    """Return a credential-free, human-readable first-contact request template."""
+
+    return {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-executor-bootstrap-request",
+        "model": model,
+        "data": data,
+        "goal": goal,
+        "instructions": "Fill only the approval fields below; do not paste API keys or tokens.",
+        "说明": "这是新模型首次接入申请。系统会自动生成并检查适配器；你只需确认评测基线和允许使用的修复服务。不要填写 API 密钥。",
+        "what_is_needed": [
+            {
+                "field": "trusted_base_profile",
+                "meaning": "The evaluator and rules VerdiWM is allowed to preserve while adapting this model.",
+                "provide": "A path to an existing approved adapter profile, or ask an administrator to select one.",
+                "meaning_zh": "适配时必须保留的评测方法和规则。它决定什么算成功，不能由模型自己改写。",
+                "provide_zh": "填写管理员批准的 profile 文件路径；不确定时留空并请管理员选择。",
+            },
+            {
+                "field": "bounded_repair_provider",
+                "meaning": "The approved service that may generate an adapter wrapper and CPU self-tests.",
+                "provide": "A configured provider name or local broker configuration; credentials stay in the environment.",
+                "meaning_zh": "只负责生成适配器外壳和 CPU 自测的受限服务，不负责改模型或评测标准。",
+                "provide_zh": "填写已配置的服务名称或配置文件路径；密钥保存在运行环境，不要粘贴到这里。",
+            },
+        ],
+        "approval": {
+            "base_profile_path": "",
+            "provider_config_path": "",
+            "provider_name": "",
+            "max_attempts": 3,
+        },
+        "safety_boundary": [
+            "The provider may not edit model source, evaluator, metrics, GPU policy, or promotion rules.",
+            "A missing scientific evaluator or dataset remains blocked for human review.",
+        ],
+    }
+
+
 def bootstrap_model_executor(
     *,
     model: Path,

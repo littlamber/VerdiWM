@@ -24,7 +24,7 @@ from wmloop.control.mechanism_composition import (
     binding_from_embodiment,
 )
 from wmloop.control.adapter_profiles import AdapterProfileError, ResolvedAdapter
-from wmloop.control.model_executor_bootstrap import bootstrap_model_executor
+from wmloop.control.model_executor_bootstrap import bootstrap_model_executor, bootstrap_request_template
 from wmloop.control.campaign_api import CampaignStore
 from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.geometry.portable_transfer_knowledge import build_mechanism_contract
@@ -367,3 +367,10 @@ def test_campaign_store_routes_first_contact_through_bootstrap(monkeypatch: pyte
     )
     assert record["executor_bootstrap"]["source"] == "repaired_profile"
     assert record["adapter_profile"] == "family-profile"
+
+
+def test_bootstrap_request_template_is_human_readable_and_credential_free() -> None:
+    template = bootstrap_request_template(model="/models/new", data="/data", goal="improve quality")
+    assert template["artifact_type"] == "verdiwm-executor-bootstrap-request"
+    assert template["approval"]["base_profile_path"] == ""
+    assert "api_key" not in str(template).lower()

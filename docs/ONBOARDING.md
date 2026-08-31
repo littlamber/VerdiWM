@@ -4,6 +4,22 @@ VerdiWM onboards external world-model repositories through a read-only discovery
 
 ## Quick Start
 
+When a model family has no matching adapter profile, generate a plain-language
+request for an operator instead of asking them to construct internal JSON:
+
+```bash
+verdiwm bootstrap-template \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "improve long-horizon prediction"
+```
+
+The template explains the two approvals in ordinary terms: a trusted evaluator
+baseline and a bounded adapter-generation provider. It contains no credentials.
+The operator fills the approval fields or routes the request to an administrator;
+the system keeps secrets in the provider environment and never asks users to
+paste them into campaign state.
+
 The normal user path is one resumable command from source discovery through a
 settled bounded experiment:
 
