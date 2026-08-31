@@ -13,6 +13,7 @@ from wmloop.control.mechanism_composition import (
 )
 from wmloop.control.model_executor_bootstrap import (
     ModelExecutorBootstrapError,
+    bootstrap_request_template,
     bootstrap_model_executor,
     write_bootstrap_manifest,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "validate_composition_plan",
     "write_composition_plan",
     "ModelExecutorBootstrapError",
+    "bootstrap_request_template",
     "bootstrap_model_executor",
     "write_bootstrap_manifest",
 ]

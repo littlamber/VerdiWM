@@ -14,6 +14,7 @@ from typing import Any, Sequence
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
 from wmloop.control.adapter_repair import AdapterRepairError, run_adapter_repair
+from wmloop.control.model_executor_bootstrap import bootstrap_request_template
 from wmloop.control.adapter_profiles import AdapterProfileError
 from wmloop.control.campaign_dispatcher import (
     CampaignDispatchError,
@@ -524,6 +525,11 @@ def _repair_adapter(args: argparse.Namespace) -> int:
     return 0 if manifest["state"] == "ready" else 3
 
 
+def _bootstrap_template(args: argparse.Namespace) -> int:
+    _print(bootstrap_request_template(model=str(args.model), data=str(args.data), goal=args.goal))
+    return 0
+
+
 def _diagnose_training_gain(args: argparse.Namespace) -> int:
     plan = build_training_gain_attribution(
         training_receipt_path=args.training_receipt,
@@ -775,6 +781,15 @@ def _parser() -> argparse.ArgumentParser:
     repair_adapter.add_argument("--output-root", type=Path, required=True)
     repair_adapter.add_argument("--schema-root", type=Path)
     repair_adapter.set_defaults(handler=_repair_adapter)
+
+    bootstrap_template = commands.add_parser(
+        "bootstrap-template",
+        help="print a plain-language request template for first-contact model setup",
+    )
+    bootstrap_template.add_argument("--model", required=True)
+    bootstrap_template.add_argument("--data", required=True)
+    bootstrap_template.add_argument("--goal", required=True)
+    bootstrap_template.set_defaults(handler=_bootstrap_template)
 
     diagnose_gain = commands.add_parser(
         "diagnose-training-gain",
