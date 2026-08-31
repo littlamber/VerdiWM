@@ -11,6 +11,11 @@ from wmloop.control.mechanism_composition import (
     validate_composition_plan,
     write_composition_plan,
 )
+from wmloop.control.model_executor_bootstrap import (
+    ModelExecutorBootstrapError,
+    bootstrap_model_executor,
+    write_bootstrap_manifest,
+)
 
 __all__ = [
     "MechanismCompositionError",
@@ -22,4 +27,7 @@ __all__ = [
     "execute_mechanism_composition",
     "validate_composition_plan",
     "write_composition_plan",
+    "ModelExecutorBootstrapError",
+    "bootstrap_model_executor",
+    "write_bootstrap_manifest",
 ]

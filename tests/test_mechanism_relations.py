@@ -23,6 +23,8 @@ from wmloop.control.mechanism_composition import (
     execute_mechanism_composition,
     binding_from_embodiment,
 )
+from wmloop.control.adapter_profiles import AdapterProfileError, ResolvedAdapter
+from wmloop.control.model_executor_bootstrap import bootstrap_model_executor
 from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.geometry.portable_transfer_knowledge import build_mechanism_contract
 from wmloop.geometry.portable_transfer_knowledge import build_method_embodiment
@@ -287,3 +289,43 @@ def test_discovery_can_consume_deposited_embodiments_directly() -> None:
         {"mechanism_id": "mechanism-b", "executable_binding": {"primitive": "cfg_guidance_schedule", "params": {"guidance_start": 1.0, "guidance_end": 0.5}, "implementation_revision": "r1"}},
     ]
     assert len(discover_from_memory(registry=registry, effect_records=effects, embodiments=embodiments)) == 1
+
+
+def test_unknown_model_bootstrap_blocks_without_repair_authority(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def fail(**_: object) -> object:
+        raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
+
+    monkeypatch.setattr("wmloop.control.model_executor_bootstrap.compile_adapter_execution", fail)
+    result = bootstrap_model_executor(
+        model=tmp_path / "model", data=tmp_path / "data", goal="goal", budget=1.0,
+        campaign_root=tmp_path / "campaign", project_root=Path(__file__).resolve().parents[1],
+    )
+    assert result["state"] == "blocked"
+    assert result["blocker"]["code"] == "ADAPTER_REPAIR_INPUTS_REQUIRED"
+
+
+def test_bootstrap_retries_compile_after_bounded_repair(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    calls = {"compile": 0}
+    resolved = ResolvedAdapter("profile", "family", "L1", {"kind": "pipeline"}, "freeze")
+
+    def compile_stub(**_: object) -> ResolvedAdapter:
+        calls["compile"] += 1
+        if calls["compile"] == 1:
+            raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
+        return resolved
+
+    monkeypatch.setattr("wmloop.control.model_executor_bootstrap.compile_adapter_execution", compile_stub)
+    repair_profile = tmp_path / "repaired-profile.json"
+    repair_profile.write_text("{}", encoding="utf-8")
+
+    def repair_stub(**_: object) -> Mapping[str, object]:
+        return {"state": "ready", "adapter_profile_path": str(repair_profile), "assurance_level": "process_guarded_local"}
+
+    result = bootstrap_model_executor(
+        model=tmp_path / "model", data=tmp_path / "data", goal="goal", budget=1.0,
+        campaign_root=tmp_path / "campaign", project_root=Path(__file__).resolve().parents[1],
+        base_profile_path=tmp_path / "base.json", llm_adapter={"kind": "test"}, repair_runner=repair_stub,
+    )
+    assert result["state"] == "ready"
+    assert result["source"] == "repaired_profile"
+    assert calls["compile"] == 2
