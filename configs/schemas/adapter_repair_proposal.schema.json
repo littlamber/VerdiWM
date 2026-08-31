@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "diagnosis",
+    "profile",
+    "files",
+    "checks",
+    "blockers",
+    "authority",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-adapter-repair-proposal"},
+    "state": {"enum": ["candidate_ready", "unsupported"]},
+    "diagnosis": {"type": "string", "minLength": 8},
+    "profile": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": [
+        "model_family",
+        "repo_markers",
+        "goal_keywords",
+        "runtime_candidates",
+        "asset_bindings",
+        "runner",
+        "probe_imports"
+      ],
+      "properties": {
+        "model_family": {"type": "string", "minLength": 1},
+        "repo_markers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "goal_keywords": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "runtime_candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "asset_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["parameter", "candidates"],
+            "properties": {
+              "parameter": {"type": "string", "pattern": "^--[A-Za-z0-9_-]+$"},
+              "candidates": {
+                "type": "array",
+                "minItems": 1,
+                "items": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        },
+        "runner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "adapter_id",
+            "train",
+            "evaluate",
+            "checkpoint_receipt",
+            "evaluation_receipt"
+          ],
+          "properties": {
+            "adapter_id": {"type": "string", "minLength": 1},
+            "train": {
+              "type": "array",
+              "minItems": 2,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "evaluate": {
+              "type": "array",
+              "minItems": 2,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "checkpoint_receipt": {"type": "string", "minLength": 1},
+            "evaluation_receipt": {"type": "string", "minLength": 1}
+          }
+        },
+        "probe_imports": {"type": "boolean"}
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "content_utf8", "role"],
+        "properties": {
+          "relative_path": {"type": "string", "minLength": 1},
+          "content_utf8": {"type": "string"},
+          "role": {"enum": ["implementation", "test", "configuration"]}
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"},
+          "command": {
+            "type": "array",
+            "minItems": 3,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "blockers": {"type": "array", "items": {"type": "object"}},
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_mutation",
+        "evaluator_mutation",
+        "metric_mutation",
+        "gpu_scheduling",
+        "promotion"
+      ],
+      "properties": {
+        "source_mutation": {"const": false},
+        "evaluator_mutation": {"const": false},
+        "metric_mutation": {"const": false},
+        "gpu_scheduling": {"const": false},
+        "promotion": {"const": false}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

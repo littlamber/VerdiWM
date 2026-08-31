@@ -143,7 +143,7 @@ if unexpected:
 PY
 
 uv venv --python 3.10 "$venv_dir"
-uv pip install --python "$venv_dir/bin/python" --no-deps --offline "$wheel_path"
+uv pip install --python "$venv_dir/bin/python" "$wheel_path"
 "$venv_dir/bin/verdiwm" --help >/dev/null
 "$venv_dir/bin/verdiwm" doctor >/dev/null
 "$venv_dir/bin/python" - <<'PY'
@@ -172,20 +172,41 @@ PY
 
 staged_artifact_dir="$work_dir/public-tree-artifacts"
 mkdir -p "$staged_artifact_dir"
+staging_validation_env="$work_dir/public-tree-validation-venv"
 (
   cd "$staging_dir"
   uv build --sdist --wheel --out-dir "$staged_artifact_dir"
-  uv run python scripts/export/validate_portrait_first_public_example.py \
+  UV_PROJECT_ENVIRONMENT="$staging_validation_env" uv run python scripts/export/validate_portrait_first_public_example.py \
     examples/portrait_first_minimal_loop_v1 >/dev/null
 )
 staged_wheel_path="$(find "$staged_artifact_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
 test -n "$staged_wheel_path"
 staged_venv_dir="$work_dir/public-tree-venv"
 uv venv --python 3.10 "$staged_venv_dir"
-uv pip install --python "$staged_venv_dir/bin/python" --no-deps --offline "$staged_wheel_path"
+uv pip install --python "$staged_venv_dir/bin/python" "$staged_wheel_path"
 "$staged_venv_dir/bin/verdiwm" --help >/dev/null
 "$staged_venv_dir/bin/verdiwm" doctor >/dev/null
 "$staged_venv_dir/bin/verdiwm-ctrl-world-autonomous-transfer" --help >/dev/null
+test ! -e "$staging_dir/.venv"
+python - "$staging_dir/MANIFEST.sha256" "$staging_dir" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+manifest_path = Path(sys.argv[1]).resolve()
+root = Path(sys.argv[2]).resolve()
+declared = {}
+for line in manifest_path.read_text(encoding="utf-8").splitlines():
+    digest, relative = line.split("  ", 1)
+    declared[relative] = digest
+actual = {
+    path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+    for path in root.rglob("*")
+    if path.is_file() and path.name != "MANIFEST.sha256"
+}
+if declared != actual:
+    raise SystemExit("release staging manifest does not cover final tree")
+PY
 
 if [[ -n "$output_dir" ]]; then
   if [[ -e "$output_dir" ]]; then

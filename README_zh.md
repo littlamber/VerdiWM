@@ -23,15 +23,50 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 
 ## 启动任务
 
-用户入口只要求模型、数据、目标和预算。适配器配置负责解析评测器、诊断探针、运行时资产与控制面契约。
+日常用户入口是意图优先的：在项目根目录放置一次 `verdiwm.toml`，之后只需给出自然语言目标。配置只描述项目事实，适配器和评测契约仍由系统内部编译，用户不需要拼接内部 `--` 参数。
+
+```toml
+[project]
+model = "./model"
+data = "./data"
+budget = "1gpu-hour"
+state_root = "./.verdiwm/state"
+```
+
+```bash
+uv run verdiwm run "提升长时域动作条件预测和 runtime_ready 指标"
+```
+
+目标中的指标名或已声明别名会自动绑定到冻结 evaluator 的指标目录；未知指标会
+直接阻断，不会猜测或改写评测标准。模型接口不兼容时，系统会自动选择无歧义的
+可信科学 profile，并在隔离 overlay 中补全和验证 adapter。
+
+没有 `verdiwm.toml` 时，系统会从当前目录约定的 `model/`、`data/`（或 `dataset/`）发现路径，并使用受限的默认预算。显式参数仍然可用，适合 CI、复现和高级覆盖：
 
 ```bash
 uv run verdiwm run \
   --model /path/to/model-checkout \
   --data /path/to/data \
   --goal "提升长时域动作条件预测" \
-  --budget 8gpu-hour
+  --budget 8gpu-hour \
+  --mode hybrid
 ```
+
+正式训练可把 `verdiwm plan-training` 生成的 receipt 绑定到同一 campaign。
+adapter 自动补全流程不会修改目标模型、VerdiWM 内核或冻结 evaluator；多 profile
+且无法安全判定时会结构化阻断。完整验收门槛见
+[`docs/ZERO_CODEX_ACCEPTANCE.md`](docs/ZERO_CODEX_ACCEPTANCE.md)。
+
+也可以启动本地可视化工作台：
+
+```bash
+uv run verdiwm-workbench --port 8765
+```
+
+打开 `http://127.0.0.1:8765` 后，可以直接选择“快速启动”“因果发现”或
+“混合模式”，创建/取消任务、运行队列并浏览可交互证据图谱。因果发现模式要求
+适配器提供诊断探针，同时绑定冻结的 CPBE request 和 history；缺失输入会在创建
+任务前阻断。完整边界见 [研究模式说明](docs/RESEARCH_MODES.md)。
 
 任务支持查询、取消和隔离复现：
 

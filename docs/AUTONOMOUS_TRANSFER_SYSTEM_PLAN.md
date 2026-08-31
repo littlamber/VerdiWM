@@ -87,6 +87,70 @@ The current autonomous loop is not yet the complete system described here:
   is safe for the present system but does not yet fulfill fully unattended,
   policy-bounded metric evolution.
 
+## Community Baselines And Delivery Roadmap
+
+The project will use mature community protocols as replaceable infrastructure
+baselines, not as a claim of scientific novelty. The selection rule is to
+reuse a protocol when it solves a mechanical problem better than a local
+implementation, while keeping VerdiWM-owned semantics for mechanism identity,
+capability matching, evidence strength, transfer boundaries, and promotion.
+
+| Problem | Baseline to study or adapt | VerdiWM-owned boundary |
+| --- | --- | --- |
+| Typed tool and plugin interfaces | MCP, OpenAPI, JSON Schema | No tool may grant GPU, verdict, or promotion authority |
+| Durable execution and recovery | Temporal-style workflows, Dagster/Prefect patterns | Existing controller ledger, leases, receipts, and fail-closed resume |
+| Isolated agent implementation | OpenHands/SWE-agent sandbox and patch patterns | Scientific evidence requires frozen evaluation, not just tests passing |
+| Artifact and run lineage | MLflow/W&B/DVC/LakeFS practices | Archive/CAS and immutable evidence remain authoritative |
+| Literature structure and provenance | arXiv/OpenAlex/Semantic Scholar metadata, GROBID/S2ORC-style parsing, W3C PROV/RO-Crate concepts | Source-grounded mechanism fields, anti-conditions, and target-side falsification |
+| Scheduling and search budgets | Optuna/Ray Tune-style ranking and early stopping | Candidate admission, protected metrics, and promotion policy stay in the kernel |
+
+The team must record an explicit compatibility decision before adding a new
+dependency: protocol version, adopted subset, adapter contract, failure mode,
+security boundary, and removal plan. A mature framework is never allowed to
+replace the frozen evaluator, the append-only evidence ledger, or the target
+verification boundary. This keeps the system modular and avoids building a
+second generic agent framework inside VerdiWM.
+
+The delivery order is intentionally incremental:
+
+1. **Stabilize the evidence contract.** Finish the mechanism/embodiment,
+   capability, fingerprint, source-locator, and negative-boundary schemas.
+   Add canonical hashing, provenance validation, and fixtures for positive,
+   negative, unsupported, and capability-missing sources.
+2. **Build a measured source-grounded extraction lane.** Extend the current
+   metadata/abstract intake to section-aware evidence records. Every extracted
+   mechanism claim must point to source text, distinguish source assertion from
+   system inference, list required components and anti-conditions, and emit a
+   falsifiable target experiment. Keep extraction ranking-only until it passes
+   an independently reviewed corpus of roughly 50--100 papers.
+3. **Replace fixed retrieval branches behind the same intake contract.** Add
+   failure-to-mechanism normalization, bounded adjacent-domain proposals,
+   novelty and expected-information-gain scoring, query budgets, cooldowns,
+   and durable rejection records. Compare the new lane with the existing
+   failure-driven retriever on the same historical failures before enabling it
+   for unattended discovery.
+4. **Complete ACWM as a domain pack.** Keep Ctrl-World hooks, datasets,
+   rollout metrics, and frozen evaluators outside the kernel. Add a conformance
+   receipt and a reproducible domain-pack manifest so the same research loop
+   can be instantiated without ACWM-specific branches in the controller.
+5. **Prove portability on a second small domain.** Use a deliberately small,
+   unlike-ACWM benchmark (for example sequence prediction or optimizer
+   adaptation) to exercise onboarding, failure routing, candidate compilation,
+   verification, and knowledge projection. Do not claim general RSI before the
+   same contracts pass on this second domain.
+6. **Add the meta-evaluation loop.** Freeze a benchmark of historical research
+   failures and compare retrieval, mechanism extraction, proposal, verifier,
+   and scheduler versions under equal budgets. Promote a replacement only when
+   it improves useful-candidate yield, evidence quality, duplicate rate, or
+   information gain without weakening protected checks. The new module is then
+   itself recorded as a derived, versioned research artifact.
+
+Each step has a fail-closed gate and a rollback point. No step may silently
+   broaden the model, data, evaluator, or GPU authority of the current ACWM
+   campaign. The goal is not to reach a universal RSI system in one release;
+   it is to make each layer independently measurable until the ACWM loop can
+   safely become a reusable RSI substrate.
+
 ## Knowledge Boundary
 
 Two views are intentional and must remain separate.
@@ -449,6 +513,49 @@ accepted tasks to the existing proposal/compiler and isolated materializer.
 Acceptance: the LLM can generate a source-grounded contract and an isolated
 candidate patch; malformed or policy-violating outputs cannot launch code or
 GPU work; no secret appears in configuration, receipt, log, or portable graph.
+
+### Phase 3.5: failure-driven autonomous research-domain expansion
+
+Extend retrieval beyond the current fixed failure-to-query branches without
+turning the researcher into an unbounded web crawler. The existing seed tracks
+(action conditioning, long-horizon memory, training/inference alignment, and
+rollout stability) remain the stable starting vocabulary. A bounded domain
+expander may propose adjacent mechanism domains when the current failure
+evidence is not explained by those tracks or when repeated low-information-gain
+cycles indicate a search gap.
+
+The expander must operate in four explicit steps:
+
+1. Normalize a failure into a mechanism-level gap, preserving the original
+   failure signatures and protected metrics.
+2. Retrieve a small, deterministic set of adjacent domains from the versioned
+   mechanism ontology and generate auditable queries for each domain.
+3. Score returned sources for mechanism evidence, target-capability fit,
+   novelty against the portable knowledge index, and expected information gain.
+4. Admit a new domain to the persistent search pool only after repeated,
+   source-grounded evidence clears the same research-intake and materialization
+   gates as seeded domains.
+
+Domain expansion is advisory: it cannot alter the frozen evaluator, held-out
+   split, GPU budget, or promotion policy. Each expansion attempt records its
+   parent failure, ontology revision, query set, source assessments, rejected
+   candidates, and a cooldown/expiry decision. The first implementation should
+   cap new domains and queries per cycle, deduplicate by semantic mechanism
+   identity, and retain negative results as reusable knowledge. Candidate
+   areas include control and robotics, sequence/state-space modeling,
+   uncertainty calibration, offline RL, causal representation learning, and
+   optimization, but no area is admitted merely because it is adjacent by name.
+
+Acceptance: a replay fixture with a seeded failure produces the same bounded
+   expansion plan byte-for-byte; a genuinely new failure can add a domain
+   without code or GPU authority; duplicate or low-evidence domains are
+   rejected with durable receipts; and the resulting source records remain
+   path-free and queryable by mechanism, capability, and anti-condition.
+
+Implementation status: planned. The current controller already derives
+failure-specific queries, but its expansion vocabulary is still static. This
+phase is the planned replacement boundary for a future retrieval module; the
+existing screen, confirm, and frozen-verifier loop remains unchanged.
 
 ### Phase 4: autonomous metric adequacy in shadow mode
 

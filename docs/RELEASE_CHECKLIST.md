@@ -22,10 +22,11 @@ scripts/ci/release_preflight.sh --output-dir dist/verdiwm-release
 ```
 
 The command checks the control-plane suite against the locked dependencies,
-builds the wheel and source distribution, installs the local wheel without
-network access in a fresh Python 3.10 environment, exercises the CLI and public
-APIs, builds an allowlisted ModelScope/GitHub repository, and audits it for
-local paths, secrets, unsafe file types, symlinks, and oversized files.
+builds the wheel and source distribution, installs the local wheel and its
+declared runtime dependencies in a fresh Python 3.10 environment, exercises
+the CLI and public APIs, builds an allowlisted ModelScope/GitHub repository,
+and audits it for local paths, secrets, unsafe file types, symlinks, and
+oversized files.
 It also builds the staged repository with its public packaging manifest and
 runs the CPU-only portrait-first example, so the upload candidate is usable
 without the development-only source tree.

@@ -166,6 +166,14 @@ class GithubStagingTests(unittest.TestCase):
                 (output / "experiments" / "ctrl_world_autonomous_transfer_v1" / "controller.py").is_file()
             )
             self.assertTrue(
+                (
+                    output
+                    / "experiments"
+                    / "ctrl_world_autonomous_transfer_v1"
+                    / "local_method_intake.py"
+                ).is_file()
+            )
+            self.assertTrue(
                 (output / "experiments" / "ctrl_world_hybrid_memory_transfer_v1" / "run.py").is_file()
             )
             self.assertTrue(
@@ -381,6 +389,34 @@ class GithubStagingTests(unittest.TestCase):
         self.assertIn('build-backend = "hatchling.build"', project_text)
         self.assertIn("[tool.hatch.build.targets.wheel.force-include]", project_text)
         self.assertIn("Apache License 2.0", readme_text)
+
+    def test_python_310_release_installs_runtime_dependencies(self) -> None:
+        public_project_text = (
+            REPO_ROOT / "scripts" / "export" / "public_pyproject.toml"
+        ).read_text(encoding="utf-8")
+        preflight_text = (
+            REPO_ROOT / "scripts" / "ci" / "release_preflight.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            '"tomli>=2,<3; python_version < \'3.11\'"',
+            public_project_text,
+        )
+        self.assertNotIn("uv pip install --python \"$venv_dir/bin/python\" --no-deps", preflight_text)
+        self.assertNotIn(
+            "uv pip install --python \"$staged_venv_dir/bin/python\" --no-deps",
+            preflight_text,
+        )
+        self.assertNotIn(
+            "uv pip install --python \"$venv_dir/bin/python\" --offline",
+            preflight_text,
+        )
+        self.assertNotIn(
+            "uv pip install --python \"$staged_venv_dir/bin/python\" --offline",
+            preflight_text,
+        )
+        self.assertIn('staging_validation_env="$work_dir/public-tree-validation-venv"', preflight_text)
+        self.assertIn('test ! -e "$staging_dir/.venv"', preflight_text)
 
 
 if __name__ == "__main__":

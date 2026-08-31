@@ -16,6 +16,7 @@
     "constitution_freeze",
     "runtime_candidates",
     "asset_bindings",
+    "runner",
     "probe_imports"
   ],
   "properties": {
@@ -72,6 +73,20 @@
             "items": {"type": "string", "minLength": 1}
           }
         }
+      }
+    },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol_version", "requires_training", "train", "evaluate", "checkpoint_receipt", "evaluation_receipt", "adapter_id"],
+      "properties": {
+        "protocol_version": {"enum": [1]},
+        "requires_training": {"const": true},
+        "train": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "evaluate": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "checkpoint_receipt": {"type": "string", "minLength": 1},
+        "evaluation_receipt": {"type": "string", "minLength": 1}
+        ,"adapter_id": {"type": "string", "minLength": 1}
       }
     },
     "probe_imports": {"type": "boolean"}

@@ -45,16 +45,40 @@ validates control-plane contracts only and makes no model-quality claim.
 
 ## Run a campaign
 
-The user-facing entry point keeps the required request to model, data, goal,
-and budget. A versioned adapter profile resolves the evaluator, probe,
-runtime, assets, Archive, CAS, and scheduler contract:
+The daily user-facing entry point is intent-first. Put project facts in a
+single `verdiwm.toml`; the system resolves the adapter, evaluator, runtime,
+assets, Archive, CAS, and scheduler contract internally:
+
+```toml
+[project]
+model = "./model"
+data = "./data"
+budget = "1gpu-hour"
+state_root = "./.verdiwm/state"
+```
+
+Then run a plain-language goal:
+
+```bash
+uv run verdiwm run "improve long-horizon action-conditioned prediction and runtime_ready"
+```
+
+Metric identifiers and declared aliases in the goal are resolved against the
+frozen evaluator catalog. Unknown metrics fail closed. If the model interface
+does not match an installed profile, `run` selects the unambiguous trusted
+scientific profile and completes an isolated adapter overlay automatically.
+
+Without a project file, `run` discovers conventional `model/` and `data/`
+(or `dataset/`) directories and applies a bounded default budget. Explicit
+flags remain available for CI, reproduction, and advanced overrides:
 
 ```bash
 uv run verdiwm run \
   --model /path/to/model-checkout \
   --data /path/to/data \
   --goal "improve long-horizon action-conditioned prediction" \
-  --budget 8gpu-hour
+  --budget 8gpu-hour \
+  --mode hybrid
 ```
 
 `run` executes the confirmed campaign in the foreground. Use `--queue-only`
@@ -65,6 +89,12 @@ uv run verdiwm status CAMPAIGN_ID
 uv run verdiwm cancel CAMPAIGN_ID
 uv run verdiwm reproduce CAMPAIGN_ID
 ```
+
+For a local visual interface, run `uv run verdiwm-workbench` and open
+`http://127.0.0.1:8765`. It provides quick-start, causal-discovery, and hybrid
+mode selection, campaign control, and an interactive evidence graph. See
+[Research modes](docs/RESEARCH_MODES.md) for prerequisites and the current
+runtime-canary boundary.
 
 Ctrl-World uses the checked-in `ctrl-world-predictive-v2` profile. Its local
 asset layout is discovered from relative paths or the documented
@@ -93,6 +123,7 @@ embedded in the profile.
 | Universal model onboarding | Four-field CLI, versioned adapter-profile resolution, read-only discovery, conformance, Campaign dispatch, cancellation, and reproduction implemented for the Ctrl-World golden path |
 | Ctrl-World ACWM scale gate | Two paired-ground-truth evaluation surfaces, Pareto admission, and WAM/task-success exclusion implemented; requires local runtime binding before GPU execution |
 | Evidence graph projection | Read-only deterministic graph of campaigns, models, probes, primitives, trials, receipts, verdicts, certificates, and provenance implemented |
+| Research modes and local workbench | Quick-start, causal-discovery, and hybrid plans are revision-bound; campaign control and interactive evidence graph implemented |
 | Controlled self-evolution daemon | Candidate strategies, literature staging, bounded iterations, budget/lease gates, no-information stop, and resumable execution implemented; autonomous quality promotion remains prohibited |
 | Multi-seed causal replication of the bundled effect | Not established |
 | Cross-backbone IRG alignment and calibrated transfer | Research work in progress |

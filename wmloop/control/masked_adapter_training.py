@@ -99,6 +99,30 @@ def training_binding_from_receipt(
     optimizer = receipt.get("optimizer_receipt")
     if not isinstance(optimizer, Mapping):
         raise MaskedAdapterTrainingError("MASKED_ADAPTER_OPTIMIZER_RECEIPT_INVALID")
+
+    data_receipt = receipt.get("data_receipt")
+    if data_receipt is not None:
+        if not isinstance(data_receipt, Mapping):
+            raise MaskedAdapterTrainingError("MASKED_ADAPTER_DATA_RECEIPT_INVALID")
+        integer_fields = (
+            "dataset_examples",
+            "batch_size_per_rank",
+            "effective_batch_size",
+            "examples_seen_upper_bound",
+            "num_history",
+            "num_frames",
+        )
+        if (
+            not isinstance(data_receipt.get("dataset_name"), str)
+            or not str(data_receipt["dataset_name"])
+            or any(
+                isinstance(data_receipt.get(field), bool)
+                or not isinstance(data_receipt.get(field), int)
+                or int(data_receipt[field]) < 1
+                for field in integer_fields
+            )
+        ):
+            raise MaskedAdapterTrainingError("MASKED_ADAPTER_DATA_RECEIPT_INVALID")
     steps = optimizer.get("steps")
     learning_rate = optimizer.get("learning_rate")
     if (
@@ -122,6 +146,7 @@ def training_binding_from_receipt(
         "backbone_checkpoint_sha256": backbone,
         "backbone_freeze_proof": dict(proof),
         "optimizer_receipt": dict(optimizer),
+        **({"data_receipt": dict(data_receipt)} if data_receipt is not None else {}),
         "adapter_state_format": receipt.get("adapter_state_format", "torch_state_dict"),
     }
 

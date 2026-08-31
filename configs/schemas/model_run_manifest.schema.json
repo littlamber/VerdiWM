@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "model_run_id", "campaign_id", "manifest_path", "adapter", "runner", "source", "runtime", "training", "evaluation", "resource_binding", "output", "isolation", "claim_boundary"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-model-run-manifest"]},
+    "model_run_id": {"type": "string", "pattern": "^model-run-[0-9a-f]{24}$"},
+    "campaign_id": {"type": "string", "minLength": 1},
+    "manifest_path": {"type": "string", "minLength": 1},
+    "adapter": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profile_id", "model_family", "capability_level", "protocol_version"],
+      "properties": {
+        "profile_id": {"type": "string", "minLength": 1},
+        "model_family": {"type": "string", "minLength": 1},
+        "capability_level": {"const": "L2"},
+        "protocol_version": {"const": 1}
+      }
+    },
+    "runner": {
+      "type": "object", "additionalProperties": false,
+      "required": ["adapter_id"],
+      "properties": {"adapter_id": {"type": ["string", "null"]}}
+    },
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_root", "dataset_root", "asset_bindings"],
+      "properties": {
+        "model_root": {"type": "string", "minLength": 1},
+        "dataset_root": {"type": "string", "minLength": 1},
+        "adapter_root": {"type": "string", "minLength": 1},
+        "asset_bindings": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["python", "train_command"],
+      "properties": {
+        "python": {"type": "string", "minLength": 1},
+        "train_command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "training": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scale_plan", "scale_plan_digest", "checkpoint_receipt"],
+      "properties": {
+        "scale_plan": {"type": "object"},
+        "scale_plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "checkpoint_receipt": {"type": "string", "minLength": 1}
+      }
+    },
+    "evaluation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evaluator_contract", "command", "evidence_receipt"],
+      "properties": {
+        "evaluator_contract": {"type": "string", "minLength": 1},
+        "command": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "evidence_receipt": {"type": "string", "minLength": 1}
+      }
+    },
+    "resource_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["allocation", "role", "gpu_lease_required"],
+      "properties": {
+        "allocation": {"type": "object"},
+        "role": {"type": "string", "minLength": 1},
+        "gpu_lease_required": {"const": true}
+      }
+    },
+    "output": {
+      "type": "object", "additionalProperties": false,
+      "required": ["root", "checkpoint_receipt", "evidence_receipt"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "checkpoint_receipt": {"type": "string", "minLength": 1},
+        "evidence_receipt": {"type": "string", "minLength": 1}
+      }
+    },
+    "isolation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_source_read_only", "dataset_read_only", "evaluator_read_only", "output_root_fresh", "network_access"],
+      "properties": {
+        "model_source_read_only": {"const": true},
+        "dataset_read_only": {"const": true},
+        "evaluator_read_only": {"const": true},
+        "output_root_fresh": {"const": true},
+        "network_access": {"const": false}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

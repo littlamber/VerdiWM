@@ -111,7 +111,7 @@
                   "additionalProperties": false,
                   "required": ["episode_id", "start_idx"],
                   "properties": {
-                    "episode_id": {"type": "string", "pattern": "^[0-9]+$"},
+                    "episode_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
                     "start_idx": {"type": "integer", "minimum": 0}
                   }
                 }
@@ -124,7 +124,7 @@
                   "additionalProperties": false,
                   "required": ["episode_id", "start_idx"],
                   "properties": {
-                    "episode_id": {"type": "string", "pattern": "^[0-9]+$"},
+                    "episode_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
                     "start_idx": {"type": "integer", "minimum": 0}
                   }
                 }

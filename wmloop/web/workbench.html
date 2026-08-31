@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VerdiWM Research Workbench</title>
+  <link rel="stylesheet" href="/assets/workbench.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">V</span><div><strong>VerdiWM</strong><small>Research workbench</small></div></div>
+    <nav aria-label="工作台导航">
+      <button class="nav-item active" data-view="campaigns">研究任务</button>
+      <button class="nav-item" data-view="graph">证据图谱</button>
+    </nav>
+    <div class="boundary">候选来源可以改变，验证规则不会随模式改变。</div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div><h1>模型研究控制台</h1><p>从外部知识冷启动，并逐步启用目标模型的因果发现。</p></div>
+      <div class="top-actions"><span id="api-state" class="status-dot">连接中</span><button id="refresh" class="secondary">刷新</button></div>
+    </header>
+
+    <section id="campaigns-view" class="view active">
+      <div class="mode-band">
+        <div class="section-heading"><div><h2>选择研究模式</h2><p id="mode-description"></p></div><span id="mode-state" class="mode-state"></span></div>
+        <div id="mode-switch" class="segmented" role="radiogroup" aria-label="研究模式"></div>
+      </div>
+
+      <section class="overview-strip" aria-label="项目概览">
+        <div class="overview-item"><span>全部任务</span><strong id="overview-total">0</strong></div>
+        <div class="overview-item"><span>运行中</span><strong id="overview-running">0</strong></div>
+        <div class="overview-item"><span>待处理</span><strong id="overview-queued">0</strong></div>
+        <div class="overview-item attention"><span>需要处理</span><strong id="overview-blocked">0</strong></div>
+      </section>
+
+      <form id="campaign-form" class="campaign-form">
+        <div class="form-grid">
+          <label class="wide">研究目标<input name="goal" required placeholder="例如：降低长时域动作漂移"></label>
+          <label class="wide">希望提升的指标<input name="target_metrics" placeholder="例如：runtime_ready（需属于当前评测目录）"></label>
+        </div>
+        <p id="project-state" class="project-state" role="status"></p>
+        <details class="advanced-settings"><summary>高级设置</summary><div class="form-grid">
+          <label>模型目录<input name="model" placeholder="由 verdiwm.toml 提供"></label>
+          <label>数据目录<input name="dataset" placeholder="由 verdiwm.toml 提供"></label>
+          <label>GPU 预算<input name="budget" placeholder="默认 1gpu-hour"></label>
+          <label>适配器<input name="adapter" placeholder="默认 auto"></label>
+          <label class="causal-field hidden">CPBE request<input name="cpbe_request" placeholder="/path/to/cpbe-request.json"></label>
+          <label class="causal-field hidden">CPBE history<input name="cpbe_history" placeholder="/path/to/probe-trials.jsonl"></label>
+        </div></details>
+        <div id="form-error" class="form-error" role="alert"></div>
+        <div class="form-actions"><button type="submit" class="primary">创建并排队</button><button type="button" id="run-queue" class="secondary">运行队列</button></div>
+      </form>
+
+      <section class="campaign-section">
+        <div class="section-heading"><div><h2>任务状态</h2><p>模式、证据阶段和执行状态保持在同一份不可变修订记录中。</p></div><span id="campaign-count"></span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>任务</th><th>模式</th><th>状态</th><th>目标</th><th>证据阶段</th><th>操作</th></tr></thead><tbody id="campaign-table"></tbody></table>
+          <div id="empty-campaigns" class="empty">还没有研究任务</div>
+        </div>
+      </section>
+      <aside id="campaign-detail" class="campaign-detail" aria-live="polite" hidden></aside>
+    </section>
+
+    <section id="graph-view" class="view">
+      <div class="graph-toolbar"><div><h2>证据图谱</h2><p>拖拽节点，滚轮缩放；点击节点查看证据来源。</p></div><div class="graph-controls"><select id="kind-filter"><option value="">全部节点</option></select><button id="fit-graph" class="secondary">适应视图</button></div></div>
+      <div class="graph-layout">
+        <div class="graph-stage"><canvas id="graph-canvas"></canvas><div id="graph-empty" class="empty graph-empty">任务产生证据后将在这里形成图谱</div></div>
+        <aside id="node-detail" class="node-detail"><h3>节点详情</h3><p>选择一个节点查看类型、关系与来源。</p></aside>
+      </div>
+    </section>
+  </main>
+  <script src="/assets/workbench.js"></script>
+</body>
+</html>

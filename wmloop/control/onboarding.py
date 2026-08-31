@@ -152,6 +152,7 @@ class OnboardingOptions:
     evaluator_contract: Path | None = None
     asset_bindings: tuple[tuple[str, Path], ...] = ()
     additional_asset_parameters: tuple[str, ...] = ()
+    adapter_contract_ready: bool = False
     probe_imports: bool = True
     max_files: int = _MAX_FILES
 
@@ -266,6 +267,7 @@ def _build_report(repo: Path, options: OnboardingOptions) -> dict[str, object]:
         capabilities=capabilities,
         evaluator_contract=evaluator_contract,
         asset_bindings=asset_bindings,
+        adapter_contract_ready=options.adapter_contract_ready,
     )
     report = {
         "schema_version": SCHEMA_VERSION,
@@ -1172,8 +1174,24 @@ def _discover_asset_bindings(
             continue
         flags.update(str(flag) for flag in entrypoint.get("cli_flags", []))
     flags.update(_validate_additional_asset_parameters(additional_parameters))
-    overrides = _validate_explicit_asset_bindings(explicit_bindings, flags)
     required_parameters = _evaluator_asset_parameters(evaluator_contract)
+    # Evaluators consume canonical names while adapters may expose a local
+    # runner vocabulary.  Bind an evaluator parameter to an explicitly
+    # declared adapter asset of the same semantic kind when unambiguous.
+    flags.update(required_parameters)
+    overrides = _validate_explicit_asset_bindings(
+        explicit_bindings, flags | {
+            parameter
+            for parameter, _path in explicit_bindings
+            if (parameter if parameter.startswith("--") else f"--{parameter}")
+            in _validate_additional_asset_parameters(additional_parameters)
+        }
+    )
+    explicit_by_kind: dict[str, list[Path]] = {}
+    for parameter, path in overrides.items():
+        kind = _binding_kind(parameter.removeprefix("--").replace("-", "_"))
+        if kind is not None:
+            explicit_by_kind.setdefault(kind, []).append(path)
     rows: list[dict[str, object]] = []
     for flag in sorted(flags):
         field = flag.removeprefix("--").replace("-", "_").lower()
@@ -1187,6 +1205,10 @@ def _discover_asset_bindings(
         if kind is None:
             continue
         explicit = overrides.get(flag)
+        if explicit is None and flag in required_parameters:
+            candidates = explicit_by_kind.get(kind, [])
+            if len(candidates) == 1:
+                explicit = candidates[0]
         evidence = (
             [str(explicit)]
             if explicit is not None
@@ -1341,6 +1363,7 @@ def _build_blockers(
     capabilities: Sequence[Mapping[str, object]],
     evaluator_contract: Mapping[str, object],
     asset_bindings: Sequence[Mapping[str, object]],
+    adapter_contract_ready: bool = False,
 ) -> list[dict[str, object]]:
     blockers: list[dict[str, object]] = []
     if source_revision.get("state") != "bound":
@@ -1379,14 +1402,14 @@ def _build_blockers(
                 "detail": "no train, evaluation, inference, or rollout entrypoint was discovered",
             }
         )
-    if not any(asset.get("kind") == "checkpoint" for asset in assets):
+    if not adapter_contract_ready and not any(asset.get("kind") == "checkpoint" for asset in assets):
         blockers.append(
             {
                 "code": "CHECKPOINT_MISSING",
                 "detail": "no checkpoint or weight asset was discovered",
             }
         )
-    if not any(
+    if not adapter_contract_ready and not any(
         entrypoint.get("executable") is True
         and "evaluation" in entrypoint.get("kinds", [])
         for entrypoint in entrypoints

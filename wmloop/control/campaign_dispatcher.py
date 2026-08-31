@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
+from wmloop.execute.model_runner import execute_model_run
 
 
 class CampaignDispatchError(RuntimeError):
@@ -61,14 +62,16 @@ def run_dispatcher(
     pending = dispatch_root / "pending"
     running = dispatch_root / "running"
     completed = dispatch_root / "completed"
+    blocked = dispatch_root / "blocked"
     failed = dispatch_root / "failed"
     cancelled = dispatch_root / "cancelled"
-    for path in (pending, running, completed, failed, cancelled):
+    for path in (pending, running, completed, blocked, failed, cancelled):
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
     lock_path = dispatch_root / "dispatcher.lock"
     _acquire_lock(lock_path)
     settled: list[str] = []
     failed_ids: list[str] = []
+    blocked_ids: list[str] = []
     cancelled_ids: list[str] = []
     try:
         recovered = _recover_interrupted(
@@ -101,6 +104,7 @@ def run_dispatcher(
                             store=store,
                             running=running,
                             completed=completed,
+                            blocked=blocked,
                             failed=failed,
                             cancelled=cancelled,
                             runner=runner,
@@ -111,6 +115,8 @@ def run_dispatcher(
             for state, campaign_id in outcomes:
                 if state == "completed":
                     settled.append(campaign_id)
+                elif state == "blocked":
+                    blocked_ids.append(campaign_id)
                 elif state == "cancelled":
                     cancelled_ids.append(campaign_id)
                 else:
@@ -121,6 +127,7 @@ def run_dispatcher(
             "state": "completed",
             "settled_campaign_ids": settled,
             "failed_campaign_ids": failed_ids,
+            "blocked_campaign_ids": blocked_ids,
             "cancelled_campaign_ids": cancelled_ids,
             "pending_count": len(list(pending.glob("*.json"))),
         }
@@ -134,6 +141,7 @@ def _dispatch_one(
     store: CampaignStore,
     running: Path,
     completed: Path,
+    blocked: Path,
     failed: Path,
     cancelled: Path,
     runner: Runner | None,
@@ -159,7 +167,9 @@ def _dispatch_one(
         dispatch = _load_dispatch(active)
         store.record_dispatch_result(campaign_id, status="running")
         store.record_dispatch_location(campaign_id, active)
-        if runner is None:
+        if runner is None and dispatch.get("model_run") is not None:
+            result = dict(execute_model_run(dispatch["model_run"]))
+        elif runner is None:
             result = dict(
                 _run_subprocess(
                     dispatch["execution"],
@@ -180,6 +190,14 @@ def _dispatch_one(
             active.unlink(missing_ok=True)
             store.record_dispatch_location(campaign_id, cancelled / source.name)
             return "cancelled", campaign_id
+        if result.get("outcome") == "blocked":
+            store.record_dispatch_result(campaign_id, status="blocked", result=result)
+            dispatch["state"] = "blocked"
+            dispatch["result"] = result
+            _write_json(blocked / source.name, dispatch)
+            active.unlink(missing_ok=True)
+            store.record_dispatch_location(campaign_id, blocked / source.name)
+            return "blocked", campaign_id
         store.record_dispatch_result(campaign_id, status="completed", result=result)
         dispatch["state"] = "completed"
         dispatch["result"] = result
@@ -359,6 +377,9 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
                 "literature_timeout_seconds": "--literature-timeout-seconds",
                 "candidate_catalog": "--candidate-catalog",
                 "settlement_manifest": "--settlement-manifest",
+                "research_mode": "--research-mode",
+                "cpbe_request": "--cpbe-request",
+                "cpbe_history": "--cpbe-history",
                 "max_files": "--max-files",
                 "conformance_timeout_seconds": "--conformance-timeout-seconds",
                 "budget_max_trial_gpu_hours": "--budget-max-trial-gpu-hours",
@@ -366,6 +387,9 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
             },
         )
         _append_assets(command, execution.get("asset_bindings"))
+        _append_adapter_asset_parameters(command, execution.get("adapter_asset_parameters"))
+        if execution.get("adapter_contract_ready") is True:
+            command.append("--adapter-contract-ready")
         if execution.get("probe_imports") is False:
             command.append("--no-import-probe")
         if execution.get("budget_require_high_cost_approval") is False:
@@ -400,6 +424,9 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
                 "literature_query": "--literature-query",
                 "literature_max_results": "--literature-max-results",
                 "literature_timeout_seconds": "--literature-timeout-seconds",
+                "research_mode": "--research-mode",
+                "cpbe_request": "--cpbe-request",
+                "cpbe_history": "--cpbe-history",
                 "max_files": "--max-files",
                 "conformance_timeout_seconds": "--conformance-timeout-seconds",
                 "budget_max_trial_gpu_hours": "--budget-max-trial-gpu-hours",
@@ -563,6 +590,21 @@ def _append_assets(command: list[str], value: object) -> None:
         # PARAM intentionally starts with "--". Keep the value attached to the
         # option so argparse cannot mistake the parameter name for a new flag.
         command.append(f"--asset={parameter}={path}")
+
+
+def _append_adapter_asset_parameters(command: list[str], value: object) -> None:
+    """Forward the profile-owned asset contract to autonomous onboarding."""
+
+    if value is None:
+        return
+    if not isinstance(value, (list, tuple)) or any(
+        not isinstance(parameter, str) or not parameter for parameter in value
+    ):
+        raise CampaignDispatchError("EXECUTION_ADAPTER_ASSET_PARAMETERS_INVALID")
+    for parameter in sorted(set(value)):
+        # Keep a parameter such as ``--dataset`` attached to its option; a
+        # leading dash would otherwise be parsed as a new argparse flag.
+        command.append(f"--adapter-asset-parameter={parameter}")
 
 
 def _append_options(

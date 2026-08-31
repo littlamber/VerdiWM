@@ -52,6 +52,7 @@ def run_evaluation(args: argparse.Namespace) -> dict[str, object]:
     runtime_args = base._build_runtime_args(
         ctrl_world_root=paths["ctrl_world_root"],
         dataset_root=paths["dataset_root"],
+        dataset_name=str(getattr(args, "dataset_name", "droid_subset")),
         data_stat=paths["data_stat"],
         checkpoint=paths["checkpoint"],
         svd_model=paths["svd_model"],
@@ -361,6 +362,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--candidate", type=Path, required=True)
     parser.add_argument("--ctrl-world-root", type=Path, required=True)
     parser.add_argument("--dataset-root", type=Path, required=True)
+    parser.add_argument("--dataset-name", default="droid_subset")
     parser.add_argument("--data-stat", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--svd-model", type=Path, required=True)

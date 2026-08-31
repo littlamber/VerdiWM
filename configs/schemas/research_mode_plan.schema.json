@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "plan_id", "mode", "label", "goal", "state", "candidate_sources", "stages", "budget_allocation", "evidence_context", "blockers", "transition_policy", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-research-mode-plan"},
+    "plan_id": {"type": "string", "pattern": "^research-mode-plan-[0-9a-f]{24}$"},
+    "mode": {"enum": ["quick_start", "causal_discovery", "hybrid"]},
+    "label": {"type": "string", "minLength": 1},
+    "goal": {"type": "string", "minLength": 1},
+    "state": {"enum": ["ready", "ready_with_deferred_discovery", "blocked"]},
+    "candidate_sources": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "stages": {"type": "array", "minItems": 6, "items": {"type": "object"}},
+    "budget_allocation": {"type": "object"},
+    "evidence_context": {"type": "object"},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "transition_policy": {"type": "object"},
+    "claim_boundary": {"type": "string", "minLength": 32}
+  }
+}

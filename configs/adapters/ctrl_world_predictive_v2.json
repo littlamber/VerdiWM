@@ -28,8 +28,7 @@
   "constitution_freeze": "configs/constitution/ctrl_world_predictive_quality_pilot_v2.freeze.json",
   "runtime_candidates": [
     "{env:VERDIWM_CTRL_WORLD_PYTHON}",
-    "{model}/.venv/bin/python",
-    "{model_parent}/verdiwm-runs/ctrl-world/runtime-probe-v1/bin/python"
+    "{model}/.venv/bin/python"
   ],
   "asset_bindings": [
     {
@@ -83,5 +82,22 @@
       ]
     }
   ],
+  "runner": {
+    "protocol_version": 1,
+    "adapter_id": "ctrl_world_train_wm_v1",
+    "requires_training": true,
+    "train": [
+      "{verdiwm_root}/scripts/run_ctrl_world_model_train.py",
+      "--verdiwm-model-run",
+      "{model_run_manifest}"
+    ],
+    "evaluate": [
+      "{verdiwm_root}/scripts/run_ctrl_world_model_eval.py",
+      "--verdiwm-model-run",
+      "{model_run_manifest}"
+    ],
+    "checkpoint_receipt": "receipts/checkpoint-receipt.json",
+    "evaluation_receipt": "receipts/heldout-evidence-receipt.json"
+  },
   "probe_imports": false
 }

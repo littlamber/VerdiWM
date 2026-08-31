@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 import threading
 import uuid
@@ -27,6 +28,12 @@ from wmloop.control.adapter_profiles import (
     compile_adapter_execution,
     parse_gpu_budget,
 )
+from wmloop.control.model_run import ModelRunError, compile_model_run
+from wmloop.control.research_modes import (
+    ResearchModeError,
+    apply_research_mode_to_execution,
+    compile_research_mode_plan,
+)
 from wmloop.control.automatic_campaign import (
     AutomaticCampaignError,
     automatic_campaign_id,
@@ -37,14 +44,15 @@ from wmloop.control.automatic_campaign import (
 from wmloop.experiments.evidence_graph import query_evidence_graph
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _TRANSITIONS = {
     "created": {"confirmed", "queued", "cancelled"},
     "confirmed": {"queued", "cancelled"},
     "queued": {"running", "cancelled", "failed"},
-    "running": {"completed", "failed", "cancelled"},
+    "running": {"completed", "blocked", "failed", "cancelled"},
     "cancelled": set(),
     "completed": set(),
+    "blocked": set(),
     "failed": set(),
 }
 
@@ -98,6 +106,7 @@ class CampaignStore:
         goal = _required_text(payload, "goal", "GOAL_REQUIRED")
         model = _required_text(payload, "model", "MODEL_REQUIRED")
         dataset = _required_text(payload, "dataset", "DATASET_REQUIRED")
+        target_metrics = _target_metrics(payload)
         try:
             budget_hours = parse_gpu_budget(payload.get("budget"))
         except AdapterProfileError as exc:
@@ -108,12 +117,19 @@ class CampaignStore:
             goal=goal,
             budget_gpu_hours=budget_hours,
             adapter=(str(payload["adapter"]) if payload.get("adapter") is not None else None),
+            target_metrics=target_metrics,
         )
         campaign_id = str(payload.get("campaign_id") or automatic_campaign_id(key))
         self._path(campaign_id)
         request_hash = hashlib.sha256(_canonical(payload).encode()).hexdigest()
 
         execution = payload.get("execution")
+        training_scale_plan = payload.get("training_scale_plan")
+        if training_scale_plan is not None and not isinstance(training_scale_plan, Mapping):
+            raise CampaignAPIError("TRAINING_SCALE_PLAN_OBJECT_REQUIRED")
+        adapter_repair = payload.get("adapter_repair")
+        if adapter_repair is not None:
+            _validate_adapter_repair_binding(adapter_repair)
         automatically_compiled = execution is None
         adapter_profile = payload.get("adapter")
         model_family = payload.get("model_family")
@@ -155,8 +171,51 @@ class CampaignStore:
             model_family = resolved.model_family
             capability_level = resolved.capability_level
             constitution_freeze = resolved.constitution_freeze
+        if training_scale_plan is not None:
+            assert isinstance(execution, dict)
+            execution = dict(execution)
+            # The scale receipt becomes part of the immutable campaign revision,
+            # rather than an after-the-fact launch flag.
+            execution["training_scale_plan"] = dict(training_scale_plan)
+        research_mode_plan: dict[str, object] | None = None
+        if payload.get("research_mode") is not None:
+            assert isinstance(execution, dict)
+            execution = dict(execution)
+            for field in (
+                "literature_query",
+                "cpbe_request",
+                "cpbe_history",
+            ):
+                if payload.get(field) is not None:
+                    execution[field] = payload[field]
+            try:
+                research_mode_plan = compile_research_mode_plan(
+                    mode=payload["research_mode"],
+                    goal=goal,
+                    execution=execution,
+                    evidence_context=(
+                        payload.get("evidence_context")
+                        if isinstance(payload.get("evidence_context"), Mapping)
+                        else None
+                    ),
+                )
+            except ResearchModeError as exc:
+                raise CampaignAPIError(str(exc)) from exc
+            if research_mode_plan["state"] == "blocked":
+                raise CampaignAPIError(
+                    "RESEARCH_MODE_PREREQUISITES_MISSING:"
+                    + ",".join(str(value) for value in research_mode_plan["blockers"])
+                )
+            execution = apply_research_mode_to_execution(
+                execution,
+                plan=research_mode_plan,
+            )
         _validate_execution(execution)
         assert isinstance(execution, dict)
+        target_metrics = _bind_target_metrics(target_metrics, execution, goal=goal)
+        if target_metrics:
+            execution = dict(execution)
+            execution["target_metrics"] = target_metrics
         try:
             revision = compile_revision(
                 campaign_id=campaign_id,
@@ -173,6 +232,7 @@ class CampaignStore:
                     if isinstance(payload.get("resource_request"), Mapping)
                     else None
                 ),
+                target_metrics=target_metrics,
             )
         except AutomaticCampaignError as exc:
             raise CampaignAPIError(str(exc)) from exc
@@ -182,6 +242,19 @@ class CampaignStore:
             execution = isolate_execution_for_revision(
                 execution, revision_id=str(revision["revision_id"])
             )
+        model_run: dict[str, object] | None = None
+        if training_scale_plan is not None:
+            try:
+                model_run = compile_model_run(
+                    campaign_id=campaign_id,
+                    execution=execution,
+                    model=Path(model),
+                    data=Path(dataset),
+                    training_scale_plan=training_scale_plan,
+                    resource_allocation=revision["resource_allocation"],
+                )
+            except ModelRunError as exc:
+                raise CampaignAPIError(str(exc)) from exc
         record = {
             "schema_version": SCHEMA_VERSION,
             "campaign_id": campaign_id,
@@ -191,6 +264,7 @@ class CampaignStore:
             "revision": revision,
             "resource_allocation": revision["resource_allocation"],
             "goal": goal,
+            "target_metrics": target_metrics,
             "model": model,
             "dataset": dataset,
             "budget": {"gpu_hours": budget_hours},
@@ -204,7 +278,12 @@ class CampaignStore:
             "updated_at": _now(),
             "request_hash": request_hash,
         }
-        for field in ("engineering_manifest", "compiled_manifest"):
+        if model_run is not None:
+            record["model_run"] = model_run
+        if research_mode_plan is not None:
+            record["research_mode"] = research_mode_plan["mode"]
+            record["research_mode_plan"] = research_mode_plan
+        for field in ("engineering_manifest", "compiled_manifest", "adapter_repair"):
             if payload.get(field) is not None:
                 record[field] = payload[field]
         with self._lock:
@@ -239,6 +318,10 @@ class CampaignStore:
                 "execution": record["execution"],
                 "request_hash": record["request_hash"],
             }
+            if model_run is not None:
+                revision_document["model_run"] = model_run
+            if payload.get("adapter_repair") is not None:
+                revision_document["adapter_repair"] = payload["adapter_repair"]
             if revision_path.exists():
                 existing_revision = json.loads(revision_path.read_text(encoding="utf-8"))
                 if existing_revision != revision_document:
@@ -246,6 +329,17 @@ class CampaignStore:
             else:
                 self._write(revision_path, revision_document)
             record["revision_ref"] = str(revision_path)
+            if model_run is not None:
+                model_run_path = Path(str(model_run["manifest_path"])).resolve()
+                if model_run_path.exists():
+                    try:
+                        existing_model_run = json.loads(model_run_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError) as exc:
+                        raise CampaignAPIError("MODEL_RUN_MANIFEST_CONFLICT") from exc
+                    if existing_model_run != model_run:
+                        raise CampaignAPIError("MODEL_RUN_MANIFEST_CONFLICT")
+                else:
+                    self._write(model_run_path, model_run)
             self._write(path, record)
         return record
 
@@ -312,6 +406,7 @@ class CampaignStore:
                     _canonical(
                         {
                             "execution": execution,
+                            "model_run": record.get("model_run"),
                             "revision_id": record.get("revision_id"),
                             "resource_allocation": record.get("resource_allocation"),
                         }
@@ -319,6 +414,8 @@ class CampaignStore:
                 ).hexdigest(),
                 "created_at": _now(),
             }
+            if record.get("model_run") is not None:
+                dispatch["model_run"] = record["model_run"]
             for field in ("engineering_manifest", "compiled_manifest"):
                 if record.get(field) is not None:
                     dispatch[field] = record[field]
@@ -371,7 +468,7 @@ class CampaignStore:
         result: dict[str, Any] | None = None,
         error: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if status not in {"running", "completed", "failed"}:
+        if status not in {"running", "completed", "blocked", "failed"}:
             raise CampaignAPIError("DISPATCH_STATUS_INVALID")
         with self._lock:
             record = self.get(campaign_id)
@@ -432,6 +529,11 @@ class CampaignStore:
 
     def reproduce(self, campaign_id: str) -> dict[str, Any]:
         source = self.get(campaign_id)
+        if source.get("model_run") is not None:
+            # A training scale receipt, output root, and resource allocation are
+            # revision-bound. Reusing them under a new campaign id would turn a
+            # reproduction request into an unsafe alias of the original run.
+            raise CampaignAPIError("MODEL_RUN_REPRODUCTION_REQUIRES_NEW_REVISION")
         execution = source.get("execution")
         if not isinstance(execution, dict):
             raise CampaignAPIError("REPRODUCE_EXECUTION_REQUIRED")
@@ -478,6 +580,122 @@ def _required_text(payload: Mapping[str, Any], name: str, code: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise CampaignAPIError(code)
     return value.strip()
+
+
+def _target_metrics(payload: Mapping[str, Any]) -> list[str]:
+    """Normalize user metric intent without allowing evaluator mutation."""
+    raw = payload.get("target_metrics", payload.get("metrics", payload.get("metric")))
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        values = [part.strip() for part in raw.replace(",", " ").split()]
+    elif isinstance(raw, (list, tuple)):
+        values = [item.strip() for item in raw if isinstance(item, str)]
+        if len(values) != len(raw):
+            raise CampaignAPIError("TARGET_METRICS_INVALID")
+    else:
+        raise CampaignAPIError("TARGET_METRICS_INVALID")
+    normalized = sorted({value for value in values if value})
+    if not normalized:
+        raise CampaignAPIError("TARGET_METRICS_INVALID")
+    if any(len(value) > 128 for value in normalized):
+        raise CampaignAPIError("TARGET_METRICS_INVALID")
+    return normalized
+
+
+def _bind_target_metrics(
+    metrics: list[str], execution: Mapping[str, Any], *, goal: str
+) -> list[str]:
+    explicit = bool(metrics)
+    contract_value = execution.get("evaluator_contract")
+    if not isinstance(contract_value, str):
+        if not explicit:
+            return []
+        raise CampaignAPIError("TARGET_METRICS_EVALUATOR_UNAVAILABLE")
+    try:
+        contract = json.loads(Path(contract_value).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        if not explicit:
+            return []
+        raise CampaignAPIError("TARGET_METRICS_EVALUATOR_UNAVAILABLE") from exc
+    catalog = contract.get("metrics") if isinstance(contract, Mapping) else None
+    if not isinstance(catalog, list) or not all(isinstance(item, str) for item in catalog):
+        raise CampaignAPIError("TARGET_METRICS_CATALOG_INVALID")
+    available = {item.casefold(): item for item in catalog}
+    aliases = contract.get("metric_aliases", {})
+    if not isinstance(aliases, Mapping) or not all(
+        isinstance(alias, str) and isinstance(target, str)
+        for alias, target in aliases.items()
+    ):
+        raise CampaignAPIError("TARGET_METRICS_CATALOG_INVALID")
+    for alias, target in aliases.items():
+        canonical = available.get(target.casefold())
+        if canonical is None:
+            raise CampaignAPIError("TARGET_METRICS_CATALOG_INVALID")
+        available[alias.casefold()] = canonical
+    if not metrics:
+        metrics = [
+            phrase
+            for phrase in available
+            if _metric_mentioned(phrase, goal)
+        ]
+        if not metrics:
+            return []
+    unknown = [item for item in metrics if item.casefold() not in available]
+    if unknown:
+        raise CampaignAPIError("TARGET_METRIC_UNKNOWN:" + ",".join(unknown))
+    return sorted({available[item.casefold()] for item in metrics})
+
+
+def _metric_mentioned(metric: str, goal: str) -> bool:
+    metric_text = metric.casefold()
+    goal_text = goal.casefold()
+    if any(ord(character) > 127 for character in metric_text):
+        return metric_text in goal_text
+    return re.search(
+        rf"(?<![a-z0-9_]){re.escape(metric_text)}(?![a-z0-9_])", goal_text
+    ) is not None
+
+
+def _validate_adapter_repair_binding(value: object) -> None:
+    if not isinstance(value, Mapping):
+        raise CampaignAPIError("ADAPTER_REPAIR_BINDING_INVALID")
+    path_value = value.get("manifest_path")
+    expected_sha256 = value.get("manifest_sha256")
+    expected_digest = value.get("input_digest")
+    assurance = value.get("assurance_level")
+    if (
+        not isinstance(path_value, str)
+        or not Path(path_value).is_absolute()
+        or not isinstance(expected_sha256, str)
+        or len(expected_sha256) != 64
+        or not isinstance(expected_digest, str)
+        or len(expected_digest) != 64
+        or assurance not in {"process_guarded_local", "container_isolated"}
+    ):
+        raise CampaignAPIError("ADAPTER_REPAIR_BINDING_INVALID")
+    path = Path(path_value)
+    if path.is_symlink() or not path.is_file():
+        raise CampaignAPIError("ADAPTER_REPAIR_MANIFEST_INVALID")
+    if hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
+        raise CampaignAPIError("ADAPTER_REPAIR_MANIFEST_HASH_MISMATCH")
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CampaignAPIError("ADAPTER_REPAIR_MANIFEST_INVALID") from exc
+    authority = manifest.get("authority") if isinstance(manifest, Mapping) else None
+    if (
+        not isinstance(manifest, Mapping)
+        or manifest.get("artifact_type") != "verdiwm-adapter-repair-manifest"
+        or manifest.get("state") != "ready"
+        or manifest.get("input_digest") != expected_digest
+        or manifest.get("assurance_level") != assurance
+        or not isinstance(authority, Mapping)
+        or authority.get("source_mutated") is not False
+        or authority.get("evaluator_mutated") is not False
+        or authority.get("promotion") is not False
+    ):
+        raise CampaignAPIError("ADAPTER_REPAIR_MANIFEST_INVALID")
 
 
 def _reproduction_execution(
@@ -557,6 +775,12 @@ def _validate_execution(value: object) -> None:
                 raise CampaignAPIError("EXECUTION_ASSET_BINDINGS_INVALID")
         if not isinstance(value.get("probe_imports", True), bool):
             raise CampaignAPIError("EXECUTION_PROBE_IMPORTS_INVALID")
+        for field in ("cpbe_request", "cpbe_history"):
+            item = value.get(field)
+            if item is not None and (
+                not isinstance(item, str) or not Path(item).is_absolute()
+            ):
+                raise CampaignAPIError(f"EXECUTION_PATH_INVALID:{field}")
     for budget_name in ("budget_total_gpu_hours", "total_budget_gpu_hours"):
         if budget_name in value:
             budget_value = value[budget_name]

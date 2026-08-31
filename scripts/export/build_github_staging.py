@@ -190,6 +190,7 @@ CONFIG_TREES = (
 PUBLIC_AUTONOMOUS_TRANSFER_FILES = (
     "controller.py",
     "history_selection_abi_test.py",
+    "local_method_intake.py",
     "replanning.py",
     "scale_plan.json",
     "state.py",
@@ -221,7 +222,8 @@ LOCAL_DEPLOYMENT_CONFIGS = (
     "ctrl_world_masked_intermediate_action_adapter_materialization_v1.json",
 )
 TEXT_SUFFIXES = {
-    ".csv", ".json", ".jsonl", ".md", ".py", ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
+    ".css", ".csv", ".html", ".json", ".jsonl", ".js", ".md", ".py",
+    ".service", ".sh", ".socket", ".svg", ".tex", ".toml", ".txt", ".yaml", ".yml"
 }
 ALLOWED_SUFFIXES = TEXT_SUFFIXES | {".atom", ".lock", ".mp4", ".pdf", ".png", ".sha256", ""}
 BLOCKED_SUFFIXES = {".bin", ".ckpt", ".db", ".h5", ".hdf5", ".npy", ".npz", ".pt", ".pth", ".safetensors"}

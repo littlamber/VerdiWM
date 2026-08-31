@@ -102,6 +102,11 @@ def run_campaign(args: argparse.Namespace) -> dict[str, object]:
         runtime_python=runtime_python,
         assets=assets,
         gpu_indices=gpu_indices,
+        dataset_names={
+            str(candidate["candidate_id"]): _dataset_name(args, candidate)
+            for candidate in batch["candidates"]
+            if isinstance(candidate, Mapping)
+        },
     )
     if args.dry_run:
         return {
@@ -348,6 +353,7 @@ def _launch_worker(
         stage=str(batch["stage"]),
         candidate_path=candidate_path,
         output_root=measurement_path.parent,
+        dataset_name=_dataset_name(args, candidate),
         **assets,
     )
     environment = os.environ.copy()
@@ -434,6 +440,7 @@ def _input_lock(
     runtime_python: Path,
     assets: Mapping[str, Path],
     gpu_indices: list[int],
+    dataset_names: Mapping[str, str],
 ) -> dict[str, object]:
     payload = {
         "schema_version": 1,
@@ -454,6 +461,7 @@ def _input_lock(
         "base_evaluator_sha256": sha256_file(base_evaluator),
         "runtime_python": str(runtime_python),
         "assets": {name: str(path) for name, path in sorted(assets.items())},
+        "dataset_names": dict(sorted(dataset_names.items())),
         "gpu_indices": gpu_indices,
     }
     payload["input_sha256"] = hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
@@ -492,6 +500,19 @@ def _asset_paths(args: argparse.Namespace) -> dict[str, Path]:
         "svd_model": _require_directory(args.svd_model, "HYBRID_CAMPAIGN_SVD_MODEL_INVALID"),
         "clip_model": _require_directory(args.clip_model, "HYBRID_CAMPAIGN_CLIP_MODEL_INVALID"),
     }
+
+
+def _dataset_name(args: argparse.Namespace, candidate: Mapping[str, object]) -> str:
+    value = getattr(args, "dataset_name", None)
+    if value is None:
+        provenance = candidate.get("provenance")
+        binding = provenance.get("training_binding") if isinstance(provenance, Mapping) else None
+        data_receipt = binding.get("data_receipt") if isinstance(binding, Mapping) else None
+        value = data_receipt.get("dataset_name") if isinstance(data_receipt, Mapping) else None
+    normalized = str(value or "droid_subset")
+    if not normalized or any(token in normalized for token in ("/", "\\", "..")):
+        raise HybridMemoryCampaignRunnerError("HYBRID_CAMPAIGN_DATASET_NAME_INVALID")
+    return normalized
 
 
 def _gpu_indices(raw: str, count: int) -> list[int]:
@@ -615,6 +636,7 @@ def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--runtime-python", type=Path, required=True)
     parser.add_argument("--ctrl-world-root", type=Path, required=True)
     parser.add_argument("--dataset-root", type=Path, required=True)
+    parser.add_argument("--dataset-name")
     parser.add_argument("--data-stat", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--svd-model", type=Path, required=True)

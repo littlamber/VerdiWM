@@ -30,7 +30,7 @@ def digest(value: object) -> str:
     return hashlib.sha256(canonical(value).encode("utf-8")).hexdigest()
 
 
-def campaign_key(*, model: str, dataset: str, goal: str, budget_gpu_hours: float, adapter: str | None) -> str:
+def campaign_key(*, model: str, dataset: str, goal: str, budget_gpu_hours: float, adapter: str | None, target_metrics: Sequence[str] | None = None) -> str:
     """Return the stable identity of a user request, excluding implementation state."""
 
     return digest(
@@ -40,6 +40,7 @@ def campaign_key(*, model: str, dataset: str, goal: str, budget_gpu_hours: float
             "goal": goal.strip(),
             "budget_gpu_hours": float(budget_gpu_hours),
             "adapter": adapter or "auto",
+            "target_metrics": sorted({str(value).strip() for value in (target_metrics or ()) if str(value).strip()}),
         }
     )
 
@@ -62,6 +63,7 @@ def compile_revision(
     constitution_freeze: str | None,
     execution: Mapping[str, object],
     resource_request: Mapping[str, object] | None = None,
+    target_metrics: Sequence[str] | None = None,
     project_root: Path | None = None,
 ) -> dict[str, object]:
     """Build an immutable revision snapshot from a resolved local execution.
@@ -87,6 +89,7 @@ def compile_revision(
         "dataset": _normalized_location(dataset),
         "budget_gpu_hours": float(budget_gpu_hours),
         "adapter_profile": adapter_profile,
+        "target_metrics": sorted({str(value).strip() for value in (target_metrics or ()) if str(value).strip()}),
     }
     policies = {
         "constitution_freeze": _fingerprint_declared_path(constitution_freeze),

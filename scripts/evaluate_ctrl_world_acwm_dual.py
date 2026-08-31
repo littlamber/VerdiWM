@@ -49,6 +49,7 @@ def run_evaluation(args: argparse.Namespace) -> dict[str, object]:
     runtime_args = _build_runtime_args(
         ctrl_world_root=paths["ctrl_world_root"],
         dataset_root=paths["dataset_root"],
+        dataset_name=str(args.dataset_name),
         data_stat=paths["data_stat"],
         checkpoint=paths["checkpoint"],
         svd_model=paths["svd_model"],
@@ -177,7 +178,10 @@ def _validate_paths(args: argparse.Namespace) -> dict[str, Path]:
         paths[name] = path
     if not (paths["ctrl_world_root"] / "scripts" / "rollout_replay_traj.py").is_file():
         raise CtrlWorldACWMEvaluationError("ACWM_CTRL_WORLD_ENTRYPOINT_MISSING")
-    if not (paths["dataset_root"] / "droid_subset" / "annotation" / "val").is_dir():
+    dataset_name = str(getattr(args, "dataset_name", "droid_subset"))
+    if not dataset_name or any(value in dataset_name for value in ("/", "\\", "..")):
+        raise CtrlWorldACWMEvaluationError("ACWM_DATASET_NAME_INVALID")
+    if not (paths["dataset_root"] / dataset_name / "annotation" / "val").is_dir():
         raise CtrlWorldACWMEvaluationError("ACWM_DROID_SUBSET_MISSING")
     return paths
 
@@ -210,6 +214,7 @@ def _build_runtime_args(
     *,
     ctrl_world_root: Path,
     dataset_root: Path,
+    dataset_name: str,
     data_stat: Path,
     checkpoint: Path,
     svd_model: Path,
@@ -223,8 +228,9 @@ def _build_runtime_args(
     runtime_args = config.wm_args(task_type="replay")
     runtime_args.dataset_root_path = str(dataset_root)
     runtime_args.dataset_meta_info_path = str(data_stat.parent.parent)
-    runtime_args.dataset_names = "droid_subset"
-    runtime_args.val_dataset_dir = str(dataset_root / "droid_subset")
+    runtime_args.dataset_names = dataset_name
+    runtime_args.dataset_cfgs = dataset_name
+    runtime_args.val_dataset_dir = str(dataset_root / dataset_name)
     runtime_args.data_stat_path = str(data_stat)
     runtime_args.svd_model_path = str(svd_model)
     runtime_args.clip_model_path = str(clip_model)
@@ -478,6 +484,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--stage", choices=("screen", "confirm"), required=True)
     parser.add_argument("--ctrl-world-root", type=Path, required=True)
     parser.add_argument("--dataset-root", type=Path, required=True)
+    parser.add_argument("--dataset-name", default="droid_subset")
     parser.add_argument("--data-stat", type=Path, required=True)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--svd-model", type=Path, required=True)

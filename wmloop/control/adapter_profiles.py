@@ -17,6 +17,28 @@ from wmloop.contracts import ContractValidationError, validate_document
 class AdapterProfileError(ValueError):
     """A profile or one of its local bindings is invalid."""
 
+    # Interface-discovery failures can be handed to the adapter repair
+    # provider.  Scientific/evaluator/configuration failures stay terminal.
+    # Keeping this policy on the domain error lets every caller (CLI, API,
+    # daemon) make the same decision without maintaining its own code list.
+    _REPAIRABLE_CODES = frozenset(
+        {
+            "ADAPTER_PROFILE_NOT_FOUND",
+            "ADAPTER_MODEL_INCOMPATIBLE",
+            "RUNTIME_PYTHON_NOT_FOUND",
+        }
+    )
+
+    @property
+    def code(self) -> str:
+        return str(self).split(":", 1)[0]
+
+    @property
+    def repairable(self) -> bool:
+        """Whether a generated interface overlay may resolve this failure."""
+
+        return self.code in self._REPAIRABLE_CODES
+
 
 _BUDGET_PATTERN = re.compile(
     r"^\s*(?P<value>(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))\s*"
@@ -147,13 +169,32 @@ def compile_adapter_execution(
         ),
         "runtime_python": str(runtime),
         "asset_bindings": assets,
+        # Adapter-owned inputs are declared by the versioned profile and are
+        # distinct from evaluator-owned placeholders discovered in the model
+        # repository.  The pipeline forwards this contract to onboarding.
+        "adapter_asset_parameters": sorted(assets),
+        "adapter_contract_ready": True,
         "probe_imports": bool(profile["probe_imports"]),
         "archive_db": str(state_root / "archive.db"),
         "cas_root": str(state_root / "artifacts"),
         "budget_db": str(state_root / "budgets" / f"{campaign_id}.db"),
         "retrieval_db": str(state_root / "retrieval.db"),
         "budget_total_gpu_hours": parse_gpu_budget(budget),
+        "model_run_adapter": {
+            "profile_id": str(profile["profile_id"]),
+            "model_family": str(profile["model_family"]),
+            "capability_level": str(profile["capability_level"]),
+            "runner": json.loads(json.dumps(profile["runner"])),
+        },
     }
+    if any(
+        "{adapter_root}" in str(token)
+        for field in ("train", "evaluate")
+        for token in profile["runner"][field]
+    ):
+        execution["model_run_adapter"]["adapter_root"] = str(
+            Path(str(profile["_source_path"])).parent
+        )
     probe_contract = profile.get("probe_contract")
     if probe_contract is not None:
         execution["probe_contract"] = str(
@@ -194,11 +235,17 @@ def _select_profile(
     adapter: str | None,
     profile_path: Path | None,
 ) -> dict[str, Any]:
-    paths = (
-        [Path(profile_path).expanduser().resolve()]
-        if profile_path is not None
-        else sorted((root / "configs" / "adapters").glob("*.json"))
-    )
+    # An explicit profile is an immutable caller binding, including when the
+    # public adapter selector is ``auto`` after an isolated repair.  Automatic
+    # discovery only applies when no profile path was supplied.
+    if profile_path is not None:
+        profile = _load_profile(Path(profile_path).expanduser().resolve(), root=root)
+        if adapter and adapter != "auto":
+            if adapter not in {profile["profile_id"], *profile["aliases"]}:
+                raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
+        _require_repo_markers(profile, model=model)
+        return profile
+    paths = sorted((root / "configs" / "adapters").glob("*.json"))
     profiles = [_load_profile(path, root=root) for path in paths]
     if adapter and adapter != "auto":
         matches = [
@@ -231,6 +278,53 @@ def _select_profile(
     return best[0]
 
 
+def select_repair_base_profile(
+    *, root: Path, model: Path, goal: str, adapter: str | None = None
+) -> Path:
+    """Select the trusted scientific profile used by interface-only repair.
+
+    Repair exists specifically for repositories whose interface markers may be
+    absent, so selection may use an explicit adapter identity or goal keywords.
+    It never manufactures evaluator, metric, or constitution bindings.
+    """
+    project_root = Path(root).expanduser().resolve()
+    profiles = [
+        _load_profile(path, root=project_root)
+        for path in sorted((project_root / "configs" / "adapters").glob("*.json"))
+    ]
+    if adapter and adapter != "auto":
+        profiles = [
+            profile
+            for profile in profiles
+            if adapter == profile["profile_id"] or adapter in profile["aliases"]
+        ]
+        if len(profiles) != 1:
+            raise AdapterProfileError("ADAPTER_REPAIR_BASE_PROFILE_NOT_FOUND")
+        return Path(str(profiles[0]["_source_path"]))
+    lowered_goal = goal.casefold()
+    scored = [
+        (
+            sum(str(keyword).casefold() in lowered_goal for keyword in profile["goal_keywords"]),
+            profile,
+        )
+        for profile in profiles
+    ]
+    if not scored:
+        raise AdapterProfileError("ADAPTER_REPAIR_BASE_PROFILE_NOT_FOUND")
+    if max(score for score, _profile in scored) <= 0:
+        # A single installed profile is an unambiguous trusted scientific
+        # kernel even when a foreign repository does not expose its markers.
+        # With multiple kernels, silently guessing would make repair unsafe.
+        if len(scored) == 1:
+            return Path(str(scored[0][1]["_source_path"]))
+        raise AdapterProfileError("ADAPTER_REPAIR_BASE_PROFILE_NOT_FOUND")
+    best_score = max(score for score, _profile in scored)
+    best = [profile for score, profile in scored if score == best_score]
+    if len(best) != 1:
+        raise AdapterProfileError("ADAPTER_REPAIR_BASE_PROFILE_AMBIGUOUS")
+    return Path(str(best[0]["_source_path"]))
+
+
 def _load_profile(path: Path, *, root: Path) -> dict[str, Any]:
     try:
         profile = json.loads(path.read_text(encoding="utf-8"))
@@ -245,6 +339,7 @@ def _load_profile(path: Path, *, root: Path) -> dict[str, Any]:
     parameters = [str(row["parameter"]) for row in profile["asset_bindings"]]
     if len(parameters) != len(set(parameters)):
         raise AdapterProfileError(f"ADAPTER_PROFILE_DUPLICATE_ASSET:{path}")
+    profile["_source_path"] = str(path.expanduser().resolve())
     return profile
 
 
@@ -312,7 +407,9 @@ def _existing_executable(path: Path, code: str) -> Path:
     resolved = candidate.resolve()
     if not resolved.is_file() or not os.access(resolved, os.X_OK):
         raise AdapterProfileError(code)
-    return resolved
+    # Keep a virtualenv launcher symlink intact. Resolving it can invoke the
+    # base interpreter without the environment's installed packages.
+    return candidate.absolute()
 
 
 def _normalize_parameter(value: str) -> str:

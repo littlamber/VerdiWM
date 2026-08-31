@@ -160,7 +160,30 @@
                       "name": {"type": "string", "minLength": 1},
                       "steps": {"type": "integer", "minimum": 1},
                       "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+                      "max_grad_norm": {"type": "number", "exclusiveMinimum": 0},
                       "seed": {"type": "integer"}
+                    }
+                  },
+                  "data_receipt": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "dataset_name",
+                      "dataset_examples",
+                      "batch_size_per_rank",
+                      "effective_batch_size",
+                      "examples_seen_upper_bound",
+                      "num_history",
+                      "num_frames"
+                    ],
+                    "properties": {
+                      "dataset_name": {"type": "string", "minLength": 1},
+                      "dataset_examples": {"type": "integer", "minimum": 1},
+                      "batch_size_per_rank": {"type": "integer", "minimum": 1},
+                      "effective_batch_size": {"type": "integer", "minimum": 1},
+                      "examples_seen_upper_bound": {"type": "integer", "minimum": 1},
+                      "num_history": {"type": "integer", "minimum": 1},
+                      "num_frames": {"type": "integer", "minimum": 1}
                     }
                   },
                   "adapter_state_format": {"enum": ["torch_state_dict"]}

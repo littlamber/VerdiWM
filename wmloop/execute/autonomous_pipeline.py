@@ -26,6 +26,7 @@ from wmloop.control.onboarding_compiler import (
     compile_and_plan,
 )
 from wmloop.control.method_candidate_compiler import MethodCandidateCompilerError
+from wmloop.control.research_modes import ResearchModeError, normalize_research_mode
 from wmloop.control.onboarding_conformance import (
     ConformanceOptions,
     ModelConformanceError,
@@ -38,6 +39,11 @@ from wmloop.execute.experiment_scheduler import (
     run_selected_queue,
 )
 from wmloop.execute.gpu_lease import GpuLeaseError
+from wmloop.experiments.cpbe import CPBEError, publish_cpbe_plan
+from wmloop.experiments.cpbe_materializer import (
+    CPBEMaterializerError,
+    publish_cpbe_materialization,
+)
 from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
 from wmloop.retrieve.evidence_capsule import (
     EvidenceCapsuleError,
@@ -65,6 +71,8 @@ class AutonomousPipelineOptions:
     evaluator_contract: Path
     runtime_python: Path | None = None
     asset_bindings: tuple[tuple[str, Path], ...] = ()
+    adapter_asset_parameters: tuple[str, ...] = ()
+    adapter_contract_ready: bool = False
     probe_imports: bool = True
     max_files: int = 20_000
     conformance_timeout_seconds: float = 30.0
@@ -83,6 +91,9 @@ class AutonomousPipelineOptions:
     literature_timeout_seconds: float = 10.0
     candidate_catalog: Path | None = None
     settlement_manifest: Path | None = None
+    research_mode: str | None = None
+    cpbe_request: Path | None = None
+    cpbe_history: Path | None = None
 
 
 def run_autonomous_pipeline(
@@ -126,6 +137,26 @@ def run_autonomous_pipeline(
         options.settlement_manifest,
         "AUTONOMOUS_PIPELINE_SETTLEMENT_MANIFEST_INVALID",
     )
+    cpbe_request = _optional_file(
+        options.cpbe_request,
+        "AUTONOMOUS_PIPELINE_CPBE_REQUEST_INVALID",
+    )
+    cpbe_history = _optional_file(
+        options.cpbe_history,
+        "AUTONOMOUS_PIPELINE_CPBE_HISTORY_INVALID",
+    )
+    research_mode = None
+    if options.research_mode is not None:
+        try:
+            research_mode = normalize_research_mode(options.research_mode)
+        except ResearchModeError as exc:
+            raise AutonomousPipelineError(str(exc)) from exc
+    if research_mode == "causal_discovery" and (
+        probe_contract is None or cpbe_request is None or cpbe_history is None
+    ):
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_CAUSAL_INPUTS_REQUIRED"
+        )
     if options.literature_max_results < 1 or options.literature_max_results > 50:
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_LIMIT_INVALID")
     if options.literature_timeout_seconds <= 0 or options.literature_timeout_seconds > 60:
@@ -161,6 +192,9 @@ def run_autonomous_pipeline(
         probe_contract=probe_contract,
         candidate_catalog=candidate_catalog,
         settlement_manifest=settlement_manifest,
+        research_mode=research_mode,
+        cpbe_request=cpbe_request,
+        cpbe_history=cpbe_history,
         budget_total_gpu_hours=budget_total_gpu_hours,
     )
     input_hash = _sha256(_canonical_json(input_document))
@@ -173,6 +207,7 @@ def run_autonomous_pipeline(
     literature_method_root = destination / "literature-methods"
     literature_method_prompt_root = destination / "literature-method-prompts"
     compiled = destination / "compiled"
+    cpbe_root = destination / "causal-discovery"
     stage = "onboarding"
     try:
         if sidecar.exists() or sidecar.is_symlink():
@@ -187,7 +222,11 @@ def run_autonomous_pipeline(
                     runtime_python=options.runtime_python,
                     evaluator_contract=evaluator,
                     asset_bindings=options.asset_bindings,
-                    additional_asset_parameters=candidate_asset_parameters,
+                    additional_asset_parameters=(
+                        *candidate_asset_parameters,
+                        *options.adapter_asset_parameters,
+                    ),
+                    adapter_contract_ready=options.adapter_contract_ready,
                     probe_imports=options.probe_imports,
                     max_files=options.max_files,
                 )
@@ -223,6 +262,7 @@ def run_autonomous_pipeline(
         literature_manifest: dict[str, object] | None = None
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
+        cpbe_manifest: dict[str, object] | None = None
         if probe_contract is not None:
             stage = "diagnostic_probe"
             probe_manifest = run_diagnostic_probe(
@@ -311,7 +351,7 @@ def run_autonomous_pipeline(
                 )
                 if value
             )
-        if literature_query:
+        if literature_query and research_mode != "causal_discovery":
             stage = "literature_retrieval"
             literature_manifest = run_literature_retrieval(
                 query=literature_query,
@@ -345,6 +385,52 @@ def run_autonomous_pipeline(
                 archive_db=archive_db,
                 cas_root=cas_root,
             )
+
+        if (
+            research_mode in {"causal_discovery", "hybrid"}
+            and probe_contract is not None
+            and cpbe_request is not None
+            and cpbe_history is not None
+        ):
+            stage = "causal_discovery_plan"
+            plan_manifest = publish_cpbe_plan(
+                request_path=cpbe_request,
+                history_path=cpbe_history,
+                output_root=cpbe_root / "plan",
+                archive_db=archive_db,
+                cas_root=cas_root,
+            )
+            cpbe_manifest = {"plan": plan_manifest}
+            try:
+                stage = "causal_discovery_materialization"
+                cpbe_manifest["materialization"] = publish_cpbe_materialization(
+                    plan_path=cpbe_root / "plan" / "cpbe-plan.json",
+                    output_root=cpbe_root / "materialization",
+                )
+                cpbe_manifest["state"] = "awaiting_runtime_canary"
+            except CPBEMaterializerError as exc:
+                cpbe_manifest["state"] = "materialization_blocked"
+                cpbe_manifest["blocker"] = str(exc)
+            cpbe_manifest["claim_boundary"] = (
+                "CPBE output is diagnostic-only until a target adapter executes and settles "
+                "runtime canary, expanded selector, and repair confirmation receipts."
+            )
+            if research_mode == "causal_discovery":
+                blocker = (
+                    "causal_discovery_materialization"
+                    if cpbe_manifest["state"] == "materialization_blocked"
+                    else "causal_discovery_runtime_canary"
+                )
+                return _settle_pipeline(
+                    destination,
+                    input_hash=input_hash,
+                    state="blocked",
+                    verdict="BLOCKED",
+                    blocked_stage=blocker,
+                    diagnostic_probe=probe_manifest,
+                    retrieval=_runtime_retrieval_manifest(retrieval_context),
+                    cpbe=cpbe_manifest,
+                )
 
         stage = "compilation"
         compilation_manifest = compile_and_plan(
@@ -411,6 +497,7 @@ def run_autonomous_pipeline(
             literature_methods=literature_method_manifest,
             literature_method_prompts=literature_method_prompt_manifest,
             method_candidates=method_candidate_report,
+            cpbe=cpbe_manifest,
         )
     except Exception as exc:
         _write_json_atomic(
@@ -514,6 +601,9 @@ def _input_document(
     probe_contract: Path | None,
     candidate_catalog: Path | None,
     settlement_manifest: Path | None,
+    research_mode: str | None,
+    cpbe_request: Path | None,
+    cpbe_history: Path | None,
     budget_total_gpu_hours: float,
 ) -> dict[str, object]:
     bindings: list[dict[str, str]] = []
@@ -558,6 +648,12 @@ def _input_document(
         "evaluator_contract": str(evaluator),
         "evaluator_sha256": _sha256(evaluator.read_bytes()),
         "asset_bindings": sorted(bindings, key=lambda row: row["parameter"]),
+        "adapter_asset_parameters": sorted(
+            {
+                parameter if parameter.startswith("--") else f"--{parameter}"
+                for parameter in options.adapter_asset_parameters
+            }
+        ),
         "probe_imports": options.probe_imports,
         "max_files": options.max_files,
         "conformance_timeout_seconds": options.conformance_timeout_seconds,
@@ -590,6 +686,15 @@ def _input_document(
             _sha256(settlement_manifest.read_bytes())
             if settlement_manifest is not None
             else None
+        ),
+        "research_mode": research_mode,
+        "cpbe_request": str(cpbe_request) if cpbe_request is not None else None,
+        "cpbe_request_sha256": (
+            _sha256(cpbe_request.read_bytes()) if cpbe_request is not None else None
+        ),
+        "cpbe_history": str(cpbe_history) if cpbe_history is not None else None,
+        "cpbe_history_sha256": (
+            _sha256(cpbe_history.read_bytes()) if cpbe_history is not None else None
         ),
     }
 
@@ -654,6 +759,7 @@ def _settle_pipeline(
     literature_methods: Mapping[str, object] | None = None,
     literature_method_prompts: Mapping[str, object] | None = None,
     method_candidates: Mapping[str, object] | None = None,
+    cpbe: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = _manifest(
         destination,
@@ -668,6 +774,7 @@ def _settle_pipeline(
         literature_methods=literature_methods,
         literature_method_prompts=literature_method_prompts,
         method_candidates=method_candidates,
+        cpbe=cpbe,
     )
     _write_json_atomic(destination / "pipeline-manifest.json", manifest)
     return manifest
@@ -688,6 +795,7 @@ def _manifest(
     literature_methods: Mapping[str, object] | None = None,
     literature_method_prompts: Mapping[str, object] | None = None,
     method_candidates: Mapping[str, object] | None = None,
+    cpbe: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     manifest = {
         "schema_version": 1,
@@ -709,6 +817,7 @@ def _manifest(
         "method_candidates": (
             dict(method_candidates) if method_candidates is not None else None
         ),
+        "cpbe": dict(cpbe) if cpbe is not None else None,
         "paths": {
             "onboarding": str(destination / "onboarding" / "manifest.json"),
             "conformance": str(destination / "conformance" / "manifest.json"),
@@ -825,6 +934,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--evaluator-contract", type=Path, required=True)
     parser.add_argument("--runtime-python", type=Path)
     parser.add_argument("--asset", action="append", default=[], metavar="PARAM=PATH")
+    parser.add_argument("--adapter-asset-parameter", action="append", default=[])
+    parser.add_argument("--adapter-contract-ready", action="store_true")
     parser.add_argument("--no-import-probe", action="store_true")
     parser.add_argument("--max-files", type=int, default=20_000)
     parser.add_argument("--conformance-timeout-seconds", type=float, default=30.0)
@@ -845,6 +956,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--literature-timeout-seconds", type=float, default=10.0)
     parser.add_argument("--candidate-catalog", type=Path)
     parser.add_argument("--settlement-manifest", type=Path)
+    parser.add_argument(
+        "--research-mode",
+        choices=("quick_start", "causal_discovery", "hybrid"),
+    )
+    parser.add_argument("--cpbe-request", type=Path)
+    parser.add_argument("--cpbe-history", type=Path)
     args = parser.parse_args(argv)
     try:
         manifest = run_autonomous_pipeline(
@@ -854,6 +971,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 evaluator_contract=args.evaluator_contract,
                 runtime_python=args.runtime_python,
                 asset_bindings=tuple(_parse_asset(value) for value in args.asset),
+                adapter_asset_parameters=tuple(args.adapter_asset_parameter),
+                adapter_contract_ready=args.adapter_contract_ready,
                 probe_imports=not args.no_import_probe,
                 max_files=args.max_files,
                 conformance_timeout_seconds=args.conformance_timeout_seconds,
@@ -872,6 +991,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 literature_timeout_seconds=args.literature_timeout_seconds,
                 candidate_catalog=args.candidate_catalog,
                 settlement_manifest=args.settlement_manifest,
+                research_mode=args.research_mode,
+                cpbe_request=args.cpbe_request,
+                cpbe_history=args.cpbe_history,
             )
         )
     except (
@@ -888,6 +1010,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         MethodCandidateCompilerError,
         EvidenceCapsuleError,
         ProbeRetrievalError,
+        CPBEError,
+        CPBEMaterializerError,
+        ResearchModeError,
     ) as exc:
         print(str(exc), file=__import__("sys").stderr)
         return 2

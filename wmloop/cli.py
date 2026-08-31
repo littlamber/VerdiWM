@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
+from wmloop.control.adapter_repair import AdapterRepairError, run_adapter_repair
+from wmloop.control.adapter_profiles import AdapterProfileError
 from wmloop.control.campaign_dispatcher import (
     CampaignDispatchError,
     DispatcherOptions,
@@ -24,6 +26,7 @@ from wmloop.control.research_proposal import (
     load_compiled_experiment_manifest,
     write_compiled_experiment_manifest,
 )
+from wmloop.control.project_config import ProjectConfigError, load_project_config
 from wmloop.evaluate.system_utility import (
     SystemUtilityAuditError,
     run_system_utility_audit,
@@ -37,6 +40,11 @@ from wmloop.experiments.training_scale import (
     build_training_scale_plan,
     write_training_scale_plan,
 )
+from wmloop.experiments.training_gain_attribution import (
+    TrainingGainAttributionError,
+    build_training_gain_attribution,
+    write_training_gain_attribution,
+)
 from wmloop.retrieve.training_recipes import (
     TrainingRecipeError,
     find_training_recipe,
@@ -44,6 +52,8 @@ from wmloop.retrieve.training_recipes import (
     require_admitted_recipe,
     summarize_training_recipes,
 )
+from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.execute.configured_llm_broker import ConfiguredBrokerError, load_config
 
 
 def _default_state_root() -> Path:
@@ -82,6 +92,58 @@ def _dispatch(
 
 def _print(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+
+
+def _load_project_intent() -> dict[str, Any]:
+    try:
+        return load_project_config().values
+    except ProjectConfigError as exc:
+        raise CampaignAPIError(str(exc)) from exc
+
+
+def _resolve_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
+    """Resolve human intent and project defaults into the legacy run shape."""
+
+    configured = _load_project_intent()
+    model = args.model or configured.get("model")
+    data = args.data or configured.get("data", configured.get("dataset"))
+    if model is None:
+        candidate = Path.cwd() / "model"
+        model = str(candidate) if candidate.is_dir() else None
+    if data is None:
+        for name in ("data", "dataset"):
+            candidate = Path.cwd() / name
+            if candidate.exists():
+                data = str(candidate)
+                break
+    goal = args.goal or args.intent or configured.get("goal")
+    if not isinstance(goal, str) or not goal.strip():
+        raise CampaignAPIError("GOAL_REQUIRED")
+    if not model:
+        raise CampaignAPIError("MODEL_PATH_REQUIRED:configure project.model or pass --model")
+    if not data:
+        raise CampaignAPIError("DATA_PATH_REQUIRED:configure project.data or pass --data")
+    return {
+        "model": str(model),
+        "data": str(data),
+        "goal": goal.strip(),
+        "target_metrics": (
+            args.target_metrics
+            if getattr(args, "target_metrics", None) is not None
+            else configured.get("target_metrics", configured.get("metrics", configured.get("metric")))
+        ),
+        "budget": args.budget or configured.get("budget", "1gpu-hour"),
+        "adapter": args.adapter if args.adapter != "auto" else configured.get("adapter", "auto"),
+        "mode": args.mode or configured.get("mode"),
+        "adapter_profile": args.adapter_profile or _path_configured(configured.get("adapter_profile")),
+        "runtime_python": args.runtime_python or _path_configured(configured.get("runtime_python")),
+        "state_root": args.state_root if args.state_root != _default_state_root() else Path(str(configured.get("state_root", args.state_root))),
+        "campaign_id": args.campaign_id or configured.get("campaign_id"),
+    }
+
+
+def _path_configured(value: object) -> Path | None:
+    return Path(str(value)).expanduser() if value is not None else None
 
 
 def _doctor(args: argparse.Namespace) -> int:
@@ -164,6 +226,8 @@ def _doctor(args: argparse.Namespace) -> int:
 
 
 def _run(args: argparse.Namespace) -> int:
+    inputs = _resolve_run_inputs(args)
+    args.state_root = inputs["state_root"]
     store = _store(args.state_root)
     engineering_lint = None
     compiled_manifest = None
@@ -189,12 +253,22 @@ def _run(args: argparse.Namespace) -> int:
                 + ",".join(str(item) for item in engineering_lint["blockers"])
             )
     payload: dict[str, Any] = {
-        "goal": args.goal,
-        "model": args.model,
-        "dataset": args.data,
-        "budget": args.budget,
-        "adapter": args.adapter,
+        "goal": inputs["goal"],
+        "model": inputs["model"],
+        "dataset": inputs["data"],
+        "budget": inputs["budget"],
+        "adapter": inputs["adapter"],
     }
+    if inputs.get("target_metrics") is not None:
+        payload["target_metrics"] = inputs["target_metrics"]
+    if inputs["mode"] is not None:
+        payload["research_mode"] = inputs["mode"]
+    if args.literature_query is not None:
+        payload["literature_query"] = args.literature_query
+    if args.cpbe_request is not None:
+        payload["cpbe_request"] = str(args.cpbe_request.expanduser().resolve())
+    if args.cpbe_history is not None:
+        payload["cpbe_history"] = str(args.cpbe_history.expanduser().resolve())
     if engineering_lint is not None:
         payload["engineering_manifest"] = {
             "path": engineering_lint["manifest_path"],
@@ -209,15 +283,75 @@ def _run(args: argparse.Namespace) -> int:
                 Path(args.compiled_manifest).expanduser().resolve().read_bytes()
             ).hexdigest(),
         }
-    if args.campaign_id:
-        payload["campaign_id"] = args.campaign_id
-    if args.adapter_profile:
-        payload["adapter_profile_path"] = str(args.adapter_profile)
-    if args.runtime_python:
-        payload["runtime_python"] = str(args.runtime_python)
+    if inputs["campaign_id"]:
+        payload["campaign_id"] = inputs["campaign_id"]
+    if inputs["adapter_profile"]:
+        payload["adapter_profile_path"] = str(inputs["adapter_profile"])
+    if inputs["runtime_python"]:
+        payload["runtime_python"] = str(inputs["runtime_python"])
     if args.asset:
         payload["assets"] = dict(args.asset)
-    created = store.create(payload)
+    if args.training_scale_plan is not None:
+        payload["training_scale_plan"] = _load_training_scale_plan(
+            args.training_scale_plan,
+            root=(args.schema_root or Path(__file__).resolve().parents[1]),
+        )
+    try:
+        created = store.create(payload)
+    except CampaignAPIError as exc:
+        repairable = _is_repairable_campaign_error(exc)
+        if not getattr(args, "auto_repair_adapter", True) or not repairable:
+            raise
+        base_profile = args.repair_base_profile
+        if base_profile is None:
+            from wmloop.control.adapter_profiles import select_repair_base_profile
+            try:
+                base_profile = select_repair_base_profile(
+                    root=(args.schema_root or Path(__file__).resolve().parents[1]),
+                    model=Path(inputs["model"]),
+                    goal=inputs["goal"],
+                    adapter=inputs.get("adapter"),
+                )
+            except AdapterProfileError as profile_exc:
+                raise CampaignAPIError(str(profile_exc)) from exc
+        repair_id = hashlib.sha256(
+            json.dumps(
+            {"model": inputs["model"], "data": inputs["data"], "goal": inputs["goal"]},
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        repair = run_adapter_repair(
+            model=Path(inputs["model"]),
+            data=Path(inputs["data"]),
+            goal=inputs["goal"],
+            budget=inputs["budget"],
+            failure_code=str(exc),
+            base_profile_path=base_profile,
+            llm_adapter=_configured_llm_adapter(getattr(args, "llm_config", None)),
+            output_root=args.state_root / "adapter-repairs" / repair_id,
+            project_root=(args.schema_root or Path(__file__).resolve().parents[1]),
+            runtime_python=inputs["runtime_python"],
+            max_attempts=args.repair_attempts,
+        )
+        if repair["state"] != "ready":
+            raise CampaignAPIError(
+                "AUTO_REPAIR_BLOCKED:"
+                + ",".join(
+                    str(row.get("code"))
+                    for row in repair["blockers"]
+                    if isinstance(row, dict)
+                )
+            ) from exc
+        payload["adapter"] = "auto"
+        payload["adapter_profile_path"] = repair["adapter_profile_path"]
+        repair_manifest_path = args.state_root / "adapter-repairs" / repair_id / "manifest.json"
+        payload["adapter_repair"] = {
+            "manifest_path": str(repair_manifest_path),
+            "manifest_sha256": hashlib.sha256(repair_manifest_path.read_bytes()).hexdigest(),
+            "input_digest": repair["input_digest"],
+            "assurance_level": repair["assurance_level"],
+        }
+        created = store.create(payload)
     queued = store.confirm(str(created["campaign_id"]))
     if args.queue_only:
         _print(queued)
@@ -372,6 +506,105 @@ def _compile_proposal(args: argparse.Namespace) -> int:
     return 0 if manifest["state"] == "ready" else 3
 
 
+def _repair_adapter(args: argparse.Namespace) -> int:
+    manifest = run_adapter_repair(
+        model=args.model,
+        data=args.data,
+        goal=args.goal,
+        budget=args.budget,
+        failure_code=args.failure_code,
+        base_profile_path=args.base_profile,
+        llm_adapter=_configured_llm_adapter(args.llm_config),
+        output_root=args.output_root,
+        project_root=(args.schema_root or Path(__file__).resolve().parents[1]),
+        runtime_python=args.runtime_python,
+        max_attempts=args.max_attempts,
+    )
+    _print(manifest)
+    return 0 if manifest["state"] == "ready" else 3
+
+
+def _diagnose_training_gain(args: argparse.Namespace) -> int:
+    plan = build_training_gain_attribution(
+        training_receipt_path=args.training_receipt,
+        screen_settlement_path=args.screen_settlement,
+        confirm_settlement_path=args.confirm_settlement,
+        verifier_manifest_path=args.verifier_manifest,
+    )
+    if args.output is not None:
+        write_training_gain_attribution(plan, args.output)
+    _print(plan)
+    return 0
+
+
+def _configured_llm_adapter(config_path: Path | None) -> dict[str, object]:
+    source = _resolve_llm_config(config_path)
+    config = load_config(source)
+    return {
+        "command": [
+            sys.executable,
+            "-m",
+            "wmloop.execute.configured_llm_broker",
+            "{request_path}",
+            "{response_path}",
+            "--config",
+            str(source),
+        ],
+        "timeout_seconds": float(config["timeout_seconds"]),
+        "max_output_bytes": int(config["maximum_bytes"]),
+        "provider_alias": "configured-openai-compatible",
+        "model_alias": str(config["model"]),
+        "credential_environment_keys": [],
+    }
+
+
+def _resolve_llm_config(config_path: Path | None) -> Path:
+    if config_path is not None:
+        return config_path.expanduser().resolve()
+    configured = os.environ.get("VERDIWM_CONFIG")
+    if configured:
+        return Path(configured).expanduser().resolve()
+    for name in ("verdiwm.toml", "verdiwm.config.toml", "config.toml"):
+        candidate = Path.cwd() / name
+        if candidate.is_file() and not candidate.is_symlink():
+            try:
+                load_config(candidate)
+            except ConfiguredBrokerError:
+                continue
+            return candidate.resolve()
+    return (Path.home() / ".config" / "verdiwm" / "config.toml").resolve()
+
+
+def _is_repairable_campaign_error(error: BaseException) -> bool:
+    """Follow the domain-error chain for a provider-neutral repair decision."""
+
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, AdapterProfileError) and current.repairable:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _load_training_scale_plan(path: Path, *, root: Path) -> dict[str, object]:
+    source = path.expanduser().resolve()
+    try:
+        value = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise TrainingScaleError("TRAINING_SCALE_PLAN_INVALID") from exc
+    if not isinstance(value, dict):
+        raise TrainingScaleError("TRAINING_SCALE_PLAN_INVALID")
+    try:
+        validate_document("training_scale_plan", value, root=root.expanduser().resolve())
+    except ContractValidationError as exc:
+        raise TrainingScaleError("TRAINING_SCALE_PLAN_INVALID") from exc
+    if value.get("state") != "ready":
+        raise TrainingScaleError("TRAINING_SCALE_PLAN_NOT_READY")
+    return value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="verdiwm", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -383,11 +616,21 @@ def _parser() -> argparse.ArgumentParser:
     doctor.set_defaults(handler=_doctor)
 
     run = commands.add_parser("run", help="compile and run a model optimization campaign")
-    run.add_argument("--model", required=True)
-    run.add_argument("--data", required=True)
-    run.add_argument("--goal", required=True)
-    run.add_argument("--budget", required=True)
+    run.add_argument("intent", nargs="?", help="plain-language research goal")
+    run.add_argument("--model")
+    run.add_argument("--data")
+    run.add_argument("--goal")
+    run.add_argument("--target-metrics", "--metrics", dest="target_metrics", nargs="+", help="metrics to improve; validated against the frozen evaluator catalog")
+    run.add_argument("--budget", default=None)
     run.add_argument("--adapter", default="auto")
+    run.add_argument(
+        "--mode",
+        choices=("quick-start", "causal-discovery", "hybrid"),
+        help="research routing policy; omitted preserves the legacy pipeline",
+    )
+    run.add_argument("--literature-query")
+    run.add_argument("--cpbe-request", type=Path)
+    run.add_argument("--cpbe-history", type=Path)
     run.add_argument("--adapter-profile", type=Path)
     run.add_argument("--runtime-python", type=Path)
     run.add_argument("--engineering-manifest", type=Path)
@@ -395,6 +638,14 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--engineering-repo-root", type=Path)
     run.add_argument("--schema-root", type=Path)
     run.add_argument("--asset", action="append", type=_asset, default=[])
+    run.add_argument("--training-scale-plan", type=Path)
+    repair_group = run.add_mutually_exclusive_group()
+    repair_group.add_argument("--auto-repair-adapter", dest="auto_repair_adapter", action="store_true", help=argparse.SUPPRESS)
+    repair_group.add_argument("--no-auto-repair-adapter", dest="auto_repair_adapter", action="store_false", help="disable automatic adapter completion")
+    run.set_defaults(auto_repair_adapter=True)
+    run.add_argument("--repair-base-profile", type=Path, help=argparse.SUPPRESS)
+    run.add_argument("--repair-attempts", type=int, default=3)
+    run.add_argument("--llm-config", type=Path)
     run.add_argument("--campaign-id")
     run.add_argument("--state-root", type=Path, default=_default_state_root())
     run.add_argument("--queue-only", action="store_true")
@@ -507,6 +758,34 @@ def _parser() -> argparse.ArgumentParser:
     training_recipes.add_argument("--recipe-id")
     training_recipes.add_argument("--repo-root", type=Path)
     training_recipes.set_defaults(handler=_training_recipes)
+
+    repair_adapter = commands.add_parser(
+        "repair-adapter",
+        help="use the configured LLM to repair a model-interface adapter in an isolated overlay",
+    )
+    repair_adapter.add_argument("--model", type=Path, required=True)
+    repair_adapter.add_argument("--data", type=Path, required=True)
+    repair_adapter.add_argument("--goal", required=True)
+    repair_adapter.add_argument("--budget", required=True)
+    repair_adapter.add_argument("--failure-code", default="ADAPTER_PROFILE_NOT_FOUND")
+    repair_adapter.add_argument("--base-profile", type=Path, required=True)
+    repair_adapter.add_argument("--llm-config", type=Path)
+    repair_adapter.add_argument("--runtime-python", type=Path)
+    repair_adapter.add_argument("--max-attempts", type=int, default=3)
+    repair_adapter.add_argument("--output-root", type=Path, required=True)
+    repair_adapter.add_argument("--schema-root", type=Path)
+    repair_adapter.set_defaults(handler=_repair_adapter)
+
+    diagnose_gain = commands.add_parser(
+        "diagnose-training-gain",
+        help="plan experiments that distinguish optimization, data, capacity, and mechanism limits",
+    )
+    diagnose_gain.add_argument("--training-receipt", type=Path, required=True)
+    diagnose_gain.add_argument("--screen-settlement", type=Path, required=True)
+    diagnose_gain.add_argument("--confirm-settlement", type=Path, required=True)
+    diagnose_gain.add_argument("--verifier-manifest", type=Path, required=True)
+    diagnose_gain.add_argument("--output", type=Path)
+    diagnose_gain.set_defaults(handler=_diagnose_training_gain)
     return parser
 
 
@@ -522,6 +801,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         ExperimentEngineeringError,
         TrainingRecipeError,
         ResearchProposalError,
+        AdapterRepairError,
+        ConfiguredBrokerError,
+        TrainingGainAttributionError,
     ) as exc:
         print(str(exc), file=sys.stderr)
         return 2

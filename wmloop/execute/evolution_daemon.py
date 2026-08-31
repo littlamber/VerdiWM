@@ -76,6 +76,9 @@ class EvolutionDaemonOptions:
     literature_query: str | None = None
     literature_max_results: int = 8
     literature_timeout_seconds: float = 10.0
+    research_mode: str | None = None
+    cpbe_request: Path | None = None
+    cpbe_history: Path | None = None
     poll_seconds: float = 60.0
     max_iterations: int = 0  # zero means long-running until a stop condition.
     max_failures: int = 3
@@ -177,9 +180,14 @@ def run_evolution_daemon(
                 candidate_catalog=options.candidate_catalog,
                 settlement_manifest=options.settlement_manifest,
                 retrieval_db=options.retrieval_db,
-                literature_query=literature_query,
+                literature_query=(
+                    None if options.research_mode == "causal_discovery" else literature_query
+                ),
                 literature_max_results=options.literature_max_results,
                 literature_timeout_seconds=options.literature_timeout_seconds,
+                research_mode=options.research_mode,
+                cpbe_request=options.cpbe_request,
+                cpbe_history=options.cpbe_history,
             )
             daemon_options = PipelineDaemonOptions(
                 pipeline=pipeline_options,
@@ -559,6 +567,12 @@ def _validate_options(options: EvolutionDaemonOptions) -> None:
         settlement = Path(options.settlement_manifest).expanduser().resolve()
         if not settlement.is_file() or settlement.is_symlink():
             raise EvolutionDaemonError("EVOLUTION_SETTLEMENT_MANIFEST_INVALID")
+    for name in ("cpbe_request", "cpbe_history"):
+        path = getattr(options, name)
+        if path is not None:
+            resolved = Path(path).expanduser().resolve()
+            if not resolved.is_file() or resolved.is_symlink():
+                raise EvolutionDaemonError(f"EVOLUTION_{name.upper()}_INVALID")
     if state == output or state in output.parents or output in state.parents:
         raise EvolutionDaemonError("EVOLUTION_STATE_OUTPUT_OVERLAP")
     if (
@@ -681,6 +695,27 @@ def _input_document(options: EvolutionDaemonOptions) -> dict[str, object]:
         "literature_query": options.literature_query,
         "literature_max_results": options.literature_max_results,
         "literature_timeout_seconds": options.literature_timeout_seconds,
+        "research_mode": options.research_mode,
+        "cpbe_request": (
+            str(Path(options.cpbe_request).resolve())
+            if options.cpbe_request is not None
+            else None
+        ),
+        "cpbe_request_sha256": (
+            digest(Path(options.cpbe_request))
+            if options.cpbe_request is not None
+            else None
+        ),
+        "cpbe_history": (
+            str(Path(options.cpbe_history).resolve())
+            if options.cpbe_history is not None
+            else None
+        ),
+        "cpbe_history_sha256": (
+            digest(Path(options.cpbe_history))
+            if options.cpbe_history is not None
+            else None
+        ),
         "total_budget_gpu_hours": options.total_budget_gpu_hours,
         **_nondefault_resource_policy(options),
         "poll_seconds": options.poll_seconds,
@@ -932,6 +967,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--runtime-python", type=Path)
     parser.add_argument("--asset", action="append", default=[], metavar="PARAM=PATH")
     parser.add_argument("--no-import-probe", action="store_true")
+    parser.add_argument("--max-files", type=int, default=20_000)
+    parser.add_argument("--conformance-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--archive-db", type=Path)
     parser.add_argument("--cas-root", type=Path)
     parser.add_argument("--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases"))
@@ -942,6 +979,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--auto-approve-high-cost", action="store_true")
     parser.add_argument("--retrieval-db", type=Path)
     parser.add_argument("--literature-query")
+    parser.add_argument("--literature-max-results", type=int, default=8)
+    parser.add_argument("--literature-timeout-seconds", type=float, default=10.0)
+    parser.add_argument("--research-mode")
+    parser.add_argument("--cpbe-request", type=Path)
+    parser.add_argument("--cpbe-history", type=Path)
     parser.add_argument("--poll-seconds", type=float, default=60.0)
     parser.add_argument("--max-iterations", type=int, default=0)
     parser.add_argument("--max-failures", type=int, default=3)
@@ -963,6 +1005,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_python=args.runtime_python,
                 asset_bindings=tuple(_parse_asset(value) for value in args.asset),
                 probe_imports=not args.no_import_probe,
+                max_files=args.max_files,
+                conformance_timeout_seconds=args.conformance_timeout_seconds,
                 archive_db=args.archive_db,
                 cas_root=args.cas_root,
                 lock_root=args.lock_root,
@@ -975,6 +1019,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
                 retrieval_db=args.retrieval_db,
                 literature_query=args.literature_query,
+                literature_max_results=args.literature_max_results,
+                literature_timeout_seconds=args.literature_timeout_seconds,
+                research_mode=args.research_mode,
+                cpbe_request=args.cpbe_request,
+                cpbe_history=args.cpbe_history,
                 poll_seconds=args.poll_seconds,
                 max_iterations=args.max_iterations,
                 max_failures=args.max_failures,
