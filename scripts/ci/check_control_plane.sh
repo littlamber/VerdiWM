@@ -34,10 +34,8 @@ PY
 mapfile -d '' python_files < <(find wmloop experiments scripts -type f -name '*.py' -print0)
 uv run python -m py_compile "${python_files[@]}"
 
-# Run the tests shipped in this release. The predictive-instance test refers
-# to a development-only fixture and is intentionally excluded from the
-# public tree.
-uv run pytest -q tests --ignore=tests/test_ctrl_world_predictive_instance.py
+# Run the tests shipped in this release.
+uv run pytest -q tests
 
 uv run python scripts/export/validate_public_example.py \
   examples/acwm_minimal_loop_cloth_next_forcing_v2
