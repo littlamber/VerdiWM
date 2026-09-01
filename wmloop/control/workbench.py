@@ -8,7 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping, Sequence
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
 from wmloop.control.campaign_dispatcher import (
@@ -18,7 +18,10 @@ from wmloop.control.campaign_dispatcher import (
 )
 from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.experiments.atlas import AtlasError, build_atlas
+from wmloop.experiments.artifact_lint import make_compliance_filter
 from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph
+from wmloop.experiments.mechanism_board import MechanismBoardError, build_mechanism_board
 
 
 class WorkbenchError(ValueError):
@@ -31,6 +34,32 @@ _ASSETS = {
     "/assets/workbench.css": ("workbench.css", "text/css; charset=utf-8"),
     "/assets/workbench.js": ("workbench.js", "text/javascript; charset=utf-8"),
 }
+
+# React workbench build output (workbench-ui/dist at the repository root, or the
+# packaged copy under wmloop/web/ui). When present it replaces the legacy page.
+_UI_DIST_CANDIDATES = (
+    Path(__file__).resolve().parents[2] / "workbench-ui" / "dist",
+    _ASSET_ROOT / "ui",
+)
+_UI_CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+}
+
+
+def _ui_dist_root() -> Path | None:
+    for candidate in _UI_DIST_CANDIDATES:
+        index = candidate / "index.html"
+        if index.is_file() and not index.is_symlink():
+            return candidate
+    return None
 
 
 class WorkbenchServer(ThreadingHTTPServer):
@@ -60,6 +89,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self.send_response(HTTPStatus.NO_CONTENT)
                 self._security_headers()
                 self.end_headers()
+                return
+            if not route.startswith("/api/") and self._serve_ui(route):
                 return
             if route in _ASSETS:
                 self._asset(*_ASSETS[route])
@@ -92,13 +123,29 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 )
                 return
             if route == "/api/graph":
+                query = parse_qs(urlparse(self.path).query)
+                include = None
+                if query.get("clean", ["0"])[-1] in {"1", "true"}:
+                    include = make_compliance_filter(self.workbench.store.root)
                 self._json(
                     HTTPStatus.OK,
-                    build_evidence_graph(self.workbench.store.root),
+                    build_evidence_graph(self.workbench.store.root, include_payload=include),
+                )
+                return
+            if route == "/api/atlas":
+                self._json(
+                    HTTPStatus.OK,
+                    build_atlas(self.workbench.state_root),
+                )
+                return
+            if route == "/api/mechanisms":
+                self._json(
+                    HTTPStatus.OK,
+                    build_mechanism_board(self.workbench.state_root),
                 )
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
-        except (CampaignAPIError, EvidenceGraphError) as exc:
+        except (CampaignAPIError, EvidenceGraphError, AtlasError, MechanismBoardError) as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -167,6 +214,28 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         if not isinstance(value, dict):
             raise WorkbenchError("REQUEST_OBJECT_REQUIRED")
         return value
+
+    def _serve_ui(self, route: str) -> bool:
+        dist = _ui_dist_root()
+        if dist is None:
+            return False
+        path = (dist / route.lstrip("/")).resolve() if route != "/" else dist / "index.html"
+        if not path.is_relative_to(dist) or path.is_symlink() or not path.is_file():
+            # SPA fallback: unknown non-file routes render the shell.
+            path = dist / "index.html"
+        content_type = _UI_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+        try:
+            body = path.read_bytes()
+        except OSError:
+            return False
+        self.send_response(HTTPStatus.OK)
+        self._security_headers()
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return True
 
     def _asset(self, filename: str, content_type: str) -> None:
         path = _ASSET_ROOT / filename

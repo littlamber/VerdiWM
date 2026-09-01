@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "mode": "quick_start",
+      "label": "Quick start",
+      "description": "用本地证据和联网论文完成冷启动，再在目标模型上逐个验证迁移候选。",
+      "candidate_sources": ["local_verified_experience", "online_literature"]
+    },
+    {
+      "mode": "causal_discovery",
+      "label": "Causal discovery",
+      "description": "根据目标模型响应几何与反例扩展诊断基底，再构造可验证的干预。",
+      "candidate_sources": ["target_response_geometry", "counterexample_guided_basis"]
+    },
+    {
+      "mode": "hybrid",
+      "label": "Hybrid",
+      "description": "先用外部知识启动，同时让目标证据逐步启用因果发现与联合干预合成。",
+      "candidate_sources": [
+        "local_verified_experience",
+        "online_literature",
+        "target_response_geometry",
+        "counterexample_guided_basis"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "configured": true,
+  "values": {
+    "model": "./model",
+    "data": "./data",
+    "budget": "1gpu-hour"
+  }
+}

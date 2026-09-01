@@ -1,0 +1,1193 @@
+{
+  "artifact_type": "verdiwm-artifact-lint-report",
+  "checked": 98,
+  "code_counts": {
+    "ARTIFACT_TYPE_NONCONVENTIONAL": 7,
+    "MISSING_ARTIFACT_TYPE": 1,
+    "MISSING_CLAIM_BOUNDARY": 82,
+    "MISSING_STATE": 77,
+    "MODEL_REF_WITHOUT_NAME": 1
+  },
+  "error_count": 2,
+  "input_root": "demo://examples",
+  "issues": [
+    {
+      "artifact_type": "wmloop-acwm-checkpoint-ladder-finalization",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-acwm-checkpoint-ladder-finalization' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/checkpoint_ladder.json:0"
+    },
+    {
+      "artifact_type": "wmloop-acwm-formal-visualization-export",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-acwm-formal-visualization-export' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/confirmation_manifest.json:0"
+    },
+    {
+      "artifact_type": "wmloop-acwm-horizon-effect-profile",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-acwm-horizon-effect-profile' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/effect_profile.json:0"
+    },
+    {
+      "artifact_type": "wmloop-acwm-horizon-experience-map",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-acwm-horizon-experience-map' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/experience_map.json:0"
+    },
+    {
+      "artifact_type": null,
+      "code": "MISSING_ARTIFACT_TYPE",
+      "detail": "payload has no artifact_type",
+      "severity": "error",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/failure_report.json:0"
+    },
+    {
+      "artifact_type": null,
+      "code": "MODEL_REF_WITHOUT_NAME",
+      "detail": "model_ref is a bare CAS/sha256/hex reference with no model_family/model_name",
+      "severity": "error",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/failure_report.json:0"
+    },
+    {
+      "artifact_type": null,
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/failure_report.json:0"
+    },
+    {
+      "artifact_type": null,
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/failure_report.json:0"
+    },
+    {
+      "artifact_type": "wmloop-materialized-primitive-smoke",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-materialized-primitive-smoke' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/intervention_receipt.json:0"
+    },
+    {
+      "artifact_type": "wmloop-materialized-primitive-smoke",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/intervention_receipt.json:0"
+    },
+    {
+      "artifact_type": "wmloop-materialized-primitive-smoke",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/intervention_receipt.json:0"
+    },
+    {
+      "artifact_type": "wmloop-acwm-formal-visualization-export",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-acwm-formal-visualization-export' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/official_gate_manifest.json:0"
+    },
+    {
+      "artifact_type": "wmloop-m3-training-eval-smoke-manifest",
+      "code": "ARTIFACT_TYPE_NONCONVENTIONAL",
+      "detail": "artifact_type 'wmloop-m3-training-eval-smoke-manifest' does not follow verdiwm-<domain>-<noun>",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/screen_manifest.json:0"
+    },
+    {
+      "artifact_type": "wmloop-m3-training-eval-smoke-manifest",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/evidence/screen_manifest.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-minimal-loop-proof",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/acwm_minimal_loop_cloth_next_forcing_v2/minimal-loop-proof.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-campaign",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-campaign",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-settlement-manifest",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/manifest.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-baseline-reproducibility",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/baseline-reproducibility.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-baseline-reproducibility",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/baseline-reproducibility.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-campaign",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/input-campaign.json:0"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-cosmos3-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cosmos3_target_local_irg_narrow_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-cpbe-stage-receipt",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/cpbe_algorithm_smoke_settlement_v1/inputs/cpbe-stage-receipts.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_paper_split_abstention_v1/candidates/ctrl_world_irg_calibration_narrow_paper_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_narrow_pilot_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:0"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:1"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:2"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:3"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:4"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:5"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:6"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:7"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:8"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:9"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:10"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:11"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:12"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:13"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_CLAIM_BOUNDARY",
+      "detail": "no claim_boundary/summary; readers cannot tell what this artifact does not prove",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:14"
+    },
+    {
+      "artifact_type": "verdiwm-ctrl-world-fingerprint-measurement",
+      "code": "MISSING_STATE",
+      "detail": "no state/status field from a closed enumeration",
+      "severity": "warning",
+      "source": "demo://examples/ctrl_world_target_local_irg_v1/candidates/ctrl_world_irg_calibration_pilot_v1/measurements.jsonl:14"
+    }
+  ],
+  "schema_version": 1,
+  "warning_count": 166
+}

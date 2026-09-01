@@ -14,7 +14,7 @@ import os
 import sqlite3
 import tempfile
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +101,7 @@ def build_evidence_graph(
     input_root: Path,
     *,
     archive_db: Path | None = None,
+    include_payload: Callable[[Mapping[str, Any], str, int], bool] | None = None,
 ) -> dict[str, Any]:
     root = Path(input_root).expanduser().resolve()
     if not root.is_dir() or root.is_symlink():
@@ -116,6 +117,8 @@ def build_evidence_graph(
             continue
         for index, payload in enumerate(payloads):
             if not isinstance(payload, Mapping):
+                continue
+            if include_payload is not None and not include_payload(payload, str(path), index):
                 continue
             source_count += 1
             _project_document(graph, payload, source=str(path), ordinal=index)
@@ -187,6 +190,7 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
         "model_family": "backbone",
         "model_ref": "model",
         "environment": "environment",
+        "env": "environment",
         "scenario": "scenario",
         "goal_id": "goal",
         "primitive": "primitive",
@@ -213,6 +217,7 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
             "model_family": "uses_backbone",
             "model_ref": "references_model",
             "environment": "evaluated_in",
+            "env": "evaluated_in",
             "scenario": "evaluated_scenario",
             "goal_id": "optimizes_goal",
             "primitive": "tests_primitive",
@@ -230,6 +235,13 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
             "implementation_revision": "implemented_by_revision",
         }[field]
         graph.edge(root, relation, child, evidence=source)
+    # Give content-addressed model nodes a human-meaningful family attribute
+    # whenever the same artifact names its backbone family.
+    model_ref = payload.get("model_ref")
+    if isinstance(model_ref, str) and model_ref:
+        family = payload.get("model_family") or payload.get("target_backbone")
+        if isinstance(family, str) and family:
+            graph.node("model", model_ref, source=source, family=family)
     _project_portable_experience(graph, payload, root=root, source=source)
     settlement = payload.get("settlement")
     settlement_state = settlement.get("state") if isinstance(settlement, Mapping) else None

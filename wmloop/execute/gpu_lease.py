@@ -10,13 +10,36 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
-import fcntl
 import os
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
+
+if os.name == "nt":
+    import msvcrt
+
+    def _lock_exclusive_nb(handle: object) -> None:
+        """Windows equivalent of flock(LOCK_EX | LOCK_NB) via msvcrt."""
+
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            raise BlockingIOError(exc.errno or 11, exc.strerror or "lease held") from exc
+
+    def _lock_unlock(handle: object) -> None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_exclusive_nb(handle: object) -> None:
+        _lock_exclusive_nb(handle)
+
+    def _lock_unlock(handle: object) -> None:
+        _lock_unlock(handle)
 
 
 class GpuLeaseError(RuntimeError):
@@ -58,7 +81,7 @@ class GpuLease:
         if handle is None:
             return
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _lock_unlock(handle)
         finally:
             handle.close()
             object.__setattr__(self, "_handle", None)
@@ -168,7 +191,7 @@ class GpuLeaseManager:
             handle = lock_path.open("a+", encoding="ascii")
             os.chmod(lock_path, 0o600)
             try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _lock_exclusive_nb(handle)
             except BlockingIOError:
                 handle.close()
                 blockers.append(f"{index}:LEASE_HELD")
@@ -191,7 +214,7 @@ class GpuLeaseManager:
                 reason = "COMPUTE_APP_PRESENT"
             if reason is not None:
                 blockers.append(f"{index}:{reason}")
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _lock_unlock(handle)
                 handle.close()
                 break
             leases.append(GpuLease(index=index, uuid=uuid, name=str(gpu.get("name") or "unknown"), lock_path=lock_path, _handle=handle))
@@ -218,14 +241,14 @@ class GpuLeaseManager:
             handle = lock_path.open("a+", encoding="ascii")
             os.chmod(lock_path, 0o600)
             try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _lock_exclusive_nb(handle)
             except BlockingIOError:
                 handle.close()
                 blockers.append(f"{index}:LEASE_HELD")
                 continue
             gpu = by_index.get(index)
             if gpu is None:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _lock_unlock(handle)
                 handle.close()
                 blockers.append(f"{index}:GPU_NOT_FOUND")
                 continue
@@ -235,22 +258,22 @@ class GpuLeaseManager:
             apps = apps_by_uuid.get(uuid, [])
             if memory is None or utilization is None or not uuid:
                 blockers.append(f"{index}:GPU_SNAPSHOT_INVALID")
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _lock_unlock(handle)
                 handle.close()
                 continue
             if memory > self._memory_threshold:
                 blockers.append(f"{index}:MEMORY_BUSY:{memory}")
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _lock_unlock(handle)
                 handle.close()
                 continue
             if utilization > self._utilization_threshold:
                 blockers.append(f"{index}:UTILIZATION_BUSY:{utilization}")
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _lock_unlock(handle)
                 handle.close()
                 continue
             if apps:
                 blockers.append(f"{index}:COMPUTE_APP_PRESENT")
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                _lock_unlock(handle)
                 handle.close()
                 continue
             return GpuLease(

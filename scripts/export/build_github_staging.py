@@ -43,6 +43,7 @@ ROOT_FILES = (
 PUBLIC_TREES = ("wmloop", "scripts", ".github", "ops")
 PUBLIC_DOC_FILES = (
     "ARCHITECTURE.md",
+    "ARTIFACT_CONVENTION.md",
     "AUTONOMOUS_TRANSFER_SYSTEM_PLAN.md",
     "AUTO_EXPERIMENTS.md",
     "BACKBONE_INSTANTIATION.md",
@@ -157,6 +158,7 @@ PUBLIC_TEST_FILES = (
     "test_mechanism_discovery.py",
     "test_transferable_experience.py",
     "test_system_utility.py",
+    "test_artifact_lint.py",
     "test_portrait_first_public_example.py",
 )
 COSMOS3_PUBLIC_EXAMPLES = (

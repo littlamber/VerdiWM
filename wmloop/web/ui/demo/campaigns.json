@@ -1,0 +1,198 @@
+{
+  "items": [
+    {
+      "schema_version": 4,
+      "budget": {
+        "gpu_hours": 1.0
+      },
+      "adapter_profile": "acwm_phys_g1_long_horizon_ladder_v1",
+      "model_family": "acwm_phys",
+      "capability_level": "latent_dit_action_conditioned",
+      "campaign_id": "acwm-cloth-long-horizon-a1",
+      "goal": "提升长时域动作条件预测和 runtime_ready 指标",
+      "target_metrics": [
+        "psnr",
+        "runtime_ready"
+      ],
+      "model": "./model",
+      "dataset": "./data",
+      "status": "completed",
+      "research_mode": "hybrid",
+      "created_at": "2026-08-26T01:56:01.894060Z",
+      "updated_at": "2026-08-26T11:32:01.894060Z",
+      "execution": {
+        "kind": "pipeline"
+      },
+      "execution_result": {
+        "state": "settled",
+        "stage": "confirm",
+        "verdict": "accepted",
+        "summary": "screen 通过、official gate 通过、confirm 复验为正效应（小）"
+      },
+      "revision_id": "rev-a1-0001",
+      "revision_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "request_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "schema_version": 4,
+      "budget": {
+        "gpu_hours": 1.0
+      },
+      "adapter_profile": "acwm_phys_g1_long_horizon_ladder_v1",
+      "model_family": "acwm_phys",
+      "capability_level": "latent_dit_action_conditioned",
+      "campaign_id": "acwm-temporal-mix-probe-b2",
+      "goal": "定位 self_rollout_temporal_mix 路径的长时域漂移来源",
+      "target_metrics": [
+        "negative_masked_mse"
+      ],
+      "model": "./model",
+      "dataset": "./data",
+      "status": "running",
+      "research_mode": "causal_discovery",
+      "created_at": "2026-08-31T04:20:01.894060Z",
+      "updated_at": "2026-09-01T01:56:01.894060Z",
+      "execution": {
+        "kind": "pipeline"
+      },
+      "revision_id": "rev-b2-0001",
+      "revision_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "request_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "schema_version": 4,
+      "budget": {
+        "gpu_hours": 1.0
+      },
+      "adapter_profile": "acwm_phys_g1_long_horizon_ladder_v1",
+      "model_family": "acwm_phys",
+      "capability_level": "latent_dit_action_conditioned",
+      "campaign_id": "cosmos3-translation-narrow-c3",
+      "goal": "验证 translation narrow 干预在 Cosmos3 前向动力学上的迁移",
+      "target_metrics": [
+        "psnr"
+      ],
+      "model": "./model",
+      "dataset": "./data",
+      "status": "blocked",
+      "research_mode": "quick_start",
+      "created_at": "2026-08-28T18:44:01.894060Z",
+      "updated_at": "2026-08-29T04:20:01.894060Z",
+      "execution": {
+        "kind": "pipeline"
+      },
+      "execution_error": {
+        "code": "TRANSFER_ABSTENTION",
+        "message": "跨基线组协方差未观测，迁移证书弃权；target-local 路由仍然可用"
+      },
+      "revision_id": "rev-c3-0001",
+      "revision_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "request_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "schema_version": 4,
+      "budget": {
+        "gpu_hours": 1.0
+      },
+      "adapter_profile": "acwm_phys_g1_long_horizon_ladder_v1",
+      "model_family": "acwm_phys",
+      "capability_level": "latent_dit_action_conditioned",
+      "campaign_id": "ctrl-world-g2-repair-d4",
+      "goal": "降低 ctrl_world g2 长时域动作漂移",
+      "target_metrics": [
+        "runtime_ready"
+      ],
+      "model": "./model",
+      "dataset": "./data",
+      "status": "queued",
+      "research_mode": "hybrid",
+      "created_at": "2026-08-31T21:08:01.894060Z",
+      "updated_at": "2026-08-31T21:08:01.894060Z",
+      "execution": {
+        "kind": "pipeline"
+      },
+      "revision_id": "rev-d4-0001",
+      "revision_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "request_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "schema_version": 4,
+      "budget": {
+        "gpu_hours": 1.0
+      },
+      "adapter_profile": "acwm_phys_g1_long_horizon_ladder_v1",
+      "model_family": "acwm_phys",
+      "capability_level": "latent_dit_action_conditioned",
+      "campaign_id": "acwm-motion-region-screen-e5",
+      "goal": "筛查 motion_region_scale 原语在布料场景的效果",
+      "target_metrics": [
+        "ssim"
+      ],
+      "model": "./model",
+      "dataset": "./data",
+      "status": "failed",
+      "research_mode": "quick_start",
+      "created_at": "2026-08-23T06:44:01.894060Z",
+      "updated_at": "2026-08-23T16:20:01.894060Z",
+      "execution": {
+        "kind": "pipeline"
+      },
+      "execution_error": {
+        "code": "REJECTED_AT_SCREEN",
+        "message": "廉价筛查阶段效应为负，已作为负证据沉淀"
+      },
+      "revision_id": "rev-e5-0001",
+      "revision_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "request_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "schema_version": 4,
+      "budget": {
+        "gpu_hours": 1.0
+      },
+      "adapter_profile": null,
+      "model_family": "unknown_family",
+      "capability_level": "latent_dit_action_conditioned",
+      "campaign_id": "new-family-first-contact-f6",
+      "goal": "接入一个新的视频世界模型族并运行 runtime_ready 基线",
+      "target_metrics": [
+        "runtime_ready"
+      ],
+      "model": "./model",
+      "dataset": "./data",
+      "status": "blocked",
+      "research_mode": "quick_start",
+      "created_at": "2026-08-31T11:32:01.894060Z",
+      "updated_at": "2026-08-31T13:56:01.894060Z",
+      "execution": {
+        "kind": "pipeline"
+      },
+      "execution_error": {
+        "code": "EXECUTOR_BOOTSTRAP_BLOCKED:ADAPTER_REPAIR_INPUTS_REQUIRED",
+        "message": "首接触引导需要可信基础 profile 与有边界的修复提供方"
+      },
+      "executor_bootstrap": {
+        "state": "blocked",
+        "blocker": {
+          "code": "ADAPTER_REPAIR_INPUTS_REQUIRED",
+          "detail": "Provide a trusted base profile and configured repair provider for first-contact bootstrap."
+        },
+        "required_inputs": [
+          {
+            "key": "base_profile_path",
+            "kind": "trusted_artifact",
+            "action": "提供或批准一个其 evaluator 与宪法可信的版本化适配器 profile。"
+          },
+          {
+            "key": "llm_adapter",
+            "kind": "bounded_provider",
+            "action": "配置仅用于适配器与测试生成的已批准提供方。"
+          }
+        ]
+      },
+      "revision_id": "rev-f6-0001",
+      "revision_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+      "request_hash": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}
