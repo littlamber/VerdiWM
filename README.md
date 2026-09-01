@@ -86,6 +86,16 @@ Start the local interface:
 uv run verdiwm-workbench --port 8765
 ```
 
+The workbench discovers materialized `graph.json` files below `state_root` by
+default. When immutable experiment artifacts are kept elsewhere, bind that
+directory explicitly:
+
+```bash
+uv run verdiwm-workbench --port 8765 \
+  --state-root ./.verdiwm/state \
+  --evidence-root /path/to/verdiwm-runs
+```
+
 Open <http://127.0.0.1:8765>. The workbench provides project discovery,
 quick-start/causal-discovery/hybrid modes, campaign control, task details,
 and an interactive evidence graph. It is a local UI; it does not upload

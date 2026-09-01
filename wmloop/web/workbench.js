@@ -37,6 +37,9 @@ function modeLabel(mode) {
   return ({ quick_start: "快速启动", causal_discovery: "因果发现", hybrid: "混合模式" })[mode] || mode || "兼容模式";
 }
 
+function nodeLabel(node) { return node.display_label || node.value || node.id; }
+function nodeKind(node) { return node.display_kind || node.kind; }
+
 function evidenceStage(campaign) {
   const stages = campaign.research_mode_plan?.stages || [];
   const current = stages.find((row) => row.state === "active") || stages.find((row) => row.state === "pending");
@@ -116,7 +119,7 @@ function drawGraph() {
   const canvas = $("#graph-canvas"), context = canvas.getContext("2d"), ratio = window.devicePixelRatio || 1, { nodes, edges } = visibleGraph(), byId = new Map(nodes.map((node) => [node.id, node])), t = state.transform;
   context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio); context.save(); context.translate(t.x, t.y); context.scale(t.scale, t.scale);
   context.strokeStyle = "#cbd3cf"; context.lineWidth = 1 / t.scale; edges.forEach((edge) => { const a = byId.get(edge.source), b = byId.get(edge.target); if (!a || !b) return; context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke(); });
-  nodes.forEach((node) => { context.fillStyle = nodeColor(node.kind); context.beginPath(); context.arc(node.x, node.y, 6.5, 0, Math.PI * 2); context.fill(); if (t.scale > .65) { context.fillStyle = "#27312d"; context.font = "11px system-ui"; context.fillText(String(node.value || node.id).slice(0, 24), node.x + 10, node.y + 4); } }); context.restore();
+  nodes.forEach((node) => { context.fillStyle = nodeColor(node.kind); context.beginPath(); context.arc(node.x, node.y, 6.5, 0, Math.PI * 2); context.fill(); if (t.scale > .65) { context.fillStyle = "#27312d"; context.font = "11px system-ui"; context.fillText(String(nodeLabel(node)).slice(0, 32), node.x + 10, node.y + 4); } }); context.restore();
 }
 
 function graphPoint(event) { const rect = $("#graph-canvas").getBoundingClientRect(), t = state.transform; return { x: (event.clientX - rect.left - t.x) / t.scale, y: (event.clientY - rect.top - t.y) / t.scale }; }
@@ -128,7 +131,7 @@ function bindGraph() {
   canvas.addEventListener("wheel", (event) => { event.preventDefault(); state.transform.scale = Math.max(.25, Math.min(3, state.transform.scale * (event.deltaY < 0 ? 1.12 : .89))); drawGraph(); }, { passive: false });
 }
 
-function showNode(node) { const edges = (state.graph.edges || []).filter((edge) => edge.source === node.id || edge.target === node.id); $("#node-detail").innerHTML = `<h3>${escapeHtml(node.value || node.id)}</h3><dl><dt>类型</dt><dd>${escapeHtml(node.kind)}</dd><dt>标识</dt><dd>${escapeHtml(node.id)}</dd><dt>关系</dt><dd>${edges.length}</dd><dt>证据来源</dt><dd><ul class="source-list">${(node.sources || []).slice(0, 12).map((source) => `<li>${escapeHtml(source)}</li>`).join("") || "<li>无</li>"}</ul></dd></dl>`; }
+function showNode(node) { const edges = (state.graph.edges || []).filter((edge) => edge.source === node.id || edge.target === node.id); $("#node-detail").innerHTML = `<h3>${escapeHtml(nodeLabel(node))}</h3><dl><dt>类型</dt><dd>${escapeHtml(nodeKind(node))}</dd><dt>技术标识</dt><dd>${escapeHtml(node.id)}</dd><dt>关系</dt><dd>${edges.length}</dd><dt>证据来源</dt><dd><ul class="source-list">${(node.sources || []).slice(0, 12).map((source) => `<li>${escapeHtml(source)}</li>`).join("") || "<li>无</li>"}</ul></dd></dl>`; }
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char])); }
 
 $("#campaign-form").addEventListener("submit", async (event) => { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)); const payload = { goal: data.goal, research_mode: state.mode, queue: true }; ["model", "dataset", "budget", "adapter", "cpbe_request", "cpbe_history", "target_metrics"].forEach((key) => { if (data[key]) payload[key] = data[key]; }); try { $("#form-error").textContent = ""; await api("/api/campaigns", { method: "POST", body: JSON.stringify(payload) }); event.currentTarget.reset(); await refreshCampaigns(); } catch (error) { $("#form-error").textContent = error.message; } });

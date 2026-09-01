@@ -80,6 +80,15 @@ uv run verdiwm reproduce CAMPAIGN_ID
 uv run verdiwm-workbench --port 8765
 ```
 
+默认会在 `state_root` 下发现已物化的 `graph.json` 以及历史运行目录；如果实验
+产物保存在独立目录，可显式绑定证据根目录：
+
+```bash
+uv run verdiwm-workbench --port 8765 \
+  --state-root ./.verdiwm/state \
+  --evidence-root /path/to/verdiwm-runs
+```
+
 浏览器访问 <http://127.0.0.1:8765>。界面提供项目发现、快速开始/因果发现/
 混合模式、任务控制、任务详情和交互式证据图谱。它只在本机运行，不会上传模型
 或数据。

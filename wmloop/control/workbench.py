@@ -20,7 +20,7 @@ from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
 from wmloop.experiments.atlas import AtlasError, build_atlas
 from wmloop.experiments.artifact_lint import make_compliance_filter
-from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph
+from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph, load_evidence_graph
 from wmloop.experiments.mechanism_board import MechanismBoardError, build_mechanism_board
 
 
@@ -65,10 +65,18 @@ def _ui_dist_root() -> Path | None:
 class WorkbenchServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], *, state_root: Path):
+    def __init__(self, address: tuple[str, int], *, state_root: Path, evidence_root: Path | None = None):
         super().__init__(address, WorkbenchHandler)
         self.state_root = Path(state_root).expanduser().resolve()
         self.store = CampaignStore(self.state_root / "campaigns")
+        # Campaign requests live below ``campaigns``; evidence is produced by
+        # the wider state tree. Keep the input configurable for deployments
+        # that maintain a separate immutable evidence archive.
+        self.evidence_root = (
+            Path(evidence_root).expanduser().resolve()
+            if evidence_root is not None
+            else self.state_root
+        )
         try:
             self.project_config = load_project_config()
         except ProjectConfigError:
@@ -124,12 +132,16 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             if route == "/api/graph":
                 query = parse_qs(urlparse(self.path).query)
+                materialized = load_evidence_graph(self.workbench.evidence_root)
+                if materialized is not None:
+                    self._json(HTTPStatus.OK, materialized)
+                    return
                 include = None
                 if query.get("clean", ["0"])[-1] in {"1", "true"}:
-                    include = make_compliance_filter(self.workbench.store.root)
+                    include = make_compliance_filter(self.workbench.evidence_root)
                 self._json(
                     HTTPStatus.OK,
-                    build_evidence_graph(self.workbench.store.root, include_payload=include),
+                    build_evidence_graph(self.workbench.evidence_root, include_payload=include),
                 )
                 return
             if route == "/api/atlas":
@@ -287,10 +299,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         type=Path,
         default=Path.home() / ".local" / "state" / "verdiwm",
     )
+    parser.add_argument(
+        "--evidence-root",
+        type=Path,
+        default=None,
+        help="目录中扫描实验产物；默认使用 state-root",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
-    server = WorkbenchServer((args.host, args.port), state_root=args.state_root)
+    server = WorkbenchServer(
+        (args.host, args.port), state_root=args.state_root, evidence_root=args.evidence_root
+    )
     print(f"VerdiWM workbench: http://{args.host}:{server.server_port}", flush=True)
     try:
         server.serve_forever()

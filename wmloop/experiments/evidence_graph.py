@@ -23,6 +23,100 @@ class EvidenceGraphError(ValueError):
     """The graph input or output contract is invalid."""
 
 
+_DISPLAY_KINDS = {
+    "artifact": "工件",
+    "backbone": "模型骨干",
+    "model": "模型",
+    "campaign": "任务",
+    "experiment": "实验",
+    "goal": "目标",
+    "environment": "环境",
+    "scenario": "场景",
+    "primitive": "方法原语",
+    "probe": "探针",
+    "candidate": "候选方案",
+    "trial": "试验",
+    "receipt": "运行回执",
+    "verdict": "判定",
+    "research_source": "文献来源",
+    "source_assessment": "来源评估",
+    "implementation": "实现版本",
+    "evidence": "证据引用",
+    "verified_evidence": "已验证正证据",
+    "verified_negative_evidence": "已验证负边界",
+    "verified_operational_failure": "已验证运维失败",
+    "exploratory_evidence": "探索性证据",
+    "confirmation_pending_verifier": "待验证确认",
+    "settled_unclassified_evidence": "未分类已结算证据",
+    "transfer_license": "迁移许可",
+}
+
+_DISPLAY_ARTIFACT_TYPES = {
+    "verdiwm-evidence-graph": "证据图谱",
+    "verdiwm-artifact-lint-report": "产物合规报告",
+    "verdiwm-transfer-certificate": "迁移证书",
+    "verdiwm-transferable-experience": "可迁移经验",
+    "verdiwm-archive-settled-trial": "已结算试验",
+    "verdiwm-campaign-revision-record": "任务修订记录",
+    "verdiwm-campaign-dispatch": "任务调度清单",
+    "verdiwm-adapter-repair-manifest": "适配器修复清单",
+}
+
+_TECHNICAL_NODE_KINDS = {"artifact", "evidence", "source_assessment", "implementation"}
+_PRESENTATION_PROJECTION_TYPES = {
+    "verdiwm-artifact-lint-report",
+    "verdiwm-atlas",
+    "verdiwm-evidence-graph",
+    "verdiwm-evidence-graph-query",
+    "verdiwm-mechanism-board",
+    "verdiwm-portable-knowledge-graph",
+    "verdiwm-portable-knowledge-graph-query",
+}
+
+
+def _semantic_slug(value: Any) -> str:
+    """Turn an identity into a compact human label without exposing paths."""
+    text = str(value or "").strip()
+    if not text:
+        return "未命名"
+    if text.startswith(("cas://", "urn:", "sha256:")):
+        return "内容寻址对象"
+    return text.replace("_", "-")[:96]
+
+
+def _artifact_label(artifact_type: Any, key: Any) -> str:
+    artifact = str(artifact_type or "document")
+    title = _DISPLAY_ARTIFACT_TYPES.get(artifact)
+    if title is None:
+        words = artifact.removeprefix("verdiwm-").replace("-", " ").replace("_", " ")
+        title = words.strip().capitalize() or "文档"
+    parts = str(key or "").split(":")
+    identity = parts[1] if len(parts) > 1 and parts[1] not in {"0", ""} else ""
+    return f"{title} · {_semantic_slug(identity)}" if identity else title
+
+
+def _display_label(node: Mapping[str, Any]) -> str:
+    kind = str(node.get("kind") or "node")
+    key = node.get("key")
+    if kind == "artifact":
+        return _artifact_label(node.get("artifact_type"), key)
+    if kind in {"model", "backbone"}:
+        return _semantic_slug(
+            node.get("family") or node.get("model_name") or node.get("value") or key
+        )
+    if kind in _DISPLAY_KINDS:
+        value = node.get("value") or key
+        text = str(value)
+        if _is_content_addressed(text) or (
+            kind in {"source_assessment", "implementation"}
+            and len(text) >= 32
+            and all(char in "0123456789abcdefABCDEF" for char in text)
+        ):
+            return _DISPLAY_KINDS[kind]
+        return _semantic_slug(value)
+    return _semantic_slug(node.get("value") or key)
+
+
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
@@ -65,10 +159,22 @@ class EvidenceGraph:
 
     def document(self, *, input_root: Path, source_count: int) -> dict[str, Any]:
         nodes = []
+        kind_ordinals: dict[str, int] = {}
         for value in sorted(self.nodes.values(), key=lambda item: item["id"]):
             item = dict(value)
             if isinstance(item.get("sources"), set):
                 item["sources"] = sorted(item["sources"])
+            item["display_kind"] = _DISPLAY_KINDS.get(
+                str(item.get("kind")), str(item.get("kind"))
+            )
+            item["display_label"] = _display_label(item)
+            item["ui_tier"] = (
+                "technical" if str(item.get("kind")) in _TECHNICAL_NODE_KINDS else "primary"
+            )
+            if item["display_label"] == item["display_kind"]:
+                kind = str(item.get("kind"))
+                kind_ordinals[kind] = kind_ordinals.get(kind, 0) + 1
+                item["display_label"] = f"{item['display_label']} #{kind_ordinals[kind]}"
             nodes.append(item)
         edges = []
         for value in sorted(self.edges.values(), key=lambda item: item["id"]):
@@ -77,6 +183,7 @@ class EvidenceGraph:
                 item["evidence"] = sorted(item["evidence"])
             edges.append(item)
         kind_counts = Counter(str(item["kind"]) for item in nodes)
+        tier_counts = Counter(str(item["ui_tier"]) for item in nodes)
         relation_counts = Counter(str(item["relation"]) for item in edges)
         return {
             "schema_version": 1,
@@ -87,6 +194,7 @@ class EvidenceGraph:
             "node_count": len(nodes),
             "edge_count": len(edges),
             "node_kind_counts": dict(sorted(kind_counts.items())),
+            "node_tier_counts": dict(sorted(tier_counts.items())),
             "relation_counts": dict(sorted(relation_counts.items())),
             "claim_boundary": (
                 "This is a provenance-preserving projection. Only source artifacts that "
@@ -118,6 +226,8 @@ def build_evidence_graph(
         for index, payload in enumerate(payloads):
             if not isinstance(payload, Mapping):
                 continue
+            if payload.get("artifact_type") in _PRESENTATION_PROJECTION_TYPES:
+                continue
             if include_payload is not None and not include_payload(payload, str(path), index):
                 continue
             source_count += 1
@@ -125,6 +235,61 @@ def build_evidence_graph(
     if archive_db is not None:
         source_count += _project_archive(graph, Path(archive_db).expanduser().resolve())
     return graph.document(input_root=root, source_count=source_count)
+
+
+def load_evidence_graph(input_root: Path) -> dict[str, Any] | None:
+    """Load a previously materialized graph and add the current UI projection.
+
+    Older runs often retain the immutable ``graph.json`` but not every raw
+    receipt. Decorating that graph keeps the historical evidence usable in the
+    workbench without rewriting any source artifact.
+    """
+    root = Path(input_root).expanduser().resolve()
+    paths = [root / "graph.json"]
+    for pattern in ("*/graph.json", "*/*/graph.json", "*/*/*/graph.json"):
+        paths.extend(sorted(root.glob(pattern)))
+    paths = [path for index, path in enumerate(paths) if path not in paths[:index]]
+    paths = [path for path in paths if path.is_file() and not path.is_symlink()]
+    if not paths:
+        return None
+    documents: list[Mapping[str, Any]] = []
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, Mapping) and payload.get("artifact_type") == "verdiwm-evidence-graph":
+            documents.append(payload)
+    if not documents:
+        return None
+    payload = documents[0]
+    raw_nodes = [node for document in documents for node in (document.get("nodes") or [])]
+    raw_edges = [edge for document in documents for edge in (document.get("edges") or [])]
+    raw_nodes = list({str(node.get("id")): node for node in raw_nodes if isinstance(node, Mapping)}.values())
+    raw_edges = list({str(edge.get("id")): edge for edge in raw_edges if isinstance(edge, Mapping)}.values())
+    nodes: list[dict[str, Any]] = []
+    kind_ordinals: dict[str, int] = {}
+    for raw in raw_nodes:
+        if not isinstance(raw, Mapping):
+            continue
+        node = dict(raw)
+        node["display_kind"] = _DISPLAY_KINDS.get(str(node.get("kind")), str(node.get("kind")))
+        node["display_label"] = _display_label(node)
+        node["ui_tier"] = "technical" if str(node.get("kind")) in _TECHNICAL_NODE_KINDS else "primary"
+        if node["display_label"] == node["display_kind"]:
+            kind = str(node.get("kind"))
+            kind_ordinals[kind] = kind_ordinals.get(kind, 0) + 1
+            node["display_label"] = f"{node['display_label']} #{kind_ordinals[kind]}"
+        nodes.append(node)
+    result = dict(payload)
+    result["nodes"] = nodes
+    result["node_count"] = len(nodes)
+    result["edge_count"] = len(raw_edges)
+    result["node_kind_counts"] = dict(sorted(Counter(str(node.get("kind")) for node in nodes).items()))
+    result["node_tier_counts"] = dict(sorted(Counter(str(node["ui_tier"]) for node in nodes).items()))
+    result["input_root"] = str(root)
+    result["presentation_source"] = "materialized_graph"
+    return result
 
 
 def _project_archive(graph: EvidenceGraph, archive_db: Path) -> int:
@@ -184,10 +349,26 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
         or payload.get("experiment_id")
         or f"{Path(source).name}:{ordinal}"
     )
-    root = graph.node("artifact", f"{artifact}:{identity}:{ordinal}", source=source, artifact_type=artifact, state=payload.get("state"), verdict=payload.get("verdict"), settlement_state=payload.get("settlement_state"))
+    root = graph.node(
+        "artifact",
+        f"{artifact}:{identity}:{ordinal}",
+        source=source,
+        artifact_type=artifact,
+        state=payload.get("state"),
+        status=payload.get("status"),
+        verdict=payload.get("verdict"),
+        outcome=payload.get("outcome"),
+        stage=payload.get("stage"),
+        settlement_state=payload.get("settlement_state"),
+        model_family=payload.get("model_family"),
+        model_name=payload.get("model_name"),
+        summary=payload.get("summary"),
+        claim_boundary=payload.get("claim_boundary"),
+    )
     kind_map = {
         "target_backbone": "backbone",
         "model_family": "backbone",
+        "model_name": "model",
         "model_ref": "model",
         "environment": "environment",
         "env": "environment",
@@ -215,6 +396,7 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
         relation = {
             "target_backbone": "targets_backbone",
             "model_family": "uses_backbone",
+            "model_name": "names_model",
             "model_ref": "references_model",
             "environment": "evaluated_in",
             "env": "evaluated_in",
@@ -239,7 +421,7 @@ def _project_document(graph: EvidenceGraph, payload: Mapping[str, Any], *, sourc
     # whenever the same artifact names its backbone family.
     model_ref = payload.get("model_ref")
     if isinstance(model_ref, str) and model_ref:
-        family = payload.get("model_family") or payload.get("target_backbone")
+        family = payload.get("model_family") or payload.get("model_name") or payload.get("target_backbone")
         if isinstance(family, str) and family:
             graph.node("model", model_ref, source=source, family=family)
     _project_portable_experience(graph, payload, root=root, source=source)
