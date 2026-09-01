@@ -28,7 +28,7 @@ from wmloop.control.research_proposal import (
     write_compiled_experiment_manifest,
 )
 from wmloop.control.project_config import ProjectConfigError, load_project_config
-from wmloop.control.first_contact import FirstContactError, initialize_project
+from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project
 from wmloop.evaluate.system_utility import (
     SystemUtilityAuditError,
     run_system_utility_audit,
@@ -852,7 +852,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         TrainingGainAttributionError,
         FirstContactError,
     ) as exc:
-        print(str(exc), file=sys.stderr)
+        message = explain_blocker(exc)
+        print(f"{message['error']} [{message['code']}]", file=sys.stderr)
         return 2
 
 
