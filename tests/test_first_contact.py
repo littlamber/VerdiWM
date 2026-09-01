@@ -10,6 +10,35 @@ from wmloop.control.project_config import load_project_config
 
 
 class FirstContactTests(unittest.TestCase):
+    def test_readiness_combines_separate_source_and_weight_directories(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            model = root / "weights"
+            source = root / "source"
+            data = root / "data"
+            model.mkdir()
+            source.mkdir()
+            data.mkdir()
+            (model / "model.safetensors").write_bytes(b"weights")
+            (source / "train.py").write_text(
+                "if __name__ == '__main__':\n    print('train')\n",
+                encoding="utf-8",
+            )
+            (source / "evaluate.py").write_text(
+                "if __name__ == '__main__':\n    print('evaluate')\n",
+                encoding="utf-8",
+            )
+            report = inspect_project(
+                root=root,
+                model=str(model),
+                source=str(source),
+                data=str(data),
+            )
+            codes = {item["code"] for item in report["blockers"]}
+            self.assertNotIn("CHECKPOINT_MISSING", codes)
+            self.assertEqual(report["model"], str(model))
+            self.assertEqual(report["source"], str(source))
+
     def test_init_discovers_conventional_directories_and_writes_config(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)

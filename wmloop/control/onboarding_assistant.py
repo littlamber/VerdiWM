@@ -20,6 +20,7 @@ def build_onboarding_questionnaire(
     *,
     root: Path,
     model: str | None = None,
+    source: str | None = None,
     data: str | None = None,
     goal: str | None = None,
     evaluator_contract: str | None = None,
@@ -29,6 +30,7 @@ def build_onboarding_questionnaire(
     readiness = inspect_project(
         root=root,
         model=model,
+        source=source,
         data=data,
         evaluator_contract=evaluator_contract,
         runtime_python=runtime_python,
@@ -36,6 +38,18 @@ def build_onboarding_questionnaire(
     questions: list[dict[str, Any]] = []
     seen: set[str] = set()
     templates = {
+        "MODEL_SOURCE_PATH_REQUIRED": {
+            "title": "模型源码在哪里？",
+            "prompt": "请提供包含训练、推理或评测入口的源码目录；它可以与权重目录分开。",
+            "answer_type": "path",
+            "example": "./Wan2.2-source",
+        },
+        "MODEL_SOURCE_NOT_SEPARATE": {
+            "title": "确认模型源码目录",
+            "prompt": "权重目录没有发现可执行入口，请提供独立的模型源码目录。",
+            "answer_type": "path",
+            "example": "./Wan2.2-source",
+        },
         "MODEL_PATH_REQUIRED": {
             "title": "模型代码在哪里？",
             "prompt": "请提供包含模型代码的目录路径。",

@@ -1,0 +1,41 @@
+{
+  "evaluator_id": "wan22-droid-worldarena-30s-v1",
+  "command": [
+    "{worldarena_python}",
+    "{worldarena_root}/video_quality/evaluate.py",
+    "--config",
+    "{worldarena_root}/config/config.yaml",
+    "--dimension",
+    "subject_consistency",
+    "background_consistency",
+    "motion_smoothness",
+    "photometric_smoothness",
+    "trajectory_accuracy",
+    "action_following"
+  ],
+  "input_artifacts": [
+    "generated_150_frame_video",
+    "paired_droid_ground_truth",
+    "first_frame",
+    "droid_action_sequence",
+    "worldarena_config"
+  ],
+  "output_artifacts": [
+    "worldarena_metrics.json",
+    "worldarena_csv_results",
+    "evaluator_stdout.log",
+    "evaluator_stderr.log"
+  ],
+  "metrics": [
+    "subject_consistency",
+    "background_consistency",
+    "motion_smoothness",
+    "photometric_smoothness",
+    "trajectory_accuracy",
+    "action_following"
+  ],
+  "verifier": "wan22_droid_worldarena_frozen_verifier_v1",
+  "working_directory": "{worldarena_root}",
+  "entrypoint_probe": "skip",
+  "claim_boundary": "This contract defines a 150-frame, 5 FPS evaluation bundle. It does not certify any checkpoint until WorldArena outputs and an episode-disjoint multi-seed receipt are verified."
+}

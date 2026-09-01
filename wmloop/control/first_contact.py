@@ -59,6 +59,7 @@ def inspect_project(
     *,
     root: Path,
     model: str | None = None,
+    source: str | None = None,
     data: str | None = None,
     evaluator_contract: str | None = None,
     runtime_python: str | None = None,
@@ -75,6 +76,8 @@ def inspect_project(
         return (path if path.is_absolute() else base / path).resolve()
 
     model_path = resolve_input(model) if model else discovered_model
+    source_path = resolve_input(source) if source else None
+    source_path = resolve_input(source) if source else model_path
     data_path = resolve_input(data) if data else discovered_data
     checks: list[dict[str, Any]] = []
     blockers: list[dict[str, Any]] = []
@@ -83,20 +86,47 @@ def inspect_project(
         valid = path is not None and ((path.is_dir() if directory else path.exists()) and not path.is_symlink())
         checks.append({"name": name, "state": "pass" if valid else "missing", "path": str(path) if path else None})
         if not valid:
+            code = {
+                "model": "MODEL_PATH_REQUIRED",
+                "source": "MODEL_SOURCE_PATH_REQUIRED",
+                "data": "DATA_PATH_REQUIRED",
+            }[name]
             blockers.append({
-                "code": "MODEL_PATH_REQUIRED" if name == "model" else "DATA_PATH_REQUIRED",
-                "message": "还没有找到模型目录。请填写模型所在目录。" if name == "model" else "还没有找到数据目录。请填写数据所在目录。",
-                "action": "在首次设置中选择模型目录。" if name == "model" else "在首次设置中选择数据目录。",
+                "code": code,
+                "message": (
+                    "还没有找到模型目录。请填写模型所在目录。"
+                    if name == "model"
+                    else "还没有找到模型源码目录。请填写包含训练、推理或评测入口的源码目录。"
+                    if name == "source"
+                    else "还没有找到数据目录。请填写数据所在目录。"
+                ),
+                "action": (
+                    "在首次设置中选择模型目录。"
+                    if name == "model"
+                    else "在首次设置中选择模型源码目录。"
+                    if name == "source"
+                    else "在首次设置中选择数据目录。"
+                ),
             })
 
     path_check("model", model_path, directory=True)
+    if source is not None:
+        path_check("source", source_path, directory=True)
+        if source_path is not None and source_path == model_path:
+            blockers.append({
+                "code": "MODEL_SOURCE_NOT_SEPARATE",
+                "message": "源码目录与权重目录相同；请确认模型源码是否已提供。",
+                "action": "提供包含训练、推理或评测入口的源码目录。",
+            })
     path_check("data", data_path, directory=False)
     report: dict[str, Any] | None = None
-    if model_path is not None and model_path.is_dir() and not model_path.is_symlink():
+    model_assets_available = False
+    scan_path = source_path
+    if scan_path is not None and scan_path.is_dir() and not scan_path.is_symlink():
         try:
             report = scan_repository(
                 OnboardingOptions(
-                    repo_root=model_path,
+                    repo_root=scan_path,
                     runtime_python=resolve_input(runtime_python) if runtime_python else None,
                     evaluator_contract=resolve_input(evaluator_contract) if evaluator_contract else None,
                     probe_imports=False,
@@ -110,10 +140,30 @@ def inspect_project(
                 "detail": str(exc),
             })
     if report is not None:
+        # We scan executable source separately from the weight directory.  A
+        # source checkout normally contains no checkpoint, while a model
+        # export normally contains no entrypoint; combine only the discovered
+        # asset evidence and keep the two roots explicit in the report.
+        if model_path is not None and model_path != scan_path:
+            try:
+                model_assets = scan_repository(
+                    OnboardingOptions(repo_root=model_path, probe_imports=False)
+                ).get("assets", [])
+                report["assets"] = [*model_assets, *report.get("assets", [])]
+                model_assets_available = any(
+                    isinstance(asset, Mapping) and asset.get("kind") == "checkpoint"
+                    for asset in model_assets
+                )
+            except (OnboardingError, OSError, ValueError):
+                # Source readiness remains useful even when a model export is
+                # too unusual for the generic asset scanner.
+                pass
         for item in report.get("blockers", []):
             if not isinstance(item, Mapping):
                 continue
             code = str(item.get("code", "MODEL_ONBOARDING_BLOCKED"))
+            if code == "CHECKPOINT_MISSING" and model_assets_available:
+                continue
             if code in {"SOURCE_REVISION_UNBOUND", "CHECKPOINT_MISSING", "CAPABILITY_NOT_DISCOVERED"}:
                 message = {
                     "SOURCE_REVISION_UNBOUND": "模型目录没有可追溯的版本记录。",
@@ -162,6 +212,7 @@ def inspect_project(
         "artifact_type": "verdiwm-first-contact-readiness",
         "state": state,
         "model": str(model_path) if model_path else None,
+        "source": str(source_path) if source_path else None,
         "data": str(data_path) if data_path else None,
         "checks": checks,
         "blockers": blockers,
@@ -187,6 +238,7 @@ def initialize_project(
     *,
     root: Path,
     model: str | None = None,
+    source: str | None = None,
     data: str | None = None,
     goal: str | None = None,
     budget: str = "1gpu-hour",
@@ -205,12 +257,15 @@ def initialize_project(
         return (path if path.is_absolute() else base / path).resolve()
 
     model_path = resolve_input(model) if model else discovered_model
+    source_path = resolve_input(source) if source else None
     data_path = resolve_input(data) if data else discovered_data
     errors: list[dict[str, str]] = []
     if model_path is None:
         errors.append({"field": "model", "message": "找不到模型目录；请用 --model 指定模型所在目录。"})
     elif not model_path.is_dir() or model_path.is_symlink():
         errors.append({"field": "model", "message": f"模型目录不可用：{model_path}"})
+    if source_path is not None and (not source_path.is_dir() or source_path.is_symlink()):
+        errors.append({"field": "source", "message": f"模型源码目录不可用：{source_path}"})
     if data_path is None:
         errors.append({"field": "data", "message": "找不到数据目录；请用 --data 指定数据所在目录。"})
     elif not data_path.exists() or data_path.is_symlink():
@@ -260,6 +315,8 @@ def initialize_project(
         ("mode", mode),
         ("state_root", ".verdiwm/state"),
     ]
+    if source_path is not None:
+        values.insert(1, ("source", relative(source_path).replace(chr(92), "/")))
     metrics = [item.strip() for item in (target_metrics or []) if item.strip()]
     if metrics:
         values.append(("target_metrics", metrics))
@@ -296,6 +353,7 @@ def initialize_project(
         "readiness": inspect_project(
             root=base,
             model=str(model_path),
+            source=str(source_path) if source_path else None,
             data=str(data_path),
             evaluator_contract=evaluator_contract,
             runtime_python=runtime_python or (str(runtime) if runtime else None),

@@ -517,6 +517,7 @@ def _compile_proposal(args: argparse.Namespace) -> int:
 def _repair_adapter(args: argparse.Namespace) -> int:
     manifest = run_adapter_repair(
         model=args.model,
+        source=args.source,
         data=args.data,
         goal=args.goal,
         budget=args.budget,
@@ -541,6 +542,7 @@ def _init_project(args: argparse.Namespace) -> int:
     result = initialize_project(
         root=Path.cwd(),
         model=args.model,
+        source=args.source,
         data=args.data,
         goal=args.goal,
         budget=args.budget,
@@ -564,6 +566,7 @@ def _check_model(args: argparse.Namespace) -> int:
     result = inspect_project(
         root=Path.cwd(),
         model=args.model or configured.get("model"),
+        source=args.source or configured.get("source"),
         data=args.data or configured.get("data", configured.get("dataset")),
         evaluator_contract=(
             str(args.evaluator_contract)
@@ -589,6 +592,7 @@ def _guide_model(args: argparse.Namespace) -> int:
     questionnaire = build_onboarding_questionnaire(
         root=Path.cwd(),
         model=args.model or configured.get("model"),
+        source=args.source or configured.get("source"),
         data=args.data or configured.get("data", configured.get("dataset")),
         goal=args.goal or configured.get("goal"),
         evaluator_contract=args.evaluator_contract or configured.get("evaluator_contract"),
@@ -866,6 +870,7 @@ def _parser() -> argparse.ArgumentParser:
         help="用模型、数据和一句目标描述创建首次接入项目",
     )
     init.add_argument("--model", help="模型目录；默认发现 ./model 或 ./models")
+    init.add_argument("--source", help="模型源码目录；可与权重目录分离")
     init.add_argument("--data", help="数据目录；默认发现 ./data、./dataset 或 ./datasets")
     init.add_argument("--goal", help="想改善的能力，用一句话描述")
     init.add_argument("--budget", default="1gpu-hour")
@@ -882,6 +887,7 @@ def _parser() -> argparse.ArgumentParser:
         help="只读检查模型项目是否具备开始接入所需的信息",
     )
     check_model.add_argument("--model", help="模型目录；默认读取项目配置或发现 ./model")
+    check_model.add_argument("--source", help="模型源码目录；可与权重目录分离")
     check_model.add_argument("--data", help="数据目录；默认读取项目配置或发现 ./data")
     check_model.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
     check_model.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
@@ -892,6 +898,7 @@ def _parser() -> argparse.ArgumentParser:
         help="根据只读检查结果生成新模型接入问卷",
     )
     guide_model.add_argument("--model", help="模型目录；默认读取项目配置或发现 ./model")
+    guide_model.add_argument("--source", help="模型源码目录；可与权重目录分离")
     guide_model.add_argument("--data", help="数据目录；默认读取项目配置或发现 ./data")
     guide_model.add_argument("--goal", help="研究目标")
     guide_model.add_argument("--evaluator-contract", type=Path, help="已有冻结评测契约")

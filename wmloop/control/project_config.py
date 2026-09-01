@@ -26,6 +26,7 @@ class ProjectConfig:
 _ALLOWED_KEYS = frozenset(
     {
         "model",
+        "source",
         "data",
         "dataset",
         "goal",
@@ -43,7 +44,7 @@ _ALLOWED_KEYS = frozenset(
     }
 )
 _PATH_KEYS = frozenset(
-    {"model", "data", "dataset", "adapter_profile", "runtime_python", "evaluator_contract", "state_root"}
+    {"model", "source", "data", "dataset", "adapter_profile", "runtime_python", "evaluator_contract", "state_root"}
 )
 
 
