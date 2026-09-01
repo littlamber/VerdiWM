@@ -423,7 +423,10 @@ def _declared_packages(path: Path) -> list[str]:
                 packages.add(match.group(1).lower())
     elif name == "pyproject.toml":
         try:
-            import tomllib
+            try:
+                import tomllib
+            except ModuleNotFoundError:  # Python 3.10 support
+                import tomli as tomllib
 
             payload = tomllib.loads(text)
             values = payload.get("project", {}).get("dependencies", [])
@@ -432,7 +435,7 @@ def _declared_packages(path: Path) -> list[str]:
                     match = re.match(r"([A-Za-z0-9][A-Za-z0-9_.-]*)", str(value))
                     if match:
                         packages.add(match.group(1).lower())
-        except (ValueError, TypeError, AttributeError):
+        except (ImportError, ValueError, TypeError, AttributeError):
             packages.update(_regex_packages(text))
     else:
         packages.update(_regex_packages(text))
@@ -1409,10 +1412,14 @@ def _build_blockers(
                 "detail": "no checkpoint or weight asset was discovered",
             }
         )
-    if not adapter_contract_ready and not any(
+    if (
+        not adapter_contract_ready
+        and evaluator_contract.get("state") != "ready"
+        and not any(
         entrypoint.get("executable") is True
         and "evaluation" in entrypoint.get("kinds", [])
         for entrypoint in entrypoints
+        )
     ):
         blockers.append(
             {
