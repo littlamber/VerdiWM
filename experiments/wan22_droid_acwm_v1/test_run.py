@@ -49,6 +49,20 @@ class Wan22DroidContractTests(unittest.TestCase):
             self.assertEqual(report["state"], "blocked")
             self.assertIn("MODEL_PATH_INVALID", report["blockers"])
 
+    def test_adapter_contract_accepts_explicit_wan22_droid_name(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw); self._dataset(root)
+            adapter = root / "wan22_droid_adapter.py"; adapter.write_text("# contract\n")
+            model = root / "model"; model.mkdir()
+            source = root / "source"; (source / "wan" / "modules").mkdir(parents=True)
+            (source / "wan" / "modules" / "model_causal.py").write_text("# entrypoint\n")
+            evaluator = root / "eval.json"; evaluator.write_text("{}")
+            train = root / "train.json"; val = root / "val.json"
+            train.write_text(json.dumps(build_sample_manifest(root, "train")))
+            val.write_text(json.dumps(build_sample_manifest(root, "val")))
+            report = validate_contract(train_manifest=train, validation_manifest=val, model=model, source=source, evaluator_contract=evaluator, adapter=adapter)
+            self.assertNotIn("WAN22_ADAPTER_IDENTITY_INVALID", report["blockers"])
+
 
 if __name__ == "__main__":
     unittest.main()

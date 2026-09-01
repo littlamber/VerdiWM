@@ -21,8 +21,23 @@ python experiments/wan22_droid_acwm_v1/run.py conformance \
   --train-manifest /path/train.json --validation-manifest /path/val.json \
   --model /share/project/zhiwei/nsq/model/Wan2.2-TI2V-5B \
   --source /share/project/zhiwei/nsq/WorldArena/embodied_task \
-  --evaluator-contract configs/evaluators/wan22_droid_worldarena_v1.json
+  --evaluator-contract configs/evaluators/wan22_droid_worldarena_v1.json \
+  --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py
 ```
 
 The resulting report is a readiness receipt, not a quality result.  Quality
 requires generated 150-frame rollouts and the frozen WorldArena verifier.
+
+The full gate is available as `closed-loop`.  It intentionally requires an
+explicit runner and `--execute`; without both, it returns a blocked receipt
+and spends zero GPU hours:
+
+```bash
+python experiments/wan22_droid_acwm_v1/run.py closed-loop \
+  --train-manifest /path/train.json --validation-manifest /path/val.json \
+  --model /path/Wan2.2-TI2V-5B --source /path/WorldArena/embodied_task \
+  --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py \
+  --evaluator-contract configs/evaluators/wan22_droid_worldarena_v1.json \
+  --runtime-python /path/to/python --runner /path/to/wan22_droid_runner.py \
+  --output-root /path/to/run --execute
+```
