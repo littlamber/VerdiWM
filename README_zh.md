@@ -30,6 +30,22 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 
 这些示例验证的是编排契约，不代表任何模型质量结论。
 
+首次使用自己的模型和数据时，不需要手写配置。把它们放在当前目录的
+`model/` 和 `data/`（或 `dataset/`）下，运行：
+
+```bash
+uv run verdiwm init --goal "提升长时域预测稳定性"
+```
+
+系统会生成 `verdiwm.toml`。也可以显式指定目录：
+
+```bash
+uv run verdiwm init \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "提升长时域预测稳定性"
+```
+
 ## 运行自己的项目
 
 在模型和数据集旁边创建 `verdiwm.toml`：

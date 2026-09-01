@@ -34,6 +34,22 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 These examples validate orchestration contracts. They do not make a claim
 about model quality.
 
+For a first project, you do not need to write TOML by hand. Put the model and
+dataset in `model/` and `data/` (or `dataset/`) and run:
+
+```bash
+uv run verdiwm init --goal "improve long-horizon prediction stability"
+```
+
+You can also provide explicit locations:
+
+```bash
+uv run verdiwm init \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "improve long-horizon prediction stability"
+```
+
 ## Run your project
 
 Create a project file next to your model and dataset:
