@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from pathlib import Path
 import sys
 
@@ -74,6 +75,18 @@ def main(argv: list[str] | None = None) -> int:
             runtime = args.runtime_python.expanduser().resolve()
             if not runtime.is_file() or not runtime.exists():
                 blockers.append("RUNTIME_PYTHON_INVALID")
+            else:
+                try:
+                    probe = subprocess.run(
+                        [str(runtime), "-c", "import torch; assert torch.cuda.is_available()"],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    probe = None
+                if probe is None or probe.returncode != 0:
+                    blockers.append("RUNTIME_TORCH_CUDA_UNAVAILABLE")
             if args.runner is None:
                 blockers.append("WAN22_DROID_RUNNER_REQUIRED")
             elif not args.runner.expanduser().resolve().is_file():
