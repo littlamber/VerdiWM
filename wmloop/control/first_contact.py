@@ -14,6 +14,31 @@ class FirstContactError(ValueError):
     """The first-contact project inputs are missing or unsafe."""
 
 
+def explain_blocker(error: BaseException | str) -> dict[str, str]:
+    """Translate stable internal blocker codes into actionable user language."""
+    detail = str(error)
+    code = detail.split(":", 1)[0]
+    exact = {
+        "GOAL_REQUIRED": "请填写你想改善的能力。",
+        "MODEL_REQUIRED": "还没有可用的模型目录，请先完成首次设置。",
+        "MODEL_PATH_REQUIRED": "还没有可用的模型目录，请先完成首次设置。",
+        "DATA_REQUIRED": "还没有可用的数据目录，请先完成首次设置。",
+        "DATASET_REQUIRED": "还没有可用的数据目录，请先完成首次设置。",
+        "PROJECT_CONFIG_INVALID": "项目配置无法读取，请检查 verdiwm.toml。",
+        "PROJECT_CONFIG_NOT_FOUND": "还没有项目配置，请先完成首次设置。",
+    }
+    message = exact.get(code)
+    if message is None and any(token in detail for token in ("TARGET_METRIC", "METRIC_")):
+        message = "填写的成功指标不在当前评测清单中。请使用模型原有评测指标，或先补充评测方法。"
+    if message is None and any(token in detail for token in ("ADAPTER", "PROFILE")):
+        message = "这个模型还没有可用的运行连接器。系统已安全停止且没有占用 GPU；请确认模型平时如何启动和评测。"
+    if message is None and any(token in detail for token in ("CONFIG_NOT_FOUND", "PROVIDER", "LLM_")):
+        message = "当前安装尚未配置生成模型连接器所需的代码服务。请联系部署管理员，不要在页面粘贴密钥。"
+    if message is None:
+        message = "当前输入还不能安全开始实验。请检查模型、数据、评测方法和预算。"
+    return {"code": code, "error": message, "detail": detail}
+
+
 def discover_project_inputs(root: Path) -> tuple[Path | None, Path | None]:
     """Find conventional model and dataset directories without importing them."""
     base = Path(root).expanduser().resolve()

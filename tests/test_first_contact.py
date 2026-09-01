@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from wmloop.control.first_contact import initialize_project
+from wmloop.control.first_contact import explain_blocker, initialize_project
 from wmloop.control.project_config import load_project_config
 
 
@@ -38,6 +38,12 @@ class FirstContactTests(unittest.TestCase):
             initialize_project(root=root, goal="目标")
             with self.assertRaisesRegex(ValueError, "PROJECT_FILE_EXISTS"):
                 initialize_project(root=root, goal="新目标")
+
+    def test_internal_adapter_error_is_explained_in_user_language(self) -> None:
+        result = explain_blocker("ADAPTER_PROFILE_NOT_FOUND:no exact match")
+        self.assertEqual(result["code"], "ADAPTER_PROFILE_NOT_FOUND")
+        self.assertIn("运行连接器", result["error"])
+        self.assertIn("ADAPTER_PROFILE_NOT_FOUND", result["detail"])
 
 
 if __name__ == "__main__":

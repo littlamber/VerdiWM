@@ -18,7 +18,7 @@ from wmloop.control.campaign_dispatcher import (
 )
 from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
-from wmloop.control.first_contact import FirstContactError, initialize_project
+from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project
 from wmloop.experiments.atlas import AtlasError, build_atlas
 from wmloop.experiments.artifact_lint import make_compliance_filter
 from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph, load_evidence_graph
@@ -143,7 +143,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 values = self.workbench.project_config.values if self.workbench.project_config else {}
                 safe = {
                     key: values[key]
-                    for key in ("model", "data", "dataset", "budget", "adapter", "mode", "metric", "metrics", "target_metrics")
+                    for key in ("model", "data", "dataset", "goal", "budget", "adapter", "mode", "metric", "metrics", "target_metrics")
                     if key in values
                 }
                 self._json(
@@ -202,7 +202,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
         except (CampaignAPIError, EvidenceGraphError, AtlasError, MechanismBoardError) as exc:
-            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            self._json(HTTPStatus.BAD_REQUEST, explain_blocker(exc))
 
     def do_POST(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
