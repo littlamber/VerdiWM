@@ -34,14 +34,20 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 These examples validate orchestration contracts. They do not make a claim
 about model quality.
 
-For a first project, you do not need to write TOML by hand. Put the model and
-dataset in `model/` and `data/` (or `dataset/`) and run:
+## First project
+
+Prepare four inputs: the model source directory, a checkpoint or weight file,
+the dataset path, and one sentence describing the research objective. Model
+weights and datasets stay on the user's machine and are never uploaded.
+
+With the conventional layout, put the source in `model/` and the data in
+`data/` (or `dataset/`) and run:
 
 ```bash
 uv run verdiwm init --goal "improve long-horizon prediction stability"
 ```
 
-You can also provide explicit locations:
+Use explicit locations when your layout is different:
 
 ```bash
 uv run verdiwm init \
@@ -50,7 +56,7 @@ uv run verdiwm init \
   --goal "improve long-horizon prediction stability"
 ```
 
-Before creating a campaign, run the read-only onboarding check:
+Run the read-only onboarding check next:
 
 ```bash
 uv run verdiwm check-model
@@ -63,16 +69,13 @@ agent such as Codex:
 uv run verdiwm guide-model --output ./.verdiwm/onboarding-questions.json
 ```
 
-The questions are derived from a read-only scan of entrypoints, weights,
-runtime, and evaluation bindings. An agent may inspect source and draft files,
-but evaluation semantics, metric thresholds, and GPU launch still require
-explicit confirmation.
+The questions come from a read-only scan of entrypoints, weights, runtime, and
+evaluation bindings. Codex may inspect source and draft an adapter or config,
+but evaluation semantics, metric thresholds, and GPU launch require explicit
+confirmation. Never put credentials in the questionnaire or project file.
 
-It reports discovered entrypoints, runtime, checkpoint clues, and evaluation
-bindings in user-facing language. The check does not import the model, install
-dependencies, start training, or allocate a GPU. A campaign remains blocked
-until its frozen evaluator contract is explicitly bound. Bind it during init
-when it is already available:
+If a frozen evaluator contract and model Python environment already exist, bind
+them during init:
 
 ```bash
 uv run verdiwm init \
@@ -95,12 +98,23 @@ budget = "1gpu-hour"
 state_root = "./.verdiwm/state"
 ```
 
-Run the check again and only then express the objective in plain language:
+After the check has no blockers, launch a campaign. Pass the checkpoint as an
+asset, for example:
 
 ```bash
 uv run verdiwm check-model
-uv run verdiwm run "improve long-horizon action-conditioned prediction and runtime_ready"
+uv run verdiwm run \
+  --goal "improve long-horizon action-conditioned prediction" \
+  --target-metrics runtime_ready \
+  --asset=--ckpt_path=/path/to/checkpoint.pt
 ```
+
+If `check-model` or `run` reports a missing evaluator entrypoint, evaluator
+contract, runtime, or weight, that is an intentional safety stop. The command
+lists the missing information instead of guessing scientific semantics or
+allocating a GPU. Existing adapter profiles usually need only the paths; a
+completely new model must answer the questionnaire before an isolated launch
+configuration can be generated.
 
 The command discovers conventional `model/` and `data/` (or `dataset/`)
 directories when a project file is not present. It selects an unambiguous

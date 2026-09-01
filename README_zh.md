@@ -30,14 +30,18 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 
 这些示例验证的是编排契约，不代表任何模型质量结论。
 
-首次使用自己的模型和数据时，不需要手写配置。把它们放在当前目录的
-`model/` 和 `data/`（或 `dataset/`）下，运行：
+## 第一次使用自己的模型
+
+你需要准备四项信息：模型代码目录、模型权重文件、数据集路径，以及一句
+研究目标。权重通常不放进 VerdiWM 仓库，也不会被上传。
+
+如果目录采用默认名称，可以直接运行：
 
 ```bash
 uv run verdiwm init --goal "提升长时域预测稳定性"
 ```
 
-系统会生成 `verdiwm.toml`。也可以显式指定目录：
+系统会生成 `verdiwm.toml`。目录名称不同则显式指定：
 
 ```bash
 uv run verdiwm init \
@@ -46,25 +50,23 @@ uv run verdiwm init \
   --goal "提升长时域预测稳定性"
 ```
 
-初始化后先做一次只读接入检查：
+然后先做只读接入检查：
 
 ```bash
 uv run verdiwm check-model
 ```
 
-对完全陌生的模型，可以生成一份给用户或 Codex 填写的接入问卷：
+对完全陌生的模型，生成一份给用户或 Codex 使用的接入问卷：
 
 ```bash
 uv run verdiwm guide-model --output ./.verdiwm/onboarding-questions.json
 ```
 
-问卷会根据只读扫描结果列出模型入口、权重、运行环境和评测方法等问题。
-Codex 可以检查源码并起草配置，但评测含义、指标阈值和 GPU 启动仍需用户确认。
+问卷会根据模型目录实际内容列出入口、权重、运行环境和评测方法等问题。
+Codex 可以读源码并起草适配器和配置，但评测含义、指标阈值和 GPU 启动仍需
+用户确认。不要把 API key 写入问卷或项目文件。
 
-检查会发现模型入口、运行环境、权重线索和评测入口，并明确列出还需要你
-确认的内容。它不会导入模型、安装依赖、启动训练或占用 GPU。没有冻结的
-评测契约时，系统会停在接入阶段，不会把“任务创建成功”误认为模型有效。
-如果契约已经准备好，也可以在初始化时绑定：
+如果已有冻结评测契约和模型 Python 环境，可以在初始化时一并绑定：
 
 ```bash
 uv run verdiwm init \
@@ -87,12 +89,20 @@ budget = "1gpu-hour"
 state_root = "./.verdiwm/state"
 ```
 
-然后再次运行接入检查，确认运行方式和评测方法都已就绪，再用自然语言描述目标：
+确认检查结果中没有阻断项后，再启动任务。模型权重作为 asset 传入；例如：
 
 ```bash
 uv run verdiwm check-model
-uv run verdiwm run "提升长时域动作条件预测和 runtime_ready 指标"
+uv run verdiwm run \
+  --goal "提升长时域动作条件预测" \
+  --target-metrics runtime_ready \
+  --asset=--ckpt_path=/path/to/checkpoint.pt
 ```
+
+`check-model` 或 `run` 如果提示缺少评测入口、评测契约、运行环境或权重，
+这是正常的安全阻断：系统会告诉你要补什么，不会猜测成功标准，也不会在
+未确认评测方法前占用 GPU。已有适配器的模型通常只需补齐路径；完全新模型
+需要按问卷回答运行和评测信息，确认后才能生成可启动的隔离配置。
 
 没有项目文件时，系统会发现约定目录 `model/` 与 `data/`（或 `dataset/`）。
 运行器会选择明确匹配的适配器配置，解析 evaluator 已声明的指标；接口需要
