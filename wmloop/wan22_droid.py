@@ -108,6 +108,9 @@ def build_sample_manifest(
             raise Wan22DroidError(f"DROID_VIDEO_MISSING:{episode_id}")
         if not latent.is_file() or latent.is_symlink():
             raise Wan22DroidError(f"DROID_LATENT_MISSING:{episode_id}")
+        latent_shape = payload.get("latent_shape")
+        latent_channels = int(latent_shape[1]) if isinstance(latent_shape, list) and len(latent_shape) == 4 else None
+        latent_source = "precomputed_wan22" if latent_channels == 48 else "raw_video_wan22_vae"
         for start in range(0, length - horizon_frames + 1, stride):
             records.append(
                 {
@@ -122,7 +125,10 @@ def build_sample_manifest(
                     "action_dim": 7,
                     "proprio_dim": 14,
                     "fps": int(payload.get("processed_fps", 5)),
-                    "latent_shape": payload.get("latent_shape"),
+                    "instruction": str(payload.get("instruction") or "DROID robot action-conditioned future prediction"),
+                    "latent_shape": latent_shape,
+                    "precomputed_latent_channels": latent_channels,
+                    "latent_source": latent_source,
                 }
             )
     if not records:
@@ -140,6 +146,8 @@ def build_sample_manifest(
         "record_count": len(records),
         "episode_count": len({str(row["episode_id"]) for row in records}),
         "excluded_short_or_invalid_episodes": excluded,
+        "precomputed_latent_compatible_records": sum(1 for row in records if row["latent_source"] == "precomputed_wan22"),
+        "raw_video_reencode_records": sum(1 for row in records if row["latent_source"] == "raw_video_wan22_vae"),
         "manifest_sha256": manifest_digest,
         "records": records,
     }
@@ -199,8 +207,11 @@ def validate_contract(
             blockers.append("WAN22_ADAPTER_PATH_INVALID")
         elif "wan22" not in adapter_path.name.lower() or "droid" not in adapter_path.name.lower():
             blockers.append("WAN22_ADAPTER_IDENTITY_INVALID")
-    if source.exists() and (source / "wan").is_dir() and not (source / "wan" / "modules" / "model_causal.py").exists():
-        blockers.append("WAN22_CAUSAL_ENTRYPOINT_MISSING")
+    if source.exists() and (source / "wan").is_dir():
+        # TI2V uses the non-causal WanModel entrypoint; causal model_causal.py
+        # is optional and must not be required by this model-decoupled path.
+        if not (source / "wan" / "modules" / "model.py").exists():
+            blockers.append("WAN22_MODEL_ENTRYPOINT_MISSING")
     result = {
         "schema_version": 1,
         "artifact_type": "verdiwm-wan22-droid-conformance-report",

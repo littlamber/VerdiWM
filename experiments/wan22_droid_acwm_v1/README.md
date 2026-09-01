@@ -25,8 +25,12 @@ python experiments/wan22_droid_acwm_v1/run.py conformance \
   --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py
 ```
 
-The resulting report is a readiness receipt, not a quality result.  Quality
-requires generated 150-frame rollouts and the frozen WorldArena verifier.
+The resulting report is a readiness receipt, not a quality result. Quality
+requires generated 150-frame rollouts and the frozen WorldArena verifier. The
+external runner emits `generated_150f.mp4`, `ground_truth_150f.mp4`,
+`droid_conditioning.npz`, `worldarena_summary.json`, and an evaluator receipt;
+these are the stable hand-off contract for a separately installed WorldArena
+environment.
 
 The full gate is available as `closed-loop`.  It intentionally requires an
 explicit runner and `--execute`; without both, it returns a blocked receipt

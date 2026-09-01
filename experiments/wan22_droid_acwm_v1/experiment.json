@@ -29,7 +29,7 @@
   },
   "artifact_policy": {
     "output_root": "/share/project/zhiwei/nsq/wan22-droid-runs",
-    "required_artifacts": ["training_receipt.json", "generated_150f.mp4", "worldarena_input.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
+    "required_artifacts": ["training_receipt.json", "generated_150f.mp4", "ground_truth_150f.mp4", "droid_conditioning.npz", "worldarena_summary.json", "worldarena_input.json", "evaluator_receipt.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
     "archive_policy": "archive_then_delete"
   },
   "reproduction": {

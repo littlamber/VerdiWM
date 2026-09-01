@@ -55,7 +55,7 @@ class Wan22DroidContractTests(unittest.TestCase):
             adapter = root / "wan22_droid_adapter.py"; adapter.write_text("# contract\n")
             model = root / "model"; model.mkdir()
             source = root / "source"; (source / "wan" / "modules").mkdir(parents=True)
-            (source / "wan" / "modules" / "model_causal.py").write_text("# entrypoint\n")
+            (source / "wan" / "modules" / "model.py").write_text("# entrypoint\n")
             evaluator = root / "eval.json"; evaluator.write_text("{}")
             train = root / "train.json"; val = root / "val.json"
             train.write_text(json.dumps(build_sample_manifest(root, "train")))
