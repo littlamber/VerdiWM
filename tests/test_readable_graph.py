@@ -97,6 +97,17 @@ class ReadableGraphTests(unittest.TestCase):
 
 
 class WorkbenchEvidenceRootTests(unittest.TestCase):
+    def test_empty_project_is_not_reported_as_configured(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            server = WorkbenchServer(
+                ("127.0.0.1", 0), state_root=root / "state", project_root=root
+            )
+            try:
+                self.assertIsNone(server.project_config)
+            finally:
+                server.server_close()
+
     def test_workbench_defaults_graph_input_to_state_root(self) -> None:
         with TemporaryDirectory() as temp:
             state_root = Path(temp)

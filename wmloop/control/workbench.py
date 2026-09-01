@@ -35,6 +35,11 @@ _ASSETS = {
     "/assets/workbench.css": ("workbench.css", "text/css; charset=utf-8"),
     "/assets/workbench.js": ("workbench.js", "text/javascript; charset=utf-8"),
 }
+_SETUP_ASSETS = {
+    "/setup": ("setup.html", "text/html; charset=utf-8"),
+    "/assets/setup.css": ("setup.css", "text/css; charset=utf-8"),
+    "/assets/setup.js": ("setup.js", "text/javascript; charset=utf-8"),
+}
 
 # React workbench build output (workbench-ui/dist at the repository root, or the
 # packaged copy under wmloop/web/ui). When present it replaces the legacy page.
@@ -66,8 +71,10 @@ def _ui_dist_root() -> Path | None:
 class WorkbenchServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], *, state_root: Path, evidence_root: Path | None = None):
+    def __init__(self, address: tuple[str, int], *, state_root: Path, evidence_root: Path | None = None, project_root: Path | None = None):
         super().__init__(address, WorkbenchHandler)
+        self.project_root = Path(project_root or Path.cwd()).expanduser().resolve()
+        self.evidence_root_explicit = evidence_root is not None
         self.state_root = Path(state_root).expanduser().resolve()
         self.store = CampaignStore(self.state_root / "campaigns")
         # Campaign requests live below ``campaigns``; evidence is produced by
@@ -79,9 +86,22 @@ class WorkbenchServer(ThreadingHTTPServer):
             else self.state_root
         )
         try:
-            self.project_config = load_project_config()
+            loaded = load_project_config(cwd=self.project_root)
+            self.project_config = loaded if loaded.source is not None else None
         except ProjectConfigError:
             self.project_config = None
+
+    def reload_project(self) -> None:
+        loaded = load_project_config(cwd=self.project_root)
+        if loaded.source is None:
+            raise ProjectConfigError("PROJECT_CONFIG_NOT_FOUND")
+        self.project_config = loaded
+        configured_root = self.project_config.values.get("state_root")
+        if configured_root:
+            self.state_root = Path(str(configured_root)).expanduser().resolve()
+            self.store = CampaignStore(self.state_root / "campaigns")
+            if not self.evidence_root_explicit:
+                self.evidence_root = self.state_root
 
 
 class WorkbenchHandler(BaseHTTPRequestHandler):
@@ -98,6 +118,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self.send_response(HTTPStatus.NO_CONTENT)
                 self._security_headers()
                 self.end_headers()
+                return
+            if route == "/" and self.workbench.project_config is None:
+                self.send_response(HTTPStatus.SEE_OTHER)
+                self._security_headers()
+                self.send_header("Location", "/setup")
+                self.end_headers()
+                return
+            if route in _SETUP_ASSETS:
+                self._asset(*_SETUP_ASSETS[route])
+                return
+            if route == "/setup":
+                self._asset("setup.html", "text/html; charset=utf-8")
                 return
             if not route.startswith("/api/") and self._serve_ui(route):
                 return
@@ -193,11 +225,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             if route == "/api/first-contact":
                 result = initialize_project(
-                    root=(
-                        self.workbench.project_config.source.parent
-                        if self.workbench.project_config and self.workbench.project_config.source
-                        else Path.cwd()
-                    ),
+                    root=self.workbench.project_root,
                     model=payload.get("model"),
                     data=payload.get("data") or payload.get("dataset"),
                     goal=payload.get("goal"),
@@ -206,6 +234,8 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     target_metrics=payload.get("target_metrics") if isinstance(payload.get("target_metrics"), list) else [],
                     force=bool(payload.get("force", False)),
                 )
+                if result["state"] == "ready":
+                    self.workbench.reload_project()
                 self._json(HTTPStatus.OK if result["state"] != "ready" else HTTPStatus.CREATED, result)
                 return
             if route == "/api/dispatch":
@@ -327,7 +357,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--state-root",
         type=Path,
-        default=Path.home() / ".local" / "state" / "verdiwm",
+        default=None,
     )
     parser.add_argument(
         "--evidence-root",
@@ -338,8 +368,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
+    state_root = args.state_root
+    if state_root is None:
+        try:
+            configured = load_project_config().values.get("state_root")
+        except ProjectConfigError:
+            configured = None
+        state_root = Path(str(configured)) if configured else Path.home() / ".local" / "state" / "verdiwm"
     server = WorkbenchServer(
-        (args.host, args.port), state_root=args.state_root, evidence_root=args.evidence_root
+        (args.host, args.port), state_root=state_root, evidence_root=args.evidence_root
     )
     print(f"VerdiWM workbench: http://{args.host}:{server.server_port}", flush=True)
     try:

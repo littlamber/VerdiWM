@@ -85,6 +85,7 @@ def initialize_project(
         ("goal", goal.strip()),
         ("budget", budget),
         ("mode", mode),
+        ("state_root", ".verdiwm/state"),
     ]
     metrics = [item.strip() for item in (target_metrics or []) if item.strip()]
     if metrics:
