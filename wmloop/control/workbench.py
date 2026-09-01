@@ -18,7 +18,7 @@ from wmloop.control.campaign_dispatcher import (
 )
 from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
-from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project
+from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project, inspect_project
 from wmloop.experiments.atlas import AtlasError, build_atlas
 from wmloop.experiments.artifact_lint import make_compliance_filter
 from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph, load_evidence_graph
@@ -143,7 +143,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 values = self.workbench.project_config.values if self.workbench.project_config else {}
                 safe = {
                     key: values[key]
-                    for key in ("model", "data", "dataset", "goal", "budget", "adapter", "mode", "metric", "metrics", "target_metrics")
+                    for key in ("model", "data", "dataset", "goal", "budget", "adapter", "mode", "metric", "metrics", "target_metrics", "evaluator_contract", "runtime_python")
                     if key in values
                 }
                 self._json(
@@ -153,12 +153,20 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             if route == "/api/first-contact":
                 configured = self.workbench.project_config
+                values = configured.values if configured is not None else {}
                 self._json(
                     HTTPStatus.OK,
                     {
                         "configured": configured is not None,
-                        "values": configured.values if configured is not None else {},
-                        "next_step": "填写模型、数据和研究目标" if configured is None else "可以开始研究",
+                        "values": values,
+                        "readiness": inspect_project(
+                            root=self.workbench.project_root,
+                            model=values.get("model"),
+                            data=values.get("data", values.get("dataset")),
+                            evaluator_contract=values.get("evaluator_contract"),
+                            runtime_python=values.get("runtime_python"),
+                        ) if configured is not None else None,
+                        "next_step": "填写模型、数据和研究目标" if configured is None else "先完成接入检查，再开始研究",
                     },
                 )
                 return
@@ -232,10 +240,19 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     budget=str(payload.get("budget") or "1gpu-hour"),
                     mode=str(payload.get("mode") or "hybrid"),
                     target_metrics=payload.get("target_metrics") if isinstance(payload.get("target_metrics"), list) else [],
+                    evaluator_contract=payload.get("evaluator_contract"),
+                    runtime_python=payload.get("runtime_python"),
                     force=bool(payload.get("force", False)),
                 )
                 if result["state"] == "ready":
                     self.workbench.reload_project()
+                    result["readiness"] = inspect_project(
+                        root=self.workbench.project_root,
+                        model=payload.get("model"),
+                        data=payload.get("data") or payload.get("dataset"),
+                        evaluator_contract=payload.get("evaluator_contract"),
+                        runtime_python=payload.get("runtime_python"),
+                    )
                 self._json(HTTPStatus.OK if result["state"] != "ready" else HTTPStatus.CREATED, result)
                 return
             if route == "/api/dispatch":
@@ -266,7 +283,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
         except (CampaignAPIError, CampaignDispatchError, WorkbenchError, FirstContactError) as exc:
-            self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            self._json(HTTPStatus.BAD_REQUEST, explain_blocker(exc))
 
     def _body(self) -> dict[str, Any]:
         content_type = self.headers.get("Content-Type", "").split(";", 1)[0]

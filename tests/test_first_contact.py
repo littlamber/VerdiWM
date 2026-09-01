@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from wmloop.control.first_contact import explain_blocker, initialize_project
+from wmloop.control.first_contact import explain_blocker, initialize_project, inspect_project
 from wmloop.control.project_config import load_project_config
 
 
@@ -44,6 +44,47 @@ class FirstContactTests(unittest.TestCase):
         self.assertEqual(result["code"], "ADAPTER_PROFILE_NOT_FOUND")
         self.assertIn("运行连接器", result["error"])
         self.assertIn("ADAPTER_PROFILE_NOT_FOUND", result["detail"])
+
+    def test_readiness_requires_an_explicit_evaluator(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            model = root / "model"
+            model.mkdir()
+            (model / ".git").mkdir()
+            (model / "infer.py").write_text("def infer(x):\n    return x\n", encoding="utf-8")
+            (model / "evaluate.py").write_text("def evaluate(x):\n    return 1\n", encoding="utf-8")
+            (model / "checkpoint.pt").write_bytes(b"fixture")
+            (root / "data").mkdir()
+            report = inspect_project(root=root)
+        self.assertEqual(report["state"], "needs_input")
+        codes = {item["code"] for item in report["blockers"]}
+        self.assertIn("EVALUATOR_CONTRACT_REQUIRED", codes)
+        self.assertFalse(report["side_effects"]["gpu_execution_started"])
+
+    def test_init_persists_runtime_and_evaluator_bindings(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "model").mkdir()
+            (root / "data").mkdir()
+            evaluator = root / "evaluator.json"
+            evaluator.write_text("{}", encoding="utf-8")
+            initialize_project(
+                root=root,
+                goal="目标",
+                evaluator_contract=str(evaluator),
+            )
+            config = load_project_config(cwd=root)
+        self.assertEqual(Path(config.values["evaluator_contract"]), evaluator)
+
+    def test_relative_api_style_inputs_are_resolved_from_project_root(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "model").mkdir()
+            (root / "data").mkdir()
+            report = inspect_project(root=root, model="./model", data="./data")
+        self.assertEqual(report["model"], str(root / "model"))
+        self.assertEqual(report["data"], str(root / "data"))
+        self.assertNotIn("MODEL_PATH_REQUIRED", {item["code"] for item in report["blockers"]})
 
 
 if __name__ == "__main__":

@@ -50,6 +50,27 @@ uv run verdiwm init \
   --goal "improve long-horizon prediction stability"
 ```
 
+Before creating a campaign, run the read-only onboarding check:
+
+```bash
+uv run verdiwm check-model
+```
+
+It reports discovered entrypoints, runtime, checkpoint clues, and evaluation
+bindings in user-facing language. The check does not import the model, install
+dependencies, start training, or allocate a GPU. A campaign remains blocked
+until its frozen evaluator contract is explicitly bound. Bind it during init
+when it is already available:
+
+```bash
+uv run verdiwm init \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "improve long-horizon prediction stability" \
+  --evaluator-contract /path/to/evaluator.json \
+  --runtime-python /path/to/model/.venv/bin/python
+```
+
 ## Run your project
 
 Create a project file next to your model and dataset:
@@ -62,9 +83,10 @@ budget = "1gpu-hour"
 state_root = "./.verdiwm/state"
 ```
 
-Then express the objective in plain language:
+Run the check again and only then express the objective in plain language:
 
 ```bash
+uv run verdiwm check-model
 uv run verdiwm run "improve long-horizon action-conditioned prediction and runtime_ready"
 ```
 

@@ -28,7 +28,12 @@ from wmloop.control.research_proposal import (
     write_compiled_experiment_manifest,
 )
 from wmloop.control.project_config import ProjectConfigError, load_project_config
-from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project
+from wmloop.control.first_contact import (
+    FirstContactError,
+    explain_blocker,
+    initialize_project,
+    inspect_project,
+)
 from wmloop.evaluate.system_utility import (
     SystemUtilityAuditError,
     run_system_utility_audit,
@@ -540,11 +545,38 @@ def _init_project(args: argparse.Namespace) -> int:
         budget=args.budget,
         mode=args.mode,
         target_metrics=args.target_metrics,
+        evaluator_contract=str(args.evaluator_contract) if args.evaluator_contract else None,
+        runtime_python=str(args.runtime_python) if args.runtime_python else None,
         project_file=args.project_file,
         force=args.force,
     )
     _print(result)
     return 0 if result["state"] == "ready" else 3
+
+
+def _check_model(args: argparse.Namespace) -> int:
+    configured: dict[str, Any] = {}
+    try:
+        configured = load_project_config(cwd=Path.cwd()).values
+    except ProjectConfigError:
+        configured = {}
+    result = inspect_project(
+        root=Path.cwd(),
+        model=args.model or configured.get("model"),
+        data=args.data or configured.get("data", configured.get("dataset")),
+        evaluator_contract=(
+            str(args.evaluator_contract)
+            if args.evaluator_contract
+            else configured.get("evaluator_contract")
+        ),
+        runtime_python=(
+            str(args.runtime_python)
+            if args.runtime_python
+            else configured.get("runtime_python")
+        ),
+    )
+    _print(result)
+    return 0 if result["state"] == "ready_for_conformance" else 2
 
 
 def _diagnose_training_gain(args: argparse.Namespace) -> int:
@@ -818,9 +850,21 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--budget", default="1gpu-hour")
     init.add_argument("--mode", choices=("quick-start", "causal-discovery", "hybrid"), default="hybrid")
     init.add_argument("--target-metrics", "--metrics", dest="target_metrics", nargs="+", default=[])
+    init.add_argument("--evaluator-contract", type=Path, help="冻结评测契约；没有时只生成项目并列出下一步")
+    init.add_argument("--runtime-python", type=Path, help="模型运行环境中的 Python；默认自动发现")
     init.add_argument("--project-file", type=Path)
     init.add_argument("--force", action="store_true", help="允许覆盖已有项目文件")
     init.set_defaults(handler=_init_project)
+
+    check_model = commands.add_parser(
+        "check-model",
+        help="只读检查模型项目是否具备开始接入所需的信息",
+    )
+    check_model.add_argument("--model", help="模型目录；默认读取项目配置或发现 ./model")
+    check_model.add_argument("--data", help="数据目录；默认读取项目配置或发现 ./data")
+    check_model.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
+    check_model.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
+    check_model.set_defaults(handler=_check_model)
 
     diagnose_gain = commands.add_parser(
         "diagnose-training-gain",

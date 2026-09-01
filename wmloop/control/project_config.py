@@ -37,12 +37,13 @@ _ALLOWED_KEYS = frozenset(
         "mode",
         "adapter_profile",
         "runtime_python",
+        "evaluator_contract",
         "state_root",
         "campaign_id",
     }
 )
 _PATH_KEYS = frozenset(
-    {"model", "data", "dataset", "adapter_profile", "runtime_python", "state_root"}
+    {"model", "data", "dataset", "adapter_profile", "runtime_python", "evaluator_contract", "state_root"}
 )
 
 

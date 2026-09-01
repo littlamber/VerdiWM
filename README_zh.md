@@ -46,6 +46,26 @@ uv run verdiwm init \
   --goal "提升长时域预测稳定性"
 ```
 
+初始化后先做一次只读接入检查：
+
+```bash
+uv run verdiwm check-model
+```
+
+检查会发现模型入口、运行环境、权重线索和评测入口，并明确列出还需要你
+确认的内容。它不会导入模型、安装依赖、启动训练或占用 GPU。没有冻结的
+评测契约时，系统会停在接入阶段，不会把“任务创建成功”误认为模型有效。
+如果契约已经准备好，也可以在初始化时绑定：
+
+```bash
+uv run verdiwm init \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "提升长时域预测稳定性" \
+  --evaluator-contract /path/to/evaluator.json \
+  --runtime-python /path/to/model/.venv/bin/python
+```
+
 ## 运行自己的项目
 
 在模型和数据集旁边创建 `verdiwm.toml`：
@@ -58,9 +78,10 @@ budget = "1gpu-hour"
 state_root = "./.verdiwm/state"
 ```
 
-然后直接用自然语言描述目标：
+然后再次运行接入检查，确认运行方式和评测方法都已就绪，再用自然语言描述目标：
 
 ```bash
+uv run verdiwm check-model
 uv run verdiwm run "提升长时域动作条件预测和 runtime_ready 指标"
 ```
 
