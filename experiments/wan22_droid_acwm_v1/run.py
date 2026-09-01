@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     closed_loop.add_argument("--adapter", type=Path, required=True)
     closed_loop.add_argument("--evaluator-contract", type=Path, required=True)
     closed_loop.add_argument("--runtime-python", type=Path, required=True)
+    closed_loop.add_argument("--cuda-visible-devices", help="explicit CUDA_VISIBLE_DEVICES binding for the runtime probe")
     closed_loop.add_argument("--runner", type=Path, help="WAN2.2-DROID runner owned by the caller")
     closed_loop.add_argument("--output-root", type=Path, required=True)
     closed_loop.add_argument("--execute", action="store_true", help="allow the explicitly bound runner to use GPU")
@@ -72,14 +73,21 @@ def main(argv: list[str] | None = None) -> int:
                 horizon_frames=args.horizon_frames,
             )
             blockers = list(report["blockers"])
-            runtime = args.runtime_python.expanduser().resolve()
+            # Preserve a virtualenv interpreter symlink; resolving it can
+            # silently downgrade to the system Python and lose CUDA packages.
+            runtime = args.runtime_python.expanduser().absolute()
             if not runtime.is_file() or not runtime.exists():
                 blockers.append("RUNTIME_PYTHON_INVALID")
             else:
                 try:
+                    probe_env = None
+                    if args.cuda_visible_devices:
+                        import os
+                        probe_env = dict(os.environ)
+                        probe_env["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices
                     probe = subprocess.run(
                         [str(runtime), "-c", "import torch; assert torch.cuda.is_available()"],
-                        capture_output=True,
+                        capture_output=True, env=probe_env,
                         text=True,
                         timeout=30,
                     )
@@ -100,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
                 "budget_gpu_hours": 40,
                 "conformance": report,
                 "runtime_python": str(runtime),
+                "cuda_visible_devices": args.cuda_visible_devices,
                 "runner": str(args.runner.expanduser().resolve()) if args.runner else None,
                 "output_root": str(args.output_root.expanduser().resolve()),
                 "stages": ["train", "rollout_150f", "worldarena_frozen_eval", "promotion"],
