@@ -8,14 +8,6 @@ import json
 from pathlib import Path
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def audit(root: Path, *, horizon_frames: int = 150) -> dict[str, object]:
     root = root.expanduser().resolve()
     if not root.is_dir() or root.is_symlink():
@@ -34,8 +26,12 @@ def audit(root: Path, *, horizon_frames: int = 150) -> dict[str, object]:
         paired = 0
         latent_paired = 0
         missing: list[str] = []
+        manifest_digest = hashlib.sha256()
         for path in annotations:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            raw_annotation = path.read_bytes()
+            manifest_digest.update(path.name.encode("utf-8"))
+            manifest_digest.update(raw_annotation)
+            payload = json.loads(raw_annotation)
             if payload.get("split") != split:
                 raise ValueError(f"DROID_SPLIT_MISMATCH:{path.name}")
             action = payload.get("action")
@@ -69,17 +65,9 @@ def audit(root: Path, *, horizon_frames: int = 150) -> dict[str, object]:
             "latent_pairs": latent_paired,
             "missing_count": len(missing),
             "missing_sample": missing[:20],
-            "annotation_manifest_sha256": _sha256_bytes(annotations),
+            "annotation_manifest_sha256": manifest_digest.hexdigest(),
         }
     return report
-
-
-def _sha256_bytes(paths: list[Path]) -> str:
-    digest = hashlib.sha256()
-    for path in paths:
-        digest.update(path.name.encode("utf-8"))
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
 
 
 def main() -> int:
