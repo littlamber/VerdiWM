@@ -11,7 +11,7 @@
     "readme": "experiments/wan22_droid_acwm_v1/README.md",
     "entrypoint": "experiments/wan22_droid_acwm_v1/run.py",
     "test_path": "experiments/wan22_droid_acwm_v1/test_run.py",
-    "revision": "7b0044f",
+    "revision": "575a646413274b9d3e53ec47b1c70c6d71dbc011",
     "dirty_policy": "reject"
   },
   "dataset": {
