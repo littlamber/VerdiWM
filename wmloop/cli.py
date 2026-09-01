@@ -604,6 +604,33 @@ def _guide_model(args: argparse.Namespace) -> int:
     return 0 if questionnaire["state"] == "awaiting_confirmation" else 2
 
 
+def _wan22_droid(args: argparse.Namespace) -> int:
+    """Run the model-independent WAN2.2-DROID admission boundary."""
+    from wmloop.wan22_droid import Wan22DroidError, validate_contract, write_sample_manifest
+
+    try:
+        if args.phase == "prepare":
+            output = args.output_root.expanduser().resolve()
+            train = write_sample_manifest(args.data_root, "train", output / "train.json", horizon_frames=args.horizon_frames, stride=args.stride)
+            val = write_sample_manifest(args.data_root, "val", output / "val.json", horizon_frames=args.horizon_frames, stride=args.stride)
+            _print({"state": "ready", "output_root": str(output), "train": train["record_count"], "validation": val["record_count"]})
+            return 0
+        report = validate_contract(
+            train_manifest=args.train_manifest,
+            validation_manifest=args.validation_manifest,
+            model=args.model,
+            source=args.source,
+            evaluator_contract=args.evaluator_contract,
+            adapter=args.adapter,
+            horizon_frames=args.horizon_frames,
+        )
+        _print(report)
+        return 0 if report["state"] == "ready_for_execution" else 2
+    except Wan22DroidError as exc:
+        _print({"state": "blocked", "error": str(exc)})
+        return 2
+
+
 def _diagnose_training_gain(args: argparse.Namespace) -> int:
     plan = build_training_gain_attribution(
         training_receipt_path=args.training_receipt,
@@ -892,6 +919,23 @@ def _parser() -> argparse.ArgumentParser:
     check_model.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
     check_model.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
     check_model.set_defaults(handler=_check_model)
+
+    wan22_droid = commands.add_parser(
+        "wan22-droid",
+        help="prepare or validate the model-independent WAN2.2-DROID 30-second ACWM contract",
+    )
+    wan22_droid.add_argument("phase", choices=("prepare", "conformance"))
+    wan22_droid.add_argument("--data-root", type=Path)
+    wan22_droid.add_argument("--output-root", type=Path)
+    wan22_droid.add_argument("--train-manifest", type=Path)
+    wan22_droid.add_argument("--validation-manifest", type=Path)
+    wan22_droid.add_argument("--model", type=Path)
+    wan22_droid.add_argument("--source", type=Path)
+    wan22_droid.add_argument("--evaluator-contract", type=Path)
+    wan22_droid.add_argument("--adapter", type=Path)
+    wan22_droid.add_argument("--horizon-frames", type=int, default=150)
+    wan22_droid.add_argument("--stride", type=int, default=30)
+    wan22_droid.set_defaults(handler=_wan22_droid)
 
     guide_model = commands.add_parser(
         "guide-model",

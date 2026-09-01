@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-wan22-droid-scale-plan",
+  "state": "requires_manifest_generation",
+  "budget_gpu_hours": 40,
+  "stages": [
+    {"id": "g0", "purpose": "adapter and one-batch smoke", "max_gpu_hours": 1.0},
+    {"id": "screen", "purpose": "compare baseline, action, action+proprio+history, SRR/self-forcing", "max_gpu_hours": 12.0},
+    {"id": "pilot", "purpose": "held-out 150-frame rollout", "max_gpu_hours": 15.0},
+    {"id": "confirm", "purpose": "three-seed frozen WorldArena confirmation", "max_gpu_hours": 12.0}
+  ],
+  "claim_boundary": "This budget is a resource cap, not evidence that the 30-second target is met."
+}

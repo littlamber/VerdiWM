@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-experiment-engineering-manifest",
+  "experiment_id": "wan22_droid_acwm_v1",
+  "version": "v1",
+  "objective": "Adapt Wan2.2-TI2V-5B to first-frame plus DROID action/proprio conditioning for 150-frame future prediction.",
+  "hypothesis": "A WAN2.2-native action/proprio/history adapter with scheduled autoregressive training can improve 30-second action-following and visual consistency.",
+  "falsification_criterion": "Reject if the adapter cannot bind to WAN2.2 tensor shapes, if action/frame alignment fails, or if frozen WorldArena held-out metrics do not improve without protected-metric regression.",
+  "selection_reason": "DROID provides aligned wrist video, 7D action and 14D proprio; existing Wan2.1 adapters are not silently transferable.",
+  "source": {
+    "readme": "experiments/wan22_droid_acwm_v1/README.md",
+    "entrypoint": "experiments/wan22_droid_acwm_v1/run.py",
+    "test_path": "experiments/wan22_droid_acwm_v1/test_run.py",
+    "revision": "7b0044f",
+    "dirty_policy": "reject"
+  },
+  "dataset": {
+    "train_manifest": "/share/project/zhiwei/nsq/wan22-droid-manifests/train.json",
+    "validation_manifest": "/share/project/zhiwei/nsq/wan22-droid-manifests/val.json",
+    "dataset_freeze": "droid_wrist_192x320_h150_v1",
+    "split_policy": "episode_disjoint_train_val; exclude episodes shorter than 150 frames"
+  },
+  "scale_plan": "experiments/wan22_droid_acwm_v1/scale-plan.json",
+  "evaluation": {
+    "metrics": ["subject_consistency", "background_consistency", "motion_smoothness", "photometric_smoothness", "trajectory_accuracy", "action_following"],
+    "horizons": [30, 150],
+    "seeds": [4101, 4202, 4303],
+    "heldout_protocol": "episode-disjoint validation; frozen WorldArena evaluator; three seeds"
+  },
+  "artifact_policy": {
+    "output_root": "/share/project/zhiwei/nsq/wan22-droid-runs",
+    "required_artifacts": ["training_receipt.json", "generated_150f.mp4", "worldarena_input.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
+    "archive_policy": "archive_then_delete"
+  },
+  "reproduction": {
+    "command": "python experiments/wan22_droid_acwm_v1/run.py prepare --data-root /share/project/zhiwei/wjy/data/droid_wrist_192x320 --output-root /share/project/zhiwei/nsq/wan22-droid-manifests",
+    "offline": true
+  }
+}

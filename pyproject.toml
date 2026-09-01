@@ -64,6 +64,7 @@ configs = "configs"
 "experiments/ctrl_world_hybrid_memory_transfer_v1" = "experiments/ctrl_world_hybrid_memory_transfer_v1"
 "experiments/ctrl_world_research_loop_v2" = "experiments/ctrl_world_research_loop_v2"
 "experiments/ctrl_world_acwm_guidance_v1" = "experiments/ctrl_world_acwm_guidance_v1"
+"experiments/wan22_droid_acwm_v1" = "experiments/wan22_droid_acwm_v1"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -72,6 +73,7 @@ include = [
   "/experiments/ctrl_world_hybrid_memory_transfer_v1",
   "/experiments/ctrl_world_research_loop_v2",
   "/experiments/ctrl_world_acwm_guidance_v1",
+  "/experiments/wan22_droid_acwm_v1",
   "/CONTRIBUTING.md",
   "/docs",
   "/LICENSE",
