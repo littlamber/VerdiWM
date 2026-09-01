@@ -3,11 +3,25 @@
   "artifact_type": "verdiwm-wan22-droid-scale-plan",
   "state": "requires_manifest_generation",
   "budget_gpu_hours": 40,
+  "runner_contract": {
+    "entrypoint": "experiments/wan22_droid_acwm_v1/wan22_droid_runner.py",
+    "horizon_frames": 150,
+    "chunk_frames": 45,
+    "runtime_binding": "explicit_runtime_python_and_cuda_visible_devices",
+    "candidate_arms": ["visual_anchor_only", "action", "action_proprio", "action_proprio_history"]
+  },
   "stages": [
     {"id": "g0", "purpose": "adapter and one-batch smoke", "max_gpu_hours": 1.0},
     {"id": "screen", "purpose": "compare baseline, action, action+proprio+history, SRR/self-forcing", "max_gpu_hours": 12.0},
     {"id": "pilot", "purpose": "held-out 150-frame rollout", "max_gpu_hours": 15.0},
     {"id": "confirm", "purpose": "three-seed frozen WorldArena confirmation", "max_gpu_hours": 12.0}
   ],
+  "promotion_gate": {
+    "required_artifacts": ["generated_150f.mp4", "ground_truth_150f.mp4", "worldarena_input.json", "evaluator_receipt.json"],
+    "required_evaluator_state": "evaluated",
+    "episode_disjoint_validation": true,
+    "seed_count": 3,
+    "failure_policy": "retain_failure_signature_and_route_to_mechanism_discovery"
+  },
   "claim_boundary": "This budget is a resource cap, not evidence that the 30-second target is met."
 }

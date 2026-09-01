@@ -32,6 +32,12 @@
     "required_artifacts": ["training_receipt.json", "generated_150f.mp4", "ground_truth_150f.mp4", "droid_conditioning.npz", "worldarena_summary.json", "worldarena_input.json", "evaluator_receipt.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
     "archive_policy": "archive_then_delete"
   },
+  "knowledge_lifecycle": {
+    "evidence_artifacts": ["training_receipt.json", "evaluator_receipt.json", "worldarena_input.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
+    "failure_signature_fields": ["state", "claim_boundary", "worldarena_result", "losses", "chunk_receipts"],
+    "mechanism_discovery_route": "wmloop.retrieve.mechanism_discovery",
+    "promotion_rule": "Only frozen multi-seed WorldArena evidence may promote a candidate; failures remain reusable negative evidence."
+  },
   "reproduction": {
     "command": "python experiments/wan22_droid_acwm_v1/run.py prepare --data-root /share/project/zhiwei/wjy/data/droid_wrist_192x320 --output-root /share/project/zhiwei/nsq/wan22-droid-manifests",
     "offline": true
