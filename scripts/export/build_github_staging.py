@@ -347,6 +347,10 @@ def build_github_staging(*, source_root: Path, output_root: Path) -> dict[str, o
             temporary / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v1.json",
         )
         _copy_file(
+            source / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v2.json",
+            temporary / "configs" / "backbones" / "ctrl_world_predictive_quality_pilot_v2.json",
+        )
+        _copy_file(
             _public_source(
                 source,
                 "configs/backbones/ctrl_world_g2_action_success_public_v1.json",

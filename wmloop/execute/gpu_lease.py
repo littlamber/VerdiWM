@@ -36,10 +36,10 @@ else:
     import fcntl
 
     def _lock_exclusive_nb(handle: object) -> None:
-        _lock_exclusive_nb(handle)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def _lock_unlock(handle: object) -> None:
-        _lock_unlock(handle)
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 class GpuLeaseError(RuntimeError):
