@@ -8,7 +8,12 @@ import json
 from pathlib import Path
 
 
-def audit(root: Path, *, horizon_frames: int = 150) -> dict[str, object]:
+def audit(
+    root: Path,
+    *,
+    horizon_frames: int = 150,
+    splits: tuple[str, ...] = ("train", "val"),
+) -> dict[str, object]:
     root = root.expanduser().resolve()
     if not root.is_dir() or root.is_symlink():
         raise ValueError("DROID_SUBSET_ROOT_INVALID")
@@ -18,7 +23,9 @@ def audit(root: Path, *, horizon_frames: int = 150) -> dict[str, object]:
         "horizon_frames": horizon_frames,
         "splits": {},
     }
-    for split in ("train", "val"):
+    for split in splits:
+        if split not in {"train", "val"}:
+            raise ValueError(f"DROID_SPLIT_INVALID:{split}")
         annotations = sorted((root / "annotation" / split).glob("*.json"))
         if not annotations:
             raise ValueError(f"DROID_ANNOTATION_MISSING:{split}")
@@ -74,9 +81,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--horizon-frames", type=int, default=150)
+    parser.add_argument("--split", choices=("train", "val"), action="append")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    report = audit(args.root, horizon_frames=args.horizon_frames)
+    report = audit(
+        args.root,
+        horizon_frames=args.horizon_frames,
+        splits=tuple(args.split or ("train", "val")),
+    )
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
