@@ -114,7 +114,8 @@ def _validate_stage_chain(receipts: Sequence[Mapping[str, Any]]) -> None:
     for receipt in receipts:
         by_trial.setdefault(str(receipt["trial_id"]), {})[str(receipt["stage"])] = receipt
     for trial_id, stages in by_trial.items():
-        if "gate" in stages and ("screen" not in stages or stages["screen"]["outcome"] != "positive"):
-            raise ExperimentLedgerError(f"EXPERIMENT_GATE_WITHOUT_POSITIVE_SCREEN:{trial_id}")
+        # Screen is an exploratory diagnostic only.  A negative, abstained, or
+        # missing screen must never discard an idea that can be tested with the
+        # frozen formal evaluator.
         if "confirm" in stages and ("gate" not in stages or stages["gate"]["outcome"] != "positive"):
             raise ExperimentLedgerError(f"EXPERIMENT_CONFIRM_WITHOUT_POSITIVE_GATE:{trial_id}")

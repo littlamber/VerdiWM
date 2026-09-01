@@ -68,7 +68,9 @@ Primary code:
 Execution occurs in an isolated worktree with budget reservation and fencing.
 The verifier consumes settled receipts and frozen evidence only after execution
 has reached a terminal state. Progressive fidelity keeps discovery affordable:
-cheap screen, official gate, then confirmation.
+an optional cheap screen for diagnostics, followed by the frozen official gate
+and confirmation. A screen result is never a scientific veto; formal-first
+candidates may enter at gate.
 
 Primary code:
 

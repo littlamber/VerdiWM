@@ -12,12 +12,15 @@ directory, GPU allowlist, time and GPU-hour budgets, metric gates, declared
 artifacts, environment, and cleanup policy. The runner never invents random
 trials or expands a plan after admission.
 
-The four stages are ordered by cost and evidence strength:
+The four stages are ordered by cost and evidence strength. `screen` is
+optional for a formal-first campaign; a candidate may start at `gate` when the
+declared training/evaluation plan is ready. `confirm` still requires a positive
+formal gate.
 
 | Stage | Purpose | Allowed conclusion |
 | --- | --- | --- |
 | `smoke` | prove runtime, CUDA, identity, and artifact wiring | execution is real and auditable |
-| `screen` | cheap candidate triage | exploratory routing evidence |
+| `screen` | cheap candidate triage/diagnostics | exploratory routing evidence; never a scientific veto |
 | `gate` | frozen evaluator on a declared split | gate result under that protocol |
 | `confirm` | held-out or multi-seed confirmation | result eligible for a backbone-specific promotion review |
 
@@ -49,18 +52,19 @@ CUDA canary is
 
 `verdiwm-auto-scheduler plan` validates every candidate's hypothesis, selection
 reason, falsification criterion, stage ladder, plan contract, and candidate-local
-budget. It computes the transparent score
+budget. Stage ladders may be `screen`, `screen -> gate`, `screen -> gate ->
+confirm`, `gate`, or `gate -> confirm`. It computes the transparent score
 
 ```
 expected_gain_weight * expected_gain
 + uncertainty_weight * uncertainty
 + information_gain_weight * information_gain
 + novelty_weight * novelty
-- cost_weight * screen_gpu_hours
+- cost_weight * entry_stage_gpu_hours
 ```
 
 Candidates are sorted by score with candidate ID as the deterministic tie-break.
-The greedy planning pass charges only screen estimates against
+The greedy planning pass charges the first admitted stage estimate against
 `total_budget_gpu_hours` and applies `max_selected_candidates`; deferred
 candidates are retained with a machine-readable reason. During execution, the
 same campaign ceiling is enforced by one shared ledger across every admitted
@@ -68,10 +72,13 @@ stage. Planning and execution are different accounting views, not independent
 budget pools, and every individual ladder must fit inside the ceiling.
 
 `verdiwm-auto-scheduler run` verifies each generated plan's SHA-256 before
-launch, then executes selected candidates sequentially. `gate` is never started
-unless `screen` settled `PASS`, and `confirm` is never started unless `gate`
-settled `PASS`. A `VOID` blocks the remaining ladder but remains a durable
-exploratory record. `execution.json` is resumable and locks the shared budget
+launch, then executes selected candidates sequentially. `screen` is advisory:
+whether it settles `PASS`, `VOID`, or another non-positive outcome, the
+candidate may still proceed to the frozen `gate`. A `confirm` is started only
+after a settled positive `gate`; a non-passing formal stage blocks the remaining
+formal ladder but remains a durable record. This prevents a low-fidelity proxy
+from silently filtering an idea that could work under complete training and
+frozen evaluation. `execution.json` is resumable and locks the shared budget
 database path, so changing the path cannot reset the campaign budget.
 
 ```bash

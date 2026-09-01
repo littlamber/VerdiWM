@@ -2,8 +2,10 @@
 
 The scheduler owns admission order, not scientific claims. It selects a
 bounded set of pre-registered candidates using a transparent utility score,
-then runs each candidate through ``screen -> gate -> confirm`` only when the
-previous stage returns ``PASS``. The generic auto-experiment runner remains
+then runs each candidate through ``screen -> gate -> confirm``. Screen is an
+advisory diagnostic: its result is retained, but never vetoes a later formal
+stage. Gate remains the frozen formal prerequisite for confirm. The generic
+auto-experiment runner remains
 the sole process/GPU/receipt boundary.
 """
 
@@ -102,6 +104,8 @@ def plan_candidate_batch(
                 "rank": row["rank"],
                 "score": row["score"],
                 "screen_gpu_hours": row["screen_gpu_hours"],
+                "entry_gpu_hours": row.get("entry_gpu_hours", row["screen_gpu_hours"]),
+                "entry_stage": row.get("entry_stage", "screen"),
                 "max_ladder_gpu_hours": sum(
                     float(stage["estimated_gpu_hours"]) for stage in candidate["stages"]
                 ),
@@ -270,7 +274,11 @@ def run_selected_queue(
                     resource_policy=policy,
                 ),
             )
-            if not passed:
+            # A screen failure is diagnostic routing evidence, not a scientific
+            # rejection. Continue to gate/confirm so promising ideas cannot be
+            # silently filtered by a low-fidelity proxy. Formal stages retain
+            # fail-closed progression semantics.
+            if not passed and stage != "screen":
                 candidate_state = "blocked"
                 break
         candidate_states[candidate_id] = candidate_state
@@ -330,14 +338,14 @@ def _validate_batch_semantics(
         if not isinstance(stages, list):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGES_INVALID")
         names = [str(stage["stage"]) for stage in stages if isinstance(stage, Mapping)]
-        if names != sorted(names, key=lambda name: _STAGE_ORDER.get(name, 99)) or names[
-            0:1
-        ] != ["screen"]:
+        if names != sorted(names, key=lambda name: _STAGE_ORDER.get(name, 99)):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGE_ORDER_INVALID")
         if len(set(names)) != len(names) or names not in (
             ["screen"],
             ["screen", "gate"],
             ["screen", "gate", "confirm"],
+            ["gate"],
+            ["gate", "confirm"],
         ):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGE_LADDER_INVALID")
         if sum(float(stage["estimated_gpu_hours"]) for stage in stages) > float(
@@ -366,13 +374,13 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
         if isinstance(routing, Mapping) and routing.get("state") == "blocked":
             continue
         stage = candidate["stages"][0]
-        screen_hours = float(stage["estimated_gpu_hours"])
+        entry_hours = float(stage["estimated_gpu_hours"])
         score = (
             sum(
                 float(scoring[f"{field}_weight"]) * float(candidate[field])
                 for field in _SCORE_FIELDS
             )
-            - float(scoring["cost_weight"]) * screen_hours
+            - float(scoring["cost_weight"]) * entry_hours
         )
         retrieval_prior = float(candidate.get("retrieval_prior", 0.0))
         retrieval_weight = float(scoring.get("retrieval_weight", 0.25))
@@ -381,7 +389,9 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
             {
                 "candidate": candidate,
                 "score": _round(score),
-                "screen_gpu_hours": screen_hours,
+                "screen_gpu_hours": entry_hours,
+                "entry_gpu_hours": entry_hours,
+                "entry_stage": str(stage["stage"]),
             }
         )
     rows.sort(
@@ -426,7 +436,7 @@ def _budget_select(
     spent = 0.0
     for row in ranked:
         candidate_id = str(row["candidate"]["candidate_id"])
-        hours = float(row["screen_gpu_hours"])
+        hours = float(row.get("entry_gpu_hours", row["screen_gpu_hours"]))
         if len(selected) >= max_selected_candidates:
             reason = "MAX_SELECTED_CANDIDATES"
         elif spent + hours > total_budget_gpu_hours + 1e-12:
@@ -441,6 +451,7 @@ def _budget_select(
                 "rank": row["rank"],
                 "score": row["score"],
                 "screen_gpu_hours": hours,
+                "entry_gpu_hours": hours,
                 "reason": reason,
             }
         )
@@ -693,16 +704,16 @@ def _write_markdown(path: Path, queue: Mapping[str, object]) -> None:
         "",
         f"- campaign: `{queue['campaign_id']}`",
         f"- ranked candidates: `{queue['ranked_candidate_count']}`",
-        f"- selected for screen: `{len(queue['selected'])}`",
+        f"- selected candidates: `{len(queue['selected'])}`",
         f"- deferred: `{len(queue['deferred'])}`",
         f"- routing blocked: `{len(queue['routing_blocked'])}`",
         "",
-        "| Rank | Candidate | Score | Screen GPU hours | Stages |",
+        "| Rank | Candidate | Score | Entry-stage GPU hours | Stages |",
         "|---:|---|---:|---:|---|",
     ]
     for row in queue["selected"]:
         lines.append(
-            f"| {row['rank']} | `{row['candidate_id']}` | {float(row['score']):.6f} | {float(row['screen_gpu_hours']):.4f} | "
+            f"| {row['rank']} | `{row['candidate_id']}` | {float(row['score']):.6f} | {float(row.get('entry_gpu_hours', row['screen_gpu_hours'])):.4f} | "
             + " -> ".join(str(stage["stage"]) for stage in row["stages"])
             + " |"
         )

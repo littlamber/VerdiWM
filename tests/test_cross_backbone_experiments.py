@@ -93,7 +93,29 @@ class CrossBackboneExperimentTests(unittest.TestCase):
             self.assertFalse(report["claim_ready"])
             self.assertTrue(any(item["code"] == "confirm_receipts_missing" for item in report["blockers"]))
 
-    def test_confirm_requires_positive_screen_and_gate(self) -> None:
+    def test_gate_does_not_require_positive_screen(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            spec = load_experiment_spec(_ready_spec(root))
+            trial = build_lobo_plan(spec)["trials"][0]
+            gate = _write_receipt(root, trial, stage="gate", outcome="positive", delta=1.0)
+
+            receipts = load_settled_receipts(spec=spec, receipt_paths=[gate])
+            self.assertEqual(len(receipts), 1)
+            self.assertEqual(receipts[0]["stage"], "gate")
+
+    def test_negative_screen_does_not_block_formal_gate(self) -> None:
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            spec = load_experiment_spec(_ready_spec(root))
+            trial = build_lobo_plan(spec)["trials"][0]
+            screen = _write_receipt(root, trial, stage="screen", outcome="negative", delta=0.0)
+            gate = _write_receipt(root, trial, stage="gate", outcome="positive", delta=1.0)
+
+            receipts = load_settled_receipts(spec=spec, receipt_paths=[screen, gate])
+            self.assertEqual({item["stage"] for item in receipts}, {"screen", "gate"})
+
+    def test_confirm_requires_positive_gate(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             spec = load_experiment_spec(_ready_spec(root))

@@ -87,6 +87,7 @@ def build_lobo_plan(spec: Mapping[str, Any]) -> dict[str, object]:
             "The target backbone is absent from every fold source set.",
             "Only warm_start may consume cross-backbone experience.",
             "random_search is target-registry sampling and is not shuffled_prior.",
+            "Screen is exploratory diagnostics and never a scientific veto; gate may run without screen.",
             "Screen and gate results cannot establish a formal positive result.",
             "A formal positive requires a settled confirm receipt.",
         ],
@@ -153,7 +154,7 @@ def _launch_blockers(spec: Mapping[str, Any], backbones: Mapping[str, Mapping[st
 def _stage_condition(stage: str) -> str:
     return {
         "screen": "always",
-        "gate": "screen_positive",
+        "gate": "always",
         "confirm": "official_gate_positive",
     }[stage]
 
@@ -197,7 +198,7 @@ def _render_markdown(report: Mapping[str, object]) -> str:
         "",
         "## Claim Boundary",
         "",
-        "Only a settled confirm receipt can establish a positive result. Screen and gate outputs are routing evidence only.",
+        "Only a settled confirm receipt can establish a positive result. Screen is optional exploratory diagnostics; gate is the frozen formal prerequisite for confirm.",
         "",
         "## Blockers",
         "",
