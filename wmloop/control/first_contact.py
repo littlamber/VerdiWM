@@ -30,6 +30,10 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         "PROJECT_CONFIG_INVALID": "项目配置无法读取，请检查 verdiwm.toml。",
         "PROJECT_CONFIG_NOT_FOUND": "还没有项目配置，请先完成首次设置。",
         "PROJECT_FILE_EXISTS": "项目配置已经存在；如需替换请明确使用覆盖选项。",
+        "EVALUATOR_CONTRACT_REQUIRED": "还没有确认如何判断模型变好，请先绑定冻结的评测方法。",
+        "EVALUATION_ENTRYPOINT_MISSING": "没有发现可用于评测的入口，请说明评测命令和输出指标。",
+        "CHECKPOINT_MISSING": "没有发现权重或 checkpoint 文件，请补充权重路径。",
+        "RUNTIME_UNREADY": "模型运行环境还没有准备好，请选择正确的 Python 环境并检查依赖。",
     }
     message = exact.get(code)
     if message is None and any(token in detail for token in ("TARGET_METRIC", "METRIC_")):
