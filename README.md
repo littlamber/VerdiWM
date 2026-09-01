@@ -36,8 +36,9 @@ about model quality.
 
 ## First project
 
-Prepare four inputs: the model source directory, a checkpoint or weight file,
-the dataset path, and one sentence describing the research objective. Model
+Prepare four inputs: the model weights/configuration directory, the executable
+model source directory, the dataset path, and one sentence describing the
+research objective. The weights and source may be separate checkouts. Model
 weights and datasets stay on the user's machine and are never uploaded.
 
 With the conventional layout, put the source in `model/` and the data in
@@ -52,6 +53,7 @@ Use explicit locations when your layout is different:
 ```bash
 uv run verdiwm init \
   --model /path/to/model \
+  --source /path/to/model-source \
   --data /path/to/data \
   --goal "improve long-horizon prediction stability"
 ```
