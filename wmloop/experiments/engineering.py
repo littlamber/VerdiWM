@@ -63,7 +63,10 @@ def lint_experiment_manifest(
     git_revision, dirty_paths = _git_state(base)
     dirty = bool(dirty_paths)
     declared_revision = str(source.get("revision", ""))
-    if declared_revision and git_revision and declared_revision != git_revision:
+    # ``HEAD`` is an explicit dynamic binding used by owned experiment
+    # packages whose manifest is versioned in the same commit as the runner.
+    # It still requires a real Git revision and a clean checkout below.
+    if declared_revision not in {"", "HEAD"} and git_revision and declared_revision != git_revision:
         checks.append({"name": "source_revision", "state": "fail", "detail": f"declared={declared_revision}:observed={git_revision}", "required": True})
     else:
         checks.append({"name": "source_revision", "state": "pass" if git_revision else "fail", "detail": git_revision or "git_unavailable", "required": True})
