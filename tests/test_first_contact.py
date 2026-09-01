@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from wmloop.control.first_contact import explain_blocker, initialize_project, inspect_project
+from wmloop.control.onboarding_assistant import build_onboarding_questionnaire, write_onboarding_questionnaire
 from wmloop.control.project_config import load_project_config
 
 
@@ -85,6 +86,19 @@ class FirstContactTests(unittest.TestCase):
         self.assertEqual(report["model"], str(root / "model"))
         self.assertEqual(report["data"], str(root / "data"))
         self.assertNotIn("MODEL_PATH_REQUIRED", {item["code"] for item in report["blockers"]})
+
+    def test_onboarding_questionnaire_is_actionable_and_stays_outside_model(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            model = root / "model"
+            model.mkdir()
+            (root / "data").mkdir()
+            questionnaire = build_onboarding_questionnaire(root=root)
+            output = write_onboarding_questionnaire(root / ".verdiwm" / "questions.json", questionnaire)
+            self.assertTrue(output.is_file())
+            self.assertTrue(questionnaire["questions"])
+            with self.assertRaisesRegex(ValueError, "INSIDE_MODEL"):
+                write_onboarding_questionnaire(model / "questions.json", questionnaire)
 
 
 if __name__ == "__main__":

@@ -56,6 +56,18 @@ Before creating a campaign, run the read-only onboarding check:
 uv run verdiwm check-model
 ```
 
+For an unfamiliar model, generate a durable questionnaire for the user or an
+agent such as Codex:
+
+```bash
+uv run verdiwm guide-model --output ./.verdiwm/onboarding-questions.json
+```
+
+The questions are derived from a read-only scan of entrypoints, weights,
+runtime, and evaluation bindings. An agent may inspect source and draft files,
+but evaluation semantics, metric thresholds, and GPU launch still require
+explicit confirmation.
+
 It reports discovered entrypoints, runtime, checkpoint clues, and evaluation
 bindings in user-facing language. The check does not import the model, install
 dependencies, start training, or allocate a GPU. A campaign remains blocked

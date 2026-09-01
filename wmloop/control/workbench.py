@@ -19,6 +19,7 @@ from wmloop.control.campaign_dispatcher import (
 from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
 from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project, inspect_project
+from wmloop.control.onboarding_assistant import build_onboarding_questionnaire
 from wmloop.experiments.atlas import AtlasError, build_atlas
 from wmloop.experiments.artifact_lint import make_compliance_filter
 from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph, load_evidence_graph
@@ -167,6 +168,26 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                             runtime_python=values.get("runtime_python"),
                         ) if configured is not None else None,
                         "next_step": "填写模型、数据和研究目标" if configured is None else "先完成接入检查，再开始研究",
+                    },
+                )
+                return
+            if route == "/api/onboarding/questions":
+                configured = self.workbench.project_config
+                values = configured.values if configured is not None else {}
+                self._json(
+                    HTTPStatus.OK,
+                    build_onboarding_questionnaire(
+                        root=self.workbench.project_root,
+                        model=values.get("model"),
+                        data=values.get("data", values.get("dataset")),
+                        goal=values.get("goal"),
+                        evaluator_contract=values.get("evaluator_contract"),
+                        runtime_python=values.get("runtime_python"),
+                    ) if configured is not None else {
+                        "schema_version": 1,
+                        "artifact_type": "verdiwm-onboarding-questionnaire",
+                        "state": "needs_setup",
+                        "questions": [{"id": "project", "title": "先完成项目设置", "prompt": "请先填写模型目录、数据目录和研究目标。", "required": True}],
                     },
                 )
                 return

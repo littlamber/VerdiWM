@@ -52,6 +52,15 @@ uv run verdiwm init \
 uv run verdiwm check-model
 ```
 
+对完全陌生的模型，可以生成一份给用户或 Codex 填写的接入问卷：
+
+```bash
+uv run verdiwm guide-model --output ./.verdiwm/onboarding-questions.json
+```
+
+问卷会根据只读扫描结果列出模型入口、权重、运行环境和评测方法等问题。
+Codex 可以检查源码并起草配置，但评测含义、指标阈值和 GPU 启动仍需用户确认。
+
 检查会发现模型入口、运行环境、权重线索和评测入口，并明确列出还需要你
 确认的内容。它不会导入模型、安装依赖、启动训练或占用 GPU。没有冻结的
 评测契约时，系统会停在接入阶段，不会把“任务创建成功”误认为模型有效。

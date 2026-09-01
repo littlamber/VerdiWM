@@ -34,6 +34,7 @@ from wmloop.control.first_contact import (
     initialize_project,
     inspect_project,
 )
+from wmloop.control.onboarding_assistant import build_onboarding_questionnaire, write_onboarding_questionnaire
 from wmloop.evaluate.system_utility import (
     SystemUtilityAuditError,
     run_system_utility_audit,
@@ -579,6 +580,26 @@ def _check_model(args: argparse.Namespace) -> int:
     return 0 if result["state"] == "ready_for_conformance" else 2
 
 
+def _guide_model(args: argparse.Namespace) -> int:
+    configured: dict[str, Any] = {}
+    try:
+        configured = load_project_config(cwd=Path.cwd()).values
+    except ProjectConfigError:
+        configured = {}
+    questionnaire = build_onboarding_questionnaire(
+        root=Path.cwd(),
+        model=args.model or configured.get("model"),
+        data=args.data or configured.get("data", configured.get("dataset")),
+        goal=args.goal or configured.get("goal"),
+        evaluator_contract=args.evaluator_contract or configured.get("evaluator_contract"),
+        runtime_python=args.runtime_python or configured.get("runtime_python"),
+    )
+    if args.output is not None:
+        questionnaire["questionnaire_path"] = str(write_onboarding_questionnaire(args.output, questionnaire))
+    _print(questionnaire)
+    return 0 if questionnaire["state"] == "awaiting_confirmation" else 2
+
+
 def _diagnose_training_gain(args: argparse.Namespace) -> int:
     plan = build_training_gain_attribution(
         training_receipt_path=args.training_receipt,
@@ -865,6 +886,18 @@ def _parser() -> argparse.ArgumentParser:
     check_model.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
     check_model.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
     check_model.set_defaults(handler=_check_model)
+
+    guide_model = commands.add_parser(
+        "guide-model",
+        help="根据只读检查结果生成新模型接入问卷",
+    )
+    guide_model.add_argument("--model", help="模型目录；默认读取项目配置或发现 ./model")
+    guide_model.add_argument("--data", help="数据目录；默认读取项目配置或发现 ./data")
+    guide_model.add_argument("--goal", help="研究目标")
+    guide_model.add_argument("--evaluator-contract", type=Path, help="已有冻结评测契约")
+    guide_model.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
+    guide_model.add_argument("--output", type=Path, help="将问卷写到模型目录之外的文件")
+    guide_model.set_defaults(handler=_guide_model)
 
     diagnose_gain = commands.add_parser(
         "diagnose-training-gain",
