@@ -28,6 +28,7 @@ from wmloop.control.research_proposal import (
     write_compiled_experiment_manifest,
 )
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.first_contact import FirstContactError, initialize_project
 from wmloop.evaluate.system_utility import (
     SystemUtilityAuditError,
     run_system_utility_audit,
@@ -530,6 +531,22 @@ def _bootstrap_template(args: argparse.Namespace) -> int:
     return 0
 
 
+def _init_project(args: argparse.Namespace) -> int:
+    result = initialize_project(
+        root=Path.cwd(),
+        model=args.model,
+        data=args.data,
+        goal=args.goal,
+        budget=args.budget,
+        mode=args.mode,
+        target_metrics=args.target_metrics,
+        project_file=args.project_file,
+        force=args.force,
+    )
+    _print(result)
+    return 0 if result["state"] == "ready" else 3
+
+
 def _diagnose_training_gain(args: argparse.Namespace) -> int:
     plan = build_training_gain_attribution(
         training_receipt_path=args.training_receipt,
@@ -791,6 +808,20 @@ def _parser() -> argparse.ArgumentParser:
     bootstrap_template.add_argument("--goal", required=True)
     bootstrap_template.set_defaults(handler=_bootstrap_template)
 
+    init = commands.add_parser(
+        "init",
+        help="用模型、数据和一句目标描述创建首次接入项目",
+    )
+    init.add_argument("--model", help="模型目录；默认发现 ./model 或 ./models")
+    init.add_argument("--data", help="数据目录；默认发现 ./data、./dataset 或 ./datasets")
+    init.add_argument("--goal", help="想改善的能力，用一句话描述")
+    init.add_argument("--budget", default="1gpu-hour")
+    init.add_argument("--mode", choices=("quick-start", "causal-discovery", "hybrid"), default="hybrid")
+    init.add_argument("--target-metrics", "--metrics", dest="target_metrics", nargs="+", default=[])
+    init.add_argument("--project-file", type=Path)
+    init.add_argument("--force", action="store_true", help="允许覆盖已有项目文件")
+    init.set_defaults(handler=_init_project)
+
     diagnose_gain = commands.add_parser(
         "diagnose-training-gain",
         help="plan experiments that distinguish optimization, data, capacity, and mechanism limits",
@@ -819,6 +850,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         AdapterRepairError,
         ConfiguredBrokerError,
         TrainingGainAttributionError,
+        FirstContactError,
     ) as exc:
         print(str(exc), file=sys.stderr)
         return 2

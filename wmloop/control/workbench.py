@@ -18,6 +18,7 @@ from wmloop.control.campaign_dispatcher import (
 )
 from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.first_contact import FirstContactError, initialize_project
 from wmloop.experiments.atlas import AtlasError, build_atlas
 from wmloop.experiments.artifact_lint import make_compliance_filter
 from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph, load_evidence_graph
@@ -118,6 +119,17 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     {"configured": self.workbench.project_config is not None, "values": safe},
                 )
                 return
+            if route == "/api/first-contact":
+                configured = self.workbench.project_config
+                self._json(
+                    HTTPStatus.OK,
+                    {
+                        "configured": configured is not None,
+                        "values": configured.values if configured is not None else {},
+                        "next_step": "填写模型、数据和研究目标" if configured is None else "可以开始研究",
+                    },
+                )
+                return
             if route == "/api/campaigns":
                 self._json(
                     HTTPStatus.OK,
@@ -179,6 +191,23 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 )
                 self._json(HTTPStatus.CREATED, result)
                 return
+            if route == "/api/first-contact":
+                result = initialize_project(
+                    root=(
+                        self.workbench.project_config.source.parent
+                        if self.workbench.project_config and self.workbench.project_config.source
+                        else Path.cwd()
+                    ),
+                    model=payload.get("model"),
+                    data=payload.get("data") or payload.get("dataset"),
+                    goal=payload.get("goal"),
+                    budget=str(payload.get("budget") or "1gpu-hour"),
+                    mode=str(payload.get("mode") or "hybrid"),
+                    target_metrics=payload.get("target_metrics") if isinstance(payload.get("target_metrics"), list) else [],
+                    force=bool(payload.get("force", False)),
+                )
+                self._json(HTTPStatus.OK if result["state"] != "ready" else HTTPStatus.CREATED, result)
+                return
             if route == "/api/dispatch":
                 maximum = payload.get("max_parallel", 1)
                 if not isinstance(maximum, int) or isinstance(maximum, bool) or not 1 <= maximum <= 8:
@@ -206,7 +235,7 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, result)
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
-        except (CampaignAPIError, CampaignDispatchError, WorkbenchError) as exc:
+        except (CampaignAPIError, CampaignDispatchError, WorkbenchError, FirstContactError) as exc:
             self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
 
     def _body(self) -> dict[str, Any]:
