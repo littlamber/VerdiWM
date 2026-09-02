@@ -1,5 +1,7 @@
 {
   "evaluator_id": "wan22-droid-worldarena-30s-v1",
+  "asset_manifest": "configs/evaluators/worldarena_assets_v1.json",
+  "asset_root": "{model_root}/worldarena",
   "command": [
     "{worldarena_python}",
     "{worldarena_root}/video_quality/evaluate.py",
@@ -35,6 +37,12 @@
     "action_following"
   ],
   "verifier": "wan22_droid_worldarena_frozen_verifier_v1",
+  "runtime_requirements": {
+    "python": "3.10",
+    "cuda": true,
+    "required_asset_ids": ["clip_vit_b32", "raft_things", "vfimamba", "sea_raft_safetensors", "dino_vitbase16"],
+    "optional_extensions": ["mamba_ssm"]
+  },
   "working_directory": "{worldarena_root}",
   "entrypoint_probe": "skip",
   "claim_boundary": "This contract defines a 150-frame, 5 FPS evaluation bundle. It does not certify any checkpoint until WorldArena outputs and an episode-disjoint multi-seed receipt are verified."
