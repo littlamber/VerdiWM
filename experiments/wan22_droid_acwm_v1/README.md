@@ -32,6 +32,12 @@ external runner emits `generated_150f.mp4`, `ground_truth_150f.mp4`,
 these are the stable hand-off contract for a separately installed WorldArena
 environment.
 
+The external runner exposes the scale-plan arms through `--conditioning-mode`
+(`visual_anchor_only`, `action`, `action_proprio`, or
+`action_proprio_history`) and binds randomness through `--seed`. The train
+manifest is used only for adapter optimization; the validation manifest is
+required for every published rollout and is checked for episode disjointness.
+
 The full gate is available as `closed-loop`.  It intentionally requires an
 explicit runner and `--execute`; without both, it returns a blocked receipt
 and spends zero GPU hours:

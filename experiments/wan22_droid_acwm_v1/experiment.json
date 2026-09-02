@@ -21,6 +21,15 @@
     "split_policy": "episode_disjoint_train_val; exclude episodes shorter than 150 frames"
   },
   "scale_plan": "experiments/wan22_droid_acwm_v1/scale-plan.json",
+  "method_retrieval": {
+    "entrypoint": "wmloop.retrieve.literature",
+    "query": "robot action conditioned video prediction long horizon",
+    "staging_entrypoint": "wmloop.retrieve.method_staging",
+    "execution_authority": "shadow_only",
+    "unknown_method_policy": "materialization_required",
+    "latest_retrieval_output": "/share/project/zhiwei/nsq/wan22-method-retrieval-20260902",
+    "latest_staging_output": "/share/project/zhiwei/nsq/wan22-method-staging-20260902"
+  },
   "evaluation": {
     "metrics": ["subject_consistency", "background_consistency", "motion_smoothness", "photometric_smoothness", "trajectory_accuracy", "action_following"],
     "horizons": [30, 150],

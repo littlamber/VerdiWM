@@ -64,6 +64,31 @@ def _validate_assets(manifest_path: Path, asset_root: Path) -> dict[str, Any]:
     return {"manifest": str(manifest_path), "asset_root": str(asset_root), "assets": rows}
 
 
+def _validate_prepared_root(prepared_root: Path, dimensions: list[str]) -> dict[str, Any]:
+    generated = prepared_root / "generated_dataset"
+    tasks = [path for path in generated.iterdir() if path.is_dir() and not path.name.startswith(".")] if generated.is_dir() else []
+    if not tasks:
+        raise ValueError("WORLD_ARENA_PREPARED_GENERATED_DATASET_EMPTY")
+    episodes = 0
+    gids = 0
+    for task in tasks:
+        for episode in task.iterdir():
+            if not episode.is_dir() or episode.name.startswith(".") or "backup" in episode.name:
+                raise ValueError(f"WORLD_ARENA_PREPARED_EPISODE_INVALID:{episode}")
+            episode_gids = [gid for gid in episode.iterdir() if gid.is_dir() and not gid.name.startswith(".")]
+            if not episode_gids:
+                raise ValueError(f"WORLD_ARENA_PREPARED_GIDS_EMPTY:{episode}")
+            if "action_following" in dimensions and len(episode_gids) < 2:
+                raise ValueError(f"WORLD_ARENA_ACTION_FOLLOWING_REQUIRES_MULTIPLE_GIDS:{episode}")
+            for gid in episode_gids:
+                video = gid / "video"
+                if not video.is_dir() or len(list(video.glob("*.png"))) != 150:
+                    raise ValueError(f"WORLD_ARENA_PREPARED_VIDEO_INVALID:{video}")
+            episodes += 1
+            gids += len(episode_gids)
+    return {"task_count": len(tasks), "episode_count": episodes, "gid_count": gids}
+
+
 def _extract_metrics(payload: dict[str, Any]) -> dict[str, Any]:
     metrics: dict[str, Any] = {}
     for metric, value in payload.items():
@@ -100,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError("WORLD_ARENA_EVALUATOR_ENTRYPOINT_MISSING")
     if not prepared_root.joinpath("gt_dataset").is_dir() or not prepared_root.joinpath("generated_dataset").is_dir():
         raise ValueError("WORLD_ARENA_PREPARED_DATA_ROOT_INVALID")
+    prepared_info = _validate_prepared_root(prepared_root, args.dimensions)
 
     env = dict(os.environ)
     env["PYTHONPATH"] = str(worldarena_root / "video_quality") + os.pathsep + env.get("PYTHONPATH", "")
@@ -116,12 +142,16 @@ def main(argv: list[str] | None = None) -> int:
     (run_root / "worldarena.stdout.log").write_text(completed.stdout, encoding="utf-8")
     (run_root / "worldarena.stderr.log").write_text(completed.stderr, encoding="utf-8")
 
-    output_root = config.parent / "output"
+    output_root = config.parent / ("output_action_following" if args.dimensions == ["action_following"] else "output")
     result_path = output_root / "generated_results.json"
     parsed: dict[str, Any] | None = None
+    dimension_tag = "_".join(args.dimensions)
+    result_filename = "worldarena_result.json" if args.dimensions == ["subject_consistency", "background_consistency", "photometric_smoothness"] else f"worldarena_result_{dimension_tag}.json"
+    metrics_receipt_filename = "worldarena_metrics_receipt.json" if args.dimensions == ["subject_consistency", "background_consistency", "photometric_smoothness"] else f"worldarena_metrics_receipt_{dimension_tag}.json"
+    evaluator_receipt_filename = "evaluator_receipt.json" if args.dimensions == ["subject_consistency", "background_consistency", "photometric_smoothness"] else f"evaluator_receipt_{dimension_tag}.json"
     if result_path.is_file():
         parsed = json.loads(result_path.read_text(encoding="utf-8"))
-        shutil.copy2(result_path, run_root / "worldarena_result.json")
+        shutil.copy2(result_path, run_root / result_filename)
     receipt = {
         "schema_version": 1,
         "artifact_type": "verdiwm-wan22-droid-worldarena-metrics-receipt",
@@ -130,13 +160,15 @@ def main(argv: list[str] | None = None) -> int:
         "returncode": completed.returncode,
         "cuda_visible_devices": args.cuda_visible_devices,
         "video": video_info,
+        "prepared_data": prepared_info,
         "assets": asset_info,
         "dimensions_requested": args.dimensions,
         "metrics": _extract_metrics(parsed or {}),
-        "raw_result": str(run_root / "worldarena_result.json") if parsed is not None else None,
+        "raw_result": str(run_root / result_filename) if parsed is not None else None,
         "claim_boundary": "A single generated 150-frame rollout and partial dimensions do not establish a promoted 30-second method; frozen episode-disjoint multi-seed confirmation is still required.",
     }
-    (run_root / "worldarena_metrics_receipt.json").write_text(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    metrics_receipt_path = run_root / metrics_receipt_filename
+    metrics_receipt_path.write_text(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     evaluator_receipt = {
         "schema_version": 1,
         "artifact_type": "verdiwm-wan22-droid-evaluator-receipt",
@@ -144,11 +176,11 @@ def main(argv: list[str] | None = None) -> int:
         "state": "evaluated_partial" if completed.returncode == 0 else "evaluator_failed",
         "command_bound": True,
         "dimensions": args.dimensions,
-        "metrics_receipt": str(run_root / "worldarena_metrics_receipt.json"),
+        "metrics_receipt": str(metrics_receipt_path),
         "returncode": completed.returncode,
         "claim_boundary": receipt["claim_boundary"],
     }
-    (run_root / "evaluator_receipt.json").write_text(json.dumps(evaluator_receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (run_root / evaluator_receipt_filename).write_text(json.dumps(evaluator_receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if completed.returncode == 0 else 2
 

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.evaluate_wan22_worldarena import _extract_metrics, _validate_assets, _validate_run
+from scripts.evaluate_wan22_worldarena import _extract_metrics, _validate_assets, _validate_prepared_root, _validate_run
 from scripts.fetch_worldarena_assets import main as fetch_assets
 
 
@@ -61,6 +61,16 @@ class Wan22WorldArenaAdapterTests(unittest.TestCase):
             self.assertEqual(fetch_assets(["--manifest", str(manifest), "--output-root", str(root), "--verify-only", "--receipt", str(receipt)]), 0)
             payload = json.loads(receipt.read_text())
             self.assertEqual(payload["state"], "verified")
+
+    def test_action_following_rejects_single_generated_gid(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            video = root / "generated_dataset" / "droid" / "episode" / "1" / "video"
+            video.mkdir(parents=True)
+            for index in range(150):
+                (video / f"frame_{index:05d}.png").write_bytes(b"x")
+            with self.assertRaisesRegex(ValueError, "REQUIRES_MULTIPLE_GIDS"):
+                _validate_prepared_root(root, ["action_following"])
 
 
 if __name__ == "__main__":

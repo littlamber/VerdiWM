@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from wmloop.wan22_droid import Wan22DroidError, build_sample_manifest, validate_contract
+from experiments.wan22_droid_acwm_v1.wan22_droid_runner import _assert_episode_disjoint, _conditioning_for_mode
 
 
 class Wan22DroidContractTests(unittest.TestCase):
@@ -62,6 +63,25 @@ class Wan22DroidContractTests(unittest.TestCase):
             val.write_text(json.dumps(build_sample_manifest(root, "val")))
             report = validate_contract(train_manifest=train, validation_manifest=val, model=model, source=source, evaluator_contract=evaluator, adapter=adapter)
             self.assertNotIn("WAN22_ADAPTER_IDENTITY_INVALID", report["blockers"])
+
+    def test_runner_rejects_train_validation_episode_overlap(self):
+        train = {"records": [{"episode_id": "episode-a"}]}
+        validation = {"records": [{"episode_id": "episode-a"}]}
+        with self.assertRaisesRegex(ValueError, "WAN22_DROID_EPISODE_SPLIT_OVERLAP"):
+            _assert_episode_disjoint(train, validation)
+
+    def test_conditioning_arms_are_explicit_and_history_is_causal(self):
+        import numpy as np
+        actions = np.asarray([[1.0] * 7, [3.0] * 7], dtype=np.float32)
+        proprio = np.asarray([[2.0] * 14, [4.0] * 14], dtype=np.float32)
+        zero_a, zero_p = _conditioning_for_mode(actions, proprio, "visual_anchor_only")
+        self.assertTrue(np.all(zero_a == 0) and np.all(zero_p == 0))
+        action_a, action_p = _conditioning_for_mode(actions, proprio, "action")
+        self.assertTrue(np.array_equal(action_a, actions) and np.all(action_p == 0))
+        hist_a, hist_p = _conditioning_for_mode(actions, proprio, "action_proprio_history")
+        self.assertEqual(float(hist_a[0, 0]), 1.0)
+        self.assertEqual(float(hist_a[1, 0]), 2.0)
+        self.assertEqual(float(hist_p[1, 0]), 3.0)
 
 
 if __name__ == "__main__":

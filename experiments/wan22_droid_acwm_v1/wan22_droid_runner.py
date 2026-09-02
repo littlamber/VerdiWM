@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import os
+import random
 import shlex
 import subprocess
 import sys
@@ -68,6 +69,43 @@ def _load_record(manifest_path: Path, index: int, *, video_frames: int, start_of
     video = np.stack(frames).astype(np.float32) / 127.5 - 1.0
     video = __import__("torch").from_numpy(video).permute(3, 0, 1, 2).contiguous()
     return manifest, record, actions, proprio, video, video_path
+
+
+def _assert_episode_disjoint(train_manifest: Mapping[str, Any], validation_manifest: Mapping[str, Any]) -> None:
+    """Fail closed if any episode identity is shared by train and validation."""
+
+    train_records = train_manifest.get("records")
+    validation_records = validation_manifest.get("records")
+    if not isinstance(train_records, list) or not isinstance(validation_records, list):
+        raise ValueError("WAN22_DROID_MANIFEST_RECORDS_INVALID")
+    train_ids = {str(row.get("episode_id")) for row in train_records if isinstance(row, Mapping)}
+    validation_ids = {str(row.get("episode_id")) for row in validation_records if isinstance(row, Mapping)}
+    overlap = sorted(train_ids & validation_ids)
+    if overlap:
+        raise ValueError("WAN22_DROID_EPISODE_SPLIT_OVERLAP:" + ",".join(overlap[:8]))
+
+
+def _conditioning_for_mode(
+    actions: np.ndarray,
+    proprio: np.ndarray,
+    mode: str,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Project the same DROID stream into a declared, comparable conditioning arm."""
+
+    if mode not in {"visual_anchor_only", "action", "action_proprio", "action_proprio_history"}:
+        raise ValueError(f"WAN22_DROID_CONDITIONING_MODE_INVALID:{mode}")
+    actions = np.asarray(actions, dtype=np.float32).copy()
+    proprio = np.asarray(proprio, dtype=np.float32).copy()
+    if mode == "visual_anchor_only":
+        actions.fill(0.0)
+        proprio.fill(0.0)
+    elif mode == "action":
+        proprio.fill(0.0)
+    elif mode == "action_proprio_history":
+        # Causal prefix means: no future condition leaks into an earlier token.
+        actions = np.cumsum(actions, axis=0) / np.arange(1, len(actions) + 1, dtype=np.float32)[:, None]
+        proprio = np.cumsum(proprio, axis=0) / np.arange(1, len(proprio) + 1, dtype=np.float32)[:, None]
+    return actions, proprio
 
 
 def _load_runtime(source: Path, model_path: Path, device: Any):
@@ -162,9 +200,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError("RUNTIME_TORCH_CUDA_UNAVAILABLE")
     if args.max_gpu_hours <= 0 or args.max_gpu_hours > 40:
         raise ValueError("GPU_BUDGET_EXCEEDS_40_HOURS")
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
     device = torch.device(f"cuda:{args.gpu_index}")
     output = args.output_root.expanduser().resolve()
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
+    train_manifest_payload = json.loads(args.train_manifest.read_text(encoding="utf-8"))
+    validation_manifest_payload = json.loads(args.validation_manifest.read_text(encoding="utf-8"))
+    _assert_episode_disjoint(train_manifest_payload, validation_manifest_payload)
     torch, backbone, vae = _load_runtime(args.source, args.model, device)
     from wan22_droid_adapter import Wan22DroidTokenAdapter, validate_window
     adapter = Wan22DroidTokenAdapter(model_dim=int(backbone.dim)).to(device)
@@ -172,6 +217,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     context = _context(torch, backbone, device)
     losses: list[float] = []
     optimizer = torch.optim.AdamW(adapter.parameters(), lr=args.learning_rate)
+
+    # The adapter is optimized only on train data.  Every published rollout
+    # and paired ground truth is selected from validation data, and the split
+    # identities are checked before any GPU work begins.
+    _, train_record, train_actions_np, train_proprio_np, train_video, _ = _load_record(
+        args.train_manifest, args.sample_index, video_frames=45
+    )
+    train_actions_np, train_proprio_np = _conditioning_for_mode(train_actions_np, train_proprio_np, args.conditioning_mode)
+    train_actions = torch.from_numpy(train_actions_np).to(device=device)
+    train_proprio = torch.from_numpy(train_proprio_np).to(device=device)
+    with torch.no_grad():
+        train_target = vae.encode([train_video.to(device)])[0].to(device=device, dtype=torch.bfloat16)
+    if train_target.ndim != 4 or train_target.shape[0] != 48:
+        raise ValueError(f"WAN22_VAE_LATENT_SHAPE_INVALID:{tuple(train_target.shape)}")
 
     # A 150-frame confirmation is represented as three full 45-frame latent
     # chunks plus a 17-frame tail.  Wan2.2's causal VAE emits two fewer frames
@@ -185,18 +244,37 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if horizon != 150 or chunk != 45:
         raise ValueError("WAN22_DROID_CONFIRMATION_REQUIRES_150X45")
     chunk_sizes = [chunk] * (horizon // chunk) + ([horizon % chunk + 2] if horizon % chunk else [])
-    manifest, first_record, _, _, _, _ = _load_record(args.train_manifest, args.sample_index, video_frames=chunk_sizes[0])
+    _, first_record, _, _, _, _ = _load_record(args.validation_manifest, args.sample_index, video_frames=chunk_sizes[0])
     generated_frames_list: list[np.ndarray] = []
     target_frames_list: list[np.ndarray] = []
     action_sequence: list[np.ndarray] = []
     proprio_sequence: list[np.ndarray] = []
     chunk_receipts: list[dict[str, Any]] = []
     previous_last = None
+    # One bounded optimization step on a train-only window.
+    noise = torch.randn_like(train_target)
+    backbone.zero_grad(set_to_none=True)
+    adapter.set_conditions(train_actions, train_proprio)
+    for step in range(args.steps):
+        optimizer.zero_grad(set_to_none=True)
+        x_t = train_target * 0.5 + noise * 0.5
+        x_t[:, :1] = train_target[:, :1]
+        predicted = _model_call(torch, backbone, adapter, x_t, train_actions, train_proprio, context, t=500.0)
+        target_velocity = noise - train_target
+        loss = (predicted[:, 1:] - target_velocity[:, 1:]).float().square().mean()
+        if not torch.isfinite(loss):
+            raise RuntimeError("WAN22_DROID_NONFINITE_LOSS")
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(adapter.parameters(), 1.0)
+        optimizer.step()
+        losses.append(float(loss.detach().cpu()))
+
     for chunk_index, chunk_size in enumerate(chunk_sizes):
         offset = sum(chunk_sizes[:chunk_index])
         manifest, record, actions_np, proprio_np, video, video_path = _load_record(
-            args.train_manifest, args.sample_index, video_frames=chunk_size, start_offset=offset
+            args.validation_manifest, args.sample_index, video_frames=chunk_size, start_offset=offset
         )
+        actions_np, proprio_np = _conditioning_for_mode(actions_np, proprio_np, args.conditioning_mode)
         validate_window(actions_np.tolist(), proprio_np.tolist(), horizon_frames=chunk_size)
         actions = torch.from_numpy(actions_np).to(device=device)
         proprio = torch.from_numpy(proprio_np).to(device=device)
@@ -212,22 +290,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             anchor = previous_last
         # Only the first chunk is used for adapter optimization in G0/screen;
         # later chunks reuse the same explicitly bound adapter checkpoint.
-        if chunk_index == 0:
-            noise = torch.randn_like(target)
-            backbone.zero_grad(set_to_none=True)
-            for step in range(args.steps):
-                optimizer.zero_grad(set_to_none=True)
-                x_t = target * 0.5 + noise * 0.5
-                x_t[:, :1] = anchor
-                predicted = _model_call(torch, backbone, adapter, x_t, actions, proprio, context, t=500.0)
-                target_velocity = noise - target
-                loss = (predicted[:, 1:] - target_velocity[:, 1:]).float().square().mean()
-                if not torch.isfinite(loss):
-                    raise RuntimeError("WAN22_DROID_NONFINITE_LOSS")
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(adapter.parameters(), 1.0)
-                optimizer.step()
-                losses.append(float(loss.detach().cpu()))
         adapter.eval()
         from wan.utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
         scheduler = FlowUniPCMultistepScheduler(num_train_timesteps=1000, shift=1, use_dynamic_shifting=False)
@@ -318,6 +380,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "artifact_type": "verdiwm-wan22-droid-training-receipt",
         "state": "evaluated" if evaluator_result and evaluator_result["returncode"] == 0 else "awaiting_worldarena_evaluation",
         "gpu_index": args.gpu_index,
+        "seed": args.seed,
+        "conditioning_mode": args.conditioning_mode,
         "gpu_hours": elapsed_hours,
         "budget_gpu_hours": args.max_gpu_hours,
         "steps": args.steps,
@@ -328,6 +392,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "source_revision": _source_revision(args.source),
         "training_manifest": str(args.train_manifest.expanduser().resolve()),
         "training_manifest_sha256": _sha256(args.train_manifest.expanduser().resolve()),
+        "validation_manifest": str(args.validation_manifest.expanduser().resolve()),
+        "validation_manifest_sha256": _sha256(args.validation_manifest.expanduser().resolve()),
+        "episode_disjoint_validation": True,
         "sample_id": str(first_record["sample_id"]),
         "horizon_frames": horizon,
         "chunk_frames": chunk,
@@ -349,9 +416,12 @@ def main() -> int:
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--train-manifest", type=Path, required=True)
+    parser.add_argument("--validation-manifest", type=Path, required=True)
     parser.add_argument("--evaluator-contract", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--gpu-index", type=int, default=0)
+    parser.add_argument("--seed", type=int, default=4101)
+    parser.add_argument("--conditioning-mode", choices=("visual_anchor_only", "action", "action_proprio", "action_proprio_history"), default="action_proprio")
     parser.add_argument("--sample-index", type=int, default=0)
     parser.add_argument("--horizon-frames", type=int, default=150)
     parser.add_argument("--chunk-frames", type=int, default=45)

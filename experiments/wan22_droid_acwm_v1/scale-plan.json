@@ -1,14 +1,16 @@
 {
   "schema_version": 1,
   "artifact_type": "verdiwm-wan22-droid-scale-plan",
-  "state": "requires_manifest_generation",
+  "state": "ready_for_execution",
   "budget_gpu_hours": 40,
   "runner_contract": {
     "entrypoint": "experiments/wan22_droid_acwm_v1/wan22_droid_runner.py",
     "horizon_frames": 150,
     "chunk_frames": 45,
     "runtime_binding": "explicit_runtime_python_and_cuda_visible_devices",
-    "candidate_arms": ["visual_anchor_only", "action", "action_proprio", "action_proprio_history"]
+    "candidate_arms": ["visual_anchor_only", "action", "action_proprio", "action_proprio_history"],
+    "arm_binding": "wan22_droid_runner --conditioning-mode",
+    "seed_policy": "explicit --seed; confirmation requires seeds 4101, 4202, 4303"
   },
   "stages": [
     {"id": "g0", "purpose": "adapter and one-batch smoke", "max_gpu_hours": 1.0},
