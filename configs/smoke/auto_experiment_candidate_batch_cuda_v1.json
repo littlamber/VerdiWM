@@ -17,6 +17,7 @@
   "candidates": [
     {
       "candidate_id": "cuda-matmul-balanced",
+      "experiment_kind": "evaluation_only",
       "hypothesis": "A bounded matrix workload produces stable finite metrics and observable physical GPU activity at low cost.",
       "selection_reason": "This candidate exercises the complete runtime contract with the smallest meaningful CUDA workload.",
       "falsification_criterion": "Any wrong GPU UUID, missing activity, malformed result, or failed numerical gate voids the candidate.",
@@ -83,6 +84,7 @@
     },
     {
       "candidate_id": "cuda-matmul-cheap-control",
+      "experiment_kind": "evaluation_only",
       "hypothesis": "A smaller bounded matrix provides a cheaper control measurement without changing the runtime contract.",
       "selection_reason": "This control distinguishes scheduler cost preference from arbitrary candidate order.",
       "falsification_criterion": "The control is invalid if it cannot produce the declared finite metric and physical activity evidence.",

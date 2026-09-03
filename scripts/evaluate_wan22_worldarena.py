@@ -18,7 +18,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import imageio.v2 as imageio
+try:
+    import imageio.v2 as imageio
+except ImportError:  # Keep control-plane imports usable without video extras.
+    class _MissingImageIO:
+        @staticmethod
+        def get_reader(*_args: Any, **_kwargs: Any) -> Any:
+            raise ModuleNotFoundError("imageio is required for video evaluation")
+
+    imageio = _MissingImageIO()
 
 
 def _sha256(path: Path) -> str:
@@ -38,9 +46,25 @@ def _validate_run(run_root: Path) -> dict[str, Any]:
     generated_frames = reader.count_frames()
     metadata = reader.get_meta_data()
     reader.close()
-    if generated_frames != 150 or float(metadata.get("fps", 0)) != 5.0:
+    gt_reader = imageio.get_reader(str(run_root / "ground_truth_150f.mp4"))
+    gt_frames = gt_reader.count_frames()
+    gt_metadata = gt_reader.get_meta_data()
+    gt_reader.close()
+    if generated_frames != 150 or gt_frames != 150 or float(metadata.get("fps", 0)) != 5.0 or float(gt_metadata.get("fps", 0)) != 5.0:
         raise ValueError(f"WAN22_WORLD_ARENA_VIDEO_INVALID:{generated_frames}:{metadata.get('fps')}")
-    return {"generated_frames": generated_frames, "fps": float(metadata["fps"]), "video_sha256": _sha256(run_root / "generated_150f.mp4")}
+    try:
+        input_info = json.loads((run_root / "worldarena_input.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("WAN22_WORLD_ARENA_INPUT_INVALID") from exc
+    return {
+        "generated_frames": generated_frames,
+        "ground_truth_frames": gt_frames,
+        "fps": float(metadata["fps"]),
+        "video_sha256": _sha256(run_root / "generated_150f.mp4"),
+        "ground_truth_sha256": _sha256(run_root / "ground_truth_150f.mp4"),
+        "sample_id": str(input_info.get("sample_id") or ""),
+        "episode_id": str(input_info.get("episode_id") or ""),
+    }
 
 
 def _validate_assets(manifest_path: Path, asset_root: Path) -> dict[str, Any]:

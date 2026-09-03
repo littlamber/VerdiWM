@@ -1,8 +1,9 @@
-"""Deterministic training-scale planning for world-model experiments.
+"""Deterministic, model-neutral training-scale and stage planning.
 
 The planner keeps dataset size, episode diversity, update count, and held-out
 checkpoint cadence in one receipt.  It does not launch training or silently
-select a larger budget when a stage is underpowered.
+select a larger budget when a stage is underpowered.  A probe is explicitly
+runtime-only; a formal stage always receives a long-training contract.
 """
 
 from __future__ import annotations
@@ -24,6 +25,14 @@ class TrainingScaleError(ValueError):
 
 
 STAGE_POLICIES: dict[str, dict[str, float | int]] = {
+    "probe": {
+        "dataset_fraction": 0.02,
+        "target_epochs": 0.02,
+        "min_steps": 1,
+        "max_steps": 8,
+        "min_episodes": 1,
+        "seed_count": 1,
+    },
     "smoke": {
         "dataset_fraction": 0.02,
         "target_epochs": 0.02,
@@ -57,6 +66,110 @@ STAGE_POLICIES: dict[str, dict[str, float | int]] = {
         "seed_count": 3,
     },
 }
+
+_TRAINING_STAGE_ORDER = ("probe", "screen", "pilot", "confirm")
+_CURRENT_STAGE_ALIASES = {"smoke": "probe"}
+_FORMAL_STAGES = frozenset(("pilot", "confirm"))
+
+
+def build_training_ladder(
+    *,
+    train_manifest: Path,
+    val_manifest: Path,
+    current_stage: str = "probe",
+    target_stage: str = "confirm",
+    batch_size: int = 1,
+    gradient_accumulation: int = 1,
+    world_size: int = 1,
+    sequence_length: int | None = None,
+    requested_seed_count: int | None = None,
+    training_profile: Mapping[str, Any] | None = None,
+    root: Path | None = None,
+) -> dict[str, object]:
+    """Plan every required upgrade from a runtime probe to a formal stage.
+
+    This is deliberately a planning-only control-plane operation.  The
+    returned ladder is consumed by a model adapter, while the stage semantics
+    remain independent of model names, optimizer APIs, and checkpoint formats.
+    A completed negative screen is retained as diagnostic evidence and does
+    not veto construction of the formal plan.
+    """
+
+    if (
+        current_stage not in set(_TRAINING_STAGE_ORDER) | set(_CURRENT_STAGE_ALIASES)
+        or target_stage not in _TRAINING_STAGE_ORDER
+    ):
+        raise TrainingScaleError("TRAINING_SCALE_STAGE_INVALID")
+    current_index = _TRAINING_STAGE_ORDER.index(
+        _CURRENT_STAGE_ALIASES.get(current_stage, current_stage)
+    )
+    target_index = _TRAINING_STAGE_ORDER.index(target_stage)
+    if target_index <= current_index:
+        raise TrainingScaleError("TRAINING_SCALE_STAGE_TRANSITION_NOT_FORWARD")
+
+    plans: list[dict[str, object]] = []
+    transitions: list[dict[str, object]] = []
+    for index in range(current_index + 1, target_index + 1):
+        stage = _TRAINING_STAGE_ORDER[index]
+        plan = build_training_scale_plan(
+            train_manifest=train_manifest,
+            val_manifest=val_manifest,
+            stage=stage,
+            batch_size=batch_size,
+            gradient_accumulation=gradient_accumulation,
+            world_size=world_size,
+            sequence_length=sequence_length,
+            requested_seed_count=requested_seed_count,
+            training_profile=training_profile,
+            root=root,
+        )
+        plans.append(plan)
+        transitions.append(
+            {
+                "from_stage": (
+                    current_stage
+                    if index == current_index + 1
+                    else _TRAINING_STAGE_ORDER[index - 1]
+                ),
+                "to_stage": stage,
+                "automatic": True,
+                "requires_prior_terminal_receipt": True,
+                "screen_failure_veto": False,
+                "claim_boundary": (
+                    "The prior stage only authorizes the next declared runtime step; "
+                    "it does not establish quality or promotion."
+                ),
+            }
+        )
+
+    blockers = [
+        f"{stage}:{blocker}"
+        for plan in plans
+        for stage in [str(plan["stage"])]
+        for blocker in plan["blockers"]
+    ]
+    state = "ready" if not blockers else "blocked"
+    ladder = {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-training-stage-ladder",
+        "state": state,
+        "current_stage": current_stage,
+        "target_stage": target_stage,
+        "automatic_upgrade": True,
+        "plans": plans,
+        "transitions": transitions,
+        "blockers": blockers,
+        "claim_boundary": (
+            "A training ladder is an executable-scale admission receipt, not a "
+            "quality result. Probe and screen evidence cannot be promoted; only "
+            "the declared formal stage may enter a frozen quality gate."
+        ),
+    }
+    try:
+        validate_document("training_stage_ladder", ladder, root=root)
+    except ContractValidationError as exc:
+        raise TrainingScaleError(f"TRAINING_SCALE_LADDER_SCHEMA_INVALID:{exc}") from exc
+    return ladder
 
 
 def build_training_scale_plan(
@@ -93,10 +206,11 @@ def build_training_scale_plan(
     val_count = len(validation)
     train_episodes = _episode_ids(train)
     val_episodes = _episode_ids(validation)
+    episode_overlap = sorted(set(train_episodes) & set(val_episodes))
 
     fraction = float(policy["dataset_fraction"])
     selected_count = min(train_count, max(1, math.ceil(train_count * fraction)))
-    selected = _ranked_subset(train, selected_count)
+    selected = _episode_balanced_subset(train, selected_count)
     selected_episodes = _episode_ids(selected)
     minimum_episodes = int(policy["min_episodes"])
     diversity_state = "pass" if len(selected_episodes) >= minimum_episodes else "blocked"
@@ -129,6 +243,12 @@ def build_training_scale_plan(
     if not validation:
         blockers.append("TRAINING_SCALE_VALIDATION_MANIFEST_MISSING")
         state = "blocked"
+    if episode_overlap:
+        blockers.append(
+            "TRAINING_SCALE_TRAIN_VALIDATION_EPISODE_OVERLAP:"
+            + ",".join(episode_overlap[:8])
+        )
+        state = "blocked"
 
     manifest_paths = {
         "train": str(Path(train_manifest).expanduser().resolve()),
@@ -143,6 +263,15 @@ def build_training_scale_plan(
         "artifact_type": "verdiwm-training-scale-plan",
         "state": state,
         "stage": stage,
+        "training_mode": "probe" if stage in {"probe", "smoke"} else "long",
+        "evidence_class": (
+            "runtime_only"
+            if stage in {"probe", "smoke"}
+            else "diagnostic"
+            if stage == "screen"
+            else "formal"
+        ),
+        "quality_eligible": stage in _FORMAL_STAGES,
         "dataset": {
             "manifest_paths": manifest_paths,
             "train_examples": train_count,
@@ -151,7 +280,10 @@ def build_training_scale_plan(
             "validation_episode_count": len(val_episodes),
             "selected_train_examples": selected_count,
             "selected_train_episode_count": len(selected_episodes),
-            "selection_policy": "sha256_ranked_sample_fraction_v1",
+            "selected_train_episode_ids": list(selected_episodes),
+            "train_validation_episode_overlap": episode_overlap,
+            "validation_episode_disjoint": not episode_overlap and bool(validation),
+            "selection_policy": "sha256_episode_balanced_sample_fraction_v2",
             "selection_fraction": fraction,
             "sequence_length": sequence_length,
             "train_manifest_sha256": _sha256(Path(train_manifest)),
@@ -239,7 +371,12 @@ def _load_samples(path: Path, error_code: str) -> list[Mapping[str, Any]]:
 
 
 def _episode_ids(samples: Sequence[Mapping[str, Any]]) -> tuple[str, ...]:
-    values = {str(row["episode_id"]) for row in samples if "episode_id" in row}
+    values = set()
+    for row in samples:
+        episode_id = row.get("episode_id")
+        if not isinstance(episode_id, str) or not episode_id.strip():
+            raise TrainingScaleError("TRAINING_SCALE_EPISODE_ID_MISSING")
+        values.add(episode_id.strip())
     return tuple(sorted(values))
 
 
@@ -256,6 +393,46 @@ def _ranked_subset(
         ).hexdigest(),
     )
     return [row for _, row in ranked[:count]]
+
+
+def _episode_balanced_subset(
+    samples: Sequence[Mapping[str, Any]], count: int
+) -> list[Mapping[str, Any]]:
+    """Select deterministic episode coverage before repeated windows."""
+
+    ranked = sorted(
+        enumerate(samples),
+        key=lambda item: hashlib.sha256(
+            (
+                str(item[1]["episode_id"])
+                + "\0"
+                + json.dumps(item[1], sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                + f"\0{item[0]}"
+            ).encode("utf-8")
+        ).hexdigest(),
+    )
+    by_episode: dict[str, list[Mapping[str, Any]]] = {}
+    for _, row in ranked:
+        by_episode.setdefault(str(row["episode_id"]), []).append(row)
+    episode_order = sorted(
+        by_episode,
+        key=lambda episode: hashlib.sha256(episode.encode("utf-8")).hexdigest(),
+    )
+    selected: list[Mapping[str, Any]] = []
+    round_index = 0
+    while len(selected) < count:
+        added = False
+        for episode in episode_order:
+            rows = by_episode[episode]
+            if round_index < len(rows):
+                selected.append(rows[round_index])
+                added = True
+                if len(selected) == count:
+                    break
+        if not added:
+            break
+        round_index += 1
+    return selected
 
 
 def _checkpoint_steps(

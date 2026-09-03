@@ -190,3 +190,14 @@ uv run verdiwm-auto-experiment cleanup \
   --run-root /path/to/verdiwm-runs/auto-experiment-cuda-smoke-v1 \
   --older-than-hours 168
 ```
+
+Each candidate declares an `experiment_kind`. For `model_training` candidates,
+`training_binding` is required; only genuinely evaluation-only, data-only, or
+diagnostic candidates may omit it. The scheduler then rejects
+probe mode, sequential formal sampling, under-sized update budgets, and
+insufficient episode coverage before GPU launch. The binding is exported to the
+runner as `VERDIWM_TRAINING_*`; model adapters translate those values to native
+flags. A failed screen remains diagnostic routing evidence and does not veto a
+declared formal stage. The generic scheduler cannot infer hidden training from
+an arbitrary shell command, so the candidate kind and binding are part of the
+admission contract rather than a prompt convention.

@@ -34,6 +34,29 @@
       }
     },
     "scale_plan": {"type": "string", "minLength": 1},
+    "method_retrieval": {
+      "type": "object", "additionalProperties": false,
+      "required": ["entrypoint", "query", "staging_entrypoint", "execution_authority", "unknown_method_policy", "latest_retrieval_output", "latest_staging_output"],
+      "properties": {
+        "entrypoint": {"type": "string", "minLength": 1},
+        "query": {"type": "string", "minLength": 1},
+        "staging_entrypoint": {"type": "string", "minLength": 1},
+        "execution_authority": {"enum": ["shadow_only", "advisory", "admitted"]},
+        "unknown_method_policy": {"enum": ["materialization_required", "reject", "advisory_only"]},
+        "latest_retrieval_output": {"type": "string", "minLength": 1},
+        "latest_staging_output": {"type": "string", "minLength": 1}
+      }
+    },
+    "knowledge_lifecycle": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_artifacts", "failure_signature_fields", "mechanism_discovery_route", "promotion_rule"],
+      "properties": {
+        "evidence_artifacts": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "failure_signature_fields": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "mechanism_discovery_route": {"type": "string", "minLength": 1},
+        "promotion_rule": {"type": "string", "minLength": 1}
+      }
+    },
     "evaluation": {
       "type": "object", "additionalProperties": false,
       "required": ["metrics", "horizons", "seeds", "heldout_protocol"],

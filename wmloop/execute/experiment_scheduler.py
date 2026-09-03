@@ -31,6 +31,10 @@ from wmloop.execute.auto_experiment import (
     _write_json_atomic,
     run_auto_experiment,
 )
+from wmloop.execute.training_contract import (
+    TrainingContractError,
+    validate_training_binding,
+)
 
 
 class ExperimentSchedulerError(RuntimeError):
@@ -334,6 +338,22 @@ def _validate_batch_semantics(
         if candidate_id in ids:
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_CANDIDATE_DUPLICATE")
         ids.add(candidate_id)
+        experiment_kind = candidate.get("experiment_kind")
+        if experiment_kind not in {
+            "model_training", "evaluation_only", "data_only", "diagnostic"
+        }:
+            raise ExperimentSchedulerError(
+                "EXPERIMENT_SCHEDULER_EXPERIMENT_KIND_INVALID"
+            )
+        has_training_binding = isinstance(candidate.get("training_binding"), Mapping)
+        if experiment_kind == "model_training" and not has_training_binding:
+            raise ExperimentSchedulerError(
+                "EXPERIMENT_SCHEDULER_MODEL_TRAINING_BINDING_REQUIRED"
+            )
+        if experiment_kind != "model_training" and has_training_binding:
+            raise ExperimentSchedulerError(
+                "EXPERIMENT_SCHEDULER_NON_TRAINING_BINDING_FORBIDDEN"
+            )
         stages = candidate["stages"]
         if not isinstance(stages, list):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGES_INVALID")
@@ -348,6 +368,12 @@ def _validate_batch_semantics(
             ["gate", "confirm"],
         ):
             raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_STAGE_LADDER_INVALID")
+        if isinstance(candidate.get("training_binding"), Mapping) and names != [
+            "screen", "gate", "confirm"
+        ]:
+            raise ExperimentSchedulerError(
+                "EXPERIMENT_SCHEDULER_TRAINING_LADDER_REQUIRED"
+            )
         if sum(float(stage["estimated_gpu_hours"]) for stage in stages) > float(
             batch["total_budget_gpu_hours"]
         ):
@@ -496,6 +522,23 @@ def _stage_plan(
             )
         }
     )
+    plan["experiment_kind"] = str(candidate["experiment_kind"])
+    training_binding = candidate.get("training_binding")
+    if isinstance(training_binding, Mapping):
+        bound = dict(training_binding)
+        # The model-neutral scheduler has a legacy ``pilot`` label while the
+        # runner contract uses the stricter quality vocabulary ``gate``.
+        # Normalize at this boundary so a pilot cannot accidentally bypass the
+        # gate floors or become an invalid contract.
+        bound["expected_stage"] = {"screen": "screen", "pilot": "gate", "gate": "gate", "confirm": "confirm"}.get(stage_name, stage_name)
+        try:
+            plan["training_binding"] = validate_training_binding(
+                bound, expected_stage=str(bound["expected_stage"])
+            )
+        except TrainingContractError as exc:
+            raise ExperimentSchedulerError(
+                f"EXPERIMENT_SCHEDULER_TRAINING_BINDING_INVALID:{exc}"
+            ) from exc
     if "onboarding_admission" in batch:
         plan["onboarding_admission"] = batch["onboarding_admission"]
     identity = _sha256_bytes(

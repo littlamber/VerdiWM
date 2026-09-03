@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-literature-candidate-scheduler-template",
+  "candidates": [
+    {
+      "candidate_id": "template",
+      "candidate_kind": "literature_method",
+      "model_family": "wan22-ti2v-5b",
+      "parameters": {
+        "conditioning_mode": "candidate_defined",
+        "anchor_policy": "candidate_defined",
+        "branch_selection": "candidate_defined"
+      },
+      "hypothesis": "A receipt-bound literature-derived adapter surrogate addresses a reproduced long-horizon failure signature.",
+      "selection_reason": "Candidate is admitted only after isolated materialization and offline checks.",
+      "falsification_criterion": "Reject when static, offline, or frozen runtime checks fail.",
+      "stages": ["materialization", "offline", "canary"],
+      "target_metrics": ["subject_consistency", "background_consistency", "motion_smoothness", "photometric_smoothness"],
+      "protected_metrics": ["episode_disjoint_validation", "causal_conditioning", "budget_compliance"]
+    }
+  ]
+}

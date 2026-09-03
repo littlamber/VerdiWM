@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "current_stage", "target_stage", "automatic_upgrade", "plans", "transitions", "blockers", "claim_boundary"],
+  "properties": {
+    "schema_version": {"enum": [1]},
+    "artifact_type": {"const": "verdiwm-training-stage-ladder"},
+    "state": {"enum": ["ready", "blocked"]},
+    "current_stage": {"enum": ["probe", "smoke", "screen", "pilot"]},
+    "target_stage": {"enum": ["screen", "pilot", "confirm"]},
+    "automatic_upgrade": {"const": true},
+    "plans": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+    "transitions": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["from_stage", "to_stage", "automatic", "requires_prior_terminal_receipt", "screen_failure_veto", "claim_boundary"],
+        "properties": {
+          "from_stage": {"type": "string", "minLength": 1},
+          "to_stage": {"type": "string", "minLength": 1},
+          "automatic": {"const": true},
+          "requires_prior_terminal_receipt": {"const": true},
+          "screen_failure_veto": {"const": false},
+          "claim_boundary": {"type": "string", "minLength": 12}
+        }
+      }
+    },
+    "blockers": {"type": "array", "items": {"type": "string"}},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

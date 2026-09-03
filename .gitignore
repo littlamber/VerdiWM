@@ -12,4 +12,11 @@ dist/
 htmlcov/
 results/
 runs/
+artifacts/
+# Generated experiment media/checkpoints stay outside Git; receipts and configs
+# remain versioned so the evidence contract is reviewable.
+*.mp4
+*.pt
+*.pth
+*.ckpt
 vendor/ACWM-Phys/

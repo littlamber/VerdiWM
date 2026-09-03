@@ -1,0 +1,10 @@
+model_name: wan22_droid_closed_loop
+data:
+  gt_path: null
+  val_base: null
+data_action_following:
+  gt_path: null
+  val_base: null
+save_path: null
+save_path_action_following: null
+ckpt: {}

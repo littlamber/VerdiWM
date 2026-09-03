@@ -1,5 +1,6 @@
 {
   "evaluator_id": "wan22-droid-worldarena-30s-v1",
+  "scheduler_template": "wan22_droid_literature_scheduler_template.json",
   "asset_manifest": "configs/evaluators/worldarena_assets_v1.json",
   "asset_root": "{model_root}/worldarena",
   "command": [
@@ -18,6 +19,7 @@
   "input_artifacts": [
     "generated_150_frame_video",
     "paired_droid_ground_truth",
+    "paired_acwm_gt_visualization",
     "first_frame",
     "droid_action_sequence",
     "worldarena_config"

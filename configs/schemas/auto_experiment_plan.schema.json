@@ -32,6 +32,7 @@
     "campaign_id": {"type": "string", "minLength": 1},
     "trial_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "objective": {"type": "string", "minLength": 1},
+    "experiment_kind": {"enum": ["model_training", "evaluation_only", "data_only", "diagnostic"]},
     "hypothesis": {"type": "string", "minLength": 1},
     "selection_reason": {"type": "string", "minLength": 1},
     "falsification_criterion": {"type": "string", "minLength": 1},
@@ -49,6 +50,26 @@
     "metric_gates": {"type": "array", "minItems": 1, "items": {"type": "object"}},
     "environment": {"type": "object"},
     "cleanup_policy": {"enum": ["retain", "archive_then_delete"]},
+    "training_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "runner_contract", "expected_stage", "train_manifest", "validation_manifest", "scale_plan_sha256", "mode", "steps", "record_limit", "sampler", "seed_count", "screen_failure_veto", "claim_boundary"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "runner_contract": {"type": "string", "minLength": 1},
+        "expected_stage": {"enum": ["screen", "gate", "confirm"]},
+        "train_manifest": {"type": "string", "minLength": 1},
+        "validation_manifest": {"type": "string", "minLength": 1},
+        "scale_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "mode": {"const": "long"},
+        "steps": {"type": "integer", "minimum": 1},
+        "record_limit": {"type": "integer", "minimum": 0},
+        "sampler": {"const": "episode_balanced"},
+        "seed_count": {"type": "integer", "minimum": 1},
+        "validation_panel_size": {"type": "integer", "minimum": 1},
+        "screen_failure_veto": {"const": false},
+        "claim_boundary": {"type": "string", "minLength": 12}
+      }
+    },
     "human_approved": {"type": "boolean"}
     ,
     "onboarding_admission": {

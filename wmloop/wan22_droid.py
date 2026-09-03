@@ -207,11 +207,11 @@ def validate_contract(
             blockers.append("WAN22_ADAPTER_PATH_INVALID")
         elif "wan22" not in adapter_path.name.lower() or "droid" not in adapter_path.name.lower():
             blockers.append("WAN22_ADAPTER_IDENTITY_INVALID")
-    if source.exists() and (source / "wan").is_dir():
-        # TI2V uses the non-causal WanModel entrypoint; causal model_causal.py
-        # is optional and must not be required by this model-decoupled path.
-        if not (source / "wan" / "modules" / "model.py").exists():
-            blockers.append("WAN22_MODEL_ENTRYPOINT_MISSING")
+    # TI2V uses the non-causal WanModel entrypoint; causal model_causal.py is
+    # optional. Existence alone is insufficient because a different checkout
+    # could otherwise pass conformance and fail only after GPU admission.
+    if not (Path(source).expanduser().resolve() / "wan" / "modules" / "model.py").is_file():
+        blockers.append("WAN22_MODEL_ENTRYPOINT_MISSING")
     result = {
         "schema_version": 1,
         "artifact_type": "verdiwm-wan22-droid-conformance-report",

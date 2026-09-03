@@ -39,6 +39,10 @@ from wmloop.execute.experiment_scheduler import (
     run_selected_queue,
 )
 from wmloop.execute.gpu_lease import GpuLeaseError
+from wmloop.execute.literature_materialization import (
+    LiteratureMaterializationError,
+    run_literature_method_materialization,
+)
 from wmloop.experiments.cpbe import CPBEError, publish_cpbe_plan
 from wmloop.experiments.cpbe_materializer import (
     CPBEMaterializerError,
@@ -206,6 +210,7 @@ def run_autonomous_pipeline(
     literature_root = destination / "literature"
     literature_method_root = destination / "literature-methods"
     literature_method_prompt_root = destination / "literature-method-prompts"
+    literature_method_materialization_root = destination / "literature-method-materialization"
     compiled = destination / "compiled"
     cpbe_root = destination / "causal-discovery"
     stage = "onboarding"
@@ -262,6 +267,7 @@ def run_autonomous_pipeline(
         literature_manifest: dict[str, object] | None = None
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
+        literature_method_materialization_manifest: dict[str, object] | None = None
         cpbe_manifest: dict[str, object] | None = None
         if probe_contract is not None:
             stage = "diagnostic_probe"
@@ -385,6 +391,43 @@ def run_autonomous_pipeline(
                 archive_db=archive_db,
                 cas_root=cas_root,
             )
+            # Unknown literature methods are automatically materialized in
+            # isolated snapshots. A failed method becomes a capability gap;
+            # it must not prevent other methods or the baseline from running.
+            try:
+                literature_method_materialization_manifest = run_literature_method_materialization(
+                    method_staging_manifest=literature_method_root / "manifest.json",
+                    output_root=literature_method_materialization_root,
+                    source_root=repo,
+                    project_root=Path(__file__).resolve().parents[2],
+                    evaluator_contract=evaluator,
+                    runtime_python=options.runtime_python,
+                    archive_db=archive_db,
+                    cas_root=cas_root,
+                    max_candidates=options.literature_max_results,
+                )
+                generated_catalog = literature_method_materialization_manifest.get(
+                    "candidate_catalog_path"
+                )
+                if (
+                    isinstance(generated_catalog, str)
+                    and Path(generated_catalog).is_file()
+                ):
+                    generated_path = Path(generated_catalog).resolve()
+                    if candidate_catalog is None:
+                        candidate_catalog = generated_path
+                    else:
+                        candidate_catalog = _merge_method_catalogs(
+                            candidate_catalog,
+                            generated_path,
+                            destination / "literature-method-materialization" / "merged-candidate-catalog.json",
+                        )
+            except LiteratureMaterializationError as exc:
+                literature_method_materialization_manifest = {
+                    "state": "blocked",
+                    "error": str(exc),
+                    "claim_boundary": "No literature method received execution authority.",
+                }
 
         if (
             research_mode in {"causal_discovery", "hybrid"}
@@ -496,6 +539,7 @@ def run_autonomous_pipeline(
             literature=literature_manifest,
             literature_methods=literature_method_manifest,
             literature_method_prompts=literature_method_prompt_manifest,
+            literature_method_materialization=literature_method_materialization_manifest,
             method_candidates=method_candidate_report,
             cpbe=cpbe_manifest,
         )
@@ -758,6 +802,7 @@ def _settle_pipeline(
     literature: Mapping[str, object] | None = None,
     literature_methods: Mapping[str, object] | None = None,
     literature_method_prompts: Mapping[str, object] | None = None,
+    literature_method_materialization: Mapping[str, object] | None = None,
     method_candidates: Mapping[str, object] | None = None,
     cpbe: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
@@ -773,6 +818,7 @@ def _settle_pipeline(
         literature=literature,
         literature_methods=literature_methods,
         literature_method_prompts=literature_method_prompts,
+        literature_method_materialization=literature_method_materialization,
         method_candidates=method_candidates,
         cpbe=cpbe,
     )
@@ -794,6 +840,7 @@ def _manifest(
     literature: Mapping[str, object] | None = None,
     literature_methods: Mapping[str, object] | None = None,
     literature_method_prompts: Mapping[str, object] | None = None,
+    literature_method_materialization: Mapping[str, object] | None = None,
     method_candidates: Mapping[str, object] | None = None,
     cpbe: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
@@ -812,6 +859,11 @@ def _manifest(
         "literature_method_prompts": (
             dict(literature_method_prompts)
             if literature_method_prompts is not None
+            else None
+        ),
+        "literature_method_materialization": (
+            dict(literature_method_materialization)
+            if literature_method_materialization is not None
             else None
         ),
         "method_candidates": (
@@ -873,6 +925,35 @@ def _candidate_asset_parameters(catalog_path: Path | None) -> tuple[str, ...]:
 
     visit(catalog)
     return tuple(sorted(parameters))
+
+
+def _merge_method_catalogs(first: Path, second: Path, destination: Path) -> Path:
+    """Append generated literature candidates without rewriting user input."""
+    left = _load_json(first, "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID")
+    right = _load_json(second, "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID")
+    candidates = [
+        *[row for row in left.get("candidates", []) if isinstance(row, Mapping)],
+        *[row for row in right.get("candidates", []) if isinstance(row, Mapping)],
+    ]
+    gaps = [
+        *[row for row in left.get("capability_gaps", []) if isinstance(row, Mapping)],
+        *[row for row in right.get("capability_gaps", []) if isinstance(row, Mapping)],
+    ]
+    merged = {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-method-candidate-catalog",
+        "catalog_id": f"merged-{_sha256(first.read_bytes() + second.read_bytes())[:24]}",
+        "model_family": left.get("model_family") or right.get("model_family") or "world_model",
+        "candidates": candidates,
+        "capability_gaps": gaps,
+        "claim_boundary": "User-bound candidates and automatically materialized literature surrogates retain independent provenance and receipts.",
+    }
+    try:
+        validate_document("method_candidate_catalog", merged)
+    except ContractValidationError as exc:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID") from exc
+    _write_json_atomic(destination, merged)
+    return destination.resolve()
 
 
 def _optional_file(value: Path | None, code: str) -> Path | None:

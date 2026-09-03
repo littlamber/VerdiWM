@@ -5,23 +5,36 @@
   "budget_gpu_hours": 40,
   "runner_contract": {
     "entrypoint": "experiments/wan22_droid_acwm_v1/wan22_droid_runner.py",
+    "training_modes": ["probe", "long"],
+    "long_training_binding": "--training-mode long --train-record-limit 256",
     "horizon_frames": 150,
     "chunk_frames": 45,
     "runtime_binding": "explicit_runtime_python_and_cuda_visible_devices",
-    "candidate_arms": ["visual_anchor_only", "action", "action_proprio", "action_proprio_history"],
+    "candidate_arms": ["visual_anchor_only", "action", "action_proprio", "action_proprio_history", "action_proprio_ema"],
     "arm_binding": "wan22_droid_runner --conditioning-mode",
-    "seed_policy": "explicit --seed; confirmation requires seeds 4101, 4202, 4303"
+    "anchor_policies": ["previous_generated", "initial_reference_blend"],
+    "anchor_policy_binding": "wan22_droid_runner --anchor-policy",
+    "branch_selection_policies": ["first", "terminal_reference_consistency"],
+    "branch_selection_binding": "wan22_droid_runner --branch-selection",
+    "seed_policy": "explicit --seed; confirmation requires seeds 4101, 4202, 4303",
+    "validation_panel": {
+      "binding": "--validation-sample-indices",
+      "selection": "frozen episode-diverse records from validation manifest",
+      "minimum_formal_episodes": 3,
+      "same_panel_across_seeds": true
+    }
   },
   "stages": [
-    {"id": "g0", "purpose": "adapter and one-batch smoke", "max_gpu_hours": 1.0},
-    {"id": "screen", "purpose": "compare baseline, action, action+proprio+history, SRR/self-forcing", "max_gpu_hours": 12.0},
-    {"id": "pilot", "purpose": "held-out 150-frame rollout", "max_gpu_hours": 15.0},
+    {"id": "g0", "purpose": "adapter and one-batch smoke (probe mode)", "max_gpu_hours": 1.0},
+    {"id": "screen", "purpose": "compare baseline, action, action+proprio, causal history, and decayed causal history", "max_gpu_hours": 12.0},
+    {"id": "pilot", "purpose": "long training over declared manifest windows followed by held-out 150-frame rollout", "max_gpu_hours": 15.0, "training_mode": "long"},
     {"id": "confirm", "purpose": "three-seed frozen WorldArena confirmation", "max_gpu_hours": 12.0}
   ],
   "promotion_gate": {
-    "required_artifacts": ["generated_150f.mp4", "ground_truth_150f.mp4", "worldarena_input.json", "evaluator_receipt.json"],
+    "required_artifacts": ["training_receipt.json", "validation_panel.json", "generated_150f.mp4", "ground_truth_150f.mp4", "acwm-gt-visualization/manifest.json", "acwm-gt-visualization/acwm_gt_comparison.mp4", "acwm-gt-visualization/acwm_gt_contact_sheet.png", "worldarena_input.json", "evaluator_receipt.json"],
     "required_evaluator_state": "evaluated",
     "episode_disjoint_validation": true,
+    "validation_panel_required": true,
     "seed_count": 3,
     "failure_policy": "retain_failure_signature_and_route_to_mechanism_discovery"
   },

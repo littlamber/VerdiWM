@@ -27,18 +27,18 @@
     "staging_entrypoint": "wmloop.retrieve.method_staging",
     "execution_authority": "shadow_only",
     "unknown_method_policy": "materialization_required",
-    "latest_retrieval_output": "/share/project/zhiwei/nsq/wan22-method-retrieval-20260902",
-    "latest_staging_output": "/share/project/zhiwei/nsq/wan22-method-staging-20260902"
+    "latest_retrieval_output": "/share/project/zhiwei/nsq/wan22-droid-experiments/wan22_droid_acwm_v1/research/wan22-method-retrieval-20260902",
+    "latest_staging_output": "/share/project/zhiwei/nsq/wan22-droid-experiments/wan22_droid_acwm_v1/research/wan22-method-staging-20260902"
   },
   "evaluation": {
     "metrics": ["subject_consistency", "background_consistency", "motion_smoothness", "photometric_smoothness", "trajectory_accuracy", "action_following"],
     "horizons": [30, 150],
     "seeds": [4101, 4202, 4303],
-    "heldout_protocol": "episode-disjoint validation; frozen WorldArena evaluator; three seeds"
+    "heldout_protocol": "episode-disjoint frozen validation panel (>=3 distinct episodes), same panel across seeds; frozen WorldArena evaluator; three seeds"
   },
   "artifact_policy": {
-    "output_root": "/share/project/zhiwei/nsq/wan22-droid-runs",
-    "required_artifacts": ["training_receipt.json", "generated_150f.mp4", "ground_truth_150f.mp4", "droid_conditioning.npz", "worldarena_summary.json", "worldarena_input.json", "evaluator_receipt.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
+    "output_root": "/share/project/zhiwei/nsq/wan22-droid-experiments/wan22_droid_acwm_v1/runs",
+    "required_artifacts": ["training_receipt.json", "validation_panel.json", "generated_150f.mp4", "ground_truth_150f.mp4", "acwm-gt-visualization/manifest.json", "acwm-gt-visualization/acwm_gt_comparison.mp4", "acwm-gt-visualization/acwm_gt_contact_sheet.png", "droid_conditioning.npz", "worldarena_summary.json", "worldarena_input.json", "evaluator_receipt.json", "worldarena_result.json", "frozen_verifier_receipt.json"],
     "archive_policy": "archive_then_delete"
   },
   "knowledge_lifecycle": {

@@ -45,6 +45,7 @@ from wmloop.experiments.engineering import (
 )
 from wmloop.experiments.training_scale import (
     TrainingScaleError,
+    build_training_ladder,
     build_training_scale_plan,
     write_training_scale_plan,
 )
@@ -475,6 +476,30 @@ def _plan_training(args: argparse.Namespace) -> int:
     return 0 if plan["state"] == "ready" else 3
 
 
+def _plan_training_ladder(args: argparse.Namespace) -> int:
+    root = (
+        args.schema_root
+        or args.repo_root
+        or Path(__file__).resolve().parents[1]
+    ).expanduser().resolve()
+    ladder = build_training_ladder(
+        train_manifest=args.train_manifest,
+        val_manifest=args.val_manifest,
+        current_stage=args.current_stage,
+        target_stage=args.target_stage,
+        batch_size=args.batch_size,
+        gradient_accumulation=args.gradient_accumulation,
+        world_size=args.world_size,
+        sequence_length=args.sequence_length,
+        requested_seed_count=args.seed_count,
+        root=root,
+    )
+    if args.output:
+        write_training_scale_plan(ladder, args.output)
+    _print(ladder)
+    return 0 if ladder["state"] == "ready" else 3
+
+
 def _training_recipes(args: argparse.Namespace) -> int:
     root = (args.repo_root or Path(__file__).resolve().parents[1]).expanduser().resolve()
     registry_path = args.registry or root / "configs" / "retrieval" / "world_model_training_recipes_v1.json"
@@ -817,7 +842,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     plan_training.add_argument("--train-manifest", type=Path, required=True)
     plan_training.add_argument("--val-manifest", type=Path, required=True)
-    plan_training.add_argument("--stage", choices=("smoke", "screen", "pilot", "confirm"), default="screen")
+    plan_training.add_argument("--stage", choices=("probe", "smoke", "screen", "pilot", "confirm"), default="screen")
     plan_training.add_argument("--batch-size", type=int, default=1)
     plan_training.add_argument("--gradient-accumulation", type=int, default=1)
     plan_training.add_argument("--world-size", type=int, default=1)
@@ -833,6 +858,24 @@ def _parser() -> argparse.ArgumentParser:
     plan_training.add_argument("--repo-root", type=Path)
     plan_training.add_argument("--output", type=Path)
     plan_training.set_defaults(handler=_plan_training)
+
+    plan_training_ladder = commands.add_parser(
+        "plan-training-ladder",
+        help="plan automatic probe-to-formal training upgrades without launching a model",
+    )
+    plan_training_ladder.add_argument("--train-manifest", type=Path, required=True)
+    plan_training_ladder.add_argument("--val-manifest", type=Path, required=True)
+    plan_training_ladder.add_argument("--current-stage", choices=("probe", "smoke", "screen", "pilot"), default="probe")
+    plan_training_ladder.add_argument("--target-stage", choices=("screen", "pilot", "confirm"), default="confirm")
+    plan_training_ladder.add_argument("--batch-size", type=int, default=1)
+    plan_training_ladder.add_argument("--gradient-accumulation", type=int, default=1)
+    plan_training_ladder.add_argument("--world-size", type=int, default=1)
+    plan_training_ladder.add_argument("--sequence-length", type=int)
+    plan_training_ladder.add_argument("--seed-count", type=int)
+    plan_training_ladder.add_argument("--schema-root", type=Path)
+    plan_training_ladder.add_argument("--repo-root", type=Path)
+    plan_training_ladder.add_argument("--output", type=Path)
+    plan_training_ladder.set_defaults(handler=_plan_training_ladder)
 
     lint_experiment = commands.add_parser(
         "lint-experiment",

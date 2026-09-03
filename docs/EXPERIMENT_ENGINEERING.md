@@ -86,3 +86,9 @@ episodes and 97 validation windows from 2 episodes. A screen is runnable, but
 the pilot stage is correctly blocked until the training split contains at
 least 8 episodes. This is the kind of training common sense that must live in
 the control plane rather than in an individual researcher's memory.
+
+For a model-neutral probe-to-formal transition, use
+`verdiwm plan-training-ladder`. It emits `probe -> screen -> pilot -> confirm`
+scale plans and explicit transition receipts. Probe and screen artifacts are
+not promotion evidence. Each WAN2.2 run also publishes an ACWM/GT side-by-side
+video and contact sheet under its single idea-owned output root.

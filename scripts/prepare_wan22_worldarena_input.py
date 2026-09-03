@@ -9,11 +9,12 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-import imageio.v2 as imageio
 import yaml
 
 
 def _frames(video: Path) -> list[Any]:
+    import imageio.v2 as imageio
+
     reader = imageio.get_reader(str(video))
     try:
         return [frame for frame in reader]
@@ -22,6 +23,8 @@ def _frames(video: Path) -> list[Any]:
 
 
 def _copy_frames(video: Path, destination: Path) -> int:
+    import imageio.v2 as imageio
+
     frames = _frames(video)
     if len(frames) != 150:
         raise ValueError(f"WAN22_WORLD_ARENA_VIDEO_INVALID:{video}:{len(frames)}")
@@ -31,7 +34,46 @@ def _copy_frames(video: Path, destination: Path) -> int:
     return len(frames)
 
 
-def materialize(*, run_root: Path, output_root: Path, config_template: Path, task_id: str = "droid", gid: str = "1") -> dict[str, Any]:
+def _bind_evaluator_paths(config: dict[str, Any], *, worldarena_root: Path, asset_root: Path, sea_raft_config: Path) -> None:
+    video_quality = worldarena_root / "video_quality"
+    config["ckpt"] = {
+        "action_following": str(asset_root / "clip" / "ViT-B-32.pt"),
+        "background_consistency": {
+            "clip": str(asset_root / "clip" / "ViT-B-32.pt"),
+            "raft": str(asset_root / "raft" / "raft-things.pth"),
+        },
+        "photometric_smoothness": {
+            "cfg": str(sea_raft_config),
+            "model": str(asset_root / "sea-raft" / "Tartan-C-T-TSKH-spring540x960-M.pth"),
+        },
+        "motion_smoothness": {"model": str(asset_root / "vfimamba" / "model.pkl")},
+        "subject_consistency": {
+            "repo": str(asset_root / "dino" / "facebookresearch_dino"),
+            "weight": str(asset_root / "dino" / "dino_vitbase16_pretrain.pth"),
+            "model": "dino_vitb16",
+            "raft": str(asset_root / "raft" / "raft-things.pth"),
+        },
+    }
+    required = [
+        video_quality / "evaluate.py",
+        sea_raft_config,
+        asset_root / "clip" / "ViT-B-32.pt",
+        asset_root / "raft" / "raft-things.pth",
+        asset_root / "vfimamba" / "model.pkl",
+        asset_root / "sea-raft" / "Tartan-C-T-TSKH-spring540x960-M.pth",
+        asset_root / "dino" / "facebookresearch_dino",
+        asset_root / "dino" / "dino_vitbase16_pretrain.pth",
+    ]
+    missing = [str(path) for path in required if not path.exists()]
+    if missing:
+        raise ValueError("WAN22_WORLD_ARENA_RUNTIME_BINDING_MISSING:" + ",".join(missing))
+
+
+def materialize(
+    *, run_root: Path, output_root: Path, config_template: Path,
+    worldarena_root: Path | None = None, asset_root: Path | None = None,
+    sea_raft_config: Path | None = None, task_id: str = "droid", gid: str = "1",
+) -> dict[str, Any]:
     run_root = run_root.expanduser().resolve(strict=True)
     output_root = output_root.expanduser().resolve()
     input_info = json.loads((run_root / "worldarena_input.json").read_text(encoding="utf-8"))
@@ -53,6 +95,16 @@ def materialize(*, run_root: Path, output_root: Path, config_template: Path, tas
     config = yaml.safe_load(config_template.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise ValueError("WAN22_WORLD_ARENA_CONFIG_INVALID")
+    runtime_bindings = (worldarena_root, asset_root, sea_raft_config)
+    if any(runtime_bindings) and not all(runtime_bindings):
+        raise ValueError("WAN22_WORLD_ARENA_RUNTIME_BINDING_INCOMPLETE")
+    if all(runtime_bindings):
+        _bind_evaluator_paths(
+            config,
+            worldarena_root=worldarena_root.expanduser().resolve(strict=True),
+            asset_root=asset_root.expanduser().resolve(strict=True),
+            sea_raft_config=sea_raft_config.expanduser().resolve(strict=True),
+        )
     data = config.setdefault("data", {})
     data["gt_path"] = str(output_root / "gt_dataset")
     data["val_base"] = str(output_root / "generated_dataset")
@@ -123,12 +175,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-root", type=Path, nargs="+", required=True)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--config-template", type=Path, required=True)
+    parser.add_argument("--worldarena-root", type=Path)
+    parser.add_argument("--asset-root", type=Path)
+    parser.add_argument("--sea-raft-config", type=Path)
     parser.add_argument("--task-id", default="droid")
     parser.add_argument("--gid", nargs="+", default=None)
     args = parser.parse_args(argv)
     try:
         if len(args.run_root) == 1:
-            result = materialize(run_root=args.run_root[0], output_root=args.output_root, config_template=args.config_template, task_id=args.task_id, gid=(args.gid or ["1"])[0])
+            result = materialize(
+                run_root=args.run_root[0], output_root=args.output_root,
+                config_template=args.config_template,
+                worldarena_root=args.worldarena_root, asset_root=args.asset_root,
+                sea_raft_config=args.sea_raft_config,
+                task_id=args.task_id, gid=(args.gid or ["1"])[0],
+            )
         else:
             result = materialize_many(run_roots=args.run_root, output_root=args.output_root, config_template=args.config_template, task_id=args.task_id, gids=args.gid)
         print(json.dumps(result, indent=2, sort_keys=True))

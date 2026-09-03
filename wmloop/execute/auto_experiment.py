@@ -35,6 +35,7 @@ from wmloop.execute.gpu_exclusivity_audit import (
 )
 from wmloop.execute.gpu_lease import GpuLeaseError, GpuLeaseManager
 from wmloop.execute.gpu_sampling import GpuSamplingRecorder
+from wmloop.execute.training_contract import TrainingContractError, validate_training_binding
 from wmloop.verify import auto_experiment as auto_experiment_verifier
 from wmloop.verify.auto_experiment import verify_auto_experiment_result
 
@@ -344,6 +345,21 @@ def _execute_trial(
                 for key, value in plan["environment"].items()
             }
         )
+        training_binding = plan.get("training_binding")
+        if isinstance(training_binding, Mapping):
+            environment.update(
+                {
+                    "VERDIWM_TRAINING_CONTRACT": str(training_binding["runner_contract"]),
+                    "VERDIWM_TRAINING_STAGE": str(training_binding["expected_stage"]),
+                    "VERDIWM_TRAINING_MODE": str(training_binding["mode"]),
+                    "VERDIWM_TRAINING_STEPS": str(training_binding["steps"]),
+                    "VERDIWM_TRAINING_RECORD_LIMIT": str(training_binding["record_limit"]),
+                    "VERDIWM_TRAINING_SAMPLER": str(training_binding["sampler"]),
+                    "VERDIWM_TRAINING_SEED_COUNT": str(training_binding["seed_count"]),
+                    "VERDIWM_VALIDATION_PANEL_SIZE": str(training_binding.get("validation_panel_size", 1)),
+                    "VERDIWM_TRAINING_SCALE_PLAN_SHA256": str(training_binding["scale_plan_sha256"]),
+                }
+            )
         environment.update(lease.environment())
         environment.update(
             {
@@ -814,6 +830,19 @@ def _validate_plan_semantics(
             raise AutoExperimentError("AUTO_EXPERIMENT_COMMAND_INVALID")
     if len(set(plan["allowed_gpu_indices"])) != len(plan["allowed_gpu_indices"]):
         raise AutoExperimentError("AUTO_EXPERIMENT_GPU_ALLOWLIST_DUPLICATE")
+    training_binding = plan.get("training_binding")
+    if training_binding is not None:
+        if not isinstance(training_binding, Mapping):
+            raise AutoExperimentError("AUTO_EXPERIMENT_TRAINING_BINDING_INVALID")
+        try:
+            validate_training_binding(
+                training_binding,
+                expected_stage=str(training_binding.get("expected_stage") or plan["stage"]),
+            )
+        except TrainingContractError as exc:
+            raise AutoExperimentError(
+                f"AUTO_EXPERIMENT_TRAINING_BINDING_INVALID:{exc}"
+            ) from exc
 
 
 def _initialize_output(
