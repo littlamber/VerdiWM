@@ -13,6 +13,10 @@ from wmloop.geometry.model_irg import (
     rank_method_effects_by_irg,
     validate_model_irg,
 )
+from wmloop.retrieve.irg_guided_discovery import (
+    build_irg_discovery_request,
+    derive_irg_bottlenecks,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,3 +121,23 @@ def test_similar_irg_with_opposite_effects_is_a_collision() -> None:
     )
     assert len(collisions) == 1
     assert collisions[0].primitive == "action_conditioning_scale"
+
+
+def test_irg_guides_bottleneck_hypotheses_and_cross_domain_queries() -> None:
+    portrait = _portrait()
+    asset = _asset()
+    irg = build_model_irg(portrait=portrait, asset=asset, root=ROOT)
+    bottlenecks = derive_irg_bottlenecks(irg, top_k=4)
+    assert len(bottlenecks) == 4
+    assert all(row["limitation_type"] == "local_sensitivity_bottleneck" for row in bottlenecks)
+    request, plan = build_irg_discovery_request(
+        irg,
+        protected_metrics=("frozen_primary_metric",),
+        top_k=4,
+    )
+    assert request.model_family == "fixture"
+    assert request.failure_signatures
+    assert request.target_metrics
+    assert request.cross_domain_lenses
+    assert plan["authority"] == "shadow_only"
+    assert "global model ceiling" in plan["claim_boundary"]

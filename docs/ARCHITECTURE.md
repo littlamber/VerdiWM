@@ -130,6 +130,15 @@ guarded prompt packets and binds the future patch to `AgentRepairSession`
 source-revision, registry-digest, and required-check receipts. It does not run a
 coding agent in the active model checkout. A candidate can enter a live queue
 only after static, offline, canary, shadow-replay, and next-version approval gates.
+
+For a measured model-conditioned IRG, `wmloop/retrieve/irg_guided_discovery.py`
+first ranks response-sensitivity hotspots and translates their semantic axes
+into cross-domain research lenses (for example, temporal memory, action
+grounding, uncertainty calibration, or contact dynamics). This produces a
+bounded bottleneck hypothesis rather than a global-capability claim: a true
+ceiling requires an additional dose or horizon sweep. The resulting literature
+request is shadow-only and flows through the same typed staging and target-side
+gates.
 The safety language therefore stays fixed while the set of admissible
 capabilities can grow across version boundaries.
 

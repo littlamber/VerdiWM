@@ -99,6 +99,11 @@ def build_model_irg(
         "irg_id": "",
         "portrait_binding": portrait_binding,
         "asset_binding": asset_binding,
+        "available_hooks": [
+            str(row["hook"])
+            for row in portrait["structural_profile"]["hooks"]
+            if row.get("state") == "available"
+        ],
         "dimensions": {
             "coordinate_count": len(vector),
             "probe_count": len(paths),
@@ -177,6 +182,8 @@ def validate_model_irg(
         raise ModelIRGError("MODEL_IRG_COORDINATE_COUNT_MISMATCH")
     if dimensions["coordinate_count"] != len(document["coordinate_names"]):
         raise ModelIRGError("MODEL_IRG_COORDINATE_NAME_COUNT_MISMATCH")
+    if len(document["available_hooks"]) != len(set(document["available_hooks"])):
+        raise ModelIRGError("MODEL_IRG_AVAILABLE_HOOK_DUPLICATE")
     if len(document["diagnostic_axes"]) != dimensions["coordinate_count"]:
         raise ModelIRGError("MODEL_IRG_DIAGNOSTIC_AXIS_COUNT_MISMATCH")
     if dimensions["probe_count"] != len(document["support_mask"]):

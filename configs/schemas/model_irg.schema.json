@@ -4,13 +4,14 @@
   "title": "VerdiWM model-conditioned IRG binding",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "artifact_type", "irg_id", "portrait_binding", "asset_binding", "dimensions", "coordinate_names", "response_vector", "response_covariance", "support_mask", "diagnostic_axes", "method_effects", "collision_refs", "evolution_refs", "evidence_refs", "routing_state", "claim_boundary"],
+  "required": ["schema_version", "artifact_type", "irg_id", "portrait_binding", "asset_binding", "available_hooks", "dimensions", "coordinate_names", "response_vector", "response_covariance", "support_mask", "diagnostic_axes", "method_effects", "collision_refs", "evolution_refs", "evidence_refs", "routing_state", "claim_boundary"],
   "properties": {
     "schema_version": {"const": 1},
     "artifact_type": {"const": "verdiwm-model-irg"},
     "irg_id": {"type": "string", "pattern": "^model-irg-[0-9a-f]{24}$"},
     "portrait_binding": {"$ref": "#/$defs/portraitBinding"},
     "asset_binding": {"$ref": "#/$defs/assetBinding"},
+    "available_hooks": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "dimensions": {
       "type": "object", "additionalProperties": false,
       "required": ["coordinate_count", "probe_count", "outcome_count"],

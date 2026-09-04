@@ -727,6 +727,7 @@ def _project_model_irg(
         coordinate_names=document["coordinate_names"],
         response_vector=document["response_vector"],
         support_mask=document["support_mask"],
+        available_hooks=document["available_hooks"],
         routing_state=document["routing_state"],
         claim_scope="ranking_only",
     )

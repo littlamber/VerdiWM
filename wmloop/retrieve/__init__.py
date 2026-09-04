@@ -34,6 +34,12 @@ from wmloop.retrieve.mechanism_discovery import (
     compare_mechanism_signature,
     run_mechanism_discovery,
 )
+from wmloop.retrieve.irg_guided_discovery import (
+    IRGDiscoveryError,
+    build_irg_discovery_request,
+    derive_irg_bottlenecks,
+    run_irg_guided_mechanism_discovery,
+)
 
 __all__ = [
     "EvidenceCapsuleError",
@@ -60,4 +66,8 @@ __all__ = [
     "build_multiview_queries",
     "compare_mechanism_signature",
     "run_mechanism_discovery",
+    "IRGDiscoveryError",
+    "derive_irg_bottlenecks",
+    "build_irg_discovery_request",
+    "run_irg_guided_mechanism_discovery",
 ]
