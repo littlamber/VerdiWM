@@ -77,8 +77,10 @@ def build_sample_manifest(
 
     One record is emitted for every valid window start.  The first frame is
     always the observed frame and the following 149 frames are the future
-    target.  Episodes shorter than the requested horizon are excluded from
-    the 30-second contract rather than padded.
+    target.  Episodes shorter than the causal rollout source requirement are
+    excluded from the 30-second contract rather than padded.  Every emitted
+    window is therefore guaranteed to have enough source frames for the final
+    causal tail, not merely enough target frames.
     """
 
     root = Path(data_root).expanduser().resolve()
@@ -109,7 +111,7 @@ def build_sample_manifest(
         actions = payload.get("action")
         proprio = payload.get("proprio")
         if (
-            length < horizon_frames
+            length < rollout_source_frames
             or not isinstance(actions, list)
             or len(actions) != length
             or not isinstance(proprio, list)
@@ -143,7 +145,7 @@ def build_sample_manifest(
         latent_source = (
             "precomputed_wan22" if latent_channels == 48 else "raw_video_wan22_vae"
         )
-        for start in range(0, length - horizon_frames + 1, stride):
+        for start in range(0, length - rollout_source_frames + 1, stride):
             records.append(
                 {
                     "sample_id": f"{episode_id}:{start:06d}:{horizon_frames}",

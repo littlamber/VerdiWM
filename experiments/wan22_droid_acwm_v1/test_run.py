@@ -18,11 +18,11 @@ class Wan22DroidContractTests(unittest.TestCase):
             (root / "videos" / split / "episode-a" / "wrist.mp4").write_bytes(b"v")
             (root / "latent_videos" / split / "episode-a" / "wrist.pt").write_bytes(b"l")
             payload = {
-                "episode_id": "episode-a", "split": split, "video_length": 151,
+                "episode_id": "episode-a", "split": split, "video_length": 152,
                 "video_path": f"videos/{split}/episode-a/wrist.mp4",
                 "latent_path": f"latent_videos/{split}/episode-a/wrist.pt",
-                "processed_fps": 5, "action": [[0.0] * 7 for _ in range(151)],
-                "proprio": [[0.0] * 14 for _ in range(151)],
+                "processed_fps": 5, "action": [[0.0] * 7 for _ in range(152)],
+                "proprio": [[0.0] * 14 for _ in range(152)],
             }
             (root / "annotation" / split / "episode-a.json").write_text(json.dumps(payload), encoding="utf-8")
 
@@ -34,7 +34,20 @@ class Wan22DroidContractTests(unittest.TestCase):
             self.assertEqual(manifest["records"][0]["horizon_frames"], 150)
             self.assertEqual(manifest["records"][0]["action_dim"], 7)
             self.assertEqual(manifest["rollout_source_frames_required"], 152)
-            self.assertEqual(manifest["records"][0]["source_frame_count"], 151)
+            self.assertEqual(manifest["records"][0]["source_frame_count"], 152)
+
+    def test_manifest_excludes_causal_tail_short_episodes(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw); self._dataset(root)
+            for split in ("train", "val"):
+                path = root / "annotation" / split / "episode-a.json"
+                payload = json.loads(path.read_text())
+                payload["video_length"] = 151
+                payload["action"] = payload["action"][:151]
+                payload["proprio"] = payload["proprio"][:151]
+                path.write_text(json.dumps(payload))
+            with self.assertRaisesRegex(Wan22DroidError, "DROID_NO_TARGET_WINDOWS:val"):
+                build_sample_manifest(root, "val")
 
     def test_rollout_source_frame_requirement_is_explicit(self):
         self.assertEqual(required_rollout_source_frames(horizon_frames=150, chunk_frames=45), 152)
