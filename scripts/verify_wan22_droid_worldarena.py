@@ -96,10 +96,17 @@ def verify(
             blockers.append(f"VIDEO_CONTRACT_INVALID:{path}")
         video_sample_id = str(video.get("sample_id") or "")
         video_episode_id = str(video.get("episode_id") or "")
-        run_root = path.parent / "training_receipt.json"
-        if not run_root.is_file():
-            run_root = path.parent.parent / "training_receipt.json"
-        if run_root.is_file():
+        # Metric receipts for validation-panel members may live below
+        # ``seed-*/validation_panel/sample-*`` while their training receipt is
+        # anchored at the seed root. Walk ancestors instead of assuming a
+        # fixed depth so nested panel layouts remain verifiable.
+        run_root: Path | None = None
+        for ancestor in (path.parent, *path.parents):
+            candidate = ancestor / "training_receipt.json"
+            if candidate.is_file():
+                run_root = candidate
+                break
+        if run_root is not None:
             try:
                 training = json.loads(run_root.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):

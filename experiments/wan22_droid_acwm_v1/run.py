@@ -498,9 +498,18 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         )
         if training_scale["state"] != "ready":
             blockers.extend(str(value) for value in training_scale["blockers"])
-        args.checkpoint_eval_steps = [
-            int(value) for value in training_scale["updates"]["checkpoint_eval_steps"]
-        ]
+        # The policy plan is expressed at the full pilot scale (1024..4096),
+        # while a bounded execution may intentionally request fewer updates.
+        # Keep only checkpoints reachable within this run and always evaluate
+        # the terminal update so the bounded ladder remains valid.
+        args.checkpoint_eval_steps = sorted(
+            {
+                int(value)
+                for value in training_scale["updates"]["checkpoint_eval_steps"]
+                if 1 <= int(value) <= int(args.steps)
+            }
+            | {int(args.steps)}
+        )
     except (OSError, KeyError, TrainingScaleError, json.JSONDecodeError) as exc:
         blockers.append(f"TRAINING_SCALE_PLAN_INVALID:{type(exc).__name__}:{exc}")
 
@@ -586,7 +595,8 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 capture_output=True,
                 env=env,
                 text=True,
-                timeout=30,
+                # Torch's first import can exceed 30s on the network filesystem.
+                timeout=180,
             )
         except (OSError, subprocess.TimeoutExpired):
             probe = None

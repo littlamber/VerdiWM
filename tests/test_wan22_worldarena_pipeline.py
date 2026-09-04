@@ -173,6 +173,61 @@ class Wan22WorldArenaPipelineTests(unittest.TestCase):
             self.assertEqual(result["state"], "verified")
             self.assertEqual(result["observed_panel_sizes"], {"1": 2, "2": 2})
 
+    def test_verifier_finds_training_receipt_above_nested_panel(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            seed_root = root / "seed-1"
+            nested = seed_root / "validation_panel" / "sample-1"
+            nested.mkdir(parents=True)
+            (seed_root / "training_receipt.json").write_text(
+                json.dumps({"seed": 1}), encoding="utf-8"
+            )
+            receipt = nested / "metrics.json"
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "artifact_type": "verdiwm-wan22-droid-worldarena-metrics-receipt",
+                        "state": "evaluated_partial",
+                        "returncode": 0,
+                        "dimensions_requested": [
+                            "subject_consistency",
+                            "background_consistency",
+                            "motion_smoothness",
+                            "photometric_smoothness",
+                        ],
+                        "metrics": {
+                            metric: {"raw": 0.1}
+                            for metric in (
+                                "subject_consistency",
+                                "background_consistency",
+                                "motion_smoothness",
+                                "photometric_smoothness",
+                            )
+                        },
+                        "video": {
+                            "generated_frames": 150,
+                            "fps": 5.0,
+                            "sample_id": "episode-a:0:150",
+                            "episode_id": "episode-a",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = verify(
+                [receipt],
+                required_metrics=(
+                    "subject_consistency",
+                    "background_consistency",
+                    "motion_smoothness",
+                    "photometric_smoothness",
+                ),
+                expected_seeds=(1,),
+                expected_panel_size=1,
+                expected_panel_episode_count=1,
+            )
+            self.assertEqual(result["state"], "verified")
+
     def test_verifier_explicit_formal_metrics_cannot_be_downgraded(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

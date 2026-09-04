@@ -1,0 +1,71 @@
+{
+  "artifact_type": "verdiwm-worldarena-asset-receipt",
+  "assets": [
+    {
+      "asset": {
+        "bytes": 353976522,
+        "expected_bytes": 353976522,
+        "expected_sha256": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af",
+        "path": "/share/project/zhiwei/nsq/model/worldarena/clip/ViT-B-32.pt",
+        "sha256": "40d365715913c9da98579312b702a82c18be219cc2a73407c4526f58eba950af",
+        "state": "verified"
+      },
+      "id": "clip_vit_b32"
+    },
+    {
+      "asset": {
+        "bytes": 21108000,
+        "expected_bytes": 21108000,
+        "expected_sha256": "fcfa4125d6418f4de95d84aec20a3c5f4e205101715a79f193243c186ac9a7e1",
+        "path": "/share/project/zhiwei/nsq/model/worldarena/raft/raft-things.pth",
+        "sha256": "fcfa4125d6418f4de95d84aec20a3c5f4e205101715a79f193243c186ac9a7e1",
+        "state": "verified"
+      },
+      "id": "raft_things"
+    },
+    {
+      "asset": {
+        "bytes": 264414373,
+        "expected_bytes": 264414373,
+        "expected_sha256": "c1dac5b08f4c41e95452f7a41b35347409fc58b0e25b3ba8de899144ff28a350",
+        "path": "/share/project/zhiwei/nsq/model/worldarena/vfimamba/model.pkl",
+        "sha256": "c1dac5b08f4c41e95452f7a41b35347409fc58b0e25b3ba8de899144ff28a350",
+        "state": "verified"
+      },
+      "id": "vfimamba"
+    },
+    {
+      "asset": {
+        "bytes": 78778760,
+        "expected_bytes": 78778760,
+        "expected_sha256": "cb8cfbf14c5e0f6734b64add383708b7ff68cc6089a0007c67165d4761346102",
+        "path": "/share/project/zhiwei/nsq/model/worldarena/sea-raft/model.safetensors",
+        "sha256": "cb8cfbf14c5e0f6734b64add383708b7ff68cc6089a0007c67165d4761346102",
+        "state": "verified"
+      },
+      "derived": {
+        "bytes": 78883175,
+        "path": "/share/project/zhiwei/nsq/model/worldarena/sea-raft/Tartan-C-T-TSKH-spring540x960-M.pth",
+        "sha256": "eca3d16b4b5567c9db36ab84d8403e52b148a97a6973cd40898ce74e5405ac84",
+        "state": "verified"
+      },
+      "id": "sea_raft_safetensors"
+    },
+    {
+      "asset": {
+        "bytes": 343242485,
+        "expected_bytes": 343242485,
+        "expected_sha256": "bf34ad0f424b9029b593e8dc3ed553bf26e88bcba0d32bf3e62a6209cb64c85e",
+        "path": "/share/project/zhiwei/nsq/model/worldarena/dino/dino_vitbase16_pretrain.pth",
+        "sha256": "bf34ad0f424b9029b593e8dc3ed553bf26e88bcba0d32bf3e62a6209cb64c85e",
+        "state": "verified"
+      },
+      "id": "dino_vitbase16"
+    }
+  ],
+  "claim_boundary": "Asset verification proves evaluator inputs are present and hashed; it does not prove any model quality target.",
+  "manifest": "/share/project/zhiwei/nsq/VerdiWM-wan22-droid/configs/evaluators/worldarena_assets_v1.json",
+  "output_root": "/share/project/zhiwei/nsq/model/worldarena",
+  "schema_version": 1,
+  "state": "verified"
+}

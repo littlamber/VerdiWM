@@ -104,10 +104,22 @@ def _validate_prepared_root(prepared_root: Path, dimensions: list[str]) -> dict[
                 raise ValueError(f"WORLD_ARENA_PREPARED_GIDS_EMPTY:{episode}")
             if "action_following" in dimensions and len(episode_gids) < 2:
                 raise ValueError(f"WORLD_ARENA_ACTION_FOLLOWING_REQUIRES_MULTIPLE_GIDS:{episode}")
+            if "trajectory_accuracy" in dimensions:
+                gt_traj = episode / "traj" / "traj.npy"
+                if not gt_traj.is_file():
+                    raise ValueError(
+                        f"WORLD_ARENA_TRAJECTORY_INPUT_MISSING:gt:{gt_traj}"
+                    )
             for gid in episode_gids:
                 video = gid / "video"
                 if not video.is_dir() or len(list(video.glob("*.png"))) != 150:
                     raise ValueError(f"WORLD_ARENA_PREPARED_VIDEO_INVALID:{video}")
+                if "trajectory_accuracy" in dimensions:
+                    pred_traj = gid / "traj" / "traj.npy"
+                    if not pred_traj.is_file():
+                        raise ValueError(
+                            f"WORLD_ARENA_TRAJECTORY_INPUT_MISSING:pred:{pred_traj}"
+                        )
             episodes += 1
             gids += len(episode_gids)
     return {"task_count": len(tasks), "episode_count": episodes, "gid_count": gids}
