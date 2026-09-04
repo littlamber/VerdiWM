@@ -43,6 +43,13 @@ covariance is composed only inside source groups with a shared paired baseline
 frame. Missing cross-group covariance remains explicitly unobserved and forces
 transfer abstention without disabling target-local routing.
 
+The model-conditioned binding layer in `wmloop/geometry/model_irg.py` combines
+this measured vector with one immutable Model Portrait. It records coordinate-
+level diagnoses, method effects, and collision/evolution references in a single
+content-addressed artifact. Neighbor retrieval and collision detection remain
+ranking/diagnostic operations; they cannot create a target verdict or bypass
+frozen verification.
+
 Joint calibration schedules every semantic probe path against one no-hook
 baseline for each target, seed, trajectory batch, evaluator, and generation
 mode. Condition-level receipts are atomic and resumable; a frame mismatch

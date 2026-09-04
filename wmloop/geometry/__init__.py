@@ -22,6 +22,14 @@ from wmloop.geometry.memory import (
     EffectRecord,
     build_transferable_experience,
 )
+from wmloop.geometry.model_irg import (
+    ModelIRGError,
+    build_model_irg,
+    detect_model_irg_collisions,
+    model_irg_distance,
+    rank_method_effects_by_irg,
+    validate_model_irg,
+)
 from wmloop.geometry.mechanism_relations import (
     COMPOSITION_OPERATORS,
     RELATION_TYPES,
@@ -101,6 +109,12 @@ __all__ = [
     "validate_mechanism_contract",
     "validate_method_embodiment",
     "validate_probe_fingerprint_summary",
+    "ModelIRGError",
+    "build_model_irg",
+    "validate_model_irg",
+    "model_irg_distance",
+    "rank_method_effects_by_irg",
+    "detect_model_irg_collisions",
     "validate_portable_experience",
     "validate_mechanism_relation",
     "validate_transfer_boundary",

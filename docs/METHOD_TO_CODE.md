@@ -12,6 +12,7 @@ still require experiments.
 | Intent-to-code materialization gate | `wmloop/propose/primitive_materialization_prompt.py`, `wmloop/verify/primitive_materialization_gate.py` | Implemented; 17 ACWM primitives materialized |
 | Local response chart | `wmloop/geometry/irg.py` | Central/one-sided secants implemented and unit tested |
 | IRG metric and response coordinates | `wmloop/geometry/irg.py`, `wmloop/geometry/assets.py` | Implemented and unit tested; eight ACWM-Phys assets included |
+| Model-conditioned IRG binding | `wmloop/geometry/model_irg.py`, `configs/schemas/model_irg.schema.json` | Binds a measured response vector to one Model Portrait, expands coordinate-level diagnoses, attaches method effects and collision/evolution evidence, and exposes ranking-only IRG distance/collision queries |
 | Joint-frame probe calibration | `wmloop/experiments/joint_fingerprint.py`, `scripts/run_acwm_joint_fingerprint_*.py` | 600-condition ACWM-Phys pilot complete; eight full-covariance assets included |
 | Adaptive locality-radius settlement | `wmloop/experiments/ctrl_world_fingerprint_settlement.py`, `scripts/export/ctrl_world_fingerprint_settlement.py` | Wide Ctrl-World radius rejected; radius 0.025 admitted on the frozen pilot split |
 | Progressive-fidelity validation | `scripts/export/acwm_screen_summary.py`, `wmloop/verify/` | Operational on ACWM-Phys |

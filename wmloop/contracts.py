@@ -182,9 +182,30 @@ def validate_instance(schema: Mapping[str, Any], document: Any) -> None:
         raise ContractValidationError(f"{location}: {error.message}")
 
 
-def _validate(schema: Mapping[str, Any], value: Any, *, path: str) -> None:
+def _validate(
+    schema: Mapping[str, Any],
+    value: Any,
+    *,
+    path: str,
+    root_schema: Mapping[str, Any] | None = None,
+) -> None:
+    root_schema = schema if root_schema is None else root_schema
+    reference = schema.get("$ref")
+    if reference is not None:
+        if reference.startswith("#/$defs/"):
+            name = reference.rsplit("/", 1)[-1]
+            definitions = root_schema.get("$defs")
+            if not isinstance(definitions, Mapping) or name not in definitions:
+                raise ContractValidationError(f"SCHEMA_REF_NOT_FOUND:{reference}")
+            _validate(definitions[name], value, path=path, root_schema=root_schema)
+            return
+        raise ContractValidationError(f"SCHEMA_REF_UNSUPPORTED:{reference}")
     allowed = {
         "$schema",
+        "$id",
+        "$defs",
+        "$ref",
+        "title",
         "type",
         "additionalProperties",
         "required",
@@ -193,6 +214,7 @@ def _validate(schema: Mapping[str, Any], value: Any, *, path: str) -> None:
         "maximum",
         "exclusiveMinimum",
         "minItems",
+        "uniqueItems",
         "items",
         "enum",
         "const",
@@ -227,9 +249,16 @@ def _validate(schema: Mapping[str, Any], value: Any, *, path: str) -> None:
     if isinstance(value, list):
         if len(value) < schema.get("minItems", 0):
             raise ContractValidationError(f"{path}: fewer than minItems")
+        if schema.get("uniqueItems") is True:
+            try:
+                unique = {json.dumps(item, sort_keys=True, separators=(",", ":")) for item in value}
+            except (TypeError, ValueError) as exc:
+                raise ContractValidationError(f"{path}: uniqueItems canonicalization failed") from exc
+            if len(unique) != len(value):
+                raise ContractValidationError(f"{path}: duplicate items")
         if "items" in schema:
             for index, child in enumerate(value):
-                _validate(schema["items"], child, path=f"{path}[{index}]")
+                _validate(schema["items"], child, path=f"{path}[{index}]", root_schema=root_schema)
     if isinstance(value, Mapping):
         properties = schema.get("properties", {})
         missing = [name for name in schema.get("required", []) if name not in value]
@@ -241,7 +270,7 @@ def _validate(schema: Mapping[str, Any], value: Any, *, path: str) -> None:
                 raise ContractValidationError(f"{path}: unexpected properties {','.join(extras)}")
         for name, child_schema in properties.items():
             if name in value:
-                _validate(child_schema, value[name], path=f"{path}.{name}")
+                _validate(child_schema, value[name], path=f"{path}.{name}", root_schema=root_schema)
 
 
 def _matches_type(value: Any, expected: str | Sequence[str]) -> bool:

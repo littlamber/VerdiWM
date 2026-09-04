@@ -38,6 +38,7 @@ from wmloop.geometry.community_knowledge import (
 )
 from wmloop.geometry.evidence_ir import validate_evidence_ir
 from wmloop.geometry.portable_experience import validate_portable_experience
+from wmloop.geometry.model_irg import ModelIRGError, validate_model_irg
 from wmloop.geometry.portable_transfer_knowledge import (
     validate_mechanism_contract,
     validate_method_embodiment,
@@ -430,6 +431,14 @@ def _project_document(graph: _PortableKnowledgeGraph, document: Mapping[str, obj
                 f"PORTABLE_KNOWLEDGE_MODEL_PORTRAIT_INVALID:{exc}"
             ) from exc
         _project_model_portrait(graph, document)
+    elif artifact == "verdiwm-model-irg":
+        try:
+            validate_model_irg(document)
+        except ModelIRGError as exc:
+            raise PortableKnowledgeGraphError(
+                f"PORTABLE_KNOWLEDGE_MODEL_IRG_INVALID:{exc}"
+            ) from exc
+        _project_model_irg(graph, document)
     elif artifact == "verdiwm-portrait-transition":
         _validate_community_document(validate_portrait_transition, document)
         _project_portrait_transition(graph, document)
@@ -697,6 +706,116 @@ def _project_model_portrait(
             "cites_evidence",
             graph.node("evidence", str(reference)),
             evidence=str(reference),
+        )
+
+
+def _project_model_irg(
+    graph: _PortableKnowledgeGraph, document: Mapping[str, object]
+) -> None:
+    """Project the model-conditioned IRG without granting verdict authority."""
+
+    portrait = document["portrait_binding"]
+    asset = document["asset_binding"]
+    root = graph.node(
+        "model_irg",
+        str(document["irg_id"]),
+        irg_id=document["irg_id"],
+        model_family=portrait["model_family"],
+        environment=asset["environment"],
+        backbone_family=asset["backbone_family"],
+        goal_schema=asset["goal_schema"],
+        coordinate_names=document["coordinate_names"],
+        response_vector=document["response_vector"],
+        support_mask=document["support_mask"],
+        routing_state=document["routing_state"],
+        claim_scope="ranking_only",
+    )
+    portrait_node = graph.node(
+        "model_portrait",
+        str(portrait["portrait_id"]),
+        portrait_id=portrait["portrait_id"],
+        model_family=portrait["model_family"],
+    )
+    graph.edge(
+        root,
+        "conditioned_on_portrait",
+        portrait_node,
+        evidence=str(portrait["portrait_digest"]),
+        claim_scope="ranking_only",
+        frozen=False,
+    )
+    asset_node = graph.node(
+        "irg_asset",
+        str(asset["asset_id"]),
+        asset_id=asset["asset_id"],
+        environment=asset["environment"],
+        backbone_family=asset["backbone_family"],
+    )
+    graph.edge(
+        root,
+        "measured_by",
+        asset_node,
+        evidence=str(asset["asset_digest"]),
+        claim_scope="ranking_only",
+        frozen=False,
+    )
+    for axis in document["diagnostic_axes"]:
+        axis_node = graph.node(
+            "irg_diagnostic_axis",
+            f"{document['irg_id']}:{axis['axis']}",
+            axis=axis["axis"],
+            probe_id=axis["probe_id"],
+            outcome=axis["outcome"],
+            magnitude=axis["magnitude"],
+            support_state=axis["support_state"],
+            diagnosis=axis["diagnosis"],
+        )
+        graph.edge(
+            root,
+            "has_diagnostic_axis",
+            axis_node,
+            evidence=list(axis["evidence_refs"]),
+            claim_scope="ranking_only",
+            frozen=False,
+        )
+    for effect in document["method_effects"]:
+        method_node = graph.node(
+            "open_method",
+            str(effect["method_id"]),
+            method_id=effect["method_id"],
+            claim_scope="ranking_only",
+        )
+        graph.edge(
+            root,
+            "binds_method_effect",
+            method_node,
+            primitive=effect["primitive"],
+            effect_status=effect["effect_status"],
+            mean_effect=effect["mean_effect"],
+            lower_bound=effect["lower_bound"],
+            upper_bound=effect["upper_bound"],
+            transfer_state=effect["transfer_state"],
+            evidence=list(effect["evidence_refs"]),
+            claim_scope="ranking_only",
+            frozen=False,
+        )
+    for reference in document["collision_refs"]:
+        graph.edge(
+            root,
+            "retains_collision",
+            graph.node("counterexample", str(reference)),
+            evidence=str(reference),
+            claim_scope="ranking_only",
+            frozen=False,
+        )
+    for reference in document["evolution_refs"]:
+        graph.edge(
+            root,
+            "evolved_from_counterexample",
+            graph.node("probe_evolution", str(reference)),
+            evidence=str(reference),
+            claim_scope="ranking_only",
+            frozen=False,
         )
 
 

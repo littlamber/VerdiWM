@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verdiwm.dev/schemas/model_irg.schema.json",
+  "title": "VerdiWM model-conditioned IRG binding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "irg_id", "portrait_binding", "asset_binding", "dimensions", "coordinate_names", "response_vector", "response_covariance", "support_mask", "diagnostic_axes", "method_effects", "collision_refs", "evolution_refs", "evidence_refs", "routing_state", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-model-irg"},
+    "irg_id": {"type": "string", "pattern": "^model-irg-[0-9a-f]{24}$"},
+    "portrait_binding": {"$ref": "#/$defs/portraitBinding"},
+    "asset_binding": {"$ref": "#/$defs/assetBinding"},
+    "dimensions": {
+      "type": "object", "additionalProperties": false,
+      "required": ["coordinate_count", "probe_count", "outcome_count"],
+      "properties": {
+        "coordinate_count": {"type": "integer", "minimum": 1},
+        "probe_count": {"type": "integer", "minimum": 1},
+        "outcome_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "coordinate_names": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "response_vector": {"$ref": "#/$defs/vector"},
+    "response_covariance": {"$ref": "#/$defs/matrix"},
+    "support_mask": {"type": "array", "minItems": 1, "items": {"type": "boolean"}},
+    "diagnostic_axes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/diagnosticAxis"}},
+    "method_effects": {"type": "array", "items": {"$ref": "#/$defs/methodEffect"}},
+    "collision_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/contentRef"}},
+    "evolution_refs": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/contentRef"}},
+    "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/contentRef"}},
+    "routing_state": {"enum": ["ready", "abstain"]},
+    "claim_boundary": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "contentRef": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"},
+    "vector": {"type": "array", "minItems": 1, "items": {"type": "number"}},
+    "matrix": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/vector"}},
+    "portraitBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["portrait_id", "portrait_digest", "model_capability_id", "model_family"],
+      "properties": {
+        "portrait_id": {"type": "string", "pattern": "^model-portrait-[0-9a-f]{24}$"},
+        "portrait_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "model_capability_id": {"type": "string", "minLength": 1},
+        "model_family": {"type": "string", "minLength": 1}
+      }
+    },
+    "assetBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["asset_id", "asset_digest", "environment", "backbone_family", "goal_schema"],
+      "properties": {
+        "asset_id": {"type": "string", "minLength": 1},
+        "asset_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "environment": {"type": "string", "minLength": 1},
+        "backbone_family": {"type": "string", "minLength": 1},
+        "goal_schema": {"type": "string", "minLength": 1}
+      }
+    },
+    "diagnosticAxis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["axis", "probe_id", "outcome", "response", "magnitude", "support_state", "diagnosis", "evidence_refs"],
+      "properties": {
+        "axis": {"type": "string", "minLength": 1},
+        "probe_id": {"type": "string", "minLength": 1},
+        "outcome": {"type": "string", "minLength": 1},
+        "response": {"type": "number"},
+        "magnitude": {"type": "number", "minimum": 0},
+        "support_state": {"enum": ["supported", "unsupported"]},
+        "diagnosis": {"type": "string", "minLength": 1},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/contentRef"}}
+      }
+    },
+    "methodEffect": {
+      "type": "object", "additionalProperties": false,
+      "required": ["effect_id", "method_id", "primitive", "effect_status", "mean_effect", "lower_bound", "upper_bound", "sign_q_value", "transfer_state", "evidence_refs"],
+      "properties": {
+        "effect_id": {"type": "string", "minLength": 1},
+        "method_id": {"type": "string", "minLength": 1},
+        "primitive": {"type": "string", "minLength": 1},
+        "effect_status": {"enum": ["confirmed", "null", "rejected", "interaction", "unknown"]},
+        "mean_effect": {"type": "number"},
+        "lower_bound": {"type": "number"},
+        "upper_bound": {"type": "number"},
+        "sign_q_value": {"type": "number", "minimum": 0, "maximum": 1},
+        "transfer_state": {"enum": ["local_only", "licensed_prior", "abstained"]},
+        "evidence_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/contentRef"}}
+      }
+    }
+  }
+}
