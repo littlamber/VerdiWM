@@ -89,6 +89,14 @@
         "network_access": {"const": false}
       }
     },
+    "execution_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["stage_timeout_seconds", "timeout_receipt"],
+      "properties": {
+        "stage_timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "timeout_receipt": {"type": "string", "minLength": 1}
+      }
+    },
     "claim_boundary": {"type": "string", "minLength": 12}
   }
 }

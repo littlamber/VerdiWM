@@ -12,6 +12,7 @@ confirmation rollout.  No source checkout is modified.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import importlib.util
 import json
@@ -33,6 +34,7 @@ from wmloop.execute.training_contract import (
     minimum_training_episode_count,
     validate_training_binding,
 )
+from wmloop.wan22_droid import required_rollout_source_frames
 
 
 def _sha256(path: Path) -> str:
@@ -45,13 +47,20 @@ def _sha256(path: Path) -> str:
 
 def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     temporary.replace(path)
 
 
 def _source_revision(source: Path) -> str | None:
     try:
-        return subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(
+            ["git", "-C", str(source), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return None
 
@@ -76,7 +85,9 @@ def _load_adapter(adapter_path: Path):
     return adapter_class, validate_window, path
 
 
-def _load_record(manifest_path: Path, index: int, *, video_frames: int, start_offset: int = 0):
+def _load_record(
+    manifest_path: Path, index: int, *, video_frames: int, start_offset: int = 0
+):
     import imageio.v2 as imageio
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -85,7 +96,9 @@ def _load_record(manifest_path: Path, index: int, *, video_frames: int, start_of
         raise ValueError("WAN22_DROID_MANIFEST_EMPTY")
     record = records[index % len(records)]
     root = Path(str(manifest["data_root"])).expanduser().resolve()
-    annotation = json.loads((root / str(record["annotation_path"])).read_text(encoding="utf-8"))
+    annotation = json.loads(
+        (root / str(record["annotation_path"])).read_text(encoding="utf-8")
+    )
     start = int(record["start_frame"]) + int(start_offset)
     stop = start + video_frames
     actions = np.asarray(annotation["action"][start:stop], dtype=np.float32)
@@ -107,7 +120,9 @@ def _load_record(manifest_path: Path, index: int, *, video_frames: int, start_of
     return manifest, record, actions, proprio, video, video_path
 
 
-def _assert_episode_disjoint(train_manifest: Mapping[str, Any], validation_manifest: Mapping[str, Any]) -> None:
+def _assert_episode_disjoint(
+    train_manifest: Mapping[str, Any], validation_manifest: Mapping[str, Any]
+) -> None:
     """Fail closed if any episode identity is shared by train and validation."""
 
     train_records = train_manifest.get("records")
@@ -119,9 +134,15 @@ def _assert_episode_disjoint(train_manifest: Mapping[str, Any], validation_manif
         or not validation_records
     ):
         raise ValueError("WAN22_DROID_MANIFEST_RECORDS_INVALID")
-    if not all(isinstance(row, Mapping) and str(row.get("episode_id", "")).strip() for row in train_records):
+    if not all(
+        isinstance(row, Mapping) and str(row.get("episode_id", "")).strip()
+        for row in train_records
+    ):
         raise ValueError("WAN22_DROID_TRAIN_EPISODE_ID_MISSING")
-    if not all(isinstance(row, Mapping) and str(row.get("episode_id", "")).strip() for row in validation_records):
+    if not all(
+        isinstance(row, Mapping) and str(row.get("episode_id", "")).strip()
+        for row in validation_records
+    ):
         raise ValueError("WAN22_DROID_VALIDATION_EPISODE_ID_MISSING")
     train_ids = {str(row["episode_id"]).strip() for row in train_records}
     validation_ids = {str(row["episode_id"]).strip() for row in validation_records}
@@ -167,7 +188,9 @@ def _validate_control_plane_training_contract(
             "record_limit": int(os.environ["VERDIWM_TRAINING_RECORD_LIMIT"]),
             "sampler": os.environ["VERDIWM_TRAINING_SAMPLER"],
             "seed_count": int(os.environ["VERDIWM_TRAINING_SEED_COUNT"]),
-            "validation_panel_size": int(os.environ.get("VERDIWM_VALIDATION_PANEL_SIZE", "1")),
+            "validation_panel_size": int(
+                os.environ.get("VERDIWM_VALIDATION_PANEL_SIZE", "1")
+            ),
             "scale_plan_sha256": os.environ["VERDIWM_TRAINING_SCALE_PLAN_SHA256"],
             "runner_contract": contract,
         }
@@ -192,7 +215,13 @@ def _conditioning_for_mode(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Project the same DROID stream into a declared, comparable conditioning arm."""
 
-    if mode not in {"visual_anchor_only", "action", "action_proprio", "action_proprio_history", "action_proprio_ema"}:
+    if mode not in {
+        "visual_anchor_only",
+        "action",
+        "action_proprio",
+        "action_proprio_history",
+        "action_proprio_ema",
+    }:
         raise ValueError(f"WAN22_DROID_CONDITIONING_MODE_INVALID:{mode}")
     if not 0.0 < float(history_decay) <= 1.0:
         raise ValueError("WAN22_DROID_HISTORY_DECAY_INVALID")
@@ -205,8 +234,14 @@ def _conditioning_for_mode(
         proprio.fill(0.0)
     elif mode == "action_proprio_history":
         # Causal prefix means: no future condition leaks into an earlier token.
-        actions = np.cumsum(actions, axis=0) / np.arange(1, len(actions) + 1, dtype=np.float32)[:, None]
-        proprio = np.cumsum(proprio, axis=0) / np.arange(1, len(proprio) + 1, dtype=np.float32)[:, None]
+        actions = (
+            np.cumsum(actions, axis=0)
+            / np.arange(1, len(actions) + 1, dtype=np.float32)[:, None]
+        )
+        proprio = (
+            np.cumsum(proprio, axis=0)
+            / np.arange(1, len(proprio) + 1, dtype=np.float32)[:, None]
+        )
     elif mode == "action_proprio_ema":
         # Causal exponential state: old observations remain available but
         # their influence decays, limiting long-horizon stale-state leakage.
@@ -221,7 +256,13 @@ def _conditioning_for_mode(
     return actions, proprio
 
 
-def _chunk_anchor(first_reference: Any, previous_last: Any, chunk_index: int, policy: str, refresh_strength: float) -> tuple[Any, str]:
+def _chunk_anchor(
+    first_reference: Any,
+    previous_last: Any,
+    chunk_index: int,
+    policy: str,
+    refresh_strength: float,
+) -> tuple[Any, str]:
     """Select a causal chunk boundary anchor from already observed/generated state."""
 
     if policy not in {"previous_generated", "initial_reference_blend"}:
@@ -258,7 +299,11 @@ def _select_branch_index(
         left_flat = np.asarray(left, dtype=np.float64).reshape(-1)
         right_flat = np.asarray(right, dtype=np.float64).reshape(-1)
         denominator = float(np.linalg.norm(left_flat) * np.linalg.norm(right_flat))
-        return 1.0 if denominator <= 1e-12 else 1.0 - float(np.dot(left_flat, right_flat) / denominator)
+        return (
+            1.0
+            if denominator <= 1e-12
+            else 1.0 - float(np.dot(left_flat, right_flat) / denominator)
+        )
 
     reference = np.asarray(first_reference)
     continuity = reference if previous_last is None else np.asarray(previous_last)
@@ -272,20 +317,33 @@ def _select_branch_index(
 
 
 def _training_record_schedule(
-    records: list[Mapping[str, Any]], sample_index: int, mode: str,
-    record_limit: int, steps: int, *, sampler: str = "episode_balanced",
-    seed: int = 0, chunk_frames: int = 45,
+    records: list[Mapping[str, Any]],
+    sample_index: int,
+    mode: str,
+    record_limit: int,
+    steps: int,
+    *,
+    sampler: str = "episode_balanced",
+    seed: int = 0,
+    chunk_frames: int = 45,
 ) -> list[tuple[int, int]]:
     """Compatibility wrapper for the generic wmloop window scheduler."""
 
     try:
         return build_window_schedule(
-            records, steps=steps, mode=mode, record_limit=record_limit,
-            sampler=sampler, seed=seed, chunk_frames=chunk_frames,
+            records,
+            steps=steps,
+            mode=mode,
+            record_limit=record_limit,
+            sampler=sampler,
+            seed=seed,
+            chunk_frames=chunk_frames,
             sample_index=sample_index,
         )
     except ValueError as exc:
-        raise ValueError(str(exc).replace("WINDOW_SCHEDULER_", "WAN22_DROID_TRAINING_", 1)) from exc
+        raise ValueError(
+            str(exc).replace("WINDOW_SCHEDULER_", "WAN22_DROID_TRAINING_", 1)
+        ) from exc
 
 
 def _validate_scheduled_training_coverage(
@@ -322,10 +380,21 @@ def _load_runtime(source: Path, model_path: Path, device: Any):
     # helper.  SDPA is a semantically equivalent fallback available in the
     # supported PyTorch runtime, so the runner remains portable across GPU
     # environments without altering the imported source tree.
-    def sdpa_fallback(q, k, v, q_lens=None, k_lens=None, dropout_p=0.0,
-                      softmax_scale=None, q_scale=None, causal=False,
-                      window_size=(-1, -1), deterministic=False,
-                      dtype=torch.bfloat16, version=None):
+    def sdpa_fallback(
+        q,
+        k,
+        v,
+        q_lens=None,
+        k_lens=None,
+        dropout_p=0.0,
+        softmax_scale=None,
+        q_scale=None,
+        causal=False,
+        window_size=(-1, -1),
+        deterministic=False,
+        dtype=torch.bfloat16,
+        version=None,
+    ):
         del window_size, deterministic, version
         out_dtype = q.dtype
         q = q if q.dtype in (torch.float16, torch.bfloat16) else q.to(dtype)
@@ -343,8 +412,13 @@ def _load_runtime(source: Path, model_path: Path, device: Any):
             lengths = k_lens.to(device=k.device).view(-1, 1, 1, 1)
             mask = torch.arange(max_k, device=k.device).view(1, 1, 1, max_k) < lengths
         out = F.scaled_dot_product_attention(
-            q, k, v, attn_mask=mask, dropout_p=dropout_p,
-            is_causal=causal, scale=softmax_scale,
+            q,
+            k,
+            v,
+            attn_mask=mask,
+            dropout_p=dropout_p,
+            is_causal=causal,
+            scale=softmax_scale,
         )
         return out.transpose(1, 2).contiguous().to(out_dtype)
 
@@ -383,14 +457,18 @@ def _model_call(torch, model, adapter, x, actions, proprio, context, *, t):
 
 def _decode_frames(vae, latent):
     decoded = vae.decode([latent])[0].detach().float().cpu().clamp(-1, 1)
-    return ((decoded.permute(1, 2, 3, 0).numpy() + 1.0) * 127.5).round().astype(np.uint8)
+    return (
+        ((decoded.permute(1, 2, 3, 0).numpy() + 1.0) * 127.5).round().astype(np.uint8)
+    )
 
 
 def _write_mp4(frames: np.ndarray, output: Path) -> int:
     import imageio.v2 as imageio
 
     output.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    imageio.mimsave(str(output), list(frames), fps=5, codec="libx264", macro_block_size=1)
+    imageio.mimsave(
+        str(output), list(frames), fps=5, codec="libx264", macro_block_size=1
+    )
     return int(frames.shape[0])
 
 
@@ -407,7 +485,11 @@ def _validation_panel_indices(
     if not isinstance(records, list) or not records:
         raise ValueError("WAN22_DROID_VALIDATION_PANEL_EMPTY")
     if requested is None:
-        indices = [fallback_index] if not formal else [fallback_index + offset for offset in range(3)]
+        indices = (
+            [fallback_index]
+            if not formal
+            else [fallback_index + offset for offset in range(3)]
+        )
     else:
         indices = [int(value) for value in requested]
     if not indices or len(set(indices)) != len(indices):
@@ -424,10 +506,126 @@ def _validation_panel_indices(
     return indices
 
 
+def _validate_validation_source_frames(
+    validation_manifest: Mapping[str, Any],
+    panel_indices: list[int],
+    *,
+    required_frames: int,
+) -> dict[str, object]:
+    """Preflight annotation and encoded-video frame availability before GPU work."""
+
+    if required_frames < 1:
+        raise ValueError("WAN22_DROID_SOURCE_FRAME_REQUIREMENT_INVALID")
+    records = validation_manifest.get("records")
+    if not isinstance(records, list) or not records:
+        raise ValueError("WAN22_DROID_VALIDATION_PANEL_EMPTY")
+    import imageio.v2 as imageio
+
+    checked: list[dict[str, object]] = []
+    for index in panel_indices:
+        record = records[index]
+        if not isinstance(record, Mapping):
+            raise ValueError("WAN22_DROID_VALIDATION_RECORD_INVALID")
+        declared = int(record.get("source_frame_count", 0))
+        start_frame = int(record.get("start_frame", 0))
+        if declared < start_frame + required_frames:
+            raise ValueError(
+                "WAN22_DROID_SOURCE_FRAMES_INSUFFICIENT:"
+                f"index={index}:declared={declared}:start={start_frame}:required={required_frames}"
+            )
+        root = Path(str(validation_manifest["data_root"])).expanduser().resolve()
+        video_path = root / str(record["video_path"])
+        if not video_path.is_file() or video_path.is_symlink():
+            raise ValueError(f"WAN22_DROID_VALIDATION_VIDEO_MISSING:{video_path}")
+        reader = imageio.get_reader(str(video_path))
+        try:
+            try:
+                observed = int(reader.count_frames())
+            except (AttributeError, RuntimeError, ValueError):
+                observed = required_frames
+                reader.get_data(required_frames - 1)
+        finally:
+            reader.close()
+        if observed < required_frames:
+            raise ValueError(
+                "WAN22_DROID_VIDEO_FRAMES_INSUFFICIENT:"
+                f"index={index}:observed={observed}:required={required_frames}"
+            )
+        checked.append(
+            {
+                "sample_index": index,
+                "episode_id": str(record.get("episode_id", "")),
+                "video_path": str(video_path),
+                "declared_frames": declared,
+                "start_frame": start_frame,
+                "observed_frames": observed,
+                "required_frames": required_frames,
+            }
+        )
+    return {"state": "passed", "required_frames": required_frames, "rows": checked}
+
+
+def _evaluate_heldout_loss(
+    *,
+    torch: Any,
+    backbone: Any,
+    adapter: Any,
+    vae: Any,
+    context: Any,
+    device: Any,
+    args: argparse.Namespace,
+    validation_manifest: Path,
+    sample_indices: list[int],
+) -> float:
+    """Measure a deterministic held-out denoising loss for checkpoint selection."""
+
+    values: list[float] = []
+    adapter.eval()
+    with torch.no_grad():
+        for sample_index in sample_indices:
+            _, _, actions_np, proprio_np, video, _ = _load_record(
+                validation_manifest, sample_index, video_frames=45, start_offset=0
+            )
+            actions_np, proprio_np = _conditioning_for_mode(
+                actions_np, proprio_np, args.conditioning_mode, args.history_decay
+            )
+            actions = torch.from_numpy(actions_np).to(device=device)
+            proprio = torch.from_numpy(proprio_np).to(device=device)
+            target = vae.encode([video.to(device)])[0].to(
+                device=device, dtype=torch.bfloat16
+            )
+            if target.ndim != 4 or target.shape[0] != 48:
+                raise ValueError(
+                    f"WAN22_VAE_HELDOUT_LATENT_SHAPE_INVALID:{tuple(target.shape)}"
+                )
+            adapter.set_conditions(actions, proprio)
+            x_t = target * 0.5
+            x_t[:, :1] = target[:, :1]
+            predicted = _model_call(
+                torch, backbone, adapter, x_t, actions, proprio, context, t=500.0
+            )
+            target_velocity = -target
+            loss = (predicted[:, 1:] - target_velocity[:, 1:]).float().square().mean()
+            if not torch.isfinite(loss):
+                raise RuntimeError("WAN22_DROID_HELDOUT_NONFINITE_LOSS")
+            values.append(float(loss.detach().cpu()))
+    return float(np.mean(values))
+
+
 def _rollout_validation_sample(
-    *, torch: Any, backbone: Any, adapter: Any, vae: Any, validate_window: Any, context: Any,
-    device: Any, args: argparse.Namespace, sample_index: int,
-    output: Path, chunk_sizes: list[int], horizon: int,
+    *,
+    torch: Any,
+    backbone: Any,
+    adapter: Any,
+    vae: Any,
+    validate_window: Any,
+    context: Any,
+    device: Any,
+    args: argparse.Namespace,
+    sample_index: int,
+    output: Path,
+    chunk_sizes: list[int],
+    horizon: int,
 ) -> dict[str, Any]:
     """Generate one panel member and all paired inspection handoff artifacts."""
 
@@ -441,33 +639,54 @@ def _rollout_validation_sample(
     action_sequence: list[np.ndarray] = []
     proprio_sequence: list[np.ndarray] = []
     chunk_receipts: list[dict[str, Any]] = []
+    branch_generated_frames: list[list[np.ndarray]] = [
+        [] for _ in range(max(1, int(args.branch_count)))
+    ]
     previous_last = None
     first_reference = None
+    published_chunk_sizes = [
+        chunk_size if chunk_size == int(args.chunk_frames) else chunk_size - 2
+        for chunk_size in chunk_sizes
+    ]
     for chunk_index, chunk_size in enumerate(chunk_sizes):
-        offset = sum(chunk_sizes[:chunk_index])
+        # The final source tail is two frames longer than its published
+        # decoded segment. Advance the source cursor by published frames so
+        # chunks are contiguous in the original validation episode.
+        offset = sum(published_chunk_sizes[:chunk_index])
         _, record, actions_np, proprio_np, video, video_path = _load_record(
-            args.validation_manifest, sample_index, video_frames=chunk_size, start_offset=offset
+            args.validation_manifest,
+            sample_index,
+            video_frames=chunk_size,
+            start_offset=offset,
         )
         actions_np, proprio_np = _conditioning_for_mode(
             actions_np, proprio_np, args.conditioning_mode, args.history_decay
         )
-        validate_window(actions_np.tolist(), proprio_np.tolist(), horizon_frames=chunk_size)
+        validate_window(
+            actions_np.tolist(), proprio_np.tolist(), horizon_frames=chunk_size
+        )
         actions = torch.from_numpy(actions_np).to(device=device)
         proprio = torch.from_numpy(proprio_np).to(device=device)
         action_sequence.append(actions_np)
         proprio_sequence.append(proprio_np)
         with torch.no_grad():
-            target = vae.encode([video.to(device)])[0].to(device=device, dtype=torch.bfloat16)
+            target = vae.encode([video.to(device)])[0].to(
+                device=device, dtype=torch.bfloat16
+            )
         if target.ndim != 4 or target.shape[0] != 48:
             raise ValueError(f"WAN22_VAE_LATENT_SHAPE_INVALID:{tuple(target.shape)}")
         if first_reference is None:
             first_reference = target[:, :1].detach()
         anchor, anchor_source = _chunk_anchor(
-            first_reference, previous_last, chunk_index, args.anchor_policy,
+            first_reference,
+            previous_last,
+            chunk_index,
+            args.anchor_policy,
             args.anchor_refresh_strength,
         )
         adapter.eval()
         from wan.utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
+
         if args.branch_count < 1:
             raise ValueError("WAN22_DROID_BRANCH_COUNT_INVALID")
         if args.branch_selection == "first" and args.branch_count != 1:
@@ -483,22 +702,41 @@ def _rollout_validation_sample(
             with torch.no_grad():
                 for timestep in scheduler.timesteps:
                     prediction = _model_call(
-                        torch, backbone, adapter, branch, actions, proprio, context,
+                        torch,
+                        backbone,
+                        adapter,
+                        branch,
+                        actions,
+                        proprio,
+                        context,
                         t=float(timestep),
                     )
                     branch = scheduler.step(
-                        prediction.unsqueeze(0), timestep, branch.unsqueeze(0),
+                        prediction.unsqueeze(0),
+                        timestep,
+                        branch.unsqueeze(0),
                         return_dict=False,
                     )[0].squeeze(0)
                     branch[:, :1] = anchor
             branch_states.append(branch)
+        for branch_index, branch_state in enumerate(branch_states):
+            branch_generated_frames[branch_index].append(
+                _decode_frames(vae, branch_state)
+            )
         branch_scores = [0.0]
         selected_branch = 0
         if args.branch_selection == "terminal_reference_consistency":
             selected_branch, branch_scores = _select_branch_index(
-                [state[:, -1:].detach().float().cpu().numpy() for state in branch_states],
+                [
+                    state[:, -1:].detach().float().cpu().numpy()
+                    for state in branch_states
+                ],
                 first_reference.detach().float().cpu().numpy(),
-                None if previous_last is None else previous_last.detach().float().cpu().numpy(),
+                (
+                    None
+                    if previous_last is None
+                    else previous_last.detach().float().cpu().numpy()
+                ),
                 args.branch_reference_weight,
             )
         generated = branch_states[selected_branch]
@@ -507,20 +745,26 @@ def _rollout_validation_sample(
         generated_frames_list.append(generated_chunk_frames)
         target_frames_list.append(target_chunk_frames)
         previous_last = generated[:, -1:].detach()
-        chunk_receipts.append({
-            "chunk_index": chunk_index,
-            "start_frame": int(record["start_frame"]) + offset,
-            "frames": int(chunk_size),
-            "published_frames": int(generated_chunk_frames.shape[0]),
-            "latent_shape": list(target.shape),
-            "anchor": anchor_source,
-            "branch_count": args.branch_count,
-            "branch_selection": args.branch_selection,
-            "branch_reference_weight": args.branch_reference_weight if args.branch_selection == "terminal_reference_consistency" else None,
-            "branch_scores": branch_scores,
-            "selected_branch": selected_branch,
-            "video_path": str(video_path),
-        })
+        chunk_receipts.append(
+            {
+                "chunk_index": chunk_index,
+                "start_frame": int(record["start_frame"]) + offset,
+                "frames": int(chunk_size),
+                "published_frames": int(generated_chunk_frames.shape[0]),
+                "latent_shape": list(target.shape),
+                "anchor": anchor_source,
+                "branch_count": args.branch_count,
+                "branch_selection": args.branch_selection,
+                "branch_reference_weight": (
+                    args.branch_reference_weight
+                    if args.branch_selection == "terminal_reference_consistency"
+                    else None
+                ),
+                "branch_scores": branch_scores,
+                "selected_branch": selected_branch,
+                "video_path": str(video_path),
+            }
+        )
     generated_frames_np = np.concatenate(generated_frames_list, axis=0)[:horizon]
     target_frames_np = np.concatenate(target_frames_list, axis=0)[:horizon]
     if generated_frames_np.shape[0] != horizon or target_frames_np.shape[0] != horizon:
@@ -532,6 +776,73 @@ def _rollout_validation_sample(
     generated_frames = _write_mp4(generated_frames_np, generated_path)
     gt_path = output / "ground_truth_150f.mp4"
     _write_mp4(target_frames_np, gt_path)
+    branch_roots: list[dict[str, str]] = []
+    if args.emit_branches:
+        if args.branch_count < 2:
+            raise ValueError("WAN22_DROID_BRANCH_EMISSION_REQUIRES_MULTIPLE_BRANCHES")
+        for branch_index, frames in enumerate(branch_generated_frames):
+            branch_root = output / "branches" / f"branch-{branch_index + 1}"
+            branch_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+            branch_generated = np.concatenate(frames, axis=0)[:horizon]
+            branch_video = branch_root / "generated_150f.mp4"
+            branch_gt = branch_root / "ground_truth_150f.mp4"
+            _write_mp4(branch_generated, branch_video)
+            _write_mp4(target_frames_np, branch_gt)
+            branch_first_frame = branch_root / "first_frame.png"
+            imageio.imwrite(str(branch_first_frame), branch_generated[0])
+            branch_summary = branch_root / "worldarena_summary.json"
+            branch_summary.write_text(
+                json.dumps(
+                    [
+                        {
+                            "gt_path": str(branch_gt),
+                            "image": str(branch_first_frame),
+                            "prompt": [
+                                str(
+                                    first_record.get(
+                                        "instruction",
+                                        "DROID robot action-conditioned future prediction",
+                                    )
+                                )
+                            ],
+                        }
+                    ],
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (branch_root / "worldarena_input.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "artifact_type": "verdiwm-wan22-droid-worldarena-input",
+                        "generated_video": str(branch_video),
+                        "ground_truth_video": str(branch_gt),
+                        "first_frame": str(branch_first_frame),
+                        "worldarena_summary": str(branch_summary),
+                        "episode_id": str(first_record["episode_id"]),
+                        "sample_id": str(first_record["sample_id"]),
+                        "generated_frames": int(branch_generated.shape[0]),
+                        "fps": 5,
+                        "branch_gid": str(branch_index + 1),
+                        "claim_boundary": "This branch is an action-following evaluation GID; it is not an independent training sample.",
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            branch_roots.append(
+                {
+                    "gid": str(branch_index + 1),
+                    "root": str(branch_root),
+                    "generated_video": str(branch_video),
+                    "ground_truth_video": str(branch_gt),
+                }
+            )
     visualization = create_paired_visualization(
         generated_video=generated_path,
         ground_truth_video=gt_path,
@@ -571,32 +882,57 @@ def _rollout_validation_sample(
         "droid_proprio_sequence": str(output / "droid_conditioning.npz"),
         "worldarena_summary": str(output / "worldarena_summary.json"),
         "chunk_receipts": chunk_receipts,
-        "metrics": ["subject_consistency", "background_consistency", "motion_smoothness", "photometric_smoothness", "trajectory_accuracy", "action_following"],
+        "branch_roots": branch_roots,
+        "metrics": [
+            "subject_consistency",
+            "background_consistency",
+            "motion_smoothness",
+            "photometric_smoothness",
+            "trajectory_accuracy",
+            "action_following",
+        ],
     }
     (output / "worldarena_input.json").write_text(
         json.dumps(worldarena_input, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    summary = [{
-        "gt_path": str(gt_path),
-        "image": str(first_frame_path),
-        "prompt": [str(first_record.get("instruction", "DROID robot action-conditioned future prediction"))],
-    }]
+    summary = [
+        {
+            "gt_path": str(gt_path),
+            "image": str(first_frame_path),
+            "prompt": [
+                str(
+                    first_record.get(
+                        "instruction",
+                        "DROID robot action-conditioned future prediction",
+                    )
+                )
+            ],
+        }
+    ]
     (output / "worldarena_summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    (output / "evaluator_receipt.json").write_text(json.dumps({
-        "schema_version": 1,
-        "artifact_type": "verdiwm-wan22-droid-evaluator-receipt",
-        "evaluator_id": "wan22-droid-worldarena-30s-v1",
-        "state": "not_launched",
-        "command_bound": False,
-        "input": str(output / "worldarena_input.json"),
-        "sample_id": str(first_record["sample_id"]),
-        "episode_id": str(first_record["episode_id"]),
-        "generated_frames": generated_frames,
-        "fps": 5,
-        "claim_boundary": "No metric claim is valid until the frozen WorldArena command returns zero and emits metrics for this input.",
-    }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / "evaluator_receipt.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "artifact_type": "verdiwm-wan22-droid-evaluator-receipt",
+                "evaluator_id": "wan22-droid-worldarena-30s-v1",
+                "state": "not_launched",
+                "command_bound": False,
+                "input": str(output / "worldarena_input.json"),
+                "sample_id": str(first_record["sample_id"]),
+                "episode_id": str(first_record["episode_id"]),
+                "generated_frames": generated_frames,
+                "fps": 5,
+                "claim_boundary": "No metric claim is valid until the frozen WorldArena command returns zero and emits metrics for this input.",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return {
         "sample_index": sample_index,
         "sample_id": str(first_record["sample_id"]),
@@ -606,6 +942,7 @@ def _rollout_validation_sample(
         "generated_frames": generated_frames,
         "paired_visualization": visualization["manifest_path"],
         "chunk_receipts": chunk_receipts,
+        "branch_roots": branch_roots,
         "action_sequence": np.concatenate(action_sequence, axis=0)[:horizon],
         "proprio_sequence": np.concatenate(proprio_sequence, axis=0)[:horizon],
     }
@@ -643,7 +980,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     output = args.output_root.expanduser().resolve()
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
     train_manifest_payload = json.loads(args.train_manifest.read_text(encoding="utf-8"))
-    validation_manifest_payload = json.loads(args.validation_manifest.read_text(encoding="utf-8"))
+    validation_manifest_payload = json.loads(
+        args.validation_manifest.read_text(encoding="utf-8")
+    )
     _assert_episode_disjoint(train_manifest_payload, validation_manifest_payload)
     panel_indices = _validation_panel_indices(
         validation_manifest_payload,
@@ -673,14 +1012,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     chunk = int(args.chunk_frames)
     if horizon != 150 or chunk != 45:
         raise ValueError("WAN22_DROID_CONFIRMATION_REQUIRES_150X45")
-    chunk_sizes = [chunk] * (horizon // chunk) + ([horizon % chunk + 2] if horizon % chunk else [])
+    chunk_sizes = [chunk] * (horizon // chunk) + (
+        [horizon % chunk + 2] if horizon % chunk else []
+    )
+    source_frame_preflight = _validate_validation_source_frames(
+        validation_manifest_payload,
+        panel_indices,
+        required_frames=required_rollout_source_frames(
+            horizon_frames=horizon, chunk_frames=chunk
+        ),
+    )
     train_records = train_manifest_payload.get("records", [])
     if not isinstance(train_records, list) or not train_records:
         raise ValueError("WAN22_DROID_TRAIN_RECORDS_INVALID")
     schedule = _training_record_schedule(
-        train_records, int(args.sample_index), args.training_mode,
-        int(args.train_record_limit), int(args.steps),
-        sampler=args.training_sampler, seed=int(args.seed), chunk_frames=45,
+        train_records,
+        int(args.sample_index),
+        args.training_mode,
+        int(args.train_record_limit),
+        int(args.steps),
+        sampler=args.training_sampler,
+        seed=int(args.seed),
+        chunk_frames=45,
     )
     if args.training_mode == "long":
         _validate_scheduled_training_coverage(
@@ -689,25 +1042,54 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     training_window_indices: set[int] = set()
     training_episode_ids: set[str] = set()
     training_chunk_offsets: set[int] = set()
+    checkpoint_eval_steps = sorted(
+        {int(value) for value in (getattr(args, "checkpoint_eval_steps", None) or [])}
+    )
+    if not checkpoint_eval_steps or checkpoint_eval_steps[-1] != int(args.steps):
+        checkpoint_eval_steps.append(int(args.steps))
+    if any(step < 1 or step > int(args.steps) for step in checkpoint_eval_steps):
+        raise ValueError("WAN22_DROID_CHECKPOINT_EVAL_STEPS_INVALID")
+    checkpoint_root = output / "checkpoints"
+    checkpoint_rows: list[dict[str, object]] = []
+    best_checkpoint_state: dict[str, Any] | None = None
+    best_checkpoint_loss = float("inf")
     progress_path = output / "training_progress.json"
     for update_index, (record_index, start_offset) in enumerate(schedule, start=1):
         _, train_record, actions_np, proprio_np, video, _ = _load_record(
-            args.train_manifest, record_index, video_frames=45, start_offset=start_offset,
+            args.train_manifest,
+            record_index,
+            video_frames=45,
+            start_offset=start_offset,
         )
-        actions_np, proprio_np = _conditioning_for_mode(actions_np, proprio_np, args.conditioning_mode, args.history_decay)
+        actions_np, proprio_np = _conditioning_for_mode(
+            actions_np, proprio_np, args.conditioning_mode, args.history_decay
+        )
         train_actions = torch.from_numpy(actions_np).to(device=device)
         train_proprio = torch.from_numpy(proprio_np).to(device=device)
         with torch.no_grad():
-            train_target = vae.encode([video.to(device)])[0].to(device=device, dtype=torch.bfloat16)
+            train_target = vae.encode([video.to(device)])[0].to(
+                device=device, dtype=torch.bfloat16
+            )
         if train_target.ndim != 4 or train_target.shape[0] != 48:
-            raise ValueError(f"WAN22_VAE_LATENT_SHAPE_INVALID:{tuple(train_target.shape)}")
+            raise ValueError(
+                f"WAN22_VAE_LATENT_SHAPE_INVALID:{tuple(train_target.shape)}"
+            )
         noise = torch.randn_like(train_target)
         backbone.zero_grad(set_to_none=True)
         adapter.set_conditions(train_actions, train_proprio)
         optimizer.zero_grad(set_to_none=True)
         x_t = train_target * 0.5 + noise * 0.5
         x_t[:, :1] = train_target[:, :1]
-        predicted = _model_call(torch, backbone, adapter, x_t, train_actions, train_proprio, context, t=500.0)
+        predicted = _model_call(
+            torch,
+            backbone,
+            adapter,
+            x_t,
+            train_actions,
+            train_proprio,
+            context,
+            t=500.0,
+        )
         target_velocity = noise - train_target
         loss = (predicted[:, 1:] - target_velocity[:, 1:]).float().square().mean()
         if not torch.isfinite(loss):
@@ -719,56 +1101,146 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         training_window_indices.add(record_index)
         training_episode_ids.add(str(train_record["episode_id"]))
         training_chunk_offsets.add(start_offset)
+        if update_index in checkpoint_eval_steps:
+            heldout_loss = _evaluate_heldout_loss(
+                torch=torch,
+                backbone=backbone,
+                adapter=adapter,
+                vae=vae,
+                context=context,
+                device=device,
+                args=args,
+                validation_manifest=args.validation_manifest,
+                sample_indices=panel_indices,
+            )
+            checkpoint_path = checkpoint_root / f"checkpoint-step-{update_index:06d}.pt"
+            checkpoint_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+            torch.save(
+                {
+                    "adapter": adapter.state_dict(),
+                    "model_dim": int(backbone.dim),
+                    "action_dim": 7,
+                    "proprio_dim": 14,
+                    "step": update_index,
+                    "heldout_loss": heldout_loss,
+                },
+                checkpoint_path,
+            )
+            checkpoint_rows.append(
+                {
+                    "step": update_index,
+                    "path": str(checkpoint_path),
+                    "heldout_loss": heldout_loss,
+                    "panel_indices": list(panel_indices),
+                }
+            )
+            if heldout_loss < best_checkpoint_loss:
+                best_checkpoint_loss = heldout_loss
+                best_checkpoint_state = copy.deepcopy(adapter.state_dict())
+            adapter.train()
         if update_index == 1 or update_index % 16 == 0 or update_index == len(schedule):
-            _write_json_atomic(progress_path, {
-                "schema_version": 1,
-                "artifact_type": "verdiwm-wan22-droid-training-progress",
-                "state": "completed" if update_index == len(schedule) else "running",
-                "training_mode": args.training_mode,
-                "training_stage": args.training_stage,
-                "training_sampler": args.training_sampler,
-                "optimization_updates_completed": update_index,
-                "optimization_updates_total": len(schedule),
-                "training_windows": len(training_window_indices),
-                "training_episodes": len(training_episode_ids),
-                "training_chunk_offsets": sorted(training_chunk_offsets),
-                "latest_loss": losses[-1],
-                "recent_mean_loss": float(np.mean(losses[-16:])),
-            })
+            _write_json_atomic(
+                progress_path,
+                {
+                    "schema_version": 1,
+                    "artifact_type": "verdiwm-wan22-droid-training-progress",
+                    "state": (
+                        "completed" if update_index == len(schedule) else "running"
+                    ),
+                    "training_mode": args.training_mode,
+                    "training_stage": args.training_stage,
+                    "training_sampler": args.training_sampler,
+                    "optimization_updates_completed": update_index,
+                    "optimization_updates_total": len(schedule),
+                    "training_windows": len(training_window_indices),
+                    "training_episodes": len(training_episode_ids),
+                    "training_chunk_offsets": sorted(training_chunk_offsets),
+                    "latest_loss": losses[-1],
+                    "recent_mean_loss": float(np.mean(losses[-16:])),
+                },
+            )
 
+    if best_checkpoint_state is None:
+        raise RuntimeError("WAN22_DROID_CHECKPOINT_LADDER_EMPTY")
+    adapter.load_state_dict(best_checkpoint_state)
     checkpoint = output / "wan22_droid_adapter.pt"
-    torch.save({"adapter": adapter.state_dict(), "model_dim": int(backbone.dim), "action_dim": 7, "proprio_dim": 14}, checkpoint)
+    torch.save(
+        {
+            "adapter": adapter.state_dict(),
+            "model_dim": int(backbone.dim),
+            "action_dim": 7,
+            "proprio_dim": 14,
+        },
+        checkpoint,
+    )
+    checkpoint_ladder = {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-wan22-droid-checkpoint-ladder",
+        "state": "completed",
+        "requested_steps": int(args.steps),
+        "checkpoint_eval_steps": checkpoint_eval_steps,
+        "selection_policy": "minimum_mean_heldout_denoising_loss_then_earlier_step",
+        "selected_step": min(
+            checkpoint_rows,
+            key=lambda row: (float(row["heldout_loss"]), int(row["step"])),
+        )["step"],
+        "selected_heldout_loss": best_checkpoint_loss,
+        "rows": checkpoint_rows,
+        "claim_boundary": "Held-out loss selects the adapter checkpoint only; it is not a WorldArena quality claim or promotion decision.",
+    }
+    _write_json_atomic(output / "checkpoint_ladder.json", checkpoint_ladder)
     panel_rows: list[dict[str, Any]] = []
     panel_results: list[dict[str, Any]] = []
     for position, sample_index in enumerate(panel_indices):
-        sample_output = output if position == 0 else output / "validation_panel" / f"sample-{sample_index}"
+        sample_output = (
+            output
+            if position == 0
+            else output / "validation_panel" / f"sample-{sample_index}"
+        )
         result = _rollout_validation_sample(
-            torch=torch, backbone=backbone, adapter=adapter, vae=vae,
-            validate_window=validate_window, context=context, device=device,
-            args=args, sample_index=sample_index,
-            output=sample_output, chunk_sizes=chunk_sizes, horizon=horizon,
+            torch=torch,
+            backbone=backbone,
+            adapter=adapter,
+            vae=vae,
+            validate_window=validate_window,
+            context=context,
+            device=device,
+            args=args,
+            sample_index=sample_index,
+            output=sample_output,
+            chunk_sizes=chunk_sizes,
+            horizon=horizon,
         )
         panel_results.append(result)
-        panel_rows.append({
-            "sample_index": result["sample_index"],
-            "sample_id": result["sample_id"],
-            "episode_id": result["episode_id"],
-            "run_root": str(sample_output),
-            "generated_video": result["generated_video"],
-            "ground_truth_video": result["ground_truth_video"],
-            "paired_visualization": result["paired_visualization"],
-        })
-    _write_json_atomic(output / "validation_panel.json", {
-        "schema_version": 1,
-        "artifact_type": "verdiwm-wan22-droid-validation-panel",
-        "state": "frozen",
-        "panel_size": len(panel_rows),
-        "selection_policy": "explicit_indices_or_first_three_episode_diverse_records_v1",
-        "rows": panel_rows,
-        "claim_boundary": "The panel is a fixed evaluation sample set; it does not by itself establish model quality or promotion.",
-    })
+        panel_rows.append(
+            {
+                "sample_index": result["sample_index"],
+                "sample_id": result["sample_id"],
+                "episode_id": result["episode_id"],
+                "run_root": str(sample_output),
+                "generated_video": result["generated_video"],
+                "ground_truth_video": result["ground_truth_video"],
+                "paired_visualization": result["paired_visualization"],
+                "branch_roots": result.get("branch_roots", []),
+            }
+        )
+    _write_json_atomic(
+        output / "validation_panel.json",
+        {
+            "schema_version": 1,
+            "artifact_type": "verdiwm-wan22-droid-validation-panel",
+            "state": "frozen",
+            "panel_size": len(panel_rows),
+            "selection_policy": "explicit_indices_or_first_three_episode_diverse_records_v1",
+            "rows": panel_rows,
+            "claim_boundary": "The panel is a fixed evaluation sample set; it does not by itself establish model quality or promotion.",
+        },
+    )
     first_result = panel_results[0]
-    first_record = {"episode_id": first_result["episode_id"], "sample_id": first_result["sample_id"]}
+    first_record = {
+        "episode_id": first_result["episode_id"],
+        "sample_id": first_result["sample_id"],
+    }
     generated_path = Path(str(first_result["generated_video"]))
     gt_path = Path(str(first_result["ground_truth_video"]))
     generated_frames = int(first_result["generated_frames"])
@@ -786,13 +1258,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "fps": 5,
         "claim_boundary": "No metric claim is valid until the frozen WorldArena command returns zero and emits metrics for this input.",
     }
-    (output / "evaluator_receipt.json").write_text(json.dumps(evaluator_receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / "evaluator_receipt.json").write_text(
+        json.dumps(evaluator_receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     evaluator_result = None
     if args.worldarena_command:
         command = shlex.split(args.worldarena_command)
-        completed = subprocess.run(command, cwd=str(args.source.expanduser().resolve()), capture_output=True, text=True)
-        (output / "worldarena.stdout.log").write_text(completed.stdout, encoding="utf-8")
-        (output / "worldarena.stderr.log").write_text(completed.stderr, encoding="utf-8")
+        completed = subprocess.run(
+            command,
+            cwd=str(args.source.expanduser().resolve()),
+            capture_output=True,
+            text=True,
+        )
+        (output / "worldarena.stdout.log").write_text(
+            completed.stdout, encoding="utf-8"
+        )
+        (output / "worldarena.stderr.log").write_text(
+            completed.stderr, encoding="utf-8"
+        )
         evaluator_result = {"returncode": completed.returncode, "command": command}
     elapsed_hours = (time.monotonic() - started) / 3600.0
     if elapsed_hours > args.max_gpu_hours:
@@ -800,16 +1283,32 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     receipt = {
         "schema_version": 1,
         "artifact_type": "verdiwm-wan22-droid-training-receipt",
-        "state": "evaluated" if evaluator_result and evaluator_result["returncode"] == 0 else "awaiting_worldarena_evaluation",
+        "state": (
+            "evaluated"
+            if evaluator_result and evaluator_result["returncode"] == 0
+            else "awaiting_worldarena_evaluation"
+        ),
         "gpu_index": args.gpu_index,
         "seed": args.seed,
         "conditioning_mode": args.conditioning_mode,
-        "history_decay": args.history_decay if args.conditioning_mode == "action_proprio_ema" else None,
+        "history_decay": (
+            args.history_decay
+            if args.conditioning_mode == "action_proprio_ema"
+            else None
+        ),
         "anchor_policy": args.anchor_policy,
-        "anchor_refresh_strength": args.anchor_refresh_strength if args.anchor_policy == "initial_reference_blend" else None,
+        "anchor_refresh_strength": (
+            args.anchor_refresh_strength
+            if args.anchor_policy == "initial_reference_blend"
+            else None
+        ),
         "branch_count": args.branch_count,
         "branch_selection": args.branch_selection,
-        "branch_reference_weight": args.branch_reference_weight if args.branch_selection == "terminal_reference_consistency" else None,
+        "branch_reference_weight": (
+            args.branch_reference_weight
+            if args.branch_selection == "terminal_reference_consistency"
+            else None
+        ),
         "gpu_hours": elapsed_hours,
         "budget_gpu_hours": args.max_gpu_hours,
         "steps": args.steps,
@@ -826,7 +1325,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "training_progress": str(progress_path),
         "losses": losses,
         "model": str(args.model.expanduser().resolve()),
-        "model_config_sha256": _sha256(args.model.expanduser().resolve() / "config.json"),
+        "model_config_sha256": _sha256(
+            args.model.expanduser().resolve() / "config.json"
+        ),
         "source": str(args.source.expanduser().resolve()),
         "source_revision": _source_revision(args.source),
         "adapter": str(adapter_path),
@@ -834,13 +1335,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "training_manifest": str(args.train_manifest.expanduser().resolve()),
         "training_manifest_sha256": _sha256(args.train_manifest.expanduser().resolve()),
         "validation_manifest": str(args.validation_manifest.expanduser().resolve()),
-        "validation_manifest_sha256": _sha256(args.validation_manifest.expanduser().resolve()),
+        "validation_manifest_sha256": _sha256(
+            args.validation_manifest.expanduser().resolve()
+        ),
         "control_plane_training_contract": control_plane_binding,
         "episode_disjoint_validation": True,
         "sample_id": str(first_record["sample_id"]),
         "validation_panel": str(output / "validation_panel.json"),
         "validation_panel_size": len(panel_rows),
         "validation_sample_indices": panel_indices,
+        "source_frame_preflight": source_frame_preflight,
         "validation_sample_ids": [row["sample_id"] for row in panel_rows],
         "validation_episode_ids": [row["episode_id"] for row in panel_rows],
         "horizon_frames": horizon,
@@ -850,12 +1354,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "ground_truth_video": str(gt_path),
         "paired_visualization": first_result["paired_visualization"],
         "adapter_checkpoint": str(checkpoint),
+        "checkpoint_ladder": str(output / "checkpoint_ladder.json"),
+        "checkpoint_eval_steps": checkpoint_eval_steps,
+        "selected_checkpoint_step": checkpoint_ladder["selected_step"],
         "worldarena_input": str(output / "worldarena_input.json"),
         "evaluator_receipt": str(output / "evaluator_receipt.json"),
         "worldarena_result": evaluator_result,
         "claim_boundary": "This receipt proves a real adapter optimization and rollout artifact. Only a successful frozen WorldArena confirmation can support a 30-second quality claim.",
     }
-    (output / "training_receipt.json").write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (output / "training_receipt.json").write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return receipt
 
 
@@ -870,22 +1379,63 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--gpu-index", type=int, default=0)
     parser.add_argument("--seed", type=int, default=4101)
-    parser.add_argument("--conditioning-mode", choices=("visual_anchor_only", "action", "action_proprio", "action_proprio_history", "action_proprio_ema"), default="action_proprio")
+    parser.add_argument(
+        "--conditioning-mode",
+        choices=(
+            "visual_anchor_only",
+            "action",
+            "action_proprio",
+            "action_proprio_history",
+            "action_proprio_ema",
+        ),
+        default="action_proprio",
+    )
     parser.add_argument("--history-decay", type=float, default=0.8)
-    parser.add_argument("--anchor-policy", choices=("previous_generated", "initial_reference_blend"), default="previous_generated")
+    parser.add_argument(
+        "--anchor-policy",
+        choices=("previous_generated", "initial_reference_blend"),
+        default="previous_generated",
+    )
     parser.add_argument("--anchor-refresh-strength", type=float, default=0.25)
     parser.add_argument("--branch-count", type=int, default=1)
-    parser.add_argument("--branch-selection", choices=("first", "terminal_reference_consistency"), default="first")
+    parser.add_argument(
+        "--branch-selection",
+        choices=("first", "terminal_reference_consistency"),
+        default="first",
+    )
     parser.add_argument("--branch-reference-weight", type=float, default=0.7)
+    parser.add_argument(
+        "--emit-branches",
+        action="store_true",
+        help="publish every sampled branch as a distinct WorldArena GID",
+    )
     parser.add_argument("--sample-index", type=int, default=0)
-    parser.add_argument("--validation-sample-indices", type=int, nargs="+", default=None,
-                        help="frozen validation panel indices; formal long runs require three distinct episodes")
+    parser.add_argument(
+        "--validation-sample-indices",
+        type=int,
+        nargs="+",
+        default=None,
+        help="frozen validation panel indices; formal long runs require three distinct episodes",
+    )
     parser.add_argument("--horizon-frames", type=int, default=150)
     parser.add_argument("--chunk-frames", type=int, default=45)
     parser.add_argument("--steps", type=int, default=512)
-    parser.add_argument("--training-stage", choices=("screen", "pilot", "confirm"), default="pilot")
+    parser.add_argument(
+        "--checkpoint-eval-steps",
+        type=int,
+        nargs="+",
+        default=None,
+        help="held-out checkpoint steps supplied by the model-neutral scale plan",
+    )
+    parser.add_argument(
+        "--training-stage", choices=("screen", "pilot", "confirm"), default="pilot"
+    )
     parser.add_argument("--training-mode", choices=("probe", "long"), default="long")
-    parser.add_argument("--training-sampler", choices=("sequential", "episode_balanced"), default="episode_balanced")
+    parser.add_argument(
+        "--training-sampler",
+        choices=("sequential", "episode_balanced"),
+        default="episode_balanced",
+    )
     parser.add_argument("--train-record-limit", type=int, default=256)
     parser.add_argument("--rollout-steps", type=int, default=2)
     parser.add_argument("--learning-rate", type=float, default=1e-4)

@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from wmloop.wan22_droid import Wan22DroidError, build_sample_manifest, validate_contract
+from wmloop.wan22_droid import Wan22DroidError, build_sample_manifest, required_rollout_source_frames, validate_contract
 from experiments.wan22_droid_acwm_v1.run import _estimated_gpu_hours, _gpu_free_memory_mib, _parser
-from experiments.wan22_droid_acwm_v1.wan22_droid_runner import _assert_episode_disjoint, _chunk_anchor, _conditioning_for_mode, _load_adapter, _parser as runner_parser, _select_branch_index, _training_record_schedule, _validate_control_plane_training_contract, _validate_scheduled_training_coverage, _validate_stage_training_mode, _validation_panel_indices
+from experiments.wan22_droid_acwm_v1.wan22_droid_runner import _assert_episode_disjoint, _chunk_anchor, _conditioning_for_mode, _load_adapter, _parser as runner_parser, _select_branch_index, _training_record_schedule, _validate_control_plane_training_contract, _validate_scheduled_training_coverage, _validate_stage_training_mode, _validate_validation_source_frames, _validation_panel_indices
 
 
 class Wan22DroidContractTests(unittest.TestCase):
@@ -33,6 +33,20 @@ class Wan22DroidContractTests(unittest.TestCase):
             self.assertEqual(manifest["record_count"], 1)
             self.assertEqual(manifest["records"][0]["horizon_frames"], 150)
             self.assertEqual(manifest["records"][0]["action_dim"], 7)
+            self.assertEqual(manifest["rollout_source_frames_required"], 152)
+            self.assertEqual(manifest["records"][0]["source_frame_count"], 151)
+
+    def test_rollout_source_frame_requirement_is_explicit(self):
+        self.assertEqual(required_rollout_source_frames(horizon_frames=150, chunk_frames=45), 152)
+        self.assertEqual(required_rollout_source_frames(horizon_frames=180, chunk_frames=45), 180)
+
+    def test_validation_source_frame_preflight_rejects_exact_horizon(self):
+        manifest = {
+            "data_root": "/tmp/does-not-get-read",
+            "records": [{"episode_id": "e0", "video_path": "missing.mp4", "source_frame_count": 150}],
+        }
+        with self.assertRaisesRegex(ValueError, "SOURCE_FRAMES_INSUFFICIENT"):
+            _validate_validation_source_frames(manifest, [0], required_frames=152)
 
     def test_short_episode_is_excluded_and_empty_split_blocks(self):
         with tempfile.TemporaryDirectory() as raw:

@@ -22,7 +22,10 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from wmloop.execute.backends import CommandBackend, LocalSubprocessBackend
-from wmloop.primitives.render import PrimitiveRenderError, assert_diff_does_not_modify_frozen_evaluator
+from wmloop.primitives.render import (
+    PrimitiveRenderError,
+    assert_diff_does_not_modify_frozen_evaluator,
+)
 
 
 class AgentStagingError(RuntimeError):
@@ -109,7 +112,11 @@ class AgentRepairSession:
         _validate_git_revision(source_revision, "AGENT_STAGING_SOURCE_REVISION_INVALID")
         _validate_sha256(registry_digest, "AGENT_STAGING_REGISTRY_DIGEST_INVALID")
         labels = tuple(str(label) for label in required_check_labels)
-        if not labels or len(labels) != len(set(labels)) or any(not _IDENTIFIER.fullmatch(label) for label in labels):
+        if (
+            not labels
+            or len(labels) != len(set(labels))
+            or any(not _IDENTIFIER.fullmatch(label) for label in labels)
+        ):
             raise AgentStagingError("AGENT_STAGING_REQUIRED_CHECKS_INVALID")
         self._worktree = Path(worktree).resolve(strict=True)
         self._source_revision = source_revision
@@ -127,7 +134,10 @@ class AgentRepairSession:
         self._required_check_labels = labels
         self._environment = _execution_environment(destination, environment)
         self._command_backend = command_backend or LocalSubprocessBackend()
-        if not math.isfinite(max_command_timeout_seconds) or max_command_timeout_seconds <= 0:
+        if (
+            not math.isfinite(max_command_timeout_seconds)
+            or max_command_timeout_seconds <= 0
+        ):
             raise AgentStagingError("AGENT_STAGING_MAX_TIMEOUT_INVALID")
         self._max_command_timeout_seconds = float(max_command_timeout_seconds)
         self._receipts: list[CommandReceipt] = []
@@ -136,14 +146,22 @@ class AgentRepairSession:
             destination / "session.json",
             {
                 "schema_version": 1,
+                "artifact_type": "verdiwm-scratch-agent-session",
+                "state": "open",
                 "candidate_id": candidate_id,
                 "source_revision": source_revision,
                 "registry_digest": registry_digest,
                 "required_check_labels": list(labels),
+                "claim_boundary": (
+                    "This scratch session records agent-selected checks; it is not "
+                    "scientific evidence or promotion authority."
+                ),
             },
         )
 
-    def run(self, *, label: str, argv: Sequence[str], timeout_seconds: float) -> CommandReceipt:
+    def run(
+        self, *, label: str, argv: Sequence[str], timeout_seconds: float
+    ) -> CommandReceipt:
         """Execute one agent-selected command in the writable trial worktree."""
 
         if self._sealed:
@@ -181,7 +199,10 @@ class AgentRepairSession:
             stdout_sha256=hashlib.sha256(result.stdout).hexdigest(),
             stderr_sha256=hashlib.sha256(result.stderr).hexdigest(),
         )
-        self._write_document(self._destination / "attempts" / f"{ordinal:03d}.json", receipt.to_document())
+        self._write_document(
+            self._destination / "attempts" / f"{ordinal:03d}.json",
+            receipt.to_document(),
+        )
         self._receipts.append(receipt)
         return receipt
 
@@ -209,7 +230,10 @@ class AgentRepairSession:
         diff_path = self._destination / "candidate.diff"
         _write_bytes(diff_path, patch)
         latest = {receipt.label: receipt for receipt in self._receipts}
-        ready = all(label in latest and latest[label].passed for label in self._required_check_labels)
+        ready = all(
+            label in latest and latest[label].passed
+            for label in self._required_check_labels
+        )
         manifest_path = self._destination / "candidate.json"
         candidate = StagedPrimitiveCandidate(
             candidate_id=self._candidate_id,
@@ -229,10 +253,18 @@ class AgentRepairSession:
 
     @staticmethod
     def _write_document(path: Path, document: Mapping[str, object]) -> None:
-        _write_bytes(path, json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8") + b"\n")
+        _write_bytes(
+            path,
+            json.dumps(
+                document, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+            + b"\n",
+        )
 
 
-def _execution_environment(destination: Path, requested: Mapping[str, str] | None) -> dict[str, str]:
+def _execution_environment(
+    destination: Path, requested: Mapping[str, str] | None
+) -> dict[str, str]:
     home = destination / "agent-home"
     home.mkdir(mode=0o700)
     environment = {
@@ -243,23 +275,47 @@ def _execution_environment(destination: Path, requested: Mapping[str, str] | Non
     }
     if requested is not None:
         for key, value in requested.items():
-            if not isinstance(key, str) or not key or "=" in key or "\x00" in key or not isinstance(value, str) or "\x00" in value:
+            if (
+                not isinstance(key, str)
+                or not key
+                or "=" in key
+                or "\x00" in key
+                or not isinstance(value, str)
+                or "\x00" in value
+            ):
                 raise AgentStagingError("AGENT_STAGING_ENVIRONMENT_INVALID")
             environment[key] = value
     return environment
 
 
 def _capture_worktree_patch(worktree: Path) -> tuple[bytes, tuple[str, ...]]:
-    tracked = _git_output_bytes(worktree, ("diff", "--binary", "--full-index", "--no-ext-diff", "HEAD"), expected=(0,))
-    tracked_names = _git_output_bytes(worktree, ("diff", "--name-only", "-z", "HEAD"), expected=(0,))
-    untracked_names = _git_output_bytes(worktree, ("ls-files", "--others", "--exclude-standard", "-z"), expected=(0,))
+    tracked = _git_output_bytes(
+        worktree,
+        ("diff", "--binary", "--full-index", "--no-ext-diff", "HEAD"),
+        expected=(0,),
+    )
+    tracked_names = _git_output_bytes(
+        worktree, ("diff", "--name-only", "-z", "HEAD"), expected=(0,)
+    )
+    untracked_names = _git_output_bytes(
+        worktree, ("ls-files", "--others", "--exclude-standard", "-z"), expected=(0,)
+    )
     untracked = _parse_relative_names(untracked_names)
     parts = [tracked]
     for relative in untracked:
         member = worktree / relative
         _require_regular_member(member, "AGENT_STAGING_UNTRACKED_MEMBER_INVALID")
         completed = subprocess.run(
-            ["git", "diff", "--binary", "--full-index", "--no-index", "--", "/dev/null", relative],
+            [
+                "git",
+                "diff",
+                "--binary",
+                "--full-index",
+                "--no-index",
+                "--",
+                "/dev/null",
+                relative,
+            ],
             cwd=worktree,
             capture_output=True,
             check=False,
@@ -307,7 +363,11 @@ def _require_regular_member(path: Path, code: str) -> None:
         metadata = os.lstat(path)
     except FileNotFoundError as exc:
         raise AgentStagingError(code) from exc
-    if not os.path.isfile(path) or os.path.islink(path) or metadata.st_size > 16 * 1024 * 1024:
+    if (
+        not os.path.isfile(path)
+        or os.path.islink(path)
+        or metadata.st_size > 16 * 1024 * 1024
+    ):
         raise AgentStagingError(code)
 
 
@@ -321,7 +381,9 @@ def _git_revision(worktree: Path) -> str:
     return revision
 
 
-def _git_output_bytes(worktree: Path, arguments: Sequence[str], *, expected: tuple[int, ...]) -> bytes:
+def _git_output_bytes(
+    worktree: Path, arguments: Sequence[str], *, expected: tuple[int, ...]
+) -> bytes:
     completed = subprocess.run(
         ["git", "-C", str(worktree), *arguments],
         capture_output=True,
@@ -349,7 +411,9 @@ def _validate_sha256(value: str, code: str) -> None:
 
 def _validate_argv(argv: Sequence[str]) -> tuple[str, ...]:
     command = tuple(argv)
-    if not command or any(not isinstance(item, str) or not item or "\x00" in item for item in command):
+    if not command or any(
+        not isinstance(item, str) or not item or "\x00" in item for item in command
+    ):
         raise AgentStagingError("AGENT_STAGING_COMMAND_INVALID")
     return command
 

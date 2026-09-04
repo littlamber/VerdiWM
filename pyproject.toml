@@ -54,6 +54,7 @@ verdiwm-campaign-dispatcher = "wmloop.control.campaign_dispatcher:main"
 verdiwm-constitution-proposal = "wmloop.control.constitution_proposal:main"
 verdiwm-materialize-method = "wmloop.execute.automatic_materialization:main"
 verdiwm-ctrl-world-autonomous-transfer = "experiments.ctrl_world_autonomous_transfer_v1.controller:main"
+verdiwm-artifact-lint = "wmloop.experiments.artifact_lint:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]

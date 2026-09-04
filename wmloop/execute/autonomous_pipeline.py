@@ -49,12 +49,19 @@ from wmloop.experiments.cpbe_materializer import (
     publish_cpbe_materialization,
 )
 from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
+from wmloop.retrieve.irg_guided_discovery import (
+    IRGDiscoveryError,
+    build_irg_discovery_request,
+)
 from wmloop.retrieve.evidence_capsule import (
     EvidenceCapsuleError,
     build_evidence_capsule,
     write_evidence_capsule,
 )
-from wmloop.retrieve.literature import LiteratureRetrievalError, run_literature_retrieval
+from wmloop.retrieve.literature import (
+    LiteratureRetrievalError,
+    run_literature_retrieval,
+)
 from wmloop.retrieve.method_staging import (
     LiteratureMethodStagingError,
     run_literature_method_prompt_batch,
@@ -98,6 +105,8 @@ class AutonomousPipelineOptions:
     research_mode: str | None = None
     cpbe_request: Path | None = None
     cpbe_history: Path | None = None
+    model_irg_path: Path | None = None
+    irg_protected_metrics: tuple[str, ...] = ()
 
 
 def run_autonomous_pipeline(
@@ -130,7 +139,9 @@ def run_autonomous_pipeline(
         if options.probe_contract is not None
         else None
     )
-    if probe_contract is not None and (not probe_contract.is_file() or probe_contract.is_symlink()):
+    if probe_contract is not None and (
+        not probe_contract.is_file() or probe_contract.is_symlink()
+    ):
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_PROBE_CONTRACT_INVALID")
     candidate_catalog = _optional_file(
         options.candidate_catalog,
@@ -149,6 +160,14 @@ def run_autonomous_pipeline(
         options.cpbe_history,
         "AUTONOMOUS_PIPELINE_CPBE_HISTORY_INVALID",
     )
+    model_irg_path = _optional_file(
+        options.model_irg_path,
+        "AUTONOMOUS_PIPELINE_MODEL_IRG_INVALID",
+    )
+    if model_irg_path is not None and not options.irg_protected_metrics:
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_IRG_PROTECTED_METRICS_REQUIRED"
+        )
     research_mode = None
     if options.research_mode is not None:
         try:
@@ -158,12 +177,13 @@ def run_autonomous_pipeline(
     if research_mode == "causal_discovery" and (
         probe_contract is None or cpbe_request is None or cpbe_history is None
     ):
-        raise AutonomousPipelineError(
-            "AUTONOMOUS_PIPELINE_CAUSAL_INPUTS_REQUIRED"
-        )
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_CAUSAL_INPUTS_REQUIRED")
     if options.literature_max_results < 1 or options.literature_max_results > 50:
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_LIMIT_INVALID")
-    if options.literature_timeout_seconds <= 0 or options.literature_timeout_seconds > 60:
+    if (
+        options.literature_timeout_seconds <= 0
+        or options.literature_timeout_seconds > 60
+    ):
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_TIMEOUT_INVALID")
     if (
         not math.isfinite(options.budget_max_trial_gpu_hours)
@@ -182,7 +202,9 @@ def run_autonomous_pipeline(
                 "AUTONOMOUS_PIPELINE_PERSISTENT_OUTPUT_OVERLAPS_SOURCE"
             )
     if probe_contract is not None and _overlaps(probe_contract, repo):
-        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_PROBE_CONTRACT_OVERLAPS_SOURCE")
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_PROBE_CONTRACT_OVERLAPS_SOURCE"
+        )
 
     input_document = _input_document(
         options,
@@ -199,6 +221,8 @@ def run_autonomous_pipeline(
         research_mode=research_mode,
         cpbe_request=cpbe_request,
         cpbe_history=cpbe_history,
+        model_irg_path=model_irg_path,
+        irg_protected_metrics=options.irg_protected_metrics,
         budget_total_gpu_hours=budget_total_gpu_hours,
     )
     input_hash = _sha256(_canonical_json(input_document))
@@ -210,7 +234,9 @@ def run_autonomous_pipeline(
     literature_root = destination / "literature"
     literature_method_root = destination / "literature-methods"
     literature_method_prompt_root = destination / "literature-method-prompts"
-    literature_method_materialization_root = destination / "literature-method-materialization"
+    literature_method_materialization_root = (
+        destination / "literature-method-materialization"
+    )
     compiled = destination / "compiled"
     cpbe_root = destination / "causal-discovery"
     stage = "onboarding"
@@ -264,6 +290,45 @@ def run_autonomous_pipeline(
 
         probe_manifest: dict[str, object] | None = None
         retrieval_context: dict[str, object] = {"state": "cold_start", "matches": []}
+        irg_failure_signatures: tuple[str, ...] = ()
+        irg_model_family: str | None = None
+        irg_guided_context: dict[str, object] | None = None
+        if model_irg_path is not None:
+            try:
+                irg_payload = _load_json(
+                    model_irg_path, "AUTONOMOUS_PIPELINE_MODEL_IRG_INVALID"
+                )
+                irg_request, irg_plan = build_irg_discovery_request(
+                    irg_payload,
+                    protected_metrics=options.irg_protected_metrics,
+                )
+            except (
+                IRGDiscoveryError,
+                OSError,
+                ValueError,
+                json.JSONDecodeError,
+            ) as exc:
+                raise AutonomousPipelineError(
+                    f"AUTONOMOUS_PIPELINE_IRG_DISCOVERY_INVALID:{exc}"
+                ) from exc
+            irg_guided_context = {
+                "state": "planned",
+                "model_irg_path": str(model_irg_path),
+                "request": {
+                    "symptom_description": irg_request.symptom_description,
+                    "failure_signatures": list(irg_request.failure_signatures),
+                    "target_metrics": list(irg_request.target_metrics),
+                    "protected_metrics": list(irg_request.protected_metrics),
+                    "available_hooks": list(irg_request.available_hooks),
+                    "model_family": irg_request.model_family,
+                    "cross_domain_lenses": list(irg_request.cross_domain_lenses),
+                },
+                "plan": irg_plan,
+                "authority": "shadow_only",
+            }
+            retrieval_context["irg_guided"] = irg_guided_context
+            irg_failure_signatures = tuple(irg_request.failure_signatures)
+            irg_model_family = irg_request.model_family
         literature_manifest: dict[str, object] | None = None
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
@@ -325,10 +390,16 @@ def run_autonomous_pipeline(
                 "matches": [row.to_dict() for row in matches],
                 "index_path": str(retrieval_db),
             }
+            # Preserve the model-conditioned IRG plan when probe retrieval is
+            # also active.  It is part of the same immutable routing context,
+            # not a competing retrieval mode.
+            if irg_guided_context is not None:
+                retrieval_context["irg_guided"] = irg_guided_context
         capsule = build_evidence_capsule(
             probe=probe_manifest,
             matches=[
-                row for row in retrieval_context.get("matches", [])
+                row
+                for row in retrieval_context.get("matches", [])
                 if isinstance(row, Mapping)
             ],
         )
@@ -338,22 +409,45 @@ def run_autonomous_pipeline(
         retrieval_context["capsule"] = capsule
         retrieval_context["capsule_path"] = str(capsule_path)
         literature_query = options.literature_query
+        irg_guided = retrieval_context.get("irg_guided")
+        if literature_query is None and isinstance(irg_guided, Mapping):
+            request_payload = irg_guided.get("request")
+            if isinstance(request_payload, Mapping):
+                lenses = request_payload.get("cross_domain_lenses", ())
+                failures = request_payload.get("failure_signatures", ())
+                literature_query = " ".join(
+                    str(value)
+                    for value in (
+                        request_payload.get("model_family"),
+                        *(lenses if isinstance(lenses, (list, tuple)) else ()),
+                        *(failures if isinstance(failures, (list, tuple)) else ()),
+                    )
+                    if value
+                )
         if (
             literature_query is None
             and probe_manifest is not None
             and retrieval_context.get("state") == "cold_start"
         ):
-            auto_signatures = " ".join(
+            probe_signatures = " ".join(
                 str(value).replace("_", " ")
                 for value in probe_manifest.get("failure_signatures", [])
                 if isinstance(value, str)
             )
+            irg_signatures = " ".join(
+                value.replace("_", " ") for value in irg_failure_signatures
+            )
             literature_query = " ".join(
                 value
                 for value in (
-                    str(probe_manifest.get("model_family") or "world model"),
+                    str(
+                        probe_manifest.get("model_family")
+                        or irg_model_family
+                        or "world model"
+                    ),
                     "world model",
-                    auto_signatures,
+                    probe_signatures,
+                    irg_signatures,
                 )
                 if value
             )
@@ -370,17 +464,22 @@ def run_autonomous_pipeline(
                 literature_manifest=literature_root / "manifest.json",
                 output_root=literature_method_root,
                 repo_root=repo,
-                failure_signatures=(
-                    tuple(
-                        str(value)
-                        for value in (probe_manifest or {}).get("failure_signatures", [])
-                        if isinstance(value, str)
+                failure_signatures=tuple(
+                    dict.fromkeys(
+                        [
+                            str(value)
+                            for value in (probe_manifest or {}).get(
+                                "failure_signatures", []
+                            )
+                            if isinstance(value, str)
+                        ]
+                        + list(irg_failure_signatures)
                     )
                 ),
                 model_family=(
                     str((probe_manifest or {}).get("model_family"))
                     if (probe_manifest or {}).get("model_family")
-                    else None
+                    else irg_model_family
                 ),
             )
             stage = "literature_method_prompts"
@@ -395,16 +494,19 @@ def run_autonomous_pipeline(
             # isolated snapshots. A failed method becomes a capability gap;
             # it must not prevent other methods or the baseline from running.
             try:
-                literature_method_materialization_manifest = run_literature_method_materialization(
-                    method_staging_manifest=literature_method_root / "manifest.json",
-                    output_root=literature_method_materialization_root,
-                    source_root=repo,
-                    project_root=Path(__file__).resolve().parents[2],
-                    evaluator_contract=evaluator,
-                    runtime_python=options.runtime_python,
-                    archive_db=archive_db,
-                    cas_root=cas_root,
-                    max_candidates=options.literature_max_results,
+                literature_method_materialization_manifest = (
+                    run_literature_method_materialization(
+                        method_staging_manifest=literature_method_root
+                        / "manifest.json",
+                        output_root=literature_method_materialization_root,
+                        source_root=repo,
+                        project_root=Path(__file__).resolve().parents[2],
+                        evaluator_contract=evaluator,
+                        runtime_python=options.runtime_python,
+                        archive_db=archive_db,
+                        cas_root=cas_root,
+                        max_candidates=options.literature_max_results,
+                    )
                 )
                 generated_catalog = literature_method_materialization_manifest.get(
                     "candidate_catalog_path"
@@ -420,7 +522,9 @@ def run_autonomous_pipeline(
                         candidate_catalog = _merge_method_catalogs(
                             candidate_catalog,
                             generated_path,
-                            destination / "literature-method-materialization" / "merged-candidate-catalog.json",
+                            destination
+                            / "literature-method-materialization"
+                            / "merged-candidate-catalog.json",
                         )
             except LiteratureMaterializationError as exc:
                 literature_method_materialization_manifest = {
@@ -480,16 +584,22 @@ def run_autonomous_pipeline(
             sidecar_root=sidecar,
             conformance_root=conformance,
             output_root=compiled,
-            diagnostic_probe_manifest=(diagnostic_probe_root / "manifest.json")
-            if probe_manifest is not None
-            else None,
+            diagnostic_probe_manifest=(
+                (diagnostic_probe_root / "manifest.json")
+                if probe_manifest is not None
+                else None
+            ),
             retrieval_context=retrieval_context,
-            literature_manifest=(literature_root / "manifest.json")
-            if literature_manifest is not None
-            else None,
-            literature_method_manifest=(literature_method_root / "manifest.json")
-            if literature_method_manifest is not None
-            else None,
+            literature_manifest=(
+                (literature_root / "manifest.json")
+                if literature_manifest is not None
+                else None
+            ),
+            literature_method_manifest=(
+                (literature_method_root / "manifest.json")
+                if literature_method_manifest is not None
+                else None
+            ),
             candidate_catalog=candidate_catalog,
             settlement_manifest=settlement_manifest,
         )
@@ -580,9 +690,7 @@ def _pipeline_budget_total(
         if template_path.is_absolute()
         else (evaluator.parent / template_path).resolve()
     )
-    template = _load_json(
-        template_path, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
-    )
+    template = _load_json(template_path, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID")
     try:
         validate_document("auto_experiment_candidate_batch", template)
     except ContractValidationError as exc:
@@ -621,14 +729,17 @@ def _runtime_retrieval_manifest(
         return dict(retrieval)
     return {
         "state": retrieval.get("state"),
-        "query": dict(capsule.get("query", {}))
-        if isinstance(capsule.get("query"), Mapping)
-        else {},
+        "query": (
+            dict(capsule.get("query", {}))
+            if isinstance(capsule.get("query"), Mapping)
+            else {}
+        ),
         "match_count": capsule.get("match_count", 0),
         "route": capsule.get("route"),
         "capsule": dict(capsule),
         "capsule_path": retrieval.get("capsule_path"),
         "index_path": retrieval.get("index_path"),
+        "irg_guided": retrieval.get("irg_guided"),
     }
 
 
@@ -648,6 +759,8 @@ def _input_document(
     research_mode: str | None,
     cpbe_request: Path | None,
     cpbe_history: Path | None,
+    model_irg_path: Path | None,
+    irg_protected_metrics: Sequence[str],
     budget_total_gpu_hours: float,
 ) -> dict[str, object]:
     bindings: list[dict[str, str]] = []
@@ -740,6 +853,11 @@ def _input_document(
         "cpbe_history_sha256": (
             _sha256(cpbe_history.read_bytes()) if cpbe_history is not None else None
         ),
+        "model_irg_path": str(model_irg_path) if model_irg_path is not None else None,
+        "model_irg_sha256": (
+            _sha256(model_irg_path.read_bytes()) if model_irg_path is not None else None
+        ),
+        "irg_protected_metrics": list(irg_protected_metrics),
     }
 
 
@@ -756,9 +874,7 @@ def _nondefault_resource_policy(
         "resource_policy": {
             "max_trial_gpu_hours": options.budget_max_trial_gpu_hours,
             "high_trial_limit": options.budget_high_trial_limit,
-            "require_high_cost_approval": (
-                options.budget_require_high_cost_approval
-            ),
+            "require_high_cost_approval": (options.budget_require_high_cost_approval),
         }
     }
 
@@ -852,10 +968,14 @@ def _manifest(
         "input_hash": input_hash,
         "blocked_stage": blocked_stage,
         "candidate_states": dict(candidate_states or {}),
-        "diagnostic_probe": dict(diagnostic_probe) if diagnostic_probe is not None else None,
+        "diagnostic_probe": (
+            dict(diagnostic_probe) if diagnostic_probe is not None else None
+        ),
         "retrieval": dict(retrieval) if retrieval is not None else None,
         "literature": dict(literature) if literature is not None else None,
-        "literature_methods": dict(literature_methods) if literature_methods is not None else None,
+        "literature_methods": (
+            dict(literature_methods) if literature_methods is not None else None
+        ),
         "literature_method_prompts": (
             dict(literature_method_prompts)
             if literature_method_prompts is not None
@@ -918,9 +1038,7 @@ def _candidate_asset_parameters(catalog_path: Path | None) -> tuple[str, ...]:
         elif isinstance(value, str):
             parameters.update(
                 placeholder[len("{asset:") : -1]
-                for placeholder in re.findall(
-                    r"\{asset:--[A-Za-z0-9_-]+\}", value
-                )
+                for placeholder in re.findall(r"\{asset:--[A-Za-z0-9_-]+\}", value)
             )
 
     visit(catalog)
@@ -943,7 +1061,9 @@ def _merge_method_catalogs(first: Path, second: Path, destination: Path) -> Path
         "schema_version": 1,
         "artifact_type": "verdiwm-method-candidate-catalog",
         "catalog_id": f"merged-{_sha256(first.read_bytes() + second.read_bytes())[:24]}",
-        "model_family": left.get("model_family") or right.get("model_family") or "world_model",
+        "model_family": left.get("model_family")
+        or right.get("model_family")
+        or "world_model",
         "candidates": candidates,
         "capability_gaps": gaps,
         "claim_boundary": "User-bound candidates and automatically materialized literature surrogates retain independent provenance and receipts.",
@@ -951,7 +1071,9 @@ def _merge_method_catalogs(first: Path, second: Path, destination: Path) -> Path
     try:
         validate_document("method_candidate_catalog", merged)
     except ContractValidationError as exc:
-        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID") from exc
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID"
+        ) from exc
     _write_json_atomic(destination, merged)
     return destination.resolve()
 
@@ -1043,6 +1165,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--cpbe-request", type=Path)
     parser.add_argument("--cpbe-history", type=Path)
+    parser.add_argument(
+        "--model-irg",
+        type=Path,
+        help="model-conditioned IRG artifact used to guide cross-domain retrieval",
+    )
+    parser.add_argument(
+        "--irg-protected-metric",
+        action="append",
+        default=[],
+        help="metric protected while deriving IRG-guided methods (repeatable)",
+    )
     args = parser.parse_args(argv)
     try:
         manifest = run_autonomous_pipeline(
@@ -1075,6 +1208,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 research_mode=args.research_mode,
                 cpbe_request=args.cpbe_request,
                 cpbe_history=args.cpbe_history,
+                model_irg_path=args.model_irg,
+                irg_protected_metrics=tuple(args.irg_protected_metric),
             )
         )
     except (

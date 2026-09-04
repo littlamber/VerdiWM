@@ -114,10 +114,16 @@ def compile_and_plan(
         literature_method_path = Path(literature_method_manifest).resolve(strict=True)
         literature_method_bytes = literature_method_path.read_bytes()
         literature_methods = _decode_object(
-            literature_method_bytes, "ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID"
+            literature_method_bytes,
+            "ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID",
         )
-        if literature_methods.get("artifact_type") != "wmloop-literature-method-staging-manifest":
-            raise OnboardingCompilerError("ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID")
+        if (
+            literature_methods.get("artifact_type")
+            != "wmloop-literature-method-staging-manifest"
+        ):
+            raise OnboardingCompilerError(
+                "ONBOARDING_COMPILER_LITERATURE_METHOD_MANIFEST_INVALID"
+            )
     candidate_catalog_bytes = b""
     candidate_catalog_path = None
     if candidate_catalog is not None:
@@ -174,9 +180,7 @@ def compile_and_plan(
             materialization_values=values,
         )
         batch["method_candidate_compilation"] = {
-            "manifest_path": str(
-                destination / "method-candidates" / "manifest.json"
-            ),
+            "manifest_path": str(destination / "method-candidates" / "manifest.json"),
             "manifest_sha256": _sha256(_canonical_json(method_compilation)),
             "compiled_candidate_ids": [
                 str(row["candidate_id"])
@@ -291,9 +295,11 @@ def _settle_queue_admission(
         []
         if selected_count > 0
         else [
-            "NO_CANDIDATE_ROUTING_ELIGIBLE"
-            if blocked_count > 0
-            else "NO_CANDIDATE_SELECTED"
+            (
+                "NO_CANDIDATE_ROUTING_ELIGIBLE"
+                if blocked_count > 0
+                else "NO_CANDIDATE_SELECTED"
+            )
         ]
     )
     _write_json(destination / "manifest.json", settled)
@@ -327,11 +333,21 @@ def _apply_retrieval_context(
     if literature is not None:
         batch["literature_sources"] = literature_rows
     method_rows = (
-        [row for row in literature_methods.get("records", []) if isinstance(row, Mapping)]
+        [
+            row
+            for row in literature_methods.get("records", [])
+            if isinstance(row, Mapping)
+        ]
         if literature_methods is not None
         else []
     )
-    _apply_diagnostic_routing(batch, probe=probe)
+    irg_guided = retrieval.get("irg_guided")
+    if isinstance(irg_guided, Mapping):
+        # Keep the complete IRG plan in the immutable candidate batch so every
+        # staged method can be traced back to the model-conditioned bottleneck
+        # that motivated retrieval.  The plan remains ranking/shadow-only.
+        batch["irg_guided_retrieval"] = dict(irg_guided)
+    _apply_diagnostic_routing(batch, probe=probe, retrieval=retrieval)
     if method_rows:
         batch["literature_method_sources"] = method_rows
     ranking_method_rows = [
@@ -384,7 +400,10 @@ def _apply_retrieval_context(
             dict(row)
             for row in ranking_method_rows
             if (
-                (key_primitive is not None and row.get("primitive_reference") == key_primitive)
+                (
+                    key_primitive is not None
+                    and row.get("primitive_reference") == key_primitive
+                )
                 or (
                     bool(paper_ids)
                     and isinstance(row.get("source"), Mapping)
@@ -396,13 +415,22 @@ def _apply_retrieval_context(
             continue
         positive = sum(str(row.get("verdict")) == "PASS" for row in candidate_matches)
         method_bonus = min(0.3, 0.1 * len(candidate_methods))
-        prior = min(1.0, ((0.2 + 0.1 * positive) if candidate_matches else 0.1) + method_bonus)
+        prior = min(
+            1.0, ((0.2 + 0.1 * positive) if candidate_matches else 0.1) + method_bonus
+        )
         candidate["retrieval_prior"] = prior
-        candidate["retrieval_matches"] = [*candidate_matches, *candidate_papers, *candidate_methods]
+        candidate["retrieval_matches"] = [
+            *candidate_matches,
+            *candidate_papers,
+            *candidate_methods,
+        ]
 
 
 def _apply_diagnostic_routing(
-    batch: dict[str, object], *, probe: Mapping[str, object] | None
+    batch: dict[str, object],
+    *,
+    probe: Mapping[str, object] | None,
+    retrieval: Mapping[str, object] | None = None,
 ) -> None:
     """Require every post-probe candidate to name the failure it addresses.
 
@@ -411,13 +439,24 @@ def _apply_diagnostic_routing(
     consume GPU budget or create an unconnected experiment receipt.
     """
 
-    if probe is None:
+    observed: set[str] = set()
+    if probe is not None:
+        observed.update(
+            str(value)
+            for value in probe.get("failure_signatures", [])
+            if isinstance(value, str) and value
+        )
+    irg_guided = (retrieval or {}).get("irg_guided")
+    if isinstance(irg_guided, Mapping):
+        request = irg_guided.get("request")
+        if isinstance(request, Mapping):
+            observed.update(
+                str(value)
+                for value in request.get("failure_signatures", [])
+                if isinstance(value, str) and value
+            )
+    if not observed:
         return
-    observed = {
-        str(value)
-        for value in probe.get("failure_signatures", [])
-        if isinstance(value, str) and value
-    }
     candidates = batch.get("candidates")
     if not isinstance(candidates, list):
         return
@@ -516,9 +555,7 @@ def _materialization_values(
     runtime_path.extend(
         str(path)
         for path in sorted(
-            runtime_bin.parent.glob(
-                "lib/python*/site-packages/imageio_ffmpeg/binaries"
-            )
+            runtime_bin.parent.glob("lib/python*/site-packages/imageio_ffmpeg/binaries")
         )
         if path.is_dir()
     )
@@ -596,9 +633,7 @@ def _settlement_bundle_bytes(manifest_path: Path) -> bytes:
     records_root = manifest_path.parent / "records"
     payload = bytearray(manifest_path.read_bytes())
     if not records_root.is_dir() or records_root.is_symlink():
-        raise OnboardingCompilerError(
-            "ONBOARDING_COMPILER_SETTLEMENT_RECORDS_INVALID"
-        )
+        raise OnboardingCompilerError("ONBOARDING_COMPILER_SETTLEMENT_RECORDS_INVALID")
     for path in sorted(records_root.glob("*.json")):
         if not path.is_file() or path.is_symlink():
             raise OnboardingCompilerError(

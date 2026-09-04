@@ -57,6 +57,31 @@
         "retrieval_state": {"enum": ["matched", "cold_start", "literature_only"]}
       }
     },
+    "irg_guided_retrieval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "model_irg_path", "request", "plan", "authority"],
+      "properties": {
+        "state": {"enum": ["planned"]},
+        "model_irg_path": {"type": "string", "minLength": 1},
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["symptom_description", "failure_signatures", "target_metrics", "protected_metrics", "available_hooks", "model_family", "cross_domain_lenses"],
+          "properties": {
+            "symptom_description": {"type": "string", "minLength": 1},
+            "failure_signatures": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "target_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+            "protected_metrics": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "available_hooks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+            "model_family": {"type": "string", "minLength": 1},
+            "cross_domain_lenses": {"type": "array", "items": {"type": "string", "minLength": 1}}
+          }
+        },
+        "plan": {"type": "object"},
+        "authority": {"const": "shadow_only"}
+      }
+    },
     "literature_sources": {
       "type": "array",
       "items": {"type": "object"}

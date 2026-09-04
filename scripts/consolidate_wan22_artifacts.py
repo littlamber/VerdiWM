@@ -57,12 +57,25 @@ def apply_layout(
         records.append({"source": str(source), "destination": str(target), "category": category})
         if category == "canonical experiment runs":
             records.extend(_organize_run_children(target))
+    # Receipts created before run classification often already point at the
+    # canonical ``runs/<name>`` parent. Add aliases for those pre-classified
+    # paths so references are repaired after the child is moved under
+    # ``runs/pilot`` or ``runs/confirm`` as well.
+    repair_mappings = [
+        (str(record["source"]), str(record["destination"]))
+        for record in records
+    ]
+    for record in records:
+        if record.get("category") != "run classification":
+            continue
+        source = Path(str(record["source"]))
+        destination_path = Path(str(record["destination"]))
+        repair_mappings.append(
+            (str(destination / "runs" / source.name), str(destination_path))
+        )
     reference_repair = repair_references(
         destination,
-        [
-            (str(record["source"]), str(record["destination"]))
-            for record in records
-        ],
+        repair_mappings,
     )
     manifest = {
         "schema_version": 1,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import time
@@ -10,7 +11,10 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from wmloop.control.model_run import ModelRunError, validate_model_run
-from wmloop.execute.model_adapters import ModelLaunchAdapterError, preflight_model_adapter
+from wmloop.execute.model_adapters import (
+    ModelLaunchAdapterError,
+    preflight_model_adapter,
+)
 from wmloop.execute.gpu_lease import GpuLease, GpuLeaseError, GpuLeaseManager
 
 
@@ -54,26 +58,54 @@ def execute_model_run(
         raise ModelRunnerError("MODEL_RUN_RESOURCE_CAPACITY_INVALID")
     manager = lease_manager or GpuLeaseManager()
     try:
-        leases = manager.acquire_many(indices, world_size, wait_seconds=lease_wait_seconds)
+        leases = manager.acquire_many(
+            indices, world_size, wait_seconds=lease_wait_seconds
+        )
     except GpuLeaseError as exc:
         raise ModelRunnerError(str(exc)) from exc
     runner = process_runner or subprocess.run
     try:
         source = manifest["source"]  # type: ignore[index]
-        generated_adapter = isinstance(source, Mapping) and source.get("adapter_root") is not None
-        env = _generated_adapter_environment(output) if generated_adapter else dict(os.environ)
+        generated_adapter = (
+            isinstance(source, Mapping) and source.get("adapter_root") is not None
+        )
+        env = (
+            _generated_adapter_environment(output)
+            if generated_adapter
+            else dict(os.environ)
+        )
         env.update(_lease_environment(leases))
         cwd = Path(str(manifest["source"]["model_root"])).resolve()  # type: ignore[index]
         runtime = str(manifest["runtime"]["python"])  # type: ignore[index]
         train = _command(runtime, manifest["runtime"]["train_command"])  # type: ignore[index]
         evaluate = _command(runtime, manifest["evaluation"]["command"])  # type: ignore[index]
+        execution_policy = manifest.get("execution_policy", {})
+        timeout_seconds = float(
+            execution_policy.get("stage_timeout_seconds", 24.0 * 3600.0)
+            if isinstance(execution_policy, Mapping)
+            else 24.0 * 3600.0
+        )
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ModelRunnerError("MODEL_RUN_TIMEOUT_INVALID")
         started = time.time()
-        train_result = _run(runner, train, cwd=cwd, env=env)
+        try:
+            train_result = _run(
+                runner, train, cwd=cwd, env=env, timeout_seconds=timeout_seconds
+            )
+        except subprocess.TimeoutExpired as exc:
+            _write_timeout_receipt(output, manifest, "train", timeout_seconds, exc)
+            raise ModelRunnerError("MODEL_RUN_TRAIN_TIMEOUT") from exc
         train_record = _stage_record("train", train, train_result)
         if train_result.returncode != 0:
             raise ModelRunnerError("MODEL_RUN_TRAIN_FAILED")
         checkpoint = _receipt(Path(str(manifest["training"]["checkpoint_receipt"])))  # type: ignore[index]
-        evaluate_result = _run(runner, evaluate, cwd=cwd, env=env)
+        try:
+            evaluate_result = _run(
+                runner, evaluate, cwd=cwd, env=env, timeout_seconds=timeout_seconds
+            )
+        except subprocess.TimeoutExpired as exc:
+            _write_timeout_receipt(output, manifest, "evaluate", timeout_seconds, exc)
+            raise ModelRunnerError("MODEL_RUN_EVALUATE_TIMEOUT") from exc
         evaluate_record = _stage_record("evaluate", evaluate, evaluate_result)
         if evaluate_result.returncode != 0:
             raise ModelRunnerError("MODEL_RUN_EVALUATE_FAILED")
@@ -101,11 +133,19 @@ def _lease_indices(allocation: Mapping[str, object]) -> list[int]:
     roles = allocation.get("roles")
     if not isinstance(roles, list):
         raise ModelRunnerError("MODEL_RUN_RESOURCE_ALLOCATION_INVALID")
-    matches = [row for row in roles if isinstance(row, Mapping) and row.get("role") == "autonomous_candidate_evaluation"]
+    matches = [
+        row
+        for row in roles
+        if isinstance(row, Mapping)
+        and row.get("role") == "autonomous_candidate_evaluation"
+    ]
     if len(matches) != 1 or not isinstance(matches[0].get("gpu_indices"), list):
         raise ModelRunnerError("MODEL_RUN_RESOURCE_ROLE_INVALID")
     indices = matches[0]["gpu_indices"]
-    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in indices):
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 0
+        for value in indices
+    ):
         raise ModelRunnerError("MODEL_RUN_RESOURCE_INDICES_INVALID")
     return list(indices)
 
@@ -133,20 +173,47 @@ def _generated_adapter_environment(output: Path) -> dict[str, str]:
 
 
 def _command(runtime: str, command: object) -> list[str]:
-    if not isinstance(command, list) or not command or any(not isinstance(token, str) or not token for token in command):
+    if (
+        not isinstance(command, list)
+        or not command
+        or any(not isinstance(token, str) or not token for token in command)
+    ):
         raise ModelRunnerError("MODEL_RUN_COMMAND_INVALID")
     return [runtime, *command]
 
 
-def _run(runner: ProcessRunner, command: Sequence[str], *, cwd: Path, env: Mapping[str, str]) -> subprocess.CompletedProcess[str]:
+def _run(
+    runner: ProcessRunner,
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str],
+    timeout_seconds: float,
+) -> subprocess.CompletedProcess[str]:
     try:
-        return runner(list(command), cwd=str(cwd), env=dict(env), capture_output=True, text=True, check=False)
+        return runner(
+            list(command),
+            cwd=str(cwd),
+            env=dict(env),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
     except OSError as exc:
         raise ModelRunnerError("MODEL_RUN_PROCESS_START_FAILED") from exc
 
 
-def _stage_record(stage: str, command: Sequence[str], result: subprocess.CompletedProcess[str]) -> dict[str, object]:
-    return {"stage": stage, "command": list(command), "returncode": int(result.returncode), "stdout_tail": str(result.stdout or "")[-2000:], "stderr_tail": str(result.stderr or "")[-2000:]}
+def _stage_record(
+    stage: str, command: Sequence[str], result: subprocess.CompletedProcess[str]
+) -> dict[str, object]:
+    return {
+        "stage": stage,
+        "command": list(command),
+        "returncode": int(result.returncode),
+        "stdout_tail": str(result.stdout or "")[-2000:],
+        "stderr_tail": str(result.stderr or "")[-2000:],
+    }
 
 
 def _receipt(path: Path) -> Path:
@@ -163,4 +230,39 @@ def _receipt(path: Path) -> Path:
 
 
 def _write_json(path: Path, value: Mapping[str, object]) -> None:
-    path.write_text(json.dumps(value, sort_keys=True, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(value, sort_keys=True, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _write_timeout_receipt(
+    output: Path,
+    manifest: Mapping[str, object],
+    stage: str,
+    timeout_seconds: float,
+    error: subprocess.TimeoutExpired,
+) -> None:
+    policy = manifest.get("execution_policy", {})
+    name = (
+        str(policy.get("timeout_receipt", "execution-timeout-receipt.json"))
+        if isinstance(policy, Mapping)
+        else "execution-timeout-receipt.json"
+    )
+    _write_json(
+        output / name,
+        {
+            "schema_version": 1,
+            "artifact_type": "verdiwm-model-run-timeout-receipt",
+            "state": "timed_out",
+            "model_run_id": manifest.get("model_run_id"),
+            "stage": stage,
+            "timeout_seconds": timeout_seconds,
+            "command": (
+                list(error.cmd)
+                if isinstance(error.cmd, (list, tuple))
+                else str(error.cmd)
+            ),
+            "claim_boundary": "The stage exceeded its wall-clock budget; no scientific evidence was accepted.",
+        },
+    )

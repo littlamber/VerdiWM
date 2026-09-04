@@ -13,7 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from wmloop.contracts import ContractValidationError, load_yaml_document, validate_document
+from wmloop.contracts import (
+    ContractValidationError,
+    load_yaml_document,
+    validate_document,
+)
 from wmloop.primitives.registry import PrimitiveRegistry
 
 
@@ -22,7 +26,13 @@ class PriorLibraryError(ValueError):
 
 
 _ARXIV_ID = re.compile(r"^(?:arXiv:)?\d{4}\.\d{4,5}(?:v\d+)?$")
-_INSTRUCTION_MARKERS = ("ignore previous", "system prompt", "developer message", "<script", "```")
+_INSTRUCTION_MARKERS = (
+    "ignore previous",
+    "system prompt",
+    "developer message",
+    "<script",
+    "```",
+)
 
 
 @dataclass(frozen=True)
@@ -40,7 +50,9 @@ class FrozenPriorLibrary:
     entries: tuple[PriorEntry, ...]
 
     @classmethod
-    def from_path(cls, path: Path, *, registry: PrimitiveRegistry) -> "FrozenPriorLibrary":
+    def from_path(
+        cls, path: Path, *, registry: PrimitiveRegistry
+    ) -> "FrozenPriorLibrary":
         try:
             raw = load_yaml_document(path)
             version = _nonempty(raw, "library_version")
@@ -66,16 +78,22 @@ class FrozenPriorLibrary:
                 )
             except (KeyError, TypeError, ValueError, PriorLibraryError) as exc:
                 raise PriorLibraryError("PRIOR_LIBRARY_ENTRY_INVALID") from exc
-            if not entry.sources or any(not _ARXIV_ID.fullmatch(source) for source in entry.sources):
+            if not entry.sources or any(
+                not _ARXIV_ID.fullmatch(source) for source in entry.sources
+            ):
                 raise PriorLibraryError("PRIOR_LIBRARY_ENTRY_INVALID")
             entries.append(entry)
-        return cls(version=version, registry_digest=registry_digest, entries=tuple(entries))
+        return cls(
+            version=version, registry_digest=registry_digest, entries=tuple(entries)
+        )
 
     def retrieve(self, failure: str) -> tuple[PriorEntry, ...]:
         return tuple(entry for entry in self.entries if entry.failure == failure)
 
 
-def stage_literature_candidate(candidate: Mapping[str, Any], *, staging_root: Path) -> Path:
+def stage_literature_candidate(
+    candidate: Mapping[str, Any], *, staging_root: Path
+) -> Path:
     """Persist a data-only candidate after rejecting instruction-like content."""
 
     try:
@@ -86,12 +104,24 @@ def stage_literature_candidate(candidate: Mapping[str, Any], *, staging_root: Pa
         raise PriorLibraryError("PRIOR_STAGING_SCHEMA_INVALID")
     if not _ARXIV_ID.fullmatch(str(candidate["arxiv_id"])):
         raise PriorLibraryError("PRIOR_STAGING_ARXIV_ID_INVALID")
-    serialized = json.dumps(candidate, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    serialized = json.dumps(
+        candidate, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
     if any(marker in serialized.lower() for marker in _INSTRUCTION_MARKERS):
         raise PriorLibraryError("PRIOR_STAGING_INSTRUCTION_CONTENT")
     candidate_id = str(candidate["candidate_id"])
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", candidate_id):
         raise PriorLibraryError("PRIOR_STAGING_ID_INVALID")
+    candidate = {
+        **dict(candidate),
+        "artifact_type": "verdiwm-literature-candidate",
+        "schema_version": 1,
+        "state": "staged",
+        "claim_boundary": (
+            "This is an untrusted, data-only literature candidate. It does not "
+            "grant execution or promotion authority."
+        ),
+    }
     destination = Path(staging_root).resolve() / f"{candidate_id}.json"
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if destination.exists():
@@ -109,7 +139,9 @@ def promotion_allowed(
 ) -> bool:
     """The sole four-gate admission predicate for a staged mechanism."""
 
-    return all((schema_valid, clean_diff, smoke_passed, human_approved_version_boundary))
+    return all(
+        (schema_valid, clean_diff, smoke_passed, human_approved_version_boundary)
+    )
 
 
 def _nonempty(raw: Mapping[str, Any], field: str) -> str:

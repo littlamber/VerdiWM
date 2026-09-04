@@ -18,12 +18,24 @@ from wmloop.control.campaign_dispatcher import (
 )
 from wmloop.control.research_modes import research_mode_catalog
 from wmloop.control.project_config import ProjectConfigError, load_project_config
-from wmloop.control.first_contact import FirstContactError, explain_blocker, initialize_project, inspect_project
+from wmloop.control.first_contact import (
+    FirstContactError,
+    explain_blocker,
+    initialize_project,
+    inspect_project,
+)
 from wmloop.control.onboarding_assistant import build_onboarding_questionnaire
 from wmloop.experiments.atlas import AtlasError, build_atlas
 from wmloop.experiments.artifact_lint import make_compliance_filter
-from wmloop.experiments.evidence_graph import EvidenceGraphError, build_evidence_graph, load_evidence_graph
-from wmloop.experiments.mechanism_board import MechanismBoardError, build_mechanism_board
+from wmloop.experiments.evidence_graph import (
+    EvidenceGraphError,
+    build_evidence_graph,
+    load_evidence_graph,
+)
+from wmloop.experiments.mechanism_board import (
+    MechanismBoardError,
+    build_mechanism_board,
+)
 
 
 class WorkbenchError(ValueError):
@@ -72,7 +84,14 @@ def _ui_dist_root() -> Path | None:
 class WorkbenchServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], *, state_root: Path, evidence_root: Path | None = None, project_root: Path | None = None):
+    def __init__(
+        self,
+        address: tuple[str, int],
+        *,
+        state_root: Path,
+        evidence_root: Path | None = None,
+        project_root: Path | None = None,
+    ):
         super().__init__(address, WorkbenchHandler)
         self.project_root = Path(project_root or Path.cwd()).expanduser().resolve()
         self.evidence_root_explicit = evidence_root is not None
@@ -141,15 +160,35 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, {"items": research_mode_catalog()})
                 return
             if route == "/api/project":
-                values = self.workbench.project_config.values if self.workbench.project_config else {}
+                values = (
+                    self.workbench.project_config.values
+                    if self.workbench.project_config
+                    else {}
+                )
                 safe = {
                     key: values[key]
-                    for key in ("model", "data", "dataset", "goal", "budget", "adapter", "mode", "metric", "metrics", "target_metrics", "evaluator_contract", "runtime_python")
+                    for key in (
+                        "model",
+                        "data",
+                        "dataset",
+                        "goal",
+                        "budget",
+                        "adapter",
+                        "mode",
+                        "metric",
+                        "metrics",
+                        "target_metrics",
+                        "evaluator_contract",
+                        "runtime_python",
+                    )
                     if key in values
                 }
                 self._json(
                     HTTPStatus.OK,
-                    {"configured": self.workbench.project_config is not None, "values": safe},
+                    {
+                        "configured": self.workbench.project_config is not None,
+                        "values": safe,
+                    },
                 )
                 return
             if route == "/api/first-contact":
@@ -160,14 +199,22 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     {
                         "configured": configured is not None,
                         "values": values,
-                        "readiness": inspect_project(
-                            root=self.workbench.project_root,
-                            model=values.get("model"),
-                            data=values.get("data", values.get("dataset")),
-                            evaluator_contract=values.get("evaluator_contract"),
-                            runtime_python=values.get("runtime_python"),
-                        ) if configured is not None else None,
-                        "next_step": "填写模型、数据和研究目标" if configured is None else "先完成接入检查，再开始研究",
+                        "readiness": (
+                            inspect_project(
+                                root=self.workbench.project_root,
+                                model=values.get("model"),
+                                data=values.get("data", values.get("dataset")),
+                                evaluator_contract=values.get("evaluator_contract"),
+                                runtime_python=values.get("runtime_python"),
+                            )
+                            if configured is not None
+                            else None
+                        ),
+                        "next_step": (
+                            "填写模型、数据和研究目标"
+                            if configured is None
+                            else "先完成接入检查，再开始研究"
+                        ),
                     },
                 )
                 return
@@ -176,19 +223,30 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 values = configured.values if configured is not None else {}
                 self._json(
                     HTTPStatus.OK,
-                    build_onboarding_questionnaire(
-                        root=self.workbench.project_root,
-                        model=values.get("model"),
-                        data=values.get("data", values.get("dataset")),
-                        goal=values.get("goal"),
-                        evaluator_contract=values.get("evaluator_contract"),
-                        runtime_python=values.get("runtime_python"),
-                    ) if configured is not None else {
-                        "schema_version": 1,
-                        "artifact_type": "verdiwm-onboarding-questionnaire",
-                        "state": "needs_setup",
-                        "questions": [{"id": "project", "title": "先完成项目设置", "prompt": "请先填写模型目录、数据目录和研究目标。", "required": True}],
-                    },
+                    (
+                        build_onboarding_questionnaire(
+                            root=self.workbench.project_root,
+                            model=values.get("model"),
+                            data=values.get("data", values.get("dataset")),
+                            goal=values.get("goal"),
+                            evaluator_contract=values.get("evaluator_contract"),
+                            runtime_python=values.get("runtime_python"),
+                        )
+                        if configured is not None
+                        else {
+                            "schema_version": 1,
+                            "artifact_type": "verdiwm-onboarding-questionnaire",
+                            "state": "needs_setup",
+                            "questions": [
+                                {
+                                    "id": "project",
+                                    "title": "先完成项目设置",
+                                    "prompt": "请先填写模型目录、数据目录和研究目标。",
+                                    "required": True,
+                                }
+                            ],
+                        }
+                    ),
                 )
                 return
             if route == "/api/campaigns":
@@ -205,16 +263,19 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             if route == "/api/graph":
                 query = parse_qs(urlparse(self.path).query)
-                materialized = load_evidence_graph(self.workbench.evidence_root)
-                if materialized is not None:
-                    self._json(HTTPStatus.OK, materialized)
-                    return
                 include = None
                 if query.get("clean", ["0"])[-1] in {"1", "true"}:
                     include = make_compliance_filter(self.workbench.evidence_root)
+                if include is None:
+                    materialized = load_evidence_graph(self.workbench.evidence_root)
+                    if materialized is not None:
+                        self._json(HTTPStatus.OK, materialized)
+                        return
                 self._json(
                     HTTPStatus.OK,
-                    build_evidence_graph(self.workbench.evidence_root, include_payload=include),
+                    build_evidence_graph(
+                        self.workbench.evidence_root, include_payload=include
+                    ),
                 )
                 return
             if route == "/api/atlas":
@@ -230,7 +291,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 )
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
-        except (CampaignAPIError, EvidenceGraphError, AtlasError, MechanismBoardError) as exc:
+        except (
+            CampaignAPIError,
+            EvidenceGraphError,
+            AtlasError,
+            MechanismBoardError,
+        ) as exc:
             self._json(HTTPStatus.BAD_REQUEST, explain_blocker(exc))
 
     def do_POST(self) -> None:  # noqa: N802
@@ -241,7 +307,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 queue = payload.pop("queue", True)
                 if self.workbench.project_config is not None:
                     defaults = self.workbench.project_config.values
-                    for key, target in (("model", "model"), ("data", "dataset"), ("dataset", "dataset"), ("budget", "budget"), ("adapter", "adapter"), ("target_metrics", "target_metrics"), ("metrics", "target_metrics"), ("metric", "target_metrics"), ("adapter_profile", "adapter_profile_path"), ("runtime_python", "runtime_python")):
+                    for key, target in (
+                        ("model", "model"),
+                        ("data", "dataset"),
+                        ("dataset", "dataset"),
+                        ("budget", "budget"),
+                        ("adapter", "adapter"),
+                        ("target_metrics", "target_metrics"),
+                        ("metrics", "target_metrics"),
+                        ("metric", "target_metrics"),
+                        ("adapter_profile", "adapter_profile_path"),
+                        ("runtime_python", "runtime_python"),
+                    ):
                         if target not in payload and key in defaults:
                             payload[target] = defaults[key]
                 created = self.workbench.store.create(payload)
@@ -260,7 +337,11 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                     goal=payload.get("goal"),
                     budget=str(payload.get("budget") or "1gpu-hour"),
                     mode=str(payload.get("mode") or "hybrid"),
-                    target_metrics=payload.get("target_metrics") if isinstance(payload.get("target_metrics"), list) else [],
+                    target_metrics=(
+                        payload.get("target_metrics")
+                        if isinstance(payload.get("target_metrics"), list)
+                        else []
+                    ),
                     evaluator_contract=payload.get("evaluator_contract"),
                     runtime_python=payload.get("runtime_python"),
                     force=bool(payload.get("force", False)),
@@ -274,11 +355,18 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                         evaluator_contract=payload.get("evaluator_contract"),
                         runtime_python=payload.get("runtime_python"),
                     )
-                self._json(HTTPStatus.OK if result["state"] != "ready" else HTTPStatus.CREATED, result)
+                self._json(
+                    HTTPStatus.OK if result["state"] != "ready" else HTTPStatus.CREATED,
+                    result,
+                )
                 return
             if route == "/api/dispatch":
                 maximum = payload.get("max_parallel", 1)
-                if not isinstance(maximum, int) or isinstance(maximum, bool) or not 1 <= maximum <= 8:
+                if (
+                    not isinstance(maximum, int)
+                    or isinstance(maximum, bool)
+                    or not 1 <= maximum <= 8
+                ):
                     raise WorkbenchError("MAX_PARALLEL_INVALID")
                 result = run_dispatcher(
                     DispatcherOptions(
@@ -303,7 +391,12 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, result)
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "NOT_FOUND"})
-        except (CampaignAPIError, CampaignDispatchError, WorkbenchError, FirstContactError) as exc:
+        except (
+            CampaignAPIError,
+            CampaignDispatchError,
+            WorkbenchError,
+            FirstContactError,
+        ) as exc:
             self._json(HTTPStatus.BAD_REQUEST, explain_blocker(exc))
 
     def _body(self) -> dict[str, Any]:
@@ -328,11 +421,17 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
         dist = _ui_dist_root()
         if dist is None:
             return False
-        path = (dist / route.lstrip("/")).resolve() if route != "/" else dist / "index.html"
+        path = (
+            (dist / route.lstrip("/")).resolve()
+            if route != "/"
+            else dist / "index.html"
+        )
         if not path.is_relative_to(dist) or path.is_symlink() or not path.is_file():
             # SPA fallback: unknown non-file routes render the shell.
             path = dist / "index.html"
-        content_type = _UI_CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
+        content_type = _UI_CONTENT_TYPES.get(
+            path.suffix.lower(), "application/octet-stream"
+        )
         try:
             body = path.read_bytes()
         except OSError:
@@ -390,7 +489,9 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1", choices=("127.0.0.1", "::1", "localhost"))
+    parser.add_argument(
+        "--host", default="127.0.0.1", choices=("127.0.0.1", "::1", "localhost")
+    )
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument(
         "--state-root",
@@ -412,7 +513,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             configured = load_project_config().values.get("state_root")
         except ProjectConfigError:
             configured = None
-        state_root = Path(str(configured)) if configured else Path.home() / ".local" / "state" / "verdiwm"
+        state_root = (
+            Path(str(configured))
+            if configured
+            else Path.home() / ".local" / "state" / "verdiwm"
+        )
     server = WorkbenchServer(
         (args.host, args.port), state_root=state_root, evidence_root=args.evidence_root
     )

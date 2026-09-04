@@ -20,6 +20,10 @@
     },
     "title": {"type": "string", "minLength": 1},
     "mechanism_summary": {"type": "string", "minLength": 1},
-    "proposed_manifest": {"type": "object"}
+    "proposed_manifest": {"type": "object"},
+    "artifact_type": {"const": "verdiwm-literature-candidate"},
+    "schema_version": {"enum": [1]},
+    "state": {"enum": ["staged"]},
+    "claim_boundary": {"type": "string", "minLength": 12}
   }
 }

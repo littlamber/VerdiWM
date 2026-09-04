@@ -108,6 +108,14 @@ python experiments/wan22_droid_acwm_v1/run.py closed-loop \
 
 The closed-loop receipt uses `admitted`, `running`, `completed`, `failed`, or
 `blocked`; it never uses `ready_to_launch` as a substitute for execution.
-`trajectory_accuracy` and `action_following` are excluded from the default
-single-trajectory evaluation because the required policy/multi-GID inputs are
-not present, and are never synthesized from visual metrics.
+Formal closed-loop runs request all six frozen dimensions, including
+`trajectory_accuracy` and `action_following`. The runner emits at least two
+causally sampled branch GIDs for the latter; no metric is synthesized from
+visual scores. Use `--visual-only-diagnostic` explicitly when only the four
+visual dimensions are available; that result is diagnostic-only and cannot be
+promoted.
+
+The 150-frame WAN2.2 causal-tail contract requires 152 readable source frames
+for every frozen validation-panel member. Manifest generation records this
+requirement and the runner performs an encoded-video preflight before loading
+the model or allocating GPU work.

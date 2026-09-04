@@ -34,7 +34,13 @@ def _copy_frames(video: Path, destination: Path) -> int:
     return len(frames)
 
 
-def _bind_evaluator_paths(config: dict[str, Any], *, worldarena_root: Path, asset_root: Path, sea_raft_config: Path) -> None:
+def _bind_evaluator_paths(
+    config: dict[str, Any],
+    *,
+    worldarena_root: Path,
+    asset_root: Path,
+    sea_raft_config: Path,
+) -> None:
     video_quality = worldarena_root / "video_quality"
     config["ckpt"] = {
         "action_following": str(asset_root / "clip" / "ViT-B-32.pt"),
@@ -44,7 +50,9 @@ def _bind_evaluator_paths(config: dict[str, Any], *, worldarena_root: Path, asse
         },
         "photometric_smoothness": {
             "cfg": str(sea_raft_config),
-            "model": str(asset_root / "sea-raft" / "Tartan-C-T-TSKH-spring540x960-M.pth"),
+            "model": str(
+                asset_root / "sea-raft" / "Tartan-C-T-TSKH-spring540x960-M.pth"
+            ),
         },
         "motion_smoothness": {"model": str(asset_root / "vfimamba" / "model.pkl")},
         "subject_consistency": {
@@ -66,24 +74,40 @@ def _bind_evaluator_paths(config: dict[str, Any], *, worldarena_root: Path, asse
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
-        raise ValueError("WAN22_WORLD_ARENA_RUNTIME_BINDING_MISSING:" + ",".join(missing))
+        raise ValueError(
+            "WAN22_WORLD_ARENA_RUNTIME_BINDING_MISSING:" + ",".join(missing)
+        )
 
 
 def materialize(
-    *, run_root: Path, output_root: Path, config_template: Path,
-    worldarena_root: Path | None = None, asset_root: Path | None = None,
-    sea_raft_config: Path | None = None, task_id: str = "droid", gid: str = "1",
+    *,
+    run_root: Path,
+    output_root: Path,
+    config_template: Path,
+    worldarena_root: Path | None = None,
+    asset_root: Path | None = None,
+    sea_raft_config: Path | None = None,
+    task_id: str = "droid",
+    gid: str = "1",
 ) -> dict[str, Any]:
     run_root = run_root.expanduser().resolve(strict=True)
     output_root = output_root.expanduser().resolve()
-    input_info = json.loads((run_root / "worldarena_input.json").read_text(encoding="utf-8"))
+    input_info = json.loads(
+        (run_root / "worldarena_input.json").read_text(encoding="utf-8")
+    )
     episode_id = str(input_info["episode_id"])
     if output_root.exists():
-        if output_root.is_symlink() or not output_root.is_dir() or any(output_root.iterdir()):
+        if (
+            output_root.is_symlink()
+            or not output_root.is_dir()
+            or any(output_root.iterdir())
+        ):
             raise ValueError("WAN22_WORLD_ARENA_OUTPUT_UNBOUND")
     output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     config_template = config_template.expanduser().resolve(strict=True)
-    generated_dir = output_root / "generated_dataset" / task_id / episode_id / str(gid) / "video"
+    generated_dir = (
+        output_root / "generated_dataset" / task_id / episode_id / str(gid) / "video"
+    )
     gt_dir = output_root / "gt_dataset" / task_id / episode_id / "video"
     generated_count = _copy_frames(run_root / "generated_150f.mp4", generated_dir)
     gt_count = _copy_frames(run_root / "ground_truth_150f.mp4", gt_dir)
@@ -91,7 +115,9 @@ def materialize(
     prompt_dir = output_root / "gt_dataset" / task_id / episode_id / "prompt"
     prompt_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     shutil.copy2(first_frame, prompt_dir / "init_frame.png")
-    (prompt_dir / "prompt.txt").write_text("DROID robot action-conditioned future prediction", encoding="utf-8")
+    (prompt_dir / "prompt.txt").write_text(
+        "DROID robot action-conditioned future prediction", encoding="utf-8"
+    )
     config = yaml.safe_load(config_template.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise ValueError("WAN22_WORLD_ARENA_CONFIG_INVALID")
@@ -115,17 +141,38 @@ def materialize(
     config["save_path_action_following"] = str(output_root / "output_action_following")
     config_path = output_root / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-    summary = [{
-        "gt_path": str(gt_dir),
-        "image": str(prompt_dir / "init_frame.png"),
-        "prompt": ["DROID robot action-conditioned future prediction"],
-    }]
+    summary = [
+        {
+            "gt_path": str(gt_dir),
+            "image": str(prompt_dir / "init_frame.png"),
+            "prompt": ["DROID robot action-conditioned future prediction"],
+        }
+    ]
     summary_path = output_root / "worldarena_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"state": "ready", "episode_id": episode_id, "generated_frames": generated_count, "ground_truth_frames": gt_count, "root": str(output_root), "config": str(config_path)}
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return {
+        "state": "ready",
+        "episode_id": episode_id,
+        "generated_frames": generated_count,
+        "ground_truth_frames": gt_count,
+        "root": str(output_root),
+        "config": str(config_path),
+    }
 
 
-def materialize_many(*, run_roots: list[Path], output_root: Path, config_template: Path, task_id: str = "droid", gids: list[str] | None = None) -> dict[str, Any]:
+def materialize_many(
+    *,
+    run_roots: list[Path],
+    output_root: Path,
+    config_template: Path,
+    worldarena_root: Path | None = None,
+    asset_root: Path | None = None,
+    sea_raft_config: Path | None = None,
+    task_id: str = "droid",
+    gids: list[str] | None = None,
+) -> dict[str, Any]:
     """Materialize multiple generated gids for one episode without overwriting an existing root."""
 
     if not run_roots:
@@ -134,7 +181,11 @@ def materialize_many(*, run_roots: list[Path], output_root: Path, config_templat
     if len(gids) != len(run_roots) or len(set(gids)) != len(gids):
         raise ValueError("WAN22_WORLD_ARENA_GID_BINDING_INVALID")
     output_root = output_root.expanduser().resolve()
-    if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir() or any(output_root.iterdir())):
+    if output_root.exists() and (
+        output_root.is_symlink()
+        or not output_root.is_dir()
+        or any(output_root.iterdir())
+    ):
         raise ValueError("WAN22_WORLD_ARENA_OUTPUT_UNBOUND")
     output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
     infos = []
@@ -147,27 +198,67 @@ def materialize_many(*, run_roots: list[Path], output_root: Path, config_templat
         raise ValueError("WAN22_WORLD_ARENA_ACTION_GIDS_MUST_SHARE_EPISODE")
     episode_id = infos[0][1]
     for root, _episode, gid in infos:
-        _copy_frames(root / "generated_150f.mp4", output_root / "generated_dataset" / task_id / episode_id / gid / "video")
+        _copy_frames(
+            root / "generated_150f.mp4",
+            output_root / "generated_dataset" / task_id / episode_id / gid / "video",
+        )
     first_root = infos[0][0]
     gt_dir = output_root / "gt_dataset" / task_id / episode_id / "video"
     _copy_frames(first_root / "ground_truth_150f.mp4", gt_dir)
     prompt_dir = output_root / "gt_dataset" / task_id / episode_id / "prompt"
     prompt_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     shutil.copy2(first_root / "first_frame.png", prompt_dir / "init_frame.png")
-    (prompt_dir / "prompt.txt").write_text("DROID robot action-conditioned future prediction", encoding="utf-8")
+    (prompt_dir / "prompt.txt").write_text(
+        "DROID robot action-conditioned future prediction", encoding="utf-8"
+    )
     config_template = config_template.expanduser().resolve(strict=True)
     config = yaml.safe_load(config_template.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise ValueError("WAN22_WORLD_ARENA_CONFIG_INVALID")
-    config.setdefault("data", {}).update({"gt_path": str(output_root / "gt_dataset"), "val_base": str(output_root / "generated_dataset")})
-    config.setdefault("data_action_following", {}).update({"gt_path": str(output_root / "gt_dataset"), "val_base": str(output_root / "generated_dataset")})
+    runtime_bindings = (worldarena_root, asset_root, sea_raft_config)
+    if any(runtime_bindings) and not all(runtime_bindings):
+        raise ValueError("WAN22_WORLD_ARENA_RUNTIME_BINDING_INCOMPLETE")
+    if all(runtime_bindings):
+        _bind_evaluator_paths(
+            config,
+            worldarena_root=worldarena_root.expanduser().resolve(strict=True),
+            asset_root=asset_root.expanduser().resolve(strict=True),
+            sea_raft_config=sea_raft_config.expanduser().resolve(strict=True),
+        )
+    config.setdefault("data", {}).update(
+        {
+            "gt_path": str(output_root / "gt_dataset"),
+            "val_base": str(output_root / "generated_dataset"),
+        }
+    )
+    config.setdefault("data_action_following", {}).update(
+        {
+            "gt_path": str(output_root / "gt_dataset"),
+            "val_base": str(output_root / "generated_dataset"),
+        }
+    )
     config["save_path"] = str(output_root / "output")
     config["save_path_action_following"] = str(output_root / "output_action_following")
     config_path = output_root / "config.yaml"
     config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-    summary = [{"gt_path": str(gt_dir), "image": str(prompt_dir / "init_frame.png"), "prompt": ["DROID robot action-conditioned future prediction"]}]
-    (output_root / "worldarena_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"state": "ready", "episode_id": episode_id, "generated_gid_count": len(gids), "generated_frames_each": 150, "root": str(output_root), "config": str(config_path)}
+    summary = [
+        {
+            "gt_path": str(gt_dir),
+            "image": str(prompt_dir / "init_frame.png"),
+            "prompt": ["DROID robot action-conditioned future prediction"],
+        }
+    ]
+    (output_root / "worldarena_summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return {
+        "state": "ready",
+        "episode_id": episode_id,
+        "generated_gid_count": len(gids),
+        "generated_frames_each": 150,
+        "root": str(output_root),
+        "config": str(config_path),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -184,14 +275,26 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if len(args.run_root) == 1:
             result = materialize(
-                run_root=args.run_root[0], output_root=args.output_root,
+                run_root=args.run_root[0],
+                output_root=args.output_root,
                 config_template=args.config_template,
-                worldarena_root=args.worldarena_root, asset_root=args.asset_root,
+                worldarena_root=args.worldarena_root,
+                asset_root=args.asset_root,
                 sea_raft_config=args.sea_raft_config,
-                task_id=args.task_id, gid=(args.gid or ["1"])[0],
+                task_id=args.task_id,
+                gid=(args.gid or ["1"])[0],
             )
         else:
-            result = materialize_many(run_roots=args.run_root, output_root=args.output_root, config_template=args.config_template, task_id=args.task_id, gids=args.gid)
+            result = materialize_many(
+                run_roots=args.run_root,
+                output_root=args.output_root,
+                config_template=args.config_template,
+                worldarena_root=args.worldarena_root,
+                asset_root=args.asset_root,
+                sea_raft_config=args.sea_raft_config,
+                task_id=args.task_id,
+                gids=args.gid,
+            )
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     except (OSError, KeyError, TypeError, ValueError, yaml.YAMLError) as exc:

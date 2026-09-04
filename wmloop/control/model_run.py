@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -46,27 +47,47 @@ def compile_model_run(
     if runner.get("requires_training") is not True:
         raise ModelRunError("MODEL_RUN_TRAINING_RUNNER_REQUIRED")
     _validate_scale_plan(training_scale_plan, root=base)
-    _validate_allocation(resource_allocation, world_size=_world_size(training_scale_plan))
+    _validate_allocation(
+        resource_allocation, world_size=_world_size(training_scale_plan)
+    )
 
     model_root = _directory(model, "MODEL_RUN_MODEL_INVALID")
     dataset_root = _existing(data, "MODEL_RUN_DATASET_INVALID")
     output_root = _output_root(execution, model_root, dataset_root, base)
     manifest_path = output_root / "model-run.json"
-    evaluator = _file(execution.get("evaluator_contract"), "MODEL_RUN_EVALUATOR_INVALID")
+    evaluator = _file(
+        execution.get("evaluator_contract"), "MODEL_RUN_EVALUATOR_INVALID"
+    )
     runtime = _executable(execution.get("runtime_python"), "MODEL_RUN_RUNTIME_INVALID")
     assets = _asset_bindings(execution.get("asset_bindings"))
-    adapter_root = _optional_adapter_root(adapter.get("adapter_root"), output_root, model_root, dataset_root, base)
+    adapter_root = _optional_adapter_root(
+        adapter.get("adapter_root"), output_root, model_root, dataset_root, base
+    )
     train_command = _bind_command(
-        runner.get("train"), model_root=model_root, adapter_root=adapter_root, manifest_path=manifest_path, root=base, code="MODEL_RUN_TRAIN_COMMAND_INVALID"
+        runner.get("train"),
+        model_root=model_root,
+        adapter_root=adapter_root,
+        manifest_path=manifest_path,
+        root=base,
+        code="MODEL_RUN_TRAIN_COMMAND_INVALID",
     )
     evaluate_command = _bind_command(
-        runner.get("evaluate"), model_root=model_root, adapter_root=adapter_root, manifest_path=manifest_path, root=base, code="MODEL_RUN_EVALUATE_COMMAND_INVALID"
+        runner.get("evaluate"),
+        model_root=model_root,
+        adapter_root=adapter_root,
+        manifest_path=manifest_path,
+        root=base,
+        code="MODEL_RUN_EVALUATE_COMMAND_INVALID",
     )
     checkpoint_receipt = _output_receipt(
-        output_root, runner.get("checkpoint_receipt"), "MODEL_RUN_CHECKPOINT_RECEIPT_INVALID"
+        output_root,
+        runner.get("checkpoint_receipt"),
+        "MODEL_RUN_CHECKPOINT_RECEIPT_INVALID",
     )
     evidence_receipt = _output_receipt(
-        output_root, runner.get("evaluation_receipt"), "MODEL_RUN_EVIDENCE_RECEIPT_INVALID"
+        output_root,
+        runner.get("evaluation_receipt"),
+        "MODEL_RUN_EVIDENCE_RECEIPT_INVALID",
     )
 
     body: dict[str, object] = {
@@ -77,8 +98,12 @@ def compile_model_run(
         "manifest_path": str(manifest_path),
         "adapter": {
             "profile_id": _text(adapter.get("profile_id"), "MODEL_RUN_PROFILE_INVALID"),
-            "model_family": _text(adapter.get("model_family"), "MODEL_RUN_PROFILE_INVALID"),
-            "capability_level": _text(adapter.get("capability_level"), "MODEL_RUN_PROFILE_INVALID"),
+            "model_family": _text(
+                adapter.get("model_family"), "MODEL_RUN_PROFILE_INVALID"
+            ),
+            "capability_level": _text(
+                adapter.get("capability_level"), "MODEL_RUN_PROFILE_INVALID"
+            ),
             "protocol_version": runner.get("protocol_version"),
         },
         "runner": {"adapter_id": runner.get("adapter_id")},
@@ -116,6 +141,10 @@ def compile_model_run(
             "output_root_fresh": True,
             "network_access": False,
         },
+        "execution_policy": {
+            "stage_timeout_seconds": 24.0 * 3600.0,
+            "timeout_receipt": "execution-timeout-receipt.json",
+        },
         "claim_boundary": (
             "This manifest admits a bounded external model run only after a GPU lease. "
             "Checkpoint output is not promotion evidence without the declared held-out receipt."
@@ -126,7 +155,9 @@ def compile_model_run(
     return body
 
 
-def validate_model_run(document: Mapping[str, object], *, root: Path | None = None) -> None:
+def validate_model_run(
+    document: Mapping[str, object], *, root: Path | None = None
+) -> None:
     """Validate the persisted manifest and its non-overlap invariants."""
 
     base = (root or Path(__file__).resolve().parents[2]).expanduser().resolve()
@@ -164,6 +195,26 @@ def validate_model_run(document: Mapping[str, object], *, root: Path | None = No
         _mapping(document["resource_binding"]["allocation"], "MODEL_RUN_RESOURCE_ALLOCATION_INVALID"),  # type: ignore[index]
         world_size=_world_size(document["training"]["scale_plan"]),  # type: ignore[index]
     )
+    execution_policy = document.get("execution_policy")
+    if execution_policy is not None:
+        if not isinstance(execution_policy, Mapping):
+            raise ModelRunError("MODEL_RUN_EXECUTION_POLICY_INVALID")
+        timeout = execution_policy.get("stage_timeout_seconds")
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(float(timeout))
+            or float(timeout) <= 0
+        ):
+            raise ModelRunError("MODEL_RUN_TIMEOUT_INVALID")
+        receipt_name = execution_policy.get("timeout_receipt")
+        if (
+            not isinstance(receipt_name, str)
+            or not receipt_name
+            or Path(receipt_name).is_absolute()
+            or ".." in Path(receipt_name).parts
+        ):
+            raise ModelRunError("MODEL_RUN_TIMEOUT_RECEIPT_INVALID")
 
 
 def model_run_digest(document: Mapping[str, object]) -> str:
@@ -186,16 +237,31 @@ def _validate_scale_plan(plan: Mapping[str, object], *, root: Path | None) -> No
 
 
 def _validate_allocation(allocation: Mapping[str, object], *, world_size: int) -> None:
-    if allocation.get("artifact_type") != "verdiwm-gpu-resource-allocation" or allocation.get("state") != "ready":
+    if (
+        allocation.get("artifact_type") != "verdiwm-gpu-resource-allocation"
+        or allocation.get("state") != "ready"
+    ):
         raise ModelRunError("MODEL_RUN_RESOURCE_ALLOCATION_INVALID")
     roles = allocation.get("roles")
     if not isinstance(roles, list):
         raise ModelRunError("MODEL_RUN_RESOURCE_ALLOCATION_INVALID")
-    matches = [row for row in roles if isinstance(row, Mapping) and row.get("role") == "autonomous_candidate_evaluation"]
+    matches = [
+        row
+        for row in roles
+        if isinstance(row, Mapping)
+        and row.get("role") == "autonomous_candidate_evaluation"
+    ]
     if len(matches) != 1:
         raise ModelRunError("MODEL_RUN_RESOURCE_ROLE_INVALID")
     indices = matches[0].get("gpu_indices")
-    if not isinstance(indices, list) or len(indices) < world_size or any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in indices):
+    if (
+        not isinstance(indices, list)
+        or len(indices) < world_size
+        or any(
+            isinstance(item, bool) or not isinstance(item, int) or item < 0
+            for item in indices
+        )
+    ):
         raise ModelRunError("MODEL_RUN_RESOURCE_CAPACITY_INVALID")
 
 
@@ -207,8 +273,14 @@ def _world_size(plan: Mapping[str, object]) -> int:
     return value
 
 
-def _output_root(execution: Mapping[str, object], model: Path, data: Path, root: Path) -> Path:
-    output = _directory(Path(_text(execution.get("output_root"), "MODEL_RUN_OUTPUT_INVALID")), "MODEL_RUN_OUTPUT_INVALID", require_exists=False)
+def _output_root(
+    execution: Mapping[str, object], model: Path, data: Path, root: Path
+) -> Path:
+    output = _directory(
+        Path(_text(execution.get("output_root"), "MODEL_RUN_OUTPUT_INVALID")),
+        "MODEL_RUN_OUTPUT_INVALID",
+        require_exists=False,
+    )
     _require_disjoint(output, model, "MODEL_RUN_OUTPUT_OVERLAPS_MODEL")
     _require_disjoint(output, data, "MODEL_RUN_OUTPUT_OVERLAPS_DATA")
     _require_disjoint(output, root, "MODEL_RUN_OUTPUT_OVERLAPS_SYSTEM")
@@ -244,14 +316,18 @@ def _bind_command(
         bound.append(
             str(root / token.replace("{verdiwm_root}", "").lstrip("/"))
             if token.startswith("{verdiwm_root}/")
-            else str(adapter_root / token.replace("{adapter_root}", "").lstrip("/"))
-            if token.startswith("{adapter_root}/") and adapter_root is not None
-            else token
+            else (
+                str(adapter_root / token.replace("{adapter_root}", "").lstrip("/"))
+                if token.startswith("{adapter_root}/") and adapter_root is not None
+                else token
+            )
         )
     entrypoint = Path(bound[0]) if bound[0].startswith("/") else model_root / bound[0]
     if not entrypoint.is_file() or entrypoint.is_symlink():
         raise ModelRunError(code)
-    return [str(manifest_path) if token == _MANIFEST_TOKEN else token for token in bound]
+    return [
+        str(manifest_path) if token == _MANIFEST_TOKEN else token for token in bound
+    ]
 
 
 def _optional_adapter_root(
@@ -263,7 +339,10 @@ def _optional_adapter_root(
 ) -> Path | None:
     if value is None:
         return None
-    root = _directory(Path(_text(value, "MODEL_RUN_ADAPTER_ROOT_INVALID")), "MODEL_RUN_ADAPTER_ROOT_INVALID")
+    root = _directory(
+        Path(_text(value, "MODEL_RUN_ADAPTER_ROOT_INVALID")),
+        "MODEL_RUN_ADAPTER_ROOT_INVALID",
+    )
     _require_disjoint(root, output, "MODEL_RUN_ADAPTER_ROOT_OVERLAPS_OUTPUT")
     _require_disjoint(root, model, "MODEL_RUN_ADAPTER_ROOT_OVERLAPS_MODEL")
     _require_disjoint(root, data, "MODEL_RUN_ADAPTER_ROOT_OVERLAPS_DATA")
@@ -287,7 +366,12 @@ def _asset_bindings(value: object) -> dict[str, str]:
     for parameter, raw_path in bindings.items():
         if not isinstance(parameter, str) or not parameter.startswith("--"):
             raise ModelRunError("MODEL_RUN_ASSET_BINDINGS_INVALID")
-        result[parameter] = str(_existing(Path(_text(raw_path, "MODEL_RUN_ASSET_BINDINGS_INVALID")), "MODEL_RUN_ASSET_BINDINGS_INVALID"))
+        result[parameter] = str(
+            _existing(
+                Path(_text(raw_path, "MODEL_RUN_ASSET_BINDINGS_INVALID")),
+                "MODEL_RUN_ASSET_BINDINGS_INVALID",
+            )
+        )
     return result
 
 
@@ -351,5 +435,7 @@ def _within(path: Path, parent: Path) -> bool:
 
 def _digest(value: object) -> str:
     return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+        json.dumps(
+            value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode()
     ).hexdigest()
