@@ -22,6 +22,7 @@ import shlex
 import subprocess
 import sys
 import time
+import types
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -368,6 +369,25 @@ def _validate_scheduled_training_coverage(
 
 def _load_runtime(source: Path, model_path: Path, device: Any):
     source = source.expanduser().resolve()
+    wan_root = source / "wan"
+    if not wan_root.is_dir() or wan_root.is_symlink():
+        raise ValueError("WAN22_SOURCE_PACKAGE_INVALID")
+    existing = sys.modules.get("wan")
+    if existing is None:
+        # The upstream package initializer eagerly imports speech-to-video and
+        # animation stacks that are unrelated to TI2V and may require optional
+        # packages such as PEFT or decord.  A narrow package shim keeps this
+        # runner bound to the supplied source while importing only the modules
+        # required by the WAN2.2 TI2V contract.
+        package = types.ModuleType("wan")
+        package.__file__ = str(wan_root / "__init__.py")
+        package.__path__ = [str(wan_root)]
+        package.__package__ = "wan"
+        sys.modules["wan"] = package
+    else:
+        package_paths = [str(path) for path in getattr(existing, "__path__", [])]
+        if str(wan_root) not in package_paths:
+            raise ValueError("WAN22_SOURCE_PACKAGE_CONFLICT")
     sys.path.insert(0, str(source))
     import torch
     import torch.nn.functional as F
