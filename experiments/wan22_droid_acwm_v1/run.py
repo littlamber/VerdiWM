@@ -611,6 +611,12 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
     env = dict(os.environ)
     env["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices or ""
+    # The pinned runtime may be an external virtualenv that does not install
+    # VerdiWM as a wheel. Bind the repository root explicitly so the external
+    # runner can import the model-agnostic control plane modules.
+    env["PYTHONPATH"] = str(ROOT) + (
+        os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
+    )
     if training_scale is not None:
         scale_digest = hashlib.sha256(
             json.dumps(
