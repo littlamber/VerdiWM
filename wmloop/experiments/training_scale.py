@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.experiments.job_spec import effective_batch_size
 
 
 class TrainingScaleError(ValueError):
@@ -214,7 +215,7 @@ def build_training_scale_plan(
     selected_episodes = _episode_ids(selected)
     minimum_episodes = int(policy["min_episodes"])
     diversity_state = "pass" if len(selected_episodes) >= minimum_episodes else "blocked"
-    effective_batch = batch * accumulation * workers
+    effective_batch = effective_batch_size(batch, accumulation, workers)
     steps_per_epoch = int(policy.get("steps_per_epoch") or max(1, math.ceil(selected_count / effective_batch)))
     target_steps = math.ceil(steps_per_epoch * float(policy["target_epochs"]))
     planned_steps = min(

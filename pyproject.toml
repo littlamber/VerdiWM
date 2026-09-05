@@ -55,6 +55,7 @@ verdiwm-constitution-proposal = "wmloop.control.constitution_proposal:main"
 verdiwm-materialize-method = "wmloop.execute.automatic_materialization:main"
 verdiwm-ctrl-world-autonomous-transfer = "experiments.ctrl_world_autonomous_transfer_v1.controller:main"
 verdiwm-artifact-lint = "wmloop.experiments.artifact_lint:main"
+verdiwm-job = "wmloop.execute.job_supervisor:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]

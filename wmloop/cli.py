@@ -63,6 +63,15 @@ from wmloop.retrieve.training_recipes import (
 )
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.execute.configured_llm_broker import ConfiguredBrokerError, load_config
+from wmloop.execute.job_supervisor import (
+    JobSupervisorError,
+    cancel_job,
+    load_status as load_job_status,
+    resume_job,
+    submit_job,
+    tail_job,
+)
+from wmloop.experiments.job_spec import JobSpec
 
 
 def _default_state_root() -> Path:
@@ -80,6 +89,13 @@ def _asset(value: str) -> tuple[str, str]:
     if not normalized.startswith("--"):
         normalized = f"--{normalized}"
     return normalized, path.strip()
+
+
+def _job_env(value: str) -> tuple[str, str]:
+    key, separator, item = value.partition("=")
+    if not separator or not key or not item:
+        raise argparse.ArgumentTypeError("environment override must be KEY=VALUE")
+    return key, item
 
 
 def _store(state_root: Path) -> CampaignStore:
@@ -392,6 +408,42 @@ def _status(args: argparse.Namespace) -> int:
 
 def _cancel(args: argparse.Namespace) -> int:
     _print(_store(args.state_root).cancel(args.campaign_id))
+    return 0
+
+
+def _job(args: argparse.Namespace) -> int:
+    """Submit/control a detached process without coupling it to the CLI."""
+
+    if args.job_action == "submit":
+        metadata = json.loads(args.metadata)
+        if not isinstance(metadata, dict):
+            raise JobSupervisorError("JOB_METADATA_INVALID")
+        command = tuple(args.job_command)
+        if command and command[0] == "--":
+            command = command[1:]
+        result = submit_job(
+            JobSpec(
+                command=command,
+                cwd=args.cwd,
+                job_root=args.job_root,
+                environment=dict(args.env or ()),
+                output_root=args.output_root,
+                timeout_seconds=args.timeout_seconds,
+                metadata=metadata,
+            )
+        )
+        _print(result)
+        return 0
+    if args.job_action == "status":
+        _print(load_job_status(args.job_root))
+        return 0
+    if args.job_action == "tail":
+        print(tail_job(args.job_root, lines=args.lines), end="")
+        return 0
+    if args.job_action == "cancel":
+        _print(cancel_job(args.job_root, grace_seconds=args.grace_seconds))
+        return 0
+    _print(resume_job(args.job_root))
     return 0
 
 
@@ -783,6 +835,27 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--queue-only", action="store_true")
     run.add_argument("--max-parallel", type=int, default=1)
     run.set_defaults(handler=_run)
+
+    job = commands.add_parser(
+        "job", help="submit and control detached long-running model jobs"
+    )
+    job_actions = job.add_subparsers(dest="job_action", required=True)
+    job_submit = job_actions.add_parser("submit", help="submit and return immediately")
+    job_submit.add_argument("--job-root", type=Path, required=True)
+    job_submit.add_argument("--cwd", type=Path, default=Path.cwd())
+    job_submit.add_argument("--output-root", type=Path)
+    job_submit.add_argument("--timeout-seconds", type=float)
+    job_submit.add_argument("--env", action="append", type=_job_env, default=[])
+    job_submit.add_argument("--metadata", default="{}")
+    job_submit.add_argument("job_command", nargs=argparse.REMAINDER)
+    for action in ("status", "tail", "cancel", "resume"):
+        action_parser = job_actions.add_parser(action)
+        action_parser.add_argument("--job-root", type=Path, required=True)
+        if action == "tail":
+            action_parser.add_argument("--lines", type=int, default=40)
+        elif action == "cancel":
+            action_parser.add_argument("--grace-seconds", type=float, default=10.0)
+    job.set_defaults(handler=_job)
 
     status = commands.add_parser("status", help="show one campaign or list campaigns")
     status.add_argument("campaign_id", nargs="?")

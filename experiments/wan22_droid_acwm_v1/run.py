@@ -31,6 +31,8 @@ from wmloop.experiments.training_scale import (  # noqa: E402
     build_training_scale_plan,
 )
 from wmloop.experiments.artifact_lint import enforce_lint  # noqa: E402
+from wmloop.execute.job_supervisor import submit_job  # noqa: E402
+from wmloop.experiments.job_spec import JobSpec  # noqa: E402
 
 
 DEFAULT_SEEDS = (4101, 4202, 4303)
@@ -983,6 +985,16 @@ def _parser() -> argparse.ArgumentParser:
         "--execute", action="store_true", help="allow the bound runner to use GPU"
     )
     closed.add_argument(
+        "--background",
+        action="store_true",
+        help="submit the closed loop as a detached job and return immediately",
+    )
+    closed.add_argument(
+        "--background-job-root",
+        type=Path,
+        help="job state directory; defaults to a sibling of output-root",
+    )
+    closed.add_argument(
         "--visual-only-diagnostic",
         action="store_true",
         help="run only the four visual metrics; result is never quality-eligible",
@@ -1074,7 +1086,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    args = _parser().parse_args(raw_argv)
     try:
         if args.command == "prepare":
             output = args.output_root.expanduser().resolve()
@@ -1102,6 +1115,37 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "closed-loop":
+            if args.background:
+                if not args.execute:
+                    raise ValueError("BACKGROUND_CLOSED_LOOP_REQUIRES_EXECUTE")
+                job_root = (
+                    args.background_job_root.expanduser().resolve()
+                    if args.background_job_root is not None
+                    else args.output_root.expanduser().resolve().with_name(
+                        args.output_root.expanduser().resolve().name + ".job"
+                    )
+                )
+                child_argv = [item for item in raw_argv if item != "--background"]
+                if "--background-job-root" in child_argv:
+                    index = child_argv.index("--background-job-root")
+                    del child_argv[index : index + 2]
+                result = submit_job(
+                    JobSpec(
+                        command=(sys.executable, str(Path(__file__).resolve()), *child_argv),
+                        cwd=ROOT,
+                        job_root=job_root,
+                        output_root=args.output_root,
+                        metadata={
+                            "kind": "wan22_droid_closed_loop",
+                            "output_root": str(args.output_root.expanduser().resolve()),
+                            "training_mode": args.training_mode,
+                            "steps": args.steps,
+                            "seeds": args.seeds,
+                        },
+                    )
+                )
+                _dump(result)
+                return 0
             receipt, code = _closed_loop(args)
             _dump(receipt)
             return code
