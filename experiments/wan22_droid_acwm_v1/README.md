@@ -131,6 +131,12 @@ visual scores. Use `--visual-only-diagnostic` explicitly when only the four
 visual dimensions are available; that result is diagnostic-only and cannot be
 promoted.
 
+If the official SAM3 checkpoint is unavailable, a formal five-metric run may
+explicitly omit only the SAM3-dependent trajectory metric with
+`--omit-trajectory-accuracy`. The receipt records the omission and the run
+still evaluates subject/background/motion/photometric consistency plus action
+following; no trajectory score is inferred or synthesized.
+
 The 150-frame WAN2.2 causal-tail contract requires 152 readable source frames
 for every frozen validation-panel member. Manifest generation records this
 requirement and the runner performs an encoded-video preflight before loading

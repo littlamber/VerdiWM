@@ -39,7 +39,7 @@
       "bytes": 78778760,
       "format": "safetensors",
       "derived_torch_path": "sea-raft/Tartan-C-T-TSKH-spring540x960-M.pth",
-      "derived_sha256": "eca3d16b4b5567c9db36ab84d8403e52b148a97a6973cd40898ce74e5405ac84"
+      "derived_sha256": "9585f32c2858df0ec6e11453a5624f11dcf7fa6a78454956f806279120164b82"
     },
     {
       "id": "dino_vitbase16",

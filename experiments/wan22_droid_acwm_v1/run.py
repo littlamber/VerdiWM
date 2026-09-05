@@ -46,6 +46,9 @@ FORMAL_DIMENSIONS = VISUAL_DIAGNOSTIC_DIMENSIONS + (
     "trajectory_accuracy",
     "action_following",
 )
+FORMAL_DIMENSIONS_WITHOUT_TRAJECTORY = VISUAL_DIAGNOSTIC_DIMENSIONS + (
+    "action_following",
+)
 
 
 def _dump(value: object) -> None:
@@ -498,6 +501,9 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             for metric in requested_dimensions
         ):
             blockers.append("VISUAL_DIAGNOSTIC_METRICS_INVALID")
+    elif args.omit_trajectory_accuracy:
+        if set(requested_dimensions) != set(FORMAL_DIMENSIONS_WITHOUT_TRAJECTORY):
+            blockers.append("FORMAL_METRIC_OMISSION_SET_INVALID")
     elif set(requested_dimensions) != set(FORMAL_DIMENSIONS):
         blockers.append("FORMAL_WORLDARENA_METRICS_REQUIRED")
     if (
@@ -511,7 +517,7 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         declared_metrics = tuple(
             str(value) for value in evaluator_payload.get("metrics", ())
         )
-        if declared_metrics and set(declared_metrics) != set(FORMAL_DIMENSIONS):
+        if declared_metrics and not set(requested_dimensions).issubset(set(declared_metrics)):
             blockers.append("WORLDARENA_EVALUATOR_METRIC_CONTRACT_INVALID")
     except (OSError, ValueError, json.JSONDecodeError):
         blockers.append("WORLDARENA_EVALUATOR_METRIC_CONTRACT_INVALID")
@@ -665,6 +671,9 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "worldarena_runtime_python": str(worldarena_runtime),
         "cuda_visible_devices": args.cuda_visible_devices,
         "worldarena_dimensions": list(args.worldarena_dimensions),
+        "worldarena_metrics_omitted": [
+            metric for metric in FORMAL_DIMENSIONS if metric not in args.worldarena_dimensions
+        ],
         "visual_only_diagnostic": bool(args.visual_only_diagnostic),
         "runner": str(args.runner.expanduser().resolve()) if args.runner else None,
         "adapter": str(args.adapter.expanduser().resolve()),
@@ -1123,12 +1132,23 @@ def _parser() -> argparse.ArgumentParser:
     closed.add_argument(
         "--worldarena-dimensions", nargs="+", default=list(FORMAL_DIMENSIONS)
     )
+    closed.add_argument(
+        "--omit-trajectory-accuracy",
+        action="store_true",
+        help="formal five-metric run; omit the SAM3-dependent trajectory metric",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     args = _parser().parse_args(raw_argv)
+    if getattr(args, "omit_trajectory_accuracy", False):
+        args.worldarena_dimensions = [
+            metric
+            for metric in args.worldarena_dimensions
+            if metric != "trajectory_accuracy"
+        ]
     try:
         if args.command == "prepare":
             output = args.output_root.expanduser().resolve()
