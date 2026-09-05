@@ -414,6 +414,24 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         horizon_frames=args.horizon_frames,
     )
     blockers = list(report["blockers"])
+    if not args.visual_only_diagnostic and "trajectory_accuracy" in args.worldarena_dimensions:
+        data_root = Path(str(validation_payload.get("data_root", ""))).expanduser().resolve()
+        trajectory_candidates = []
+        for index in args.validation_sample_indices:
+            if 0 <= index < len(validation_records):
+                record = validation_records[index]
+                episode_id = str(record.get("episode_id", "")).strip()
+                annotation = Path(str(record.get("annotation_path", "")))
+                trajectory_candidates.extend(
+                    (
+                        data_root / episode_id / "traj" / "traj.npy",
+                        data_root / annotation.parent / "traj" / "traj.npy",
+                    )
+                )
+        if not trajectory_candidates or not all(path.is_file() for path in trajectory_candidates):
+            blockers.append(
+                "TRAJECTORY_ACCURACY_INPUT_UNAVAILABLE:official traj/traj.npy is required before GPU training"
+            )
     runtime = args.runtime_python.expanduser().absolute()
     worldarena_runtime = (
         args.worldarena_runtime_python.expanduser().absolute()
