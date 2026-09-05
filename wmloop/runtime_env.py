@@ -30,6 +30,13 @@ def runtime_subprocess_env(
         if prefix is not None:
             path = _prepend_path(prefix / "bin", path)
             library_path = _prepend_path(prefix / "lib", library_path)
+            # Pip-installed CUDA wheels (for example nvidia-cusparselt) keep
+            # shared objects under site-packages rather than the virtualenv's
+            # top-level lib directory.  Discover those package lib folders so
+            # a pinned runtime is self-contained and does not depend on the
+            # caller exporting an implementation-specific LD_LIBRARY_PATH.
+            for package_lib in _runtime_cuda_package_libs(prefix):
+                library_path = _prepend_path(package_lib, library_path)
             env["CONDA_PREFIX"] = str(prefix)
             env["VIRTUAL_ENV"] = str(prefix)
     env["PATH"] = path
@@ -41,10 +48,19 @@ def runtime_subprocess_env(
 
 
 def _runtime_prefix(runtime_python: Path) -> Path | None:
-    interpreter = Path(runtime_python).resolve()
+    # Keep the user-facing venv path before resolving symlinks.  Minimal
+    # virtualenvs commonly symlink ``bin/python`` to a system interpreter; the
+    # package libraries still live under the venv prefix and must be added.
+    interpreter = Path(runtime_python).expanduser()
     if interpreter.parent.name != "bin":
         return None
     return interpreter.parent.parent
+
+
+def _runtime_cuda_package_libs(prefix: Path) -> tuple[Path, ...]:
+    site_packages = prefix / "lib"
+    candidates = sorted(site_packages.glob("python*/site-packages/nvidia/*/lib"))
+    return tuple(path for path in candidates if path.is_dir() and not path.is_symlink())
 
 
 def _prepend_path(path: Path, current: str) -> str:
