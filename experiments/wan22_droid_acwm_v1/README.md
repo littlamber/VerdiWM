@@ -25,6 +25,22 @@ python experiments/wan22_droid_acwm_v1/run.py conformance \
   --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py
 ```
 
+For WJY's multi-camera DROID export, the deterministic conditioning conversion
+is kept separate from WorldArena preprocessing:
+
+```bash
+python scripts/convert_wjy_droid_ctrlworld.py \
+  --source-root /share/project/zhiwei/wjy/data/droid_ctrl_world_tfrecord \
+  --output-root /share/project/zhiwei/wjy/data/verdiwm_wan22_droid_ctrlworld_v3 \
+  --train-episodes 32 --val-episodes 3 --camera 2
+```
+
+The converter preserves provenance and uses the original Cartesian action plus
+gripper (7D) and joint/cartesian/gripper observation (14D) fields.  It does
+not write `traj/traj.npy`: WorldArena's trajectory metric requires its
+official image-space gripper preprocessing (for example, SAM3), which must be
+run and recorded separately before a formal six-metric launch.
+
 The resulting report is a readiness receipt, not a quality result. Quality
 requires generated 150-frame rollouts and the frozen WorldArena verifier. The
 external runner emits `generated_150f.mp4`, `ground_truth_150f.mp4`,
