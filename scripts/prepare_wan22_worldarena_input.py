@@ -87,6 +87,7 @@ def materialize(
     worldarena_root: Path | None = None,
     asset_root: Path | None = None,
     sea_raft_config: Path | None = None,
+    trajectory_detector_root: Path | None = None,
     task_id: str = "droid",
     gid: str = "1",
 ) -> dict[str, Any]:
@@ -152,6 +153,15 @@ def materialize(
     summary_path.write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    if trajectory_detector_root is not None:
+        from scripts.materialize_wan22_worldarena_trajectories import materialize as materialize_trajectories
+
+        materialize_trajectories(
+            prepared_root=output_root,
+            worldarena_root=worldarena_root.expanduser().resolve(strict=True),
+            sam3_model_root=trajectory_detector_root.expanduser().resolve(strict=True),
+            task_id=task_id,
+        )
     return {
         "state": "ready",
         "episode_id": episode_id,
@@ -170,6 +180,7 @@ def materialize_many(
     worldarena_root: Path | None = None,
     asset_root: Path | None = None,
     sea_raft_config: Path | None = None,
+    trajectory_detector_root: Path | None = None,
     task_id: str = "droid",
     gids: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -251,6 +262,15 @@ def materialize_many(
     (output_root / "worldarena_summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+    if trajectory_detector_root is not None:
+        from scripts.materialize_wan22_worldarena_trajectories import materialize as materialize_trajectories
+
+        materialize_trajectories(
+            prepared_root=output_root,
+            worldarena_root=worldarena_root.expanduser().resolve(strict=True),
+            sam3_model_root=trajectory_detector_root.expanduser().resolve(strict=True),
+            task_id=task_id,
+        )
     return {
         "state": "ready",
         "episode_id": episode_id,
@@ -269,6 +289,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--worldarena-root", type=Path)
     parser.add_argument("--asset-root", type=Path)
     parser.add_argument("--sea-raft-config", type=Path)
+    parser.add_argument(
+        "--trajectory-detector-root",
+        type=Path,
+        help="SAM3 checkpoint directory; when set, run the official trajectory extractor",
+    )
     parser.add_argument("--task-id", default="droid")
     parser.add_argument("--gid", nargs="+", default=None)
     args = parser.parse_args(argv)
@@ -281,6 +306,7 @@ def main(argv: list[str] | None = None) -> int:
                 worldarena_root=args.worldarena_root,
                 asset_root=args.asset_root,
                 sea_raft_config=args.sea_raft_config,
+                trajectory_detector_root=args.trajectory_detector_root,
                 task_id=args.task_id,
                 gid=(args.gid or ["1"])[0],
             )
@@ -292,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
                 worldarena_root=args.worldarena_root,
                 asset_root=args.asset_root,
                 sea_raft_config=args.sea_raft_config,
+                trajectory_detector_root=args.trajectory_detector_root,
                 task_id=args.task_id,
                 gids=args.gid,
             )

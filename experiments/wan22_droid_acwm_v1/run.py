@@ -342,6 +342,13 @@ def _worldarena_commands(
         "--sea-raft-config",
         str(args.worldarena_sea_raft_config.expanduser().resolve()),
     ]
+    if getattr(args, "worldarena_trajectory_detector_root", None) is not None:
+        prepare.extend(
+            [
+                "--trajectory-detector-root",
+                str(args.worldarena_trajectory_detector_root.expanduser().resolve()),
+            ]
+        )
     evaluate = [
         runtime,
         str(ROOT / "scripts" / "evaluate_wan22_worldarena.py"),
@@ -449,9 +456,20 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "WORLDARENA_ASSET_ROOT_INVALID": args.worldarena_asset_root,
         "WORLDARENA_SEA_RAFT_CONFIG_INVALID": args.worldarena_sea_raft_config,
     }
+    if "trajectory_accuracy" in args.worldarena_dimensions and not args.visual_only_diagnostic:
+        path_bindings["WORLDARENA_TRAJECTORY_DETECTOR_ROOT_INVALID"] = getattr(
+            args, "worldarena_trajectory_detector_root", None
+        )
     for code, value in path_bindings.items():
         if value is None or not value.expanduser().resolve().exists():
             blockers.append(code)
+    detector_root = getattr(args, "worldarena_trajectory_detector_root", None)
+    if "trajectory_accuracy" in args.worldarena_dimensions and not args.visual_only_diagnostic:
+        if detector_root is not None:
+            detector_root = detector_root.expanduser().resolve()
+            for filename in ("sam3.pt", "bpe_simple_vocab_16e6.txt.gz"):
+                if not (detector_root / filename).is_file():
+                    blockers.append(f"SAM3_CHECKPOINT_FILE_MISSING:{filename}")
     if not args.cuda_visible_devices:
         blockers.append("CUDA_VISIBLE_DEVICES_REQUIRED")
     else:
@@ -1092,6 +1110,11 @@ def _parser() -> argparse.ArgumentParser:
     closed.add_argument("--worldarena-runtime-python", type=Path)
     closed.add_argument("--worldarena-asset-manifest", type=Path, required=True)
     closed.add_argument("--worldarena-asset-root", type=Path, required=True)
+    closed.add_argument(
+        "--worldarena-trajectory-detector-root",
+        type=Path,
+        help="SAM3 checkpoint directory used by the official trajectory extractor",
+    )
     closed.add_argument(
         "--worldarena-sea-raft-config",
         type=Path,
