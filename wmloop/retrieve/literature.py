@@ -10,15 +10,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
 from wmloop.propose.prior_library import PriorLibraryError, stage_literature_candidate
+from wmloop.retrieve.providers import ResearchProviderError, search_provider
 
 
 class LiteratureRetrievalError(RuntimeError):
@@ -59,20 +58,28 @@ def search_arxiv(
     if timeout_seconds <= 0 or timeout_seconds > 60:
         raise LiteratureRetrievalError("LITERATURE_TIMEOUT_INVALID")
     cache = Path(cache_path).resolve() if cache_path is not None else None
-    url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(
-        {"search_query": f"all:{query.strip()}", "start": 0, "max_results": max_results, "sortBy": "relevance"}
-    )
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "verdiwm/0.1 literature-retrieval"})
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            payload = response.read(2_000_000 + 1)
-        if len(payload) > 2_000_000:
-            raise LiteratureRetrievalError("LITERATURE_RESPONSE_TOO_LARGE")
-        records = _parse_atom(payload)
+        external = search_provider(
+            "arxiv",
+            query,
+            limit=max_results,
+            timeout_seconds=timeout_seconds,
+            byte_limit=2_000_000,
+        )
+        records = tuple(
+            LiteratureRecord(
+                arxiv_id=row.record_id,
+                title=row.title,
+                abstract=row.summary,
+                pdf_url=row.source_url,
+                published=row.published,
+            )
+            for row in external
+        )
         if cache is not None:
             _write_json(cache, {"query": query.strip(), "records": [row.to_dict() for row in records]})
         return records, "network"
-    except (OSError, ElementTree.ParseError, LiteratureRetrievalError):
+    except (OSError, ResearchProviderError, LiteratureRetrievalError):
         cached = _load_cache(cache, query=query.strip())
         if cached:
             return cached, "cached"
@@ -130,10 +137,47 @@ def run_literature_retrieval(
 ) -> dict[str, object]:
     """Run or resume one bounded literature retrieval transaction."""
 
+    return run_literature_retrieval_batch(
+        queries=(query,),
+        output_root=output_root,
+        max_results=max_results,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def run_literature_retrieval_batch(
+    *,
+    queries: Sequence[str],
+    output_root: Path,
+    max_results: int = 8,
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    """Run or resume bounded multi-view retrieval with cross-query deduplication."""
+
     destination = Path(output_root).resolve()
+    normalized_queries = tuple(
+        dict.fromkeys(str(query).strip() for query in queries if str(query).strip())
+    )
+    if not normalized_queries or max_results < 1 or max_results > 50:
+        raise LiteratureRetrievalError("LITERATURE_QUERY_INVALID")
+    if timeout_seconds <= 0 or timeout_seconds > 60:
+        raise LiteratureRetrievalError("LITERATURE_TIMEOUT_INVALID")
+    input_contract: dict[str, object] = (
+        {
+            "query": normalized_queries[0],
+            "max_results": max_results,
+            "timeout_seconds": timeout_seconds,
+        }
+        if len(normalized_queries) == 1
+        else {
+            "queries": normalized_queries,
+            "max_results": max_results,
+            "timeout_seconds": timeout_seconds,
+        }
+    )
     input_hash = hashlib.sha256(
         json.dumps(
-            {"query": query, "max_results": max_results, "timeout_seconds": timeout_seconds},
+            input_contract,
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -149,20 +193,54 @@ def run_literature_retrieval(
             return existing
         if any(destination.iterdir()):
             raise LiteratureRetrievalError("LITERATURE_OUTPUT_UNBOUND")
-    records, source_state = search_arxiv(
-        query,
-        max_results=max_results,
-        timeout_seconds=timeout_seconds,
-        cache_path=destination / "cache.json",
+    records_by_id: dict[str, LiteratureRecord] = {}
+    query_states: list[dict[str, object]] = []
+    selected_queries = normalized_queries[:max_results]
+    per_query_limit = max(1, math.ceil(max_results / len(selected_queries)))
+    for index, query in enumerate(selected_queries, start=1):
+        records, source_state = search_arxiv(
+            query,
+            max_results=per_query_limit,
+            timeout_seconds=timeout_seconds,
+            cache_path=destination / "cache" / f"query-{index:03d}.json",
+        )
+        for record in records:
+            records_by_id.setdefault(record.arxiv_id, record)
+        query_states.append(
+            {
+                "query": query,
+                "state": source_state,
+                "record_count": len(records),
+            }
+        )
+    records = tuple(records_by_id.values())[:max_results]
+    source_state = _aggregate_source_state(query_states)
+    query_label = " | ".join(normalized_queries)
+    staged = stage_literature_results(
+        records,
+        staging_root=destination / "candidates",
+        query=query_label,
     )
-    staged = stage_literature_results(records, staging_root=destination / "candidates", query=query)
-    _write_json(destination / "records.json", {"query": query, "records": [item.to_dict() for item in records]})
+    _write_json(
+        destination / "records.json",
+        {
+            "queries": list(normalized_queries),
+            "queried": list(selected_queries),
+            "queries_truncated": len(selected_queries) < len(normalized_queries),
+            "query_states": query_states,
+            "records": [item.to_dict() for item in records],
+        },
+    )
     manifest = {
         "schema_version": 1,
         "artifact_type": "verdiwm-literature-retrieval-manifest",
         "state": source_state,
         "input_hash": input_hash,
-        "query": query,
+        "query": normalized_queries[0],
+        "queries": list(normalized_queries),
+        "queried": list(selected_queries),
+        "queries_truncated": len(selected_queries) < len(normalized_queries),
+        "query_states": query_states,
         "record_count": len(records),
         "staged_count": sum(row.get("state") == "staged" for row in staged),
         "records_path": str(destination / "records.json"),
@@ -174,25 +252,13 @@ def run_literature_retrieval(
     return manifest
 
 
-def _parse_atom(payload: bytes) -> tuple[LiteratureRecord, ...]:
-    root = ElementTree.fromstring(payload)
-    namespace = {"atom": "http://www.w3.org/2005/Atom"}
-    records: list[LiteratureRecord] = []
-    for entry in root.findall("atom:entry", namespace):
-        identifier = _text(entry.find("atom:id", namespace))
-        match = re.search(r"arxiv.org/abs/([^/?]+)", identifier)
-        arxiv_id = match.group(1) if match else identifier.rsplit("/", 1)[-1]
-        title = " ".join(_text(entry.find("atom:title", namespace)).split())
-        abstract = " ".join(_text(entry.find("atom:summary", namespace)).split())
-        published = _text(entry.find("atom:published", namespace))
-        pdf_url = ""
-        for link in entry.findall("atom:link", namespace):
-            if link.attrib.get("title") == "pdf":
-                pdf_url = str(link.attrib.get("href") or "")
-                break
-        if arxiv_id and title and abstract:
-            records.append(LiteratureRecord(arxiv_id, title, abstract, pdf_url, published))
-    return tuple(records)
+def _aggregate_source_state(rows: Sequence[dict[str, object]]) -> str:
+    states = {str(row.get("state")) for row in rows}
+    if "network" in states:
+        return "network"
+    if "cached" in states:
+        return "cached"
+    return "offline"
 
 
 def _load_cache(path: Path | None, *, query: str) -> tuple[LiteratureRecord, ...]:
@@ -230,10 +296,6 @@ def _load_mapping(path: Path) -> dict[str, object]:
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def _text(node: ElementTree.Element | None) -> str:
-    return (node.text or "").strip() if node is not None else ""
 
 
 def _summary(value: str) -> str:

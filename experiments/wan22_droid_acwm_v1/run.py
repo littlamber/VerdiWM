@@ -72,6 +72,14 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _estimated_gpu_hours(steps: int, seed_count: int) -> float:
     """Conservative estimate calibrated from the retained 1/8-step probes."""
 
@@ -316,6 +324,47 @@ def _gpu_free_memory_mib(cuda_visible_devices: str) -> float:
         if len(fields) == 3 and fields[0] == first_device:
             return float(fields[1]) - float(fields[2])
     raise ValueError(f"CUDA_DEVICE_NOT_FOUND:{first_device}")
+
+
+def _worldarena_required_modules(dimensions: Sequence[str]) -> tuple[str, ...]:
+    """Return dependencies imported by the pinned WorldArena entrypoint."""
+
+    modules = ["torch", "numpy", "PIL", "yaml", "cv2", "clip", "pyiqa"]
+    if "motion_smoothness" in dimensions:
+        modules.append("mamba_ssm")
+    return tuple(modules)
+
+
+def _missing_runtime_modules(
+    runtime: Path, modules: Sequence[str], env: dict[str, str]
+) -> tuple[str, ...]:
+    """Probe a separate evaluator runtime without importing GPU-heavy modules."""
+
+    probe = subprocess.run(
+        [
+            str(runtime),
+            "-c",
+            (
+                "import importlib.util,json,sys;"
+                "mods=json.loads(sys.argv[1]);"
+                "print(json.dumps([m for m in mods if importlib.util.find_spec(m) is None]))"
+            ),
+            json.dumps(list(modules)),
+        ],
+        capture_output=True,
+        env=env,
+        text=True,
+        timeout=60,
+    )
+    if probe.returncode != 0:
+        raise RuntimeError("WORLDARENA_RUNTIME_MODULE_PROBE_FAILED")
+    try:
+        missing = json.loads(probe.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("WORLDARENA_RUNTIME_MODULE_PROBE_INVALID") from exc
+    if not isinstance(missing, list) or any(not isinstance(item, str) for item in missing):
+        raise RuntimeError("WORLDARENA_RUNTIME_MODULE_PROBE_INVALID")
+    return tuple(sorted(set(missing)))
 
 
 def _worldarena_commands(
@@ -652,6 +701,21 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             probe = None
         if probe is None or probe.returncode != 0:
             blockers.append("RUNTIME_TORCH_CUDA_UNAVAILABLE")
+    if worldarena_runtime.is_file() and args.execute:
+        try:
+            missing_modules = _missing_runtime_modules(
+                worldarena_runtime,
+                _worldarena_required_modules(args.worldarena_dimensions),
+                env,
+            )
+        except (OSError, RuntimeError, subprocess.TimeoutExpired):
+            blockers.append("WORLDARENA_RUNTIME_DEPENDENCY_PROBE_FAILED")
+        else:
+            if missing_modules:
+                blockers.append(
+                    "WORLDARENA_RUNTIME_DEPENDENCIES_MISSING:"
+                    + ",".join(missing_modules)
+                )
 
     candidate_binding = {
         "conditioning_mode": args.conditioning_mode,
@@ -660,9 +724,24 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "anchor_refresh_strength": args.anchor_refresh_strength,
         "branch_count": args.branch_count,
         "branch_selection": args.branch_selection,
+        "branch_reference_weight": args.branch_reference_weight,
+        "rollout_steps": args.rollout_steps,
+        "learning_rate": args.learning_rate,
+        "horizon_frames": args.horizon_frames,
+        "chunk_frames": args.chunk_frames,
     }
-    if previous is not None and previous.get("candidate") != candidate_binding:
-        blockers.append("RESUME_CANDIDATE_MISMATCH")
+    if previous is not None:
+        # Resume contracts are forward-compatible: older receipts may carry
+        # additional bookkeeping fields introduced after the training run.
+        # Every field that affects model behavior must still match exactly;
+        # unknown historical keys are ignored so an evaluator-only resume is
+        # not blocked by metadata evolution.
+        previous_candidate = previous.get("candidate")
+        if not isinstance(previous_candidate, dict) or any(
+            previous_candidate.get(key) != value
+            for key, value in candidate_binding.items()
+        ):
+            blockers.append("RESUME_CANDIDATE_MISMATCH")
     receipt: dict[str, Any] = {
         "schema_version": 2,
         "artifact_type": "verdiwm-wan22-droid-closed-loop-receipt",
@@ -683,6 +762,22 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         "visual_only_diagnostic": bool(args.visual_only_diagnostic),
         "runner": str(args.runner.expanduser().resolve()) if args.runner else None,
         "adapter": str(args.adapter.expanduser().resolve()),
+        "implementation_bindings": {
+            "controller_sha256": _sha256_file(Path(__file__)),
+            "runner_sha256": _sha256_file(args.runner.expanduser().resolve()),
+            "adapter_sha256": _sha256_file(args.adapter.expanduser().resolve()),
+            "evaluator_contract_sha256": _sha256_file(
+                args.evaluator_contract.expanduser().resolve()
+            ),
+            "worldarena_adapter_sha256": _sha256_file(
+                ROOT / "scripts" / "evaluate_wan22_worldarena.py"
+            ),
+            "worldarena_entrypoint_sha256": _sha256_file(
+                args.worldarena_root.expanduser().resolve()
+                / "video_quality"
+                / "evaluate.py"
+            ),
+        },
         "output_root": str(output),
         "stages": [
             "train",

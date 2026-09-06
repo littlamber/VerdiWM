@@ -5,7 +5,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from wmloop.wan22_droid import Wan22DroidError, build_sample_manifest, required_rollout_source_frames, validate_contract
-from experiments.wan22_droid_acwm_v1.run import _estimated_gpu_hours, _gpu_free_memory_mib, _parser
+from experiments.wan22_droid_acwm_v1.run import (
+    _estimated_gpu_hours,
+    _gpu_free_memory_mib,
+    _parser,
+    _worldarena_required_modules,
+)
 from experiments.wan22_droid_acwm_v1.wan22_droid_runner import _assert_episode_disjoint, _chunk_anchor, _conditioning_for_mode, _load_adapter, _parser as runner_parser, _select_branch_index, _training_record_schedule, _validate_control_plane_training_contract, _validate_scheduled_training_coverage, _validate_stage_training_mode, _validate_validation_source_frames, _validation_panel_indices
 
 
@@ -236,6 +241,13 @@ class Wan22DroidContractTests(unittest.TestCase):
         with patch("experiments.wan22_droid_acwm_v1.run.subprocess.run", return_value=result):
             self.assertEqual(_gpu_free_memory_mib("3"), 28960.0)
 
+    def test_worldarena_runtime_dependencies_follow_requested_metrics(self):
+        visual = _worldarena_required_modules(["subject_consistency"])
+        motion = _worldarena_required_modules(["motion_smoothness"])
+        self.assertIn("pyiqa", visual)
+        self.assertNotIn("mamba_ssm", visual)
+        self.assertIn("mamba_ssm", motion)
+
     def test_runner_loads_only_the_explicit_adapter(self):
         with tempfile.TemporaryDirectory() as raw:
             adapter = Path(raw) / "bound_adapter.py"
@@ -302,7 +314,6 @@ class Wan22DroidContractTests(unittest.TestCase):
         self.assertEqual(len(scores_continuity), 3)
         with self.assertRaisesRegex(ValueError, "WAN22_DROID_BRANCH_REFERENCE_WEIGHT_INVALID"):
             _select_branch_index(branches, reference, previous, -0.1)
-
 
 if __name__ == "__main__":
     unittest.main()

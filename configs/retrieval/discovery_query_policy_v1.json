@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-discovery-query-policy",
+  "policy_id": "world-model-cross-domain-discovery-v1",
+  "base_terms": ["world", "model", "dynamics", "prediction"],
+  "query_views": [
+    {
+      "view": "diagnostic_symptom",
+      "static_terms": ["failure", "mechanism", "diagnosis"],
+      "dynamic_sources": ["model_family", "symptom", "failure_signatures"],
+      "max_dynamic_terms": 7
+    },
+    {
+      "view": "state_update_operator",
+      "static_terms": ["state", "transition", "memory", "reliability", "update"],
+      "dynamic_sources": ["target_metrics"],
+      "max_dynamic_terms": 5
+    },
+    {
+      "view": "training_distribution",
+      "static_terms": ["training", "inference", "distribution", "rollout"],
+      "dynamic_sources": [],
+      "max_dynamic_terms": 0
+    },
+    {
+      "view": "architecture_hook",
+      "static_terms": ["architecture", "conditioning", "interface"],
+      "dynamic_sources": ["model_family", "available_hooks"],
+      "max_dynamic_terms": 6
+    }
+  ],
+  "cross_domain_base_terms": ["sequence", "prediction", "temporal", "memory"],
+  "fallback_cross_domain_lenses": [
+    "belief state estimation confidence update",
+    "adaptive memory retention forgetting",
+    "online system identification uncertainty"
+  ],
+  "domain_rules": [
+    {
+      "domain": "temporal",
+      "match_terms": ["temporal", "history", "horizon", "rollout", "phase", "drift"],
+      "lenses": [
+        "state space model long horizon credit assignment memory compression",
+        "sequence modeling scheduled sampling rollout distribution alignment"
+      ]
+    },
+    {
+      "domain": "action",
+      "match_terms": ["action", "control", "inverse", "kinematic", "conditioning"],
+      "lenses": [
+        "inverse dynamics sensorimotor control action grounding system identification",
+        "robot learning action representation controllability bottleneck"
+      ]
+    },
+    {
+      "domain": "noise",
+      "match_terms": ["noise", "stochastic", "sampler", "uncertainty", "variance"],
+      "lenses": [
+        "uncertainty calibration stochastic filtering robust control diffusion noise",
+        "risk sensitive prediction noise aware representation learning"
+      ]
+    },
+    {
+      "domain": "context",
+      "match_terms": ["context", "memory", "retrieval", "anchor", "attention"],
+      "lenses": [
+        "episodic memory retrieval attention context selection cognitive science",
+        "adaptive memory retention forgetting retrieval augmented sequence prediction"
+      ]
+    },
+    {
+      "domain": "appearance",
+      "match_terms": ["identity", "appearance", "visual", "object", "topology"],
+      "lenses": [
+        "object centric representation tracking identity persistence computer vision",
+        "visual invariance disentangled representation topology change"
+      ]
+    },
+    {
+      "domain": "contact",
+      "match_terms": ["contact", "collision", "physics", "surface", "boundary"],
+      "lenses": [
+        "contact dynamics system identification hybrid systems differentiable simulation",
+        "physics informed representation learning discontinuous event prediction"
+      ]
+    },
+    {
+      "domain": "default",
+      "match_terms": [],
+      "lenses": [
+        "information bottleneck representation learning robustness failure diagnosis",
+        "adaptive experiment design active learning mechanism discovery"
+      ]
+    }
+  ],
+  "claim_boundary": "This policy plans bounded retrieval queries only. Query matches do not establish novelty, applicability, or model improvement."
+}

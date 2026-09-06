@@ -11,9 +11,6 @@ import json
 import os
 import re
 import time
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ElementTree
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +19,11 @@ from typing import Any
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.acwm_campaign import canonical_json_bytes, sha256_bytes, sha256_file
 from wmloop.control.acwm_dual_evaluation import validate_acwm_dual_evaluation_contract
+from wmloop.retrieve.providers import (
+    ResearchProviderError,
+    fetch_url as fetch_provider_url,
+    search_provider,
+)
 
 
 class ACWMResearchIntakeError(RuntimeError):
@@ -30,8 +32,6 @@ class ACWMResearchIntakeError(RuntimeError):
 
 FetchBytes = Callable[[str, float, int], bytes]
 
-_ARXIV_NAMESPACE = {"atom": "http://www.w3.org/2005/Atom"}
-_ARXIV_ID = re.compile(r"arxiv.org/abs/([^/?]+)")
 _SAFE_ID = re.compile(r"[^a-z0-9_-]+")
 _INSTRUCTION_MARKERS = (
     "ignore previous",
@@ -231,130 +231,49 @@ def _collect_sources(
     backoff = float(source_policy.get("retry_backoff_seconds", 0.25))
     if retries < 0 or retries > 5 or backoff < 0 or backoff > 10:
         raise ACWMResearchIntakeError("ACWM_RESEARCH_RETRY_POLICY_INVALID")
-    network_fetch = lambda url, request_timeout, limit: _fetch_with_retry(
-        fetch,
-        url,
-        request_timeout,
-        limit,
-        retries=retries,
-        backoff_seconds=backoff,
-    )
+    def network_fetch(url: str, request_timeout: float, response_limit: int) -> bytes:
+        try:
+            return _fetch_with_retry(
+                fetch,
+                url,
+                request_timeout,
+                response_limit,
+                retries=retries,
+                backoff_seconds=backoff,
+            )
+        except ACWMResearchIntakeError as exc:
+            raise OSError(str(exc)) from exc
     records: list[ResearchSource] = []
     retrieval: list[dict[str, object]] = []
     for query in queries:
         assert isinstance(query, str)
         for source_name in source_policy["sources"]:
             try:
-                if source_name == "arxiv":
-                    found = _search_arxiv(query, limit=limit, timeout=timeout, byte_limit=byte_limit, fetch=network_fetch)
-                elif source_name == "github":
-                    found = _search_github(query, limit=limit, timeout=timeout, byte_limit=byte_limit, fetch=network_fetch)
-                elif source_name == "openalex":
-                    found = _search_openalex(query, limit=limit, timeout=timeout, byte_limit=byte_limit, fetch=network_fetch)
-                else:  # schema rejects this; retaining the check keeps the boundary closed under a bypass.
-                    raise ACWMResearchIntakeError("ACWM_RESEARCH_SOURCE_UNSUPPORTED")
+                external = search_provider(
+                    str(source_name),
+                    query,
+                    limit=limit,
+                    timeout_seconds=timeout,
+                    byte_limit=byte_limit,
+                    fetch=network_fetch,
+                )
+                found = [
+                    _source(
+                        row.source,
+                        row.record_id,
+                        row.title,
+                        row.summary,
+                        row.source_url,
+                        row.query,
+                    )
+                    for row in external
+                ]
                 records.extend(found)
                 retrieval.append({"source": source_name, "query": query, "state": "fetched", "record_count": len(found)})
-            except ACWMResearchIntakeError as exc:
+            except (ACWMResearchIntakeError, ResearchProviderError) as exc:
                 retrieval.append({"source": source_name, "query": query, "state": "unavailable", "reason": str(exc), "record_count": 0})
     deduplicated = {record.source_id: record for record in records}
     return [deduplicated[key] for key in sorted(deduplicated)], retrieval
-
-
-def _search_arxiv(
-    query: str, *, limit: int, timeout: float, byte_limit: int, fetch: FetchBytes
-) -> list[ResearchSource]:
-    url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(
-        {"search_query": f"all:{query}", "start": 0, "max_results": limit, "sortBy": "relevance"}
-    )
-    try:
-        root = ElementTree.fromstring(fetch(url, timeout, byte_limit))
-    except (OSError, ElementTree.ParseError) as exc:
-        raise ACWMResearchIntakeError("ACWM_RESEARCH_ARXIV_FETCH_FAILED") from exc
-    records: list[ResearchSource] = []
-    for entry in root.findall("atom:entry", _ARXIV_NAMESPACE):
-        raw_id = _text(entry.find("atom:id", _ARXIV_NAMESPACE))
-        matched = _ARXIV_ID.search(raw_id)
-        arxiv_id = matched.group(1) if matched else raw_id.rsplit("/", 1)[-1]
-        title = _compact(_text(entry.find("atom:title", _ARXIV_NAMESPACE)))
-        summary = _compact(_text(entry.find("atom:summary", _ARXIV_NAMESPACE)))
-        if not arxiv_id or not title or not summary:
-            continue
-        source_url = raw_id or f"https://arxiv.org/abs/{arxiv_id}"
-        records.append(_source("arxiv", arxiv_id, title, summary, source_url, query))
-    return records
-
-
-def _search_github(
-    query: str, *, limit: int, timeout: float, byte_limit: int, fetch: FetchBytes
-) -> list[ResearchSource]:
-    url = "https://api.github.com/search/repositories?" + urllib.parse.urlencode(
-        {"q": query, "per_page": limit, "sort": "updated", "order": "desc"}
-    )
-    try:
-        payload = json.loads(fetch(url, timeout, byte_limit))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ACWMResearchIntakeError("ACWM_RESEARCH_GITHUB_FETCH_FAILED") from exc
-    items = payload.get("items") if isinstance(payload, Mapping) else None
-    if not isinstance(items, list):
-        raise ACWMResearchIntakeError("ACWM_RESEARCH_GITHUB_RESPONSE_INVALID")
-    records: list[ResearchSource] = []
-    for item in items[:limit]:
-        if not isinstance(item, Mapping):
-            continue
-        full_name = str(item.get("full_name") or "").strip()
-        title = str(item.get("name") or full_name).strip()
-        summary = _compact(str(item.get("description") or ""))
-        source_url = str(item.get("html_url") or "").strip()
-        if not full_name or not title or not summary or not source_url:
-            continue
-        records.append(_source("github", full_name, title, summary, source_url, query))
-    return records
-
-
-def _search_openalex(
-    query: str, *, limit: int, timeout: float, byte_limit: int, fetch: FetchBytes
-) -> list[ResearchSource]:
-    """Read paper metadata and abstracts from OpenAlex without executing code."""
-
-    url = "https://api.openalex.org/works?" + urllib.parse.urlencode(
-        {"search": query, "per-page": limit, "sort": "relevance_score:desc"}
-    )
-    try:
-        payload = json.loads(fetch(url, timeout, byte_limit))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ACWMResearchIntakeError("ACWM_RESEARCH_OPENALEX_FETCH_FAILED") from exc
-    items = payload.get("results") if isinstance(payload, Mapping) else None
-    if not isinstance(items, list):
-        raise ACWMResearchIntakeError("ACWM_RESEARCH_OPENALEX_RESPONSE_INVALID")
-    records: list[ResearchSource] = []
-    for item in items[:limit]:
-        if not isinstance(item, Mapping):
-            continue
-        raw_id = str(item.get("id") or "").strip()
-        identity = raw_id.rsplit("/", 1)[-1]
-        title = str(item.get("display_name") or "").strip()
-        abstract = _openalex_abstract(item.get("abstract_inverted_index"))
-        source_url = str(
-            item.get("landing_page_url") or item.get("doi") or raw_id
-        ).strip()
-        if not identity or not title or not abstract or not source_url:
-            continue
-        records.append(_source("openalex", identity, title, abstract, source_url, query))
-    return records
-
-
-def _openalex_abstract(value: object) -> str:
-    if not isinstance(value, Mapping):
-        return ""
-    indexed: dict[int, str] = {}
-    for token, positions in value.items():
-        if not isinstance(token, str) or not isinstance(positions, list):
-            continue
-        for position in positions:
-            if isinstance(position, int) and position >= 0:
-                indexed.setdefault(position, token)
-    return _compact(" ".join(indexed[index] for index in sorted(indexed)))
 
 
 def _source(source_type: str, identity: str, title: str, summary: str, source_url: str, query: str) -> ResearchSource:
@@ -491,15 +410,10 @@ def _resume_if_bound(destination: Path, input_lock: Mapping[str, object]) -> dic
 
 
 def _fetch_url(url: str, timeout: float, byte_limit: int) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "verdiwm-acwm-research-intake/1"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            payload = response.read(byte_limit + 1)
-    except OSError as exc:
+        return fetch_provider_url(url, timeout, byte_limit)
+    except ResearchProviderError as exc:
         raise ACWMResearchIntakeError("ACWM_RESEARCH_NETWORK_UNAVAILABLE") from exc
-    if len(payload) > byte_limit:
-        raise ACWMResearchIntakeError("ACWM_RESEARCH_RESPONSE_TOO_LARGE")
-    return payload
 
 
 def _fetch_with_retry(
@@ -548,10 +462,6 @@ def _mapping(value: Mapping[str, object], key: str) -> Mapping[str, object]:
     if not isinstance(child, Mapping):
         raise ACWMResearchIntakeError("ACWM_RESEARCH_CONFIG_INVALID")
     return child
-
-
-def _text(node: ElementTree.Element | None) -> str:
-    return (node.text or "").strip() if node is not None else ""
 
 
 def _compact(value: str) -> str:

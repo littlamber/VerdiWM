@@ -21,48 +21,22 @@ from wmloop.retrieve.mechanism_discovery import (
     DiscoveryRequest,
     run_mechanism_discovery,
 )
+from wmloop.retrieve.query_policy import (
+    DiscoveryQueryPolicy,
+    QueryPolicyError,
+    load_discovery_query_policy,
+)
 
 
 class IRGDiscoveryError(ValueError):
     """An IRG-guided discovery request is malformed or under-specified."""
 
 
-_DOMAIN_LENSES = {
-    "temporal": (
-        "state space model long horizon credit assignment memory compression",
-        "sequence modeling scheduled sampling rollout distribution alignment",
-    ),
-    "action": (
-        "inverse dynamics sensorimotor control action grounding system identification",
-        "robot learning action representation controllability bottleneck",
-    ),
-    "noise": (
-        "uncertainty calibration stochastic filtering robust control diffusion noise",
-        "risk sensitive prediction noise aware representation learning",
-    ),
-    "context": (
-        "episodic memory retrieval attention context selection cognitive science",
-        "adaptive memory retention forgetting retrieval augmented sequence prediction",
-    ),
-    "appearance": (
-        "object centric representation tracking identity persistence computer vision",
-        "visual invariance disentangled representation topology change",
-    ),
-    "contact": (
-        "contact dynamics system identification hybrid systems differentiable simulation",
-        "physics informed representation learning discontinuous event prediction",
-    ),
-    "default": (
-        "information bottleneck representation learning robustness failure diagnosis",
-        "adaptive experiment design active learning mechanism discovery",
-    ),
-}
-
-
 def derive_irg_bottlenecks(
     irg: Mapping[str, object],
     *,
     top_k: int = 8,
+    query_policy: DiscoveryQueryPolicy | None = None,
 ) -> tuple[dict[str, object], ...]:
     """Extract ranked, evidence-bound local bottleneck hypotheses from an IRG."""
 
@@ -72,6 +46,7 @@ def derive_irg_bottlenecks(
         raise IRGDiscoveryError(f"IRG_DISCOVERY_IRG_INVALID:{exc}") from exc
     if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= 100:
         raise IRGDiscoveryError("IRG_DISCOVERY_TOP_K_INVALID")
+    policy = query_policy or load_discovery_query_policy()
     vector = [float(value) for value in irg["response_vector"]]
     covariance = irg["response_covariance"]
     axes = {str(row["axis"]): row for row in irg["diagnostic_axes"]}
@@ -85,7 +60,13 @@ def derive_irg_bottlenecks(
         uncertainty = math.sqrt(max(variance, 0.0))
         supported = str(axis["support_state"]) == "supported"
         signal_to_noise = abs(response) / (1.0 + uncertainty)
-        tags = _domain_tags(axis)
+        tags = policy.domain_tags(
+            (
+                axis.get("probe_id", ""),
+                axis.get("outcome", ""),
+                axis.get("diagnosis", ""),
+            )
+        )
         rows.append(
             {
                 "axis": str(name),
@@ -96,7 +77,7 @@ def derive_irg_bottlenecks(
                 "signal_to_noise": signal_to_noise,
                 "severity": signal_to_noise if supported else 0.0,
                 "support_state": "supported" if supported else "unsupported",
-                "domain_tags": tags,
+                "domain_tags": list(tags),
                 "diagnosis": str(axis["diagnosis"]),
                 "evidence_refs": list(axis["evidence_refs"]),
                 "limitation_type": (
@@ -118,10 +99,17 @@ def build_irg_discovery_request(
     protected_metrics: Sequence[str],
     top_k: int = 8,
     cross_domain_lenses: Sequence[str] = (),
+    query_policy_path: Path | None = None,
 ) -> tuple[DiscoveryRequest, dict[str, object]]:
     """Compile IRG bottlenecks into a cross-domain mechanism-discovery request."""
 
-    bottlenecks = derive_irg_bottlenecks(irg, top_k=top_k)
+    try:
+        policy = load_discovery_query_policy(query_policy_path)
+    except QueryPolicyError as exc:
+        raise IRGDiscoveryError(str(exc)) from exc
+    bottlenecks = derive_irg_bottlenecks(
+        irg, top_k=top_k, query_policy=policy
+    )
     protected = tuple(str(value).strip() for value in protected_metrics if str(value).strip())
     if not protected:
         raise IRGDiscoveryError("IRG_DISCOVERY_PROTECTED_METRICS_REQUIRED")
@@ -139,9 +127,7 @@ def build_irg_discovery_request(
         for row in bottlenecks
         for tag in row["domain_tags"]
     }
-    lenses: list[str] = []
-    for domain in sorted(domains):
-        lenses.extend(_DOMAIN_LENSES.get(domain, _DOMAIN_LENSES["default"]))
+    lenses = list(policy.lenses_for(sorted(domains)))
     lenses.extend(str(value).strip() for value in cross_domain_lenses if str(value).strip())
     lenses = list(dict.fromkeys(lenses))
     symptom = _symptom_description(bottlenecks)
@@ -165,6 +151,11 @@ def build_irg_discovery_request(
         "bottlenecks": list(bottlenecks),
         "failure_signatures": list(failure_signatures),
         "cross_domain_lenses": lenses,
+        "query_policy": {
+            "policy_id": policy.policy_id,
+            "path": str(policy.path),
+            "sha256": policy.sha256,
+        },
         "request": _request_dict(request),
         "authority": "shadow_only",
         "claim_boundary": (
@@ -184,6 +175,7 @@ def run_irg_guided_mechanism_discovery(
     repo_root: Path,
     top_k: int = 8,
     cross_domain_lenses: Sequence[str] = (),
+    query_policy_path: Path | None = None,
     **kwargs: Any,
 ) -> dict[str, object]:
     """Run the existing bounded discovery pipeline from an IRG artifact."""
@@ -200,10 +192,24 @@ def run_irg_guided_mechanism_discovery(
         protected_metrics=protected_metrics,
         top_k=top_k,
         cross_domain_lenses=cross_domain_lenses,
+        query_policy_path=query_policy_path,
     )
     destination = Path(output_root).expanduser().resolve()
-    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
-    (destination / "irg-guided-request.json").write_text(
+    request_path = destination / "irg-guided-request.json"
+    manifest_path = destination / "mechanism-discovery" / "manifest.json"
+    if destination.exists():
+        if destination.is_symlink() or not destination.is_dir():
+            raise IRGDiscoveryError("IRG_DISCOVERY_OUTPUT_INVALID")
+        try:
+            existing = json.loads(request_path.read_text(encoding="utf-8"))
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise IRGDiscoveryError("IRG_DISCOVERY_RESUME_INVALID") from exc
+        if existing != plan or not isinstance(manifest, dict):
+            raise IRGDiscoveryError("IRG_DISCOVERY_RESUME_MISMATCH")
+        return manifest
+    destination.mkdir(mode=0o700, parents=True)
+    request_path.write_text(
         json.dumps(plan, sort_keys=True, ensure_ascii=True, indent=2) + "\n",
         encoding="utf-8",
     )
@@ -212,28 +218,9 @@ def run_irg_guided_mechanism_discovery(
         seed_records=(),
         output_root=destination / "mechanism-discovery",
         repo_root=Path(repo_root),
+        query_policy_path=query_policy_path,
         **kwargs,
     )
-
-
-def _domain_tags(axis: Mapping[str, object]) -> list[str]:
-    text = " ".join(
-        str(axis.get(name, ""))
-        for name in ("probe_id", "outcome", "diagnosis")
-    ).lower()
-    tags: list[str] = []
-    patterns = {
-        "temporal": ("temporal", "history", "horizon", "rollout", "phase", "drift"),
-        "action": ("action", "control", "inverse", "kinematic", "conditioning"),
-        "noise": ("noise", "stochastic", "sampler", "uncertainty", "variance"),
-        "context": ("context", "memory", "retrieval", "anchor", "attention"),
-        "appearance": ("identity", "appearance", "visual", "object", "topology"),
-        "contact": ("contact", "collision", "physics", "surface", "boundary"),
-    }
-    for tag, terms in patterns.items():
-        if any(term in text for term in terms):
-            tags.append(tag)
-    return tags or ["default"]
 
 
 def _symptom_description(bottlenecks: Sequence[Mapping[str, object]]) -> str:

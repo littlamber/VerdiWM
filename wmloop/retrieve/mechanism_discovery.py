@@ -20,7 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ElementTree
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -30,6 +30,11 @@ from typing import Any, Protocol
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.retrieve.literature import LiteratureRetrievalError, search_arxiv
+from wmloop.retrieve.query_policy import (
+    DiscoveryQueryPolicy,
+    QueryPolicyError,
+    load_discovery_query_policy,
+)
 
 
 class MechanismDiscoveryError(RuntimeError):
@@ -171,70 +176,19 @@ class AnnotationMechanismExtractor:
         return result
 
 
-def build_multiview_queries(request: DiscoveryRequest) -> tuple[dict[str, str], ...]:
+def build_multiview_queries(
+    request: DiscoveryRequest,
+    *,
+    policy: DiscoveryQueryPolicy | None = None,
+) -> tuple[dict[str, str], ...]:
     """Build diagnostic, operator, and cross-domain queries.
 
     These queries only collect candidates.  They are deliberately not used to
     label equivalence or novelty.
     """
 
-    symptom = _query_terms(
-        " ".join((request.symptom_description, *request.failure_signatures)),
-        maximum=7,
-    )
-    metrics = _query_terms(" ".join(request.target_metrics), maximum=5)
-    domain = ("video", "diffusion", "world", "model")
-    rows = [
-        {
-            "view": "diagnostic_symptom",
-            "query": _join_query(domain, ("history", "conditioning", "long", "horizon", "drift"), symptom[:4]),
-        },
-        {
-            "view": "state_update_operator",
-            "query": _join_query(
-                domain,
-                ("adaptive", "history", "memory", "reliability", "update"),
-                metrics,
-            ),
-        },
-        {
-            "view": "training_distribution",
-            "query": _join_query(
-                domain,
-                ("autoregressive", "generated", "history", "training", "inference", "rollout"),
-            ),
-        },
-        {
-            "view": "architecture_hook",
-            "query": _join_query(
-                domain,
-                ("temporal", "latent", "conditioning", "memory", "action"),
-            ),
-        },
-    ]
-    lenses = request.cross_domain_lenses or (
-        "belief state estimation confidence update",
-        "adaptive memory retention forgetting",
-        "online system identification uncertainty",
-    )
-    for index, lens in enumerate(lenses):
-        rows.append(
-            {
-                "view": f"cross_domain_{index + 1}",
-                "query": _join_query(
-                    ("sequence", "prediction", "temporal", "memory"),
-                    _query_terms(lens, maximum=8),
-                ),
-            }
-        )
-    deduplicated: list[dict[str, str]] = []
-    seen: set[str] = set()
-    for row in rows:
-        query = row["query"].strip()
-        if query and query not in seen:
-            deduplicated.append(row)
-            seen.add(query)
-    return tuple(deduplicated)
+    query_policy = policy or load_discovery_query_policy()
+    return query_policy.build_queries(request)
 
 
 def run_mechanism_discovery(
@@ -256,6 +210,7 @@ def run_mechanism_discovery(
     local_sources_root: Path | None = None,
     reference_atlas_paths: Sequence[Path] = (),
     reference_profiles_paths: Sequence[Path] = (),
+    query_policy_path: Path | None = None,
 ) -> dict[str, object]:
     """Create an immutable evidence-bound mechanism atlas.
 
@@ -273,6 +228,10 @@ def run_mechanism_discovery(
     if search_results_per_view < 0 or search_results_per_view > int(budget["max_results_per_view"]):
         raise MechanismDiscoveryError("MECHANISM_SEARCH_RESULTS_INVALID")
     root = Path(repo_root).resolve(strict=True)
+    try:
+        query_policy = load_discovery_query_policy(query_policy_path, root=root)
+    except QueryPolicyError as exc:
+        raise MechanismDiscoveryError(str(exc)) from exc
     destination = Path(output_root).resolve()
     local_root = Path(local_sources_root).resolve() if local_sources_root is not None else None
     if local_root is not None:
@@ -315,7 +274,7 @@ def run_mechanism_discovery(
     )
     fetch_text = full_text_fetcher or _fetch_ar5iv_text
     fetch_metadata = metadata_fetcher or _fetch_arxiv_metadata
-    all_queries = build_multiview_queries(request)
+    all_queries = build_multiview_queries(request, policy=query_policy)
     queries = all_queries[: int(budget["max_query_views"])]
     searched_records, search_states = _collect_query_seeds(
         queries,
@@ -332,6 +291,8 @@ def run_mechanism_discovery(
         "search_results_per_view": search_results_per_view,
         "complexity_budget": complexity_budget,
         "query_view_count": len(queries),
+        "query_policy_id": query_policy.policy_id,
+        "query_policy_sha256": query_policy.sha256,
         "profiles_sha256": _sha256(profiles_path.read_bytes()),
         "ontology_sha256": _sha256(ontology_path.read_bytes()),
         "reference_sources": reference_sources,
@@ -422,6 +383,13 @@ def run_mechanism_discovery(
             {**query, "source_state": search_states.get(query["view"], "disabled")}
             for query in queries
         ],
+        "query_policy": {
+            "policy_id": query_policy.policy_id,
+            "path": str(query_policy.path),
+            "sha256": query_policy.sha256,
+        },
+        "search_state_counts": _state_counts(search_states.values()),
+        "retrieval_state": _retrieval_state(search_states.values()),
         "complexity_budget": {
             "name": complexity_budget,
             "max_papers": int(budget["max_papers"]),
@@ -481,6 +449,8 @@ def run_mechanism_discovery(
         "atlas_path": str(destination / "mechanism-atlas.json"),
         "atlas_sha256": _sha256((destination / "mechanism-atlas.json").read_bytes()),
         "paper_count": len(entries),
+        "retrieval_state": report["retrieval_state"],
+        "search_state_counts": report["search_state_counts"],
         "missing_source_count": len(missing_sources),
         "missing_sources_path": str(destination / "missing-sources.json"),
         "missing_sources_sha256": _sha256((destination / "missing-sources.json").read_bytes()),
@@ -1258,18 +1228,23 @@ def _request_dict(request: DiscoveryRequest) -> dict[str, object]:
     }
 
 
-def _query_terms(value: str, *, maximum: int) -> tuple[str, ...]:
-    stop = {
-        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-        "in", "is", "it", "of", "on", "or", "that", "the", "this", "to",
-        "with", "model", "failure", "metric", "hook",
-    }
-    values = [token for token in re.findall(r"[a-z0-9]+", value.lower()) if len(token) > 1 and token not in stop]
-    return tuple(dict.fromkeys(values))[:maximum]
+def _state_counts(states: Iterable[str]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for state in states:
+        key = str(state)
+        counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
 
 
-def _join_query(*parts: Sequence[str]) -> str:
-    return " ".join(dict.fromkeys(token for part in parts for token in part))
+def _retrieval_state(states: Iterable[str]) -> str:
+    observed = {str(state) for state in states}
+    if "network" in observed:
+        return "network"
+    if "cached" in observed:
+        return "cached"
+    if observed == {"disabled"}:
+        return "disabled"
+    return "offline"
 
 
 def _tag_set(value: object) -> set[str]:
@@ -1507,6 +1482,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--local-sources-root", type=Path)
     parser.add_argument("--reference-atlas", type=Path, action="append", default=[])
     parser.add_argument("--reference-profiles", type=Path, action="append", default=[])
+    parser.add_argument("--query-policy", type=Path)
     args = parser.parse_args(argv)
     try:
         request_payload = _load_mapping(args.request, "MECHANISM_REQUEST_INVALID")
@@ -1532,6 +1508,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             local_sources_root=args.local_sources_root,
             reference_atlas_paths=args.reference_atlas,
             reference_profiles_paths=args.reference_profiles,
+            query_policy_path=args.query_policy,
         )
     except MechanismDiscoveryError as exc:
         print(str(exc), file=__import__("sys").stderr)

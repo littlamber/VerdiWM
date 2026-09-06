@@ -709,8 +709,6 @@ def _rollout_validation_sample(
 
         if args.branch_count < 1:
             raise ValueError("WAN22_DROID_BRANCH_COUNT_INVALID")
-        if args.branch_selection == "first" and args.branch_count != 1:
-            raise ValueError("WAN22_DROID_FIRST_BRANCH_SELECTION_REQUIRES_ONE_BRANCH")
         branch_states = []
         for _branch_index in range(args.branch_count):
             scheduler = FlowUniPCMultistepScheduler(
@@ -743,7 +741,7 @@ def _rollout_validation_sample(
             branch_generated_frames[branch_index].append(
                 _decode_frames(vae, branch_state)
             )
-        branch_scores = [0.0]
+        branch_scores = [0.0] * args.branch_count
         selected_branch = 0
         if args.branch_selection == "terminal_reference_consistency":
             selected_branch, branch_scores = _select_branch_index(
@@ -838,6 +836,7 @@ def _rollout_validation_sample(
                     {
                         "schema_version": 1,
                         "artifact_type": "verdiwm-wan22-droid-worldarena-input",
+                        "state": "ready",
                         "generated_video": str(branch_video),
                         "ground_truth_video": str(branch_gt),
                         "first_frame": str(branch_first_frame),
@@ -886,6 +885,7 @@ def _rollout_validation_sample(
     worldarena_input = {
         "schema_version": 1,
         "artifact_type": "verdiwm-wan22-droid-worldarena-input",
+        "state": "ready",
         "generated_video": str(generated_path),
         "ground_truth_video": str(gt_path),
         "paired_visualization": visualization["manifest_path"],
@@ -911,6 +911,10 @@ def _rollout_validation_sample(
             "trajectory_accuracy",
             "action_following",
         ],
+        "claim_boundary": (
+            "This artifact binds generated media and conditioning to an evaluator "
+            "input. It is not an evaluation result or evidence of improvement."
+        ),
     }
     (output / "worldarena_input.json").write_text(
         json.dumps(worldarena_input, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1177,6 +1181,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     "training_chunk_offsets": sorted(training_chunk_offsets),
                     "latest_loss": losses[-1],
                     "recent_mean_loss": float(np.mean(losses[-16:])),
+                    "claim_boundary": (
+                        "This progress record reports optimizer execution only. It does "
+                        "not establish held-out quality or promotion eligibility."
+                    ),
                 },
             )
 

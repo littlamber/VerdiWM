@@ -14,12 +14,12 @@ Example:
 
 ```bash
 python experiments/wan22_droid_acwm_v1/run.py prepare \
-  --data-root /share/project/zhiwei/wjy/data/droid_wrist_192x320 \
-  --output-root /share/project/zhiwei/nsq/wan22-droid-manifests
+  --data-root "$DROID_DATA_ROOT" \
+  --output-root artifacts/wan22_droid_acwm_v1/manifests
 
 python experiments/wan22_droid_acwm_v1/run.py conformance \
   --train-manifest /path/train.json --validation-manifest /path/val.json \
-  --model /share/project/zhiwei/nsq/model/Wan2.2-TI2V-5B \
+  --model "$WAN22_MODEL_ROOT" \
   --source /path/to/Wan2.2-source \
   --evaluator-contract configs/evaluators/wan22_droid_worldarena_v1.json \
   --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py
@@ -30,8 +30,8 @@ is kept separate from WorldArena preprocessing:
 
 ```bash
 python scripts/convert_wjy_droid_ctrlworld.py \
-  --source-root /share/project/zhiwei/wjy/data/droid_ctrl_world_tfrecord \
-  --output-root /share/project/zhiwei/wjy/data/verdiwm_wan22_droid_ctrlworld_v3 \
+  --source-root "$DROID_TFRECORD_ROOT" \
+  --output-root "$DROID_CONVERTED_ROOT" \
   --train-episodes 32 --val-episodes 3 --camera 2
 ```
 
@@ -114,6 +114,7 @@ python experiments/wan22_droid_acwm_v1/run.py closed-loop \
   --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py \
   --evaluator-contract configs/evaluators/wan22_droid_worldarena_v1.json \
   --runtime-python /path/to/python --runner /path/to/wan22_droid_runner.py \
+  --worldarena-runtime-python /path/to/worldarena/python \
   --output-root /path/to/run --cuda-visible-devices 0 \
   --worldarena-root /path/to/WorldArena \
   --worldarena-config-template configs/evaluators/wan22_droid_worldarena_config_template.yaml \
@@ -124,6 +125,25 @@ python experiments/wan22_droid_acwm_v1/run.py closed-loop \
 
 The closed-loop receipt uses `admitted`, `running`, `completed`, `failed`, or
 `blocked`; it never uses `ready_to_launch` as a substitute for execution.
+The training runtime and WorldArena runtime are separate explicit bindings.
+Admission checks the evaluator environment for the modules required by the
+requested dimensions before adapter optimization begins, so a missing
+evaluation dependency cannot waste a completed training run.
+
+Completion alone is not an effect claim. Freeze a baseline/candidate policy
+before execution, then run the paired verifier after both arms complete:
+
+```bash
+verdiwm-wan22-paired-effect \
+  --policy /path/to/effect-policy.json \
+  --baseline-receipt /path/to/baseline/closed_loop_receipt.json \
+  --candidate-receipt /path/to/candidate/closed_loop_receipt.json \
+  --output /path/to/paired-effect-verdict.json
+```
+
+The verifier recomputes paired full-horizon and tail PSNR plus final-frame and
+temporal-difference errors from ACWM/GT videos, checks identical seeds and
+held-out episodes, and applies protected WorldArena metric regression limits.
 Formal closed-loop runs request all six frozen dimensions, including
 `trajectory_accuracy` and `action_following`. The runner emits at least two
 causally sampled branch GIDs for the latter; no metric is synthesized from

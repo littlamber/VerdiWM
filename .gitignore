@@ -13,6 +13,7 @@ htmlcov/
 results/
 runs/
 artifacts/
+.audit-state/
 # Generated experiment media/checkpoints stay outside Git; receipts and configs
 # remain versioned so the evidence contract is reviewable.
 *.mp4

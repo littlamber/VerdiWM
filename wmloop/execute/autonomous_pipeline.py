@@ -43,24 +43,30 @@ from wmloop.execute.literature_materialization import (
     LiteratureMaterializationError,
     run_literature_method_materialization,
 )
+from wmloop.execute.pipeline_irg import (
+    PipelineIRGError,
+    PipelineIRGInputs,
+    prepare_pipeline_irg,
+    resolve_pipeline_irg_inputs,
+)
 from wmloop.experiments.cpbe import CPBEError, publish_cpbe_plan
 from wmloop.experiments.cpbe_materializer import (
     CPBEMaterializerError,
     publish_cpbe_materialization,
 )
 from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
-from wmloop.retrieve.irg_guided_discovery import (
-    IRGDiscoveryError,
-    build_irg_discovery_request,
-)
 from wmloop.retrieve.evidence_capsule import (
     EvidenceCapsuleError,
     build_evidence_capsule,
     write_evidence_capsule,
 )
+from wmloop.retrieve.evidence_gate import (
+    RetrievalEvidenceError,
+    build_retrieval_evidence_gate,
+)
 from wmloop.retrieve.literature import (
     LiteratureRetrievalError,
-    run_literature_retrieval,
+    run_literature_retrieval_batch,
 )
 from wmloop.retrieve.method_staging import (
     LiteratureMethodStagingError,
@@ -106,7 +112,13 @@ class AutonomousPipelineOptions:
     cpbe_request: Path | None = None
     cpbe_history: Path | None = None
     model_irg_path: Path | None = None
+    model_portrait_path: Path | None = None
+    irg_asset_path: Path | None = None
+    irg_diagnostic_axes_path: Path | None = None
+    irg_method_effects_path: Path | None = None
+    comparison_model_irg_paths: tuple[Path, ...] = ()
     irg_protected_metrics: tuple[str, ...] = ()
+    require_network_retrieval: bool = True
 
 
 def run_autonomous_pipeline(
@@ -160,11 +172,18 @@ def run_autonomous_pipeline(
         options.cpbe_history,
         "AUTONOMOUS_PIPELINE_CPBE_HISTORY_INVALID",
     )
-    model_irg_path = _optional_file(
-        options.model_irg_path,
-        "AUTONOMOUS_PIPELINE_MODEL_IRG_INVALID",
-    )
-    if model_irg_path is not None and not options.irg_protected_metrics:
+    try:
+        irg_inputs = resolve_pipeline_irg_inputs(
+            model_irg_path=options.model_irg_path,
+            model_portrait_path=options.model_portrait_path,
+            irg_asset_path=options.irg_asset_path,
+            irg_diagnostic_axes_path=options.irg_diagnostic_axes_path,
+            irg_method_effects_path=options.irg_method_effects_path,
+            comparison_model_irg_paths=options.comparison_model_irg_paths,
+        )
+    except PipelineIRGError as exc:
+        raise AutonomousPipelineError(f"AUTONOMOUS_{exc}") from exc
+    if irg_inputs.enabled and not options.irg_protected_metrics:
         raise AutonomousPipelineError(
             "AUTONOMOUS_PIPELINE_IRG_PROTECTED_METRICS_REQUIRED"
         )
@@ -178,6 +197,12 @@ def run_autonomous_pipeline(
         probe_contract is None or cpbe_request is None or cpbe_history is None
     ):
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_CAUSAL_INPUTS_REQUIRED")
+    if research_mode in {"quick_start", "hybrid"} and not any(
+        (options.literature_query, irg_inputs.enabled, probe_contract)
+    ):
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_RETRIEVAL_CONTEXT_REQUIRED"
+        )
     if options.literature_max_results < 1 or options.literature_max_results > 50:
         raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_LITERATURE_LIMIT_INVALID")
     if (
@@ -221,7 +246,7 @@ def run_autonomous_pipeline(
         research_mode=research_mode,
         cpbe_request=cpbe_request,
         cpbe_history=cpbe_history,
-        model_irg_path=model_irg_path,
+        irg_inputs=irg_inputs,
         irg_protected_metrics=options.irg_protected_metrics,
         budget_total_gpu_hours=budget_total_gpu_hours,
     )
@@ -293,42 +318,32 @@ def run_autonomous_pipeline(
         irg_failure_signatures: tuple[str, ...] = ()
         irg_model_family: str | None = None
         irg_guided_context: dict[str, object] | None = None
-        if model_irg_path is not None:
+        irg_literature_queries: tuple[str, ...] = ()
+        irg_projection: dict[str, object] = {}
+        if irg_inputs.enabled:
+            stage = "irg_lifecycle"
             try:
-                irg_payload = _load_json(
-                    model_irg_path, "AUTONOMOUS_PIPELINE_MODEL_IRG_INVALID"
-                )
-                irg_request, irg_plan = build_irg_discovery_request(
-                    irg_payload,
+                irg_context = prepare_pipeline_irg(
+                    inputs=irg_inputs,
                     protected_metrics=options.irg_protected_metrics,
+                    output_root=destination,
+                    control_root=Path(__file__).resolve().parents[2],
+                    enable_external_discovery=research_mode != "causal_discovery",
+                    max_results=options.literature_max_results,
+                    timeout_seconds=options.literature_timeout_seconds,
+                    archive_db=archive_db,
+                    cas_root=cas_root,
                 )
-            except (
-                IRGDiscoveryError,
-                OSError,
-                ValueError,
-                json.JSONDecodeError,
-            ) as exc:
+            except PipelineIRGError as exc:
                 raise AutonomousPipelineError(
-                    f"AUTONOMOUS_PIPELINE_IRG_DISCOVERY_INVALID:{exc}"
+                    f"AUTONOMOUS_PIPELINE_IRG_LIFECYCLE_INVALID:{exc}"
                 ) from exc
-            irg_guided_context = {
-                "state": "planned",
-                "model_irg_path": str(model_irg_path),
-                "request": {
-                    "symptom_description": irg_request.symptom_description,
-                    "failure_signatures": list(irg_request.failure_signatures),
-                    "target_metrics": list(irg_request.target_metrics),
-                    "protected_metrics": list(irg_request.protected_metrics),
-                    "available_hooks": list(irg_request.available_hooks),
-                    "model_family": irg_request.model_family,
-                    "cross_domain_lenses": list(irg_request.cross_domain_lenses),
-                },
-                "plan": irg_plan,
-                "authority": "shadow_only",
-            }
-            retrieval_context["irg_guided"] = irg_guided_context
-            irg_failure_signatures = tuple(irg_request.failure_signatures)
-            irg_model_family = irg_request.model_family
+            irg_projection = irg_context.retrieval_projection
+            retrieval_context.update(irg_projection)
+            irg_guided_context = irg_projection["irg_guided"]
+            irg_literature_queries = irg_context.literature_queries
+            irg_failure_signatures = irg_context.failure_signatures
+            irg_model_family = irg_context.model_family
         literature_manifest: dict[str, object] | None = None
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
@@ -395,6 +410,7 @@ def run_autonomous_pipeline(
             # not a competing retrieval mode.
             if irg_guided_context is not None:
                 retrieval_context["irg_guided"] = irg_guided_context
+            retrieval_context.update(irg_projection)
         capsule = build_evidence_capsule(
             probe=probe_manifest,
             matches=[
@@ -409,23 +425,11 @@ def run_autonomous_pipeline(
         retrieval_context["capsule"] = capsule
         retrieval_context["capsule_path"] = str(capsule_path)
         literature_query = options.literature_query
-        irg_guided = retrieval_context.get("irg_guided")
-        if literature_query is None and isinstance(irg_guided, Mapping):
-            request_payload = irg_guided.get("request")
-            if isinstance(request_payload, Mapping):
-                lenses = request_payload.get("cross_domain_lenses", ())
-                failures = request_payload.get("failure_signatures", ())
-                literature_query = " ".join(
-                    str(value)
-                    for value in (
-                        request_payload.get("model_family"),
-                        *(lenses if isinstance(lenses, (list, tuple)) else ()),
-                        *(failures if isinstance(failures, (list, tuple)) else ()),
-                    )
-                    if value
-                )
+        literature_queries: tuple[str, ...] = (
+            (literature_query,) if literature_query else irg_literature_queries
+        )
         if (
-            literature_query is None
+            not literature_queries
             and probe_manifest is not None
             and retrieval_context.get("state") == "cold_start"
         ):
@@ -437,28 +441,56 @@ def run_autonomous_pipeline(
             irg_signatures = " ".join(
                 value.replace("_", " ") for value in irg_failure_signatures
             )
-            literature_query = " ".join(
-                value
-                for value in (
-                    str(
-                        probe_manifest.get("model_family")
-                        or irg_model_family
-                        or "world model"
-                    ),
-                    "world model",
-                    probe_signatures,
-                    irg_signatures,
-                )
-                if value
+            literature_queries = (
+                " ".join(
+                    value
+                    for value in (
+                        str(
+                            probe_manifest.get("model_family")
+                            or irg_model_family
+                            or "world model"
+                        ),
+                        "world model",
+                        probe_signatures,
+                        irg_signatures,
+                    )
+                    if value
+                ),
             )
-        if literature_query and research_mode != "causal_discovery":
+        if literature_queries and research_mode != "causal_discovery":
             stage = "literature_retrieval"
-            literature_manifest = run_literature_retrieval(
-                query=literature_query,
+            literature_manifest = run_literature_retrieval_batch(
+                queries=literature_queries,
                 output_root=literature_root,
                 max_results=options.literature_max_results,
                 timeout_seconds=options.literature_timeout_seconds,
             )
+            retrieval_gate = build_retrieval_evidence_gate(
+                [literature_manifest],
+                require_network=(
+                    research_mode in {"quick_start", "hybrid"}
+                    and options.require_network_retrieval
+                ),
+            )
+            retrieval_context["external_evidence_gate"] = retrieval_gate
+            _write_json_atomic(
+                destination / "retrieval" / "external-evidence-gate.json",
+                retrieval_gate,
+            )
+            if (
+                research_mode in {"quick_start", "hybrid"}
+                and retrieval_gate["state"] != "ready"
+            ):
+                return _settle_pipeline(
+                    destination,
+                    input_hash=input_hash,
+                    state="blocked",
+                    verdict="BLOCKED",
+                    blocked_stage="literature_retrieval",
+                    diagnostic_probe=probe_manifest,
+                    retrieval=_runtime_retrieval_manifest(retrieval_context),
+                    literature=literature_manifest,
+                )
             stage = "literature_method_staging"
             literature_method_manifest = run_literature_method_staging(
                 literature_manifest=literature_root / "manifest.json",
@@ -740,6 +772,8 @@ def _runtime_retrieval_manifest(
         "capsule_path": retrieval.get("capsule_path"),
         "index_path": retrieval.get("index_path"),
         "irg_guided": retrieval.get("irg_guided"),
+        "model_irg_materialization": retrieval.get("model_irg_materialization"),
+        "probe_evolution": retrieval.get("probe_evolution"),
     }
 
 
@@ -759,7 +793,7 @@ def _input_document(
     research_mode: str | None,
     cpbe_request: Path | None,
     cpbe_history: Path | None,
-    model_irg_path: Path | None,
+    irg_inputs: PipelineIRGInputs,
     irg_protected_metrics: Sequence[str],
     budget_total_gpu_hours: float,
 ) -> dict[str, object]:
@@ -828,6 +862,7 @@ def _input_document(
         "literature_query": options.literature_query,
         "literature_max_results": options.literature_max_results,
         "literature_timeout_seconds": options.literature_timeout_seconds,
+        "require_network_retrieval": options.require_network_retrieval,
         "candidate_catalog": (
             str(candidate_catalog) if candidate_catalog is not None else None
         ),
@@ -853,10 +888,7 @@ def _input_document(
         "cpbe_history_sha256": (
             _sha256(cpbe_history.read_bytes()) if cpbe_history is not None else None
         ),
-        "model_irg_path": str(model_irg_path) if model_irg_path is not None else None,
-        "model_irg_sha256": (
-            _sha256(model_irg_path.read_bytes()) if model_irg_path is not None else None
-        ),
+        **irg_inputs.input_document(),
         "irg_protected_metrics": list(irg_protected_metrics),
     }
 
@@ -1157,6 +1189,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--literature-query")
     parser.add_argument("--literature-max-results", type=int, default=8)
     parser.add_argument("--literature-timeout-seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--allow-cached-retrieval",
+        action="store_true",
+        help="permit cached/offline literature evidence in online research modes",
+    )
     parser.add_argument("--candidate-catalog", type=Path)
     parser.add_argument("--settlement-manifest", type=Path)
     parser.add_argument(
@@ -1169,6 +1206,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--model-irg",
         type=Path,
         help="model-conditioned IRG artifact used to guide cross-domain retrieval",
+    )
+    parser.add_argument(
+        "--model-portrait",
+        type=Path,
+        help="immutable model portrait to bind with --irg-asset",
+    )
+    parser.add_argument(
+        "--irg-asset",
+        type=Path,
+        help="measured probe-response asset used to materialize the model IRG",
+    )
+    parser.add_argument("--irg-diagnostic-axes", type=Path)
+    parser.add_argument("--irg-method-effects", type=Path)
+    parser.add_argument(
+        "--comparison-model-irg",
+        type=Path,
+        action="append",
+        default=[],
+        help="prior IRG with method effects used for collision-driven probe evolution",
     )
     parser.add_argument(
         "--irg-protected-metric",
@@ -1209,7 +1265,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cpbe_request=args.cpbe_request,
                 cpbe_history=args.cpbe_history,
                 model_irg_path=args.model_irg,
+                model_portrait_path=args.model_portrait,
+                irg_asset_path=args.irg_asset,
+                irg_diagnostic_axes_path=args.irg_diagnostic_axes,
+                irg_method_effects_path=args.irg_method_effects,
+                comparison_model_irg_paths=tuple(args.comparison_model_irg),
                 irg_protected_metrics=tuple(args.irg_protected_metric),
+                require_network_retrieval=not args.allow_cached_retrieval,
             )
         )
     except (
@@ -1229,6 +1291,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         CPBEError,
         CPBEMaterializerError,
         ResearchModeError,
+        RetrievalEvidenceError,
+        PipelineIRGError,
     ) as exc:
         print(str(exc), file=__import__("sys").stderr)
         return 2

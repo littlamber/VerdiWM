@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import socket
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,14 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _allocate_local_master_port() -> int:
+    """Reserve a short-lived localhost rendezvous port for this evaluator."""
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
 
 
 def _validate_run(run_root: Path) -> dict[str, Any]:
@@ -167,6 +176,12 @@ def main(argv: list[str] | None = None) -> int:
     env["PYTHONPATH"] = str(worldarena_root / "video_quality") + os.pathsep + env.get("PYTHONPATH", "")
     if args.cuda_visible_devices:
         env["CUDA_VISIBLE_DEVICES"] = args.cuda_visible_devices
+    # WorldArena initializes a one-process NCCL group even for serial runs and
+    # otherwise defaults every concurrent panel to port 29500.  Formal
+    # baseline/candidate arms run panels concurrently, so allocate an isolated
+    # localhost rendezvous port per evaluator invocation.
+    env["MASTER_ADDR"] = "127.0.0.1"
+    env["MASTER_PORT"] = str(_allocate_local_master_port())
     command = [
         str(args.runtime_python.expanduser().absolute()),
         str(worldarena_root / "video_quality" / "evaluate.py"),
@@ -195,6 +210,8 @@ def main(argv: list[str] | None = None) -> int:
         "command": command,
         "returncode": completed.returncode,
         "cuda_visible_devices": args.cuda_visible_devices,
+        "master_addr": env["MASTER_ADDR"],
+        "master_port": int(env["MASTER_PORT"]),
         "video": video_info,
         "prepared_data": prepared_info,
         "assets": asset_info,

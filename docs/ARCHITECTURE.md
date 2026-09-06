@@ -50,6 +50,12 @@ content-addressed artifact. Neighbor retrieval and collision detection remain
 ranking/diagnostic operations; they cannot create a target verdict or bypass
 frozen verification.
 
+`wmloop/control/model_irg_materializer.py` is the lifecycle boundary for this
+binding. It accepts a validated portrait and a measured IRG asset, writes one
+small hash-locked bundle, and refuses to resume if either input drifts. The
+autonomous runner accepts either that materialized artifact or the portrait and
+asset pair; it never synthesizes missing probe responses.
+
 Joint calibration schedules every semantic probe path against one no-hook
 baseline for each target, seed, trajectory batch, evaluator, and generation
 mode. Condition-level receipts are atomic and resumable; a frame mismatch
@@ -95,6 +101,13 @@ effect-sign agreement, and a calibrated lower bound. Failed terms produce
 abstention. Confident opposing effects in nearby IRG regions are repair
 collisions; they trigger counterexample-driven probe proposals.
 
+`wmloop/control/probe_evolution_cycle.py` turns model-IRG collisions into
+portable, proposal-only discrimination work orders. Each work order is derived
+from the conflicting primitive, least-discriminating axes, and hooks shared by
+the two model portraits rather than a backbone-specific probe table. It has no
+execution or admission authority; only a separately measured and settled
+successor can produce a new IRG version.
+
 Probe creation is mediated by Counterexample-Guided Probe Basis Expansion
 (CPBE), not delegated directly to a language model. CPBE expresses residual,
 structured-mutation, atlas-retrieval, and LLM-generated candidates in one
@@ -118,9 +131,11 @@ Primary code:
 - `wmloop/experiments/cpbe.py`
 
 Cold start has two evidence sources. The receipt-bound retrieval index searches
-settled probe/trial experience first. When it has no compatible record, an
-optional bounded arXiv lookup stages paper methods as untrusted data-only
-records. `wmloop/retrieve/method_staging.py` converts each staged record into a
+settled probe/trial experience first. When it has no compatible record, bounded
+external providers stage paper and repository metadata as untrusted data-only
+records. arXiv, OpenAlex, and GitHub share the resource-limited provider
+contract in `wmloop/retrieve/providers.py`; retrieved source code is never
+executed. `wmloop/retrieve/method_staging.py` converts each staged record into a
 strict method candidate with a source identity, target failure signatures,
 hook, bounded dose, applicability conditions, invariants, falsifiable
 prediction, and cost estimates. Explicit matches to the frozen registry can
@@ -131,14 +146,20 @@ source-revision, registry-digest, and required-check receipts. It does not run a
 coding agent in the active model checkout. A candidate can enter a live queue
 only after static, offline, canary, shadow-replay, and next-version approval gates.
 
-For a measured model-conditioned IRG, `wmloop/retrieve/irg_guided_discovery.py`
-first ranks response-sensitivity hotspots and translates their semantic axes
+For a measured model-conditioned IRG, `wmloop/retrieve/coordinator.py` composes
+`wmloop/retrieve/irg_guided_discovery.py` with mechanism discovery and
+multi-view literature retrieval. Query construction comes from the versioned
+policy in `configs/retrieval/discovery_query_policy_v1.json`, not a model-
+specific branch in Python. The discovery layer first ranks response-sensitivity
+hotspots and translates their semantic axes
 into cross-domain research lenses (for example, temporal memory, action
 grounding, uncertainty calibration, or contact dynamics). This produces a
 bounded bottleneck hypothesis rather than a global-capability claim: a true
 ceiling requires an additional dose or horizon sweep. The resulting literature
 request is shadow-only and flows through the same typed staging and target-side
-gates.
+gates. Online research modes additionally require a network retrieval receipt
+and at least one external record unless the operator explicitly chooses the
+cached-evidence policy.
 The safety language therefore stays fixed while the set of admissible
 capabilities can grow across version boundaries.
 
