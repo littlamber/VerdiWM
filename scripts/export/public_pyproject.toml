@@ -57,6 +57,7 @@ verdiwm-ctrl-world-autonomous-transfer = "experiments.ctrl_world_autonomous_tran
 verdiwm-model-irg = "wmloop.control.model_irg_materializer:main"
 verdiwm-probe-evolution = "wmloop.control.probe_evolution_cycle:main"
 verdiwm-wan22-paired-effect = "wmloop.verify.wan22_paired_effect:main"
+verdiwm-research-stack-audit = "wmloop.control.research_stack:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]

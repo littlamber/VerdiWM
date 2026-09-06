@@ -1,0 +1,78 @@
+{
+  "artifact_type": "verdiwm-research-stack-manifest",
+  "schema_version": 1,
+  "version": "v1",
+  "components": [
+    {
+      "component_id": "proposal-tree-search",
+      "inspiration": "SakanaAI/AI-Scientist-v2",
+      "source_url": "https://github.com/SakanaAI/AI-Scientist-v2",
+      "license": "Responsible AI Source Code License",
+      "mode": "adopted",
+      "local_surface": "wmloop/control/research_proposal.py",
+      "authority": "proposal_only",
+      "rationale": "Use tree-search-style proposal expansion while keeping constitution and verifier ownership in VerdiWM."
+    },
+    {
+      "component_id": "isolated-successor-search",
+      "inspiration": "jennyzzt/dgm",
+      "source_url": "https://github.com/jennyzzt/dgm",
+      "license": "Apache-2.0",
+      "mode": "adopted",
+      "local_surface": "wmloop/execute/agent_staging.py",
+      "authority": "proposal_only",
+      "rationale": "Borrow isolated successor staging and empirical gating; no self-modifying patch may enter the active checkout directly."
+    },
+    {
+      "component_id": "active-probe-acquisition",
+      "inspiration": "facebookresearch/Ax + pytorch/botorch",
+      "source_url": "https://github.com/pytorch/botorch",
+      "license": "MIT",
+      "mode": "adopted",
+      "local_surface": "wmloop/experiments/cpbe.py",
+      "authority": "ranking_only",
+      "rationale": "Use acquisition-function ideas for IRG probe selection while retaining the deterministic, capability-checked CPBE DSL."
+    },
+    {
+      "component_id": "research-workflow-and-memory",
+      "inspiration": "SamuelSchmidgall/AgentLaboratory",
+      "source_url": "https://github.com/SamuelSchmidgall/AgentLaboratory",
+      "license": "MIT",
+      "mode": "adopted",
+      "local_surface": "wmloop/retrieve/coordinator.py",
+      "authority": "advisory",
+      "rationale": "Adopt staged research planning and cumulative evidence retrieval, without granting retrieved agents execution authority."
+    },
+    {
+      "component_id": "feedback-prompt-evolution",
+      "inspiration": "microsoft/PromptWizard",
+      "source_url": "https://github.com/microsoft/PromptWizard",
+      "license": "MIT",
+      "mode": "adopted",
+      "local_surface": "wmloop/control/probe_evolution_cycle.py",
+      "authority": "proposal_only",
+      "rationale": "Use critique-and-refine patterns for counterexample work orders, never for direct verdict or code mutation."
+    },
+    {
+      "component_id": "reproducible-config-and-scheduling",
+      "inspiration": "facebookresearch/hydra + ray-project/ray",
+      "source_url": "https://github.com/facebookresearch/hydra",
+      "license": "MIT / Apache-2.0",
+      "mode": "adopted",
+      "local_surface": "wmloop/execute/campaign_daemon.py",
+      "authority": "advisory",
+      "rationale": "Keep configuration composition and durable resource scheduling explicit, resumable, and subordinate to budget leases."
+    },
+    {
+      "component_id": "web-research-retrieval",
+      "inspiration": "assafelovic/gpt-researcher",
+      "source_url": "https://github.com/assafelovic/gpt-researcher",
+      "license": "Apache-2.0",
+      "mode": "reference",
+      "local_surface": "wmloop/retrieve/providers.py",
+      "authority": "advisory",
+      "rationale": "Reference parallel cited retrieval patterns; VerdiWM keeps providers data-only and requires evidence gates before staging."
+    }
+  ],
+  "claim_boundary": "This manifest records design inspirations and local bounded surfaces; it is not evidence that any imported strategy improves a model."
+}

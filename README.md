@@ -202,6 +202,11 @@ The core loop and extension boundaries are documented in
 [Backbone instantiation](docs/BACKBONE_INSTANTIATION.md). The workbench
 contains the supported research modes.
 
+External research-agent patterns are integrated through bounded, auditable
+adapters. See [Research-stack integration](docs/RESEARCH_STACK.md) and run
+`uv run verdiwm-research-stack-audit` to inspect the pinned inventory. These
+integrations never grant external code execution or verdict authority.
+
 ## Scope and status
 
 The public release is `1.0.3` (stable). The control plane, schemas, CLI,
