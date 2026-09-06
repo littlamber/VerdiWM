@@ -9,12 +9,34 @@ from experiments.wan22_droid_acwm_v1.run import (
     _estimated_gpu_hours,
     _gpu_free_memory_mib,
     _parser,
+    _rebind_validation_panel,
     _worldarena_required_modules,
 )
 from experiments.wan22_droid_acwm_v1.wan22_droid_runner import _assert_episode_disjoint, _chunk_anchor, _conditioning_for_mode, _load_adapter, _parser as runner_parser, _select_branch_index, _training_record_schedule, _validate_control_plane_training_contract, _validate_scheduled_training_coverage, _validate_stage_training_mode, _validate_validation_source_frames, _validation_panel_indices
 
 
 class Wan22DroidContractTests(unittest.TestCase):
+    def test_resume_rebinds_copied_validation_panel_paths(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            old = root / "old" / "seed-4101"
+            current = root / "new" / "seed-4101"
+            old.mkdir(parents=True)
+            current.mkdir(parents=True)
+            panel = {
+                "state": "frozen",
+                "rows": [{
+                    "run_root": str(old),
+                    "generated_video": str(old / "generated_150f.mp4"),
+                    "branch_roots": [{"root": str(old / "branch-0")}],
+                }],
+            }
+            self.assertTrue(_rebind_validation_panel(panel, current))
+            row = panel["rows"][0]
+            self.assertEqual(row["run_root"], str(current))
+            self.assertEqual(row["generated_video"], str(current / "generated_150f.mp4"))
+            self.assertEqual(row["branch_roots"][0]["root"], str(current / "branch-0"))
+
     def _dataset(self, root: Path) -> None:
         for split in ("train", "val"):
             (root / "annotation" / split).mkdir(parents=True)

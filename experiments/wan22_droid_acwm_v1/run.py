@@ -303,6 +303,61 @@ def _next_attempt_path(base: Path) -> Path:
     return base.with_name(f"{base.name}-attempt-{attempt}")
 
 
+def _rebind_validation_panel(panel: dict[str, Any], run_root: Path) -> bool:
+    """Rebind copied/resumed panel paths to the current seed run root.
+
+    Historical receipts are often staged into a new run root before an
+    evaluator-only resume.  Their panel manifest legitimately retains the
+    original absolute paths, but evaluation must never write artifacts into
+    that old run.  Only paths under the panel's original seed root are
+    rewritten; unrelated provenance references remain untouched.
+    """
+
+    rows = panel.get("rows")
+    if not isinstance(rows, list) or not rows:
+        return False
+    current_root = run_root.expanduser().resolve()
+    old_candidates = []
+    for row in rows:
+        if isinstance(row, dict) and row.get("run_root"):
+            try:
+                old_candidates.append(Path(str(row["run_root"])).expanduser().resolve())
+            except OSError:
+                continue
+    if not old_candidates:
+        return False
+    old_root = old_candidates[0]
+    if not all(path == old_root or old_root in path.parents for path in old_candidates):
+        return False
+
+    changed = False
+
+    def rebind(value: object) -> object:
+        nonlocal changed
+        if isinstance(value, str):
+            try:
+                path = Path(value).expanduser()
+                resolved = path.resolve()
+            except OSError:
+                return value
+            if resolved == old_root or old_root in resolved.parents:
+                rebound = current_root / resolved.relative_to(old_root)
+                if str(rebound) != value:
+                    changed = True
+                    return str(rebound)
+            return value
+        if isinstance(value, list):
+            return [rebind(item) for item in value]
+        if isinstance(value, dict):
+            return {key: rebind(item) for key, item in value.items()}
+        return value
+
+    rebound = rebind(panel)
+    panel.clear()
+    panel.update(rebound)
+    return changed
+
+
 def _gpu_free_memory_mib(cuda_visible_devices: str) -> float:
     first_device = cuda_visible_devices.split(",", 1)[0].strip()
     if not first_device.isdigit():
@@ -873,6 +928,8 @@ def _closed_loop(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             row["paired_visualization"] = training["paired_visualization"]
 
             panel_manifest = _read_json(run_root / "validation_panel.json")
+            if _rebind_validation_panel(panel_manifest, run_root):
+                _write_json(run_root / "validation_panel.json", panel_manifest)
             panel_rows = panel_manifest.get("rows")
             if panel_manifest.get("state") != "frozen" or not isinstance(
                 panel_rows, list
