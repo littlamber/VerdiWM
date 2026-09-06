@@ -49,6 +49,10 @@ from wmloop.execute.pipeline_irg import (
     prepare_pipeline_irg,
     resolve_pipeline_irg_inputs,
 )
+from wmloop.execute.irg_accumulation import (
+    IRGAccumulationError,
+    accumulate_irg_observations,
+)
 from wmloop.experiments.cpbe import CPBEError, publish_cpbe_plan
 from wmloop.experiments.cpbe_materializer import (
     CPBEMaterializerError,
@@ -117,6 +121,7 @@ class AutonomousPipelineOptions:
     irg_diagnostic_axes_path: Path | None = None
     irg_method_effects_path: Path | None = None
     comparison_model_irg_paths: tuple[Path, ...] = ()
+    prior_irg_accumulation_path: Path | None = None
     irg_protected_metrics: tuple[str, ...] = ()
     require_network_retrieval: bool = True
 
@@ -171,6 +176,10 @@ def run_autonomous_pipeline(
     cpbe_history = _optional_file(
         options.cpbe_history,
         "AUTONOMOUS_PIPELINE_CPBE_HISTORY_INVALID",
+    )
+    prior_irg_accumulation = _optional_file(
+        options.prior_irg_accumulation_path,
+        "AUTONOMOUS_PIPELINE_PRIOR_IRG_ACCUMULATION_INVALID",
     )
     try:
         irg_inputs = resolve_pipeline_irg_inputs(
@@ -247,6 +256,7 @@ def run_autonomous_pipeline(
         cpbe_request=cpbe_request,
         cpbe_history=cpbe_history,
         irg_inputs=irg_inputs,
+        prior_irg_accumulation=prior_irg_accumulation,
         irg_protected_metrics=options.irg_protected_metrics,
         budget_total_gpu_hours=budget_total_gpu_hours,
     )
@@ -320,30 +330,6 @@ def run_autonomous_pipeline(
         irg_guided_context: dict[str, object] | None = None
         irg_literature_queries: tuple[str, ...] = ()
         irg_projection: dict[str, object] = {}
-        if irg_inputs.enabled:
-            stage = "irg_lifecycle"
-            try:
-                irg_context = prepare_pipeline_irg(
-                    inputs=irg_inputs,
-                    protected_metrics=options.irg_protected_metrics,
-                    output_root=destination,
-                    control_root=Path(__file__).resolve().parents[2],
-                    enable_external_discovery=research_mode != "causal_discovery",
-                    max_results=options.literature_max_results,
-                    timeout_seconds=options.literature_timeout_seconds,
-                    archive_db=archive_db,
-                    cas_root=cas_root,
-                )
-            except PipelineIRGError as exc:
-                raise AutonomousPipelineError(
-                    f"AUTONOMOUS_PIPELINE_IRG_LIFECYCLE_INVALID:{exc}"
-                ) from exc
-            irg_projection = irg_context.retrieval_projection
-            retrieval_context.update(irg_projection)
-            irg_guided_context = irg_projection["irg_guided"]
-            irg_literature_queries = irg_context.literature_queries
-            irg_failure_signatures = irg_context.failure_signatures
-            irg_model_family = irg_context.model_family
         literature_manifest: dict[str, object] | None = None
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
@@ -384,6 +370,89 @@ def run_autonomous_pipeline(
                 for value in probe_manifest.get("failure_signatures", [])
                 if isinstance(value, str)
             ]
+            retrieval_context = {
+                "state": "pending_evidence_settlement",
+                "query": {
+                    "model_family": probe_manifest["model_family"],
+                    "runtime_capability": probe_manifest["runtime_capability"],
+                    "failure_signatures": signatures,
+                },
+                "matches": [],
+                "index_path": str(retrieval_db),
+            }
+            # Preserve the model-conditioned IRG plan when probe retrieval is
+            # also active.  It is part of the same immutable routing context,
+            # not a competing retrieval mode.
+            if irg_guided_context is not None:
+                retrieval_context["irg_guided"] = irg_guided_context
+            retrieval_context.update(irg_projection)
+
+        # IRG is settled from this round's probe/evidence before any IRG-guided
+        # retrieval or method routing.  A supplied materialization remains
+        # supported for resume/legacy campaigns, but it is no longer required
+        # to run the first diagnostic probe.
+        if probe_manifest is not None:
+            probe_result = _load_json_if_exists(
+                diagnostic_probe_root / "probe-result.json"
+            )
+            accumulation_batch = _probe_irg_batch(
+                probe_manifest=probe_manifest,
+                probe_result=probe_result,
+            )
+            if accumulation_batch is not None:
+                stage = "irg_accumulation"
+                try:
+                    accumulation = accumulate_irg_observations(
+                        batch=accumulation_batch,
+                        output_root=destination / "irg-accumulation",
+                        prior_manifest=prior_irg_accumulation,
+                        archive_db=archive_db,
+                        cas_root=cas_root,
+                    )
+                    irg_projection["accumulation"] = accumulation
+                    retrieval_context["irg_accumulation"] = accumulation
+                    # The accumulation chart is intentionally diagnostic-only.
+                    # It becomes a full model-IRG materialization only when an
+                    # adapter supplies a portrait-bound unified asset.
+                except IRGAccumulationError as exc:
+                    raise AutonomousPipelineError(
+                        f"AUTONOMOUS_PIPELINE_IRG_ACCUMULATION_INVALID:{exc}"
+                    ) from exc
+
+        if irg_inputs.enabled:
+            stage = "irg_lifecycle"
+            try:
+                irg_context = prepare_pipeline_irg(
+                    inputs=irg_inputs,
+                    protected_metrics=options.irg_protected_metrics,
+                    output_root=destination,
+                    control_root=Path(__file__).resolve().parents[2],
+                    enable_external_discovery=research_mode != "causal_discovery",
+                    max_results=options.literature_max_results,
+                    timeout_seconds=options.literature_timeout_seconds,
+                    archive_db=archive_db,
+                    cas_root=cas_root,
+                )
+            except PipelineIRGError as exc:
+                raise AutonomousPipelineError(
+                    f"AUTONOMOUS_PIPELINE_IRG_LIFECYCLE_INVALID:{exc}"
+                ) from exc
+            irg_projection.update(irg_context.retrieval_projection)
+            retrieval_context.update(irg_context.retrieval_projection)
+            irg_guided_context = irg_context.retrieval_projection["irg_guided"]
+            irg_literature_queries = irg_context.literature_queries
+            irg_failure_signatures = irg_context.failure_signatures
+            irg_model_family = irg_context.model_family
+        if probe_manifest is not None:
+            # Retrieval is downstream of this round's evidence/IRG settlement.
+            # Legacy probes without a dose frame settle as signature evidence
+            # and remain eligible for the existing signature index.
+            stage = "evidence_routing"
+            signatures = [
+                str(value)
+                for value in probe_manifest.get("failure_signatures", [])
+                if isinstance(value, str)
+            ]
             matches = retrieve_probe_experiences(
                 database_path=retrieval_db,
                 model_family=str(probe_manifest["model_family"]),
@@ -395,22 +464,11 @@ def run_autonomous_pipeline(
                     str(probe_manifest.get("archive_trial_id") or "") or None
                 ),
             )
-            retrieval_context = {
-                "state": "matched" if matches else "cold_start",
-                "query": {
-                    "model_family": probe_manifest["model_family"],
-                    "runtime_capability": probe_manifest["runtime_capability"],
-                    "failure_signatures": signatures,
-                },
-                "matches": [row.to_dict() for row in matches],
-                "index_path": str(retrieval_db),
-            }
-            # Preserve the model-conditioned IRG plan when probe retrieval is
-            # also active.  It is part of the same immutable routing context,
-            # not a competing retrieval mode.
+            retrieval_context["state"] = "matched" if matches else "cold_start"
+            retrieval_context["matches"] = [row.to_dict() for row in matches]
+            retrieval_context.update(irg_projection)
             if irg_guided_context is not None:
                 retrieval_context["irg_guided"] = irg_guided_context
-            retrieval_context.update(irg_projection)
         capsule = build_evidence_capsule(
             probe=probe_manifest,
             matches=[
@@ -774,6 +832,7 @@ def _runtime_retrieval_manifest(
         "irg_guided": retrieval.get("irg_guided"),
         "model_irg_materialization": retrieval.get("model_irg_materialization"),
         "probe_evolution": retrieval.get("probe_evolution"),
+        "irg_accumulation": retrieval.get("irg_accumulation"),
     }
 
 
@@ -794,6 +853,7 @@ def _input_document(
     cpbe_request: Path | None,
     cpbe_history: Path | None,
     irg_inputs: PipelineIRGInputs,
+    prior_irg_accumulation: Path | None,
     irg_protected_metrics: Sequence[str],
     budget_total_gpu_hours: float,
 ) -> dict[str, object]:
@@ -889,6 +949,16 @@ def _input_document(
             _sha256(cpbe_history.read_bytes()) if cpbe_history is not None else None
         ),
         **irg_inputs.input_document(),
+        "prior_irg_accumulation_path": (
+            str(prior_irg_accumulation)
+            if prior_irg_accumulation is not None
+            else None
+        ),
+        "prior_irg_accumulation_sha256": (
+            _sha256(prior_irg_accumulation.read_bytes())
+            if prior_irg_accumulation is not None
+            else None
+        ),
         "irg_protected_metrics": list(irg_protected_metrics),
     }
 
@@ -1133,6 +1203,72 @@ def _load_json(path: Path, code: str) -> dict[str, object]:
     return value
 
 
+def _load_json_if_exists(path: Path) -> dict[str, object] | None:
+    if not path.is_file() or path.is_symlink():
+        return None
+    return _load_json(path, "AUTONOMOUS_PIPELINE_PROBE_RESULT_INVALID")
+
+
+def _probe_irg_batch(
+    *,
+    probe_manifest: Mapping[str, object],
+    probe_result: Mapping[str, object] | None,
+) -> dict[str, object] | None:
+    """Project an adapter-neutral probe result into the accumulation contract.
+
+    Legacy diagnostic probes do not contain a dose/replication frame.  They
+    remain valid failure-signature evidence, but cannot be silently promoted
+    into an IRG measurement.
+    """
+
+    if probe_result is None:
+        return None
+    observation = probe_result.get("irg_observation")
+    if observation is None:
+        return None
+    if not isinstance(observation, Mapping):
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_IRG_OBSERVATION_INVALID")
+    batch = dict(observation)
+    model_family = probe_manifest.get("model_family")
+    if batch.get("model_family") != model_family:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_IRG_MODEL_MISMATCH")
+    if batch.get("probe_id") != probe_manifest.get("probe_id"):
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_IRG_PROBE_MISMATCH")
+    refs = [
+        value
+        for value in (
+            probe_manifest.get("result_ref"),
+            probe_manifest.get("receipt_ref"),
+            *(
+                batch.get("evidence_refs", [])
+                if isinstance(batch.get("evidence_refs"), list)
+                else []
+            ),
+        )
+        if isinstance(value, str)
+    ]
+    batch["evidence_refs"] = list(dict.fromkeys(refs))
+    batch["failure_signatures"] = list(
+        dict.fromkeys(
+            value
+            for value in (
+                *(
+                    probe_manifest.get("failure_signatures", [])
+                    if isinstance(probe_manifest.get("failure_signatures"), list)
+                    else []
+                ),
+                *(
+                    batch.get("failure_signatures", [])
+                    if isinstance(batch.get("failure_signatures"), list)
+                    else []
+                ),
+            )
+            if isinstance(value, str) and value
+        )
+    )
+    return batch
+
+
 def _canonical_json(value: object) -> bytes:
     return (
         json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
@@ -1226,6 +1362,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=[],
         help="prior IRG with method effects used for collision-driven probe evolution",
     )
+    parser.add_argument("--prior-irg-accumulation", type=Path)
     parser.add_argument(
         "--irg-protected-metric",
         action="append",
@@ -1270,6 +1407,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 irg_diagnostic_axes_path=args.irg_diagnostic_axes,
                 irg_method_effects_path=args.irg_method_effects,
                 comparison_model_irg_paths=tuple(args.comparison_model_irg),
+                prior_irg_accumulation_path=args.prior_irg_accumulation,
                 irg_protected_metrics=tuple(args.irg_protected_metric),
                 require_network_retrieval=not args.allow_cached_retrieval,
             )

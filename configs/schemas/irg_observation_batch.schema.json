@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_family",
+    "capability_class",
+    "goal_schema",
+    "probe_id",
+    "protocol_hash",
+    "state",
+    "outcome_names",
+    "outcome_weights",
+    "baseline_repeats",
+    "dose_observations",
+    "evidence_refs"
+  ],
+  "properties": {
+    "model_family": {"type": "string", "minLength": 1},
+    "capability_class": {"type": "string", "minLength": 1},
+    "goal_schema": {"type": "string", "minLength": 1},
+    "probe_id": {"type": "string", "minLength": 1},
+    "protocol_hash": {"type": "string", "pattern": "^(sha256:[0-9a-f]{64}|cas://|urn:)"},
+    "state": {"enum": ["verified", "exploratory", "null", "harmful", "abstained", "disputed"]},
+    "outcome_names": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "outcome_weights": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "number", "exclusiveMinimum": 0}
+    },
+    "baseline_repeats": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "minItems": 1,
+        "items": {"type": "number"}
+      }
+    },
+    "dose_observations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "number"}
+          }
+        }
+      }
+    },
+    "paired_identity": {"type": "object"},
+    "failure_signatures": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "anti_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "evidence_refs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^(cas://|urn:|sha256:)"}
+    }
+  }
+}
