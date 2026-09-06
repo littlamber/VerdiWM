@@ -8,14 +8,36 @@ decision.
 
 ## Contract
 
-`wmloop.retrieve.evidence_capsule.build_evidence_capsule` emits one immutable
-JSON projection with:
+There are two deliberately separate capsule surfaces. The existing
+`wmloop.retrieve.evidence_capsule.build_evidence_capsule` is an internal,
+bounded runtime routing projection. The exchange CLI in
+`wmloop.evidence_capsule` emits the standardized v1 portable capsule used for
+sharing between machines or installations.
 
-- a route: `no_diagnostic`, `cold_start`, or `reuse_settled`;
-- the diagnostic query fields and normalized failure signatures;
-- at most three selected settled matches by default;
-- only scalar ranking fields and receipt/CAS/Archive references;
-- an explicit claim boundary saying that the capsule is not evidence authority.
+The exchange projection contains:
+
+- model/capability and IRG/probe/failure semantics when present;
+- intervention semantics, evaluator/protocol hashes, effects, uncertainty,
+  protected metrics, anti-conditions, and provenance references;
+- one of `verified`, `exploratory`, `null`, `harmful`, `abstained`, or
+  `disputed`;
+- an explicit claim boundary saying that the capsule is a prior, not evidence
+  authority.
+
+Export removes absolute paths, checkpoint/dataset/runtime bindings, command
+and environment data, and raw media. `validate` re-checks those constraints,
+the v1 schema, and 64-character hashes. `import` stores a content-addressed
+local index and writes a `verdiwm-evidence-capsule-import-receipt` whose
+`routing_authority` is always `prior_only`. Import never creates a trial or a
+target-side verdict.
+
+The command-line surface is:
+
+```text
+verdiwm-evidence-capsule export --source receipt.json --output capsule.json
+verdiwm-evidence-capsule validate --capsule capsule.json
+verdiwm-evidence-capsule import --capsule capsule.json --destination-root index/
+```
 
 The selected rows are copied only after `retrieve_probe_experiences` has
 revalidated settlement and CAS hashes. Invalid or unbound rows fail closed.

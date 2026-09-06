@@ -155,6 +155,7 @@ PUBLIC_TEST_FILES = (
     "test_acwm_cloth_move_cloth_identity_drift_diagnostic_v1.py",
     "test_acwm_cloth_move_deformable_memory_diagnostic_v1.py",
     "test_evidence_capsule.py",
+    "test_evidence_capsule_exchange.py",
     "test_mechanism_discovery.py",
     "test_transferable_experience.py",
     "test_system_utility.py",

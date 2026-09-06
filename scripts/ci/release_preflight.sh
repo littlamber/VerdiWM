@@ -88,6 +88,7 @@ wheel_required = {
     "wmloop/cli.py",
     "wmloop/geometry/memory.py",
     "wmloop/retrieve/evidence_capsule.py",
+    "wmloop/evidence_capsule.py",
     "wmloop/retrieve/mechanism_discovery.py",
     "configs/retrieval/mechanism_tag_ontology_v1.json",
     "configs/retrieval/primitive_mechanism_profiles_v1.json",
@@ -106,6 +107,7 @@ sdist_required = {
     "docs/TRANSFERABLE_EXPERIENCE.md",
     "scripts/ci/release_preflight.sh",
     "tests/test_evidence_capsule.py",
+    "tests/test_evidence_capsule_exchange.py",
     "tests/test_mechanism_discovery.py",
     "tests/test_transferable_experience.py",
 }
@@ -149,10 +151,13 @@ uv pip install --python "$venv_dir/bin/python" "$wheel_path"
 "$venv_dir/bin/python" - <<'PY'
 from wmloop.geometry import build_transferable_experience
 from wmloop.retrieve.evidence_capsule import build_evidence_capsule
+from wmloop.evidence_capsule import export_evidence_capsule, validate_evidence_capsule
 from wmloop.retrieve.mechanism_discovery import DiscoveryRequest
 
 assert callable(build_transferable_experience)
 assert callable(build_evidence_capsule)
+assert callable(export_evidence_capsule)
+assert callable(validate_evidence_capsule)
 assert DiscoveryRequest is not None
 PY
 
