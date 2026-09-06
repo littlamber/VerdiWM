@@ -207,6 +207,10 @@ adapters. See [Research-stack integration](docs/RESEARCH_STACK.md) and run
 `uv run verdiwm-research-stack-audit` to inspect the pinned inventory. These
 integrations never grant external code execution or verdict authority.
 
+The IRG maturity gates and the distinction between private evidence, portable
+experience, and a future multi-user shared knowledge graph are documented in
+[IRG maturity and shared knowledge](docs/IRG_MATURITY_AND_SHARED_KNOWLEDGE.md).
+
 ## Scope and status
 
 The public release is `1.0.3` (stable). The control plane, schemas, CLI,
