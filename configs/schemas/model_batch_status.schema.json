@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "execution_state", "batch_id", "plan_sha256", "execution_sha256", "campaigns_root", "rows", "state_counts", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-model-batch-status"]},
+    "state": {"enum": ["blocked", "partial", "queued", "completed", "failed"]},
+    "execution_state": {"enum": ["blocked", "partial", "queued", "completed", "failed"]},
+    "batch_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "execution_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "campaigns_root": {"type": "string", "minLength": 1},
+    "rows": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": true}},
+    "state_counts": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

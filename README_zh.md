@@ -35,16 +35,16 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 你需要准备四项信息：模型代码目录、模型权重文件、数据集路径，以及一句
 研究目标。权重通常不放进 VerdiWM 仓库，也不会被上传。
 
-如果目录采用默认名称，可以直接运行：
+如果目录采用默认名称，可以直接运行简化入口：
 
 ```bash
-uv run verdiwm init --goal "提升长时域预测稳定性"
+uv run verdiwm setup --goal "提升长时域预测稳定性"
 ```
 
 系统会生成 `verdiwm.toml`。目录名称不同则显式指定：
 
 ```bash
-uv run verdiwm init \
+uv run verdiwm setup \
   --model /path/to/model \
   --data /path/to/data \
   --goal "提升长时域预测稳定性"
@@ -53,7 +53,7 @@ uv run verdiwm init \
 然后先做只读接入检查：
 
 ```bash
-uv run verdiwm check-model
+uv run verdiwm check
 ```
 
 对完全陌生的模型，生成一份给用户或 Codex 使用的接入问卷：
@@ -69,7 +69,7 @@ Codex 可以读源码并起草适配器和配置，但评测含义、指标阈�
 如果已有冻结评测契约和模型 Python 环境，可以在初始化时一并绑定：
 
 ```bash
-uv run verdiwm init \
+uv run verdiwm setup \
   --model /path/to/model \
   --data /path/to/data \
   --goal "提升长时域预测稳定性" \
@@ -92,14 +92,14 @@ state_root = "./.verdiwm/state"
 确认检查结果中没有阻断项后，再启动任务。模型权重作为 asset 传入；例如：
 
 ```bash
-uv run verdiwm check-model
+uv run verdiwm check
 uv run verdiwm run \
   --goal "提升长时域动作条件预测" \
   --target-metrics runtime_ready \
   --asset=--ckpt_path=/path/to/checkpoint.pt
 ```
 
-`check-model` 或 `run` 如果提示缺少评测入口、评测契约、运行环境或权重，
+`check` 或 `run` 如果提示缺少评测入口、评测契约、运行环境或权重，
 这是正常的安全阻断：系统会告诉你要补什么，不会猜测成功标准，也不会在
 未确认评测方法前占用 GPU。已有适配器的模型通常只需补齐路径；完全新模型
 需要按问卷回答运行和评测信息，确认后才能生成可启动的隔离配置。
@@ -108,6 +108,83 @@ uv run verdiwm run \
 运行器会选择明确匹配的适配器配置，解析 evaluator 已声明的指标；接口需要
 调整时会自动生成隔离的 adapter overlay。未知指标、适配器歧义、科学资产缺失
 或协议漂移都会安全阻断，并给出诊断信息。
+
+### 批量接入多个异构模型
+
+把每个模型、数据、适配器和冻结评测写入一个批次请求，先编译静态计划：
+
+```bash
+uv run verdiwm batch plan \
+  --manifest batch-request.json \
+  --output-root ./.verdiwm/batches/my-batch
+```
+
+检查通过后，创建并排队各模型的独立 campaign：
+
+```bash
+uv run verdiwm batch run \
+  --plan ./.verdiwm/batches/my-batch/plan.json \
+  --max-parallel 2
+uv run verdiwm batch status \
+  --execution ./.verdiwm/batches/my-batch/execution.json
+```
+
+也可以使用兼容脚本的 `batch-plan` 和 `batch-run` 命令。批次会共享一个
+预算账本、Archive 和 CAS；每个模型仍保留独立 campaign、revision 和评测
+receipt。任何缺少冻结 evaluator 或发生文件漂移的模型都会单独显示为阻断项，
+不会被静默跳过或当作成功。
+
+### 发布社区知识包
+
+实验完成后，可以先从多个本地产物目录只读整理已经验证的模型画像、Capability
+IR、IRG 和 evidence records，再签名发布到社区 registry：
+
+```bash
+uv run verdiwm community export \
+  --source-root ./local-artifacts \
+  --source-root ./.verdiwm/semantic-records \
+  --execution ./.verdiwm/batches/my-batch/execution.json \
+  --output-root ./.verdiwm/community-export
+```
+
+导出器只扫描 JSON 语义记录：无关的运行时文件会被统计并忽略，已识别但不符合
+portable knowledge graph 契约的记录会阻断。它不会导入模型、占用 GPU、修改源
+目录，也不会复制 `execution.json`、campaign、budget、Archive、CAS 或本地路径。
+`export.json`、`graph.json` 和 `quality-audit.json` 是 staging 元数据；发布时
+只使用 `records/` 目录：
+
+```bash
+uv run verdiwm community publish \
+  --documents-dir ./.verdiwm/community-export/records \
+  --execution ./.verdiwm/batches/my-batch/execution.json \
+  --output-root ./community-bundle \
+  --publisher-id community/example \
+  --signing-key ./publisher-private.pem
+uv run verdiwm community verify \
+  --bundle-root ./community-bundle \
+  --public-key ./publisher-public.pem
+```
+
+发布包只包含无本地路径的语义记录、确定性知识图谱、quality audit、成员
+SHA-256 和 Ed25519 签名。`execution.json` 只作为批次身份绑定，campaign、
+预算数据库、模型路径和运行命令不会被打包。检索到的记录仍然只是目标侧
+实验的 hypothesis；社区发布和验证不会替代冻结 evaluator 或 settlement
+receipt。完整约定见 [社区 Bundle 文档](docs/COMMUNITY_BUNDLES.md)。
+
+需要撤回或替换社区知识时，可以生成 append-only 生命周期记录：
+
+```bash
+uv run verdiwm community lifecycle \
+  --action revocation \
+  --subject-kind community_bundle \
+  --subject-id verdiwm-bundle-0123456789abcdef01234567 \
+  --reason "目标侧验证器发现结论无效" \
+  --authority-ref cas://sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --evidence-ref cas://sha256/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --output ./lifecycle/revocation.json
+```
+
+该记录只包含内容地址和语义身份，不包含本地路径；同一路径已有不同内容时会安全阻断。
 
 CI 和复现实验仍可使用显式参数：
 

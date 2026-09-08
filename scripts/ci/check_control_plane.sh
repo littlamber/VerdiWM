@@ -21,8 +21,17 @@ required = {
     "wmloop/control/onboarding.py",
     "wmloop/execute/autonomous_pipeline.py",
     "wmloop/execute/experiment_scheduler.py",
+    "wmloop/experiments/community_bundle.py",
+    "wmloop/experiments/community_export.py",
     "configs/schemas/goal_spec.schema.json",
     "configs/schemas/adapter_profile.schema.json",
+    "configs/schemas/model_batch_request.schema.json",
+    "configs/schemas/model_batch_plan.schema.json",
+    "configs/schemas/model_batch_execution.schema.json",
+    "configs/schemas/model_batch_status.schema.json",
+    "configs/schemas/community_bundle.schema.json",
+    "configs/schemas/community_bundle_signature.schema.json",
+    "configs/schemas/community_export.schema.json",
     "configs/retrieval/mechanism_tag_ontology_v1.json",
 }
 missing = sorted(required - names)

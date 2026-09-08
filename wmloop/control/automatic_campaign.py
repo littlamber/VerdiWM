@@ -141,7 +141,11 @@ def isolate_execution_for_revision(
         if isinstance(value, str) and value:
             copied[field] = str(Path(value) / revision_id)
     budget_db = copied.get("budget_db")
-    if isinstance(budget_db, str) and budget_db:
+    # Batch orchestration deliberately binds several campaigns to one durable
+    # ledger.  The caller records this explicit policy in the immutable
+    # execution contract; ordinary single campaigns retain per-revision
+    # isolation.
+    if copied.get("shared_budget_binding") is not True and isinstance(budget_db, str) and budget_db:
         copied["budget_db"] = str(Path(budget_db).parent / f"{revision_id}.db")
     return copied
 

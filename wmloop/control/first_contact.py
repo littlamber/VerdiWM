@@ -34,6 +34,9 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         "EVALUATION_ENTRYPOINT_MISSING": "没有发现可用于评测的入口，请说明评测命令和输出指标。",
         "CHECKPOINT_MISSING": "没有发现权重或 checkpoint 文件，请补充权重路径。",
         "RUNTIME_UNREADY": "模型运行环境还没有准备好，请选择正确的 Python 环境并检查依赖。",
+        "COMMUNITY_BUNDLE_CRYPTOGRAPHY_REQUIRED": "当前环境缺少社区签名依赖，请运行 uv sync --group dev 后重试。",
+        "COMMUNITY_LIFECYCLE_OUTPUT_CONFLICT": "生命周期文件已经存在且内容不同，请换一个输出路径或先检查已有记录。",
+        "COMMUNITY_LIFECYCLE_OUTPUT_INVALID": "生命周期输出路径不可用，请选择普通文件路径。",
     }
     message = exact.get(code)
     if message is None and any(token in detail for token in ("TARGET_METRIC", "METRIC_")):
@@ -42,6 +45,12 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         message = "这个模型还没有可用的运行连接器。系统已安全停止且没有占用 GPU；请确认模型平时如何启动和评测。"
     if message is None and any(token in detail for token in ("CONFIG_NOT_FOUND", "PROVIDER", "LLM_")):
         message = "当前安装尚未配置生成模型连接器所需的代码服务。请联系部署管理员，不要在页面粘贴密钥。"
+    if message is None and code.startswith("COMMUNITY_BUNDLE_"):
+        message = "社区 Bundle 输入或验证失败，请检查语义文档、签名密钥、执行摘要和内容地址。"
+    if message is None and code.startswith("COMMUNITY_EXPORT_"):
+        message = "社区语义导出失败，请检查输入目录中的语义记录、文件大小限制和导出目录状态。"
+    if message is None and code.startswith("KNOWLEDGE_LIFECYCLE_"):
+        message = "生命周期记录不符合社区知识契约，请检查 action、subject、authority 和 evidence 引用。"
     if message is None:
         message = "当前输入还不能安全开始实验。请检查模型、数据、评测方法和预算。"
     return {"code": code, "error": message, "detail": detail}

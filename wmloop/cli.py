@@ -9,8 +9,9 @@ import json
 import os
 import platform
 import sys
+import tempfile
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
 from wmloop.control.adapter_repair import AdapterRepairError, run_adapter_repair
@@ -28,6 +29,25 @@ from wmloop.control.research_proposal import (
     write_compiled_experiment_manifest,
 )
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.model_batch import (
+    ModelBatchError,
+    compile_model_batch,
+    run_model_batch,
+    summarize_model_batch,
+)
+from wmloop.experiments.community_bundle import (
+    CommunityBundleError,
+    publish_community_bundle,
+    verify_community_bundle,
+)
+from wmloop.experiments.community_export import (
+    CommunityExportError,
+    export_community_knowledge,
+)
+from wmloop.geometry.community_knowledge import (
+    CommunityKnowledgeError,
+    build_knowledge_lifecycle_record,
+)
 from wmloop.control.first_contact import (
     FirstContactError,
     explain_blocker,
@@ -171,8 +191,8 @@ def _path_configured(value: object) -> Path | None:
     return Path(str(value)).expanduser() if value is not None else None
 
 
-def _doctor(args: argparse.Namespace) -> int:
-    root = (args.repo_root or Path(__file__).resolve().parents[1]).expanduser().resolve()
+def _doctor_report(args: argparse.Namespace) -> dict[str, object]:
+    root = (getattr(args, "repo_root", None) or Path(__file__).resolve().parents[1]).expanduser().resolve()
     checks: list[dict[str, object]] = []
 
     python_supported = sys.version_info[:2] == (3, 10)
@@ -238,16 +258,289 @@ def _doctor(args: argparse.Namespace) -> int:
         package_version = version("verdiwm")
     except PackageNotFoundError:
         package_version = "source"
-    _print(
-        {
-            "schema_version": 1,
-            "artifact_type": "verdiwm-doctor-report",
-            "state": "blocked" if blocked else "ready",
-            "version": package_version,
-            "checks": checks,
-        }
+    return {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-doctor-report",
+        "state": "blocked" if blocked else "ready",
+        "version": package_version,
+        "checks": checks,
+    }
+
+
+def _doctor(args: argparse.Namespace) -> int:
+    report = _doctor_report(args)
+    _print(report)
+    return 2 if report["state"] == "blocked" else 0
+
+
+def _setup(args: argparse.Namespace) -> int:
+    return _init_project(args)
+
+
+def _check(args: argparse.Namespace) -> int:
+    configured: dict[str, Any] = {}
+    try:
+        configured = load_project_config(cwd=Path.cwd()).values
+    except ProjectConfigError:
+        configured = {}
+    readiness = inspect_project(
+        root=Path.cwd(),
+        model=args.model or configured.get("model"),
+        source=args.source or configured.get("source"),
+        data=args.data or configured.get("data", configured.get("dataset")),
+        evaluator_contract=(
+            str(args.evaluator_contract)
+            if args.evaluator_contract
+            else configured.get("evaluator_contract")
+        ),
+        runtime_python=(
+            str(args.runtime_python)
+            if args.runtime_python
+            else configured.get("runtime_python")
+        ),
     )
-    return 2 if blocked else 0
+    doctor = _doctor_report(args)
+    checks = list(readiness.get("checks", []))
+    checks.extend(
+        {
+            "name": f"control_plane.{row.get('name')}",
+            "state": row.get("state"),
+            "required": row.get("required"),
+            "detail": row.get("detail"),
+        }
+        for row in doctor.get("checks", [])
+        if isinstance(row, Mapping)
+    )
+    completed = [
+        row.get("name")
+        for row in checks
+        if isinstance(row, Mapping) and row.get("state") in {"pass", "available"}
+    ]
+    blockers = list(readiness.get("blockers", []))
+    for row in doctor.get("checks", []):
+        if isinstance(row, Mapping) and row.get("required") is True and row.get("state") != "pass":
+            blockers.append(
+                {
+                    "code": f"CONTROL_PLANE_{str(row.get('name', 'CHECK')).upper()}",
+                    "message": "本地控制面还没有准备好。",
+                    "action": "安装 Python 3.10 和缺失的项目文件后再次运行 verdiwm check。",
+                    "detail": row.get("detail"),
+                }
+            )
+    deduped: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for row in blockers:
+        if not isinstance(row, Mapping):
+            continue
+        code = str(row.get("code", "UNKNOWN"))
+        if code not in seen:
+            deduped.append(dict(row))
+            seen.add(code)
+    state = "ready" if not deduped else "blocked"
+    report = {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-readiness-report",
+        "state": state,
+        "completed": completed,
+        "blockers": deduped,
+        "checks": checks,
+        "project": readiness,
+        "control_plane": doctor,
+        "next_step": (
+            "运行 verdiwm run 开始受边界实验。"
+            if state == "ready"
+            else "按 blockers 中的 action 补齐信息，然后重新运行 verdiwm check。"
+        ),
+    }
+    _print(report)
+    return 0 if state == "ready" else 2
+
+
+def _diagnose(args: argparse.Namespace) -> int:
+    """Produce a read-only model diagnosis before any experiment is created."""
+
+    configured: dict[str, Any] = {}
+    try:
+        configured = load_project_config(cwd=Path.cwd()).values
+    except ProjectConfigError:
+        configured = {}
+    readiness = inspect_project(
+        root=Path.cwd(),
+        model=args.model or configured.get("model"),
+        source=args.source or configured.get("source"),
+        data=args.data or configured.get("data", configured.get("dataset")),
+        evaluator_contract=(
+            str(args.evaluator_contract)
+            if args.evaluator_contract
+            else configured.get("evaluator_contract")
+        ),
+        runtime_python=(
+            str(args.runtime_python)
+            if args.runtime_python
+            else configured.get("runtime_python")
+        ),
+    )
+    discovered = readiness.get("discovered", {})
+    report = {
+        "schema_version": 1,
+        "artifact_type": "verdiwm-model-diagnosis",
+        "state": "ready_for_diagnostic_campaign" if not readiness.get("blockers") else "blocked",
+        "readiness_state": readiness.get("state"),
+        "model": readiness.get("model"),
+        "source": readiness.get("source"),
+        "data": readiness.get("data"),
+        "entrypoints": discovered.get("entrypoints", []) if isinstance(discovered, Mapping) else [],
+        "assets": discovered.get("assets", []) if isinstance(discovered, Mapping) else [],
+        "runtime": discovered.get("runtime", {}) if isinstance(discovered, Mapping) else {},
+        "source_revision": discovered.get("source_revision") if isinstance(discovered, Mapping) else None,
+        "blockers": readiness.get("blockers", []),
+        "next_step": (
+            "补齐 blockers 后运行 verdiwm check。"
+            if readiness.get("blockers")
+            else "可以运行 verdiwm run 开始诊断和 IRG 探针流程。"
+        ),
+        "side_effects": {"model_import_executed": False, "gpu_execution_started": False},
+    }
+    _print(report)
+    return 0 if report["state"] == "ready_for_diagnostic_campaign" else 2
+
+
+def _batch_plan(args: argparse.Namespace) -> int:
+    plan = compile_model_batch(
+        request_path=args.manifest,
+        output_root=args.output_root,
+        root=args.repo_root,
+    )
+    _print(plan)
+    return 0 if plan["state"] == "ready_for_dispatch" else 2
+
+
+def _batch_run(args: argparse.Namespace) -> int:
+    manifest = run_model_batch(
+        plan_path=args.plan,
+        queue_only=args.queue_only,
+        max_parallel=args.max_parallel,
+        output_root=args.output_root,
+        root=args.repo_root,
+    )
+    _print(manifest)
+    return 0 if manifest["state"] in {"queued", "completed"} else 2
+
+
+def _batch_status(args: argparse.Namespace) -> int:
+    report = summarize_model_batch(args.execution, root=args.repo_root)
+    _print(report)
+    return 0
+
+
+def _load_community_documents(paths: Sequence[Path] | None, directory: Path | None = None) -> list[Mapping[str, object]]:
+    documents: list[Mapping[str, object]] = []
+    candidates = [Path(path) for path in (paths or ())]
+    if directory is not None:
+        source_dir = Path(directory).expanduser().resolve()
+        if source_dir.is_symlink() or not source_dir.is_dir():
+            raise CommunityBundleError("COMMUNITY_DOCUMENT_DIRECTORY_INVALID")
+        candidates.extend(sorted(source_dir.glob("*.json")))
+    if not candidates:
+        raise CommunityBundleError("COMMUNITY_DOCUMENTS_EMPTY")
+    for raw_path in candidates:
+        path = Path(raw_path).expanduser().resolve()
+        if path.is_symlink() or not path.is_file():
+            raise CommunityBundleError("COMMUNITY_DOCUMENT_FILE_INVALID")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise CommunityBundleError("COMMUNITY_DOCUMENT_FILE_INVALID") from exc
+        if isinstance(payload, Mapping):
+            documents.append(payload)
+        elif isinstance(payload, list) and all(isinstance(item, Mapping) for item in payload):
+            documents.extend(payload)
+        else:
+            raise CommunityBundleError("COMMUNITY_DOCUMENT_FILE_INVALID")
+    return documents
+
+
+def _community_publish(args: argparse.Namespace) -> int:
+    documents = _load_community_documents(args.document, args.documents_dir)
+    manifest = publish_community_bundle(
+        documents=documents,
+        output_root=args.output_root,
+        publisher_id=args.publisher_id,
+        signing_key=args.signing_key,
+        trust_state=args.trust_state,
+        license_spdx_id=args.license_spdx_id,
+        community_review_state=args.community_review_state,
+        execution_manifest=args.execution,
+    )
+    _print(manifest)
+    return 0
+
+
+def _community_verify(args: argparse.Namespace) -> int:
+    result = verify_community_bundle(args.bundle_root, public_key=args.public_key)
+    _print(result)
+    return 0 if result["state"] in {"verified", "revoked"} else 2
+
+
+def _community_export(args: argparse.Namespace) -> int:
+    """Discover and stage validated semantic records without publishing them."""
+
+    report = export_community_knowledge(
+        source_roots=args.source_root,
+        output_root=args.output_root,
+        execution_manifest=args.execution,
+        max_files=args.max_files,
+        max_file_bytes=args.max_file_bytes,
+        root=args.repo_root,
+    )
+    _print(report)
+    return 0
+
+
+def _community_lifecycle(args: argparse.Namespace) -> int:
+    record = build_knowledge_lifecycle_record(
+        action=args.action,
+        subject_kind=args.subject_kind,
+        subject_id=args.subject_id,
+        reason=args.reason,
+        authority_ref=args.authority_ref,
+        evidence_refs=tuple(args.evidence_ref or ()),
+        replacement_kind=args.replacement_kind,
+        replacement_id=args.replacement_id,
+    )
+    destination = Path(args.output).expanduser().resolve()
+    _write_community_json(destination, record)
+    _print({**record, "output": str(destination)})
+    return 0
+
+
+def _write_community_json(destination: Path, payload: Mapping[str, object]) -> None:
+    """Persist one path-free community document without partial writes."""
+
+    if destination.is_symlink() or (destination.exists() and not destination.is_file()):
+        raise CommunityKnowledgeError("COMMUNITY_LIFECYCLE_OUTPUT_INVALID")
+    encoded = json.dumps(
+        dict(payload), ensure_ascii=True, sort_keys=True, indent=2, allow_nan=False
+    ) + "\n"
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if destination.is_file():
+        try:
+            if destination.read_text(encoding="utf-8") == encoded:
+                return
+        except OSError as exc:
+            raise CommunityKnowledgeError("COMMUNITY_LIFECYCLE_OUTPUT_INVALID") from exc
+        raise CommunityKnowledgeError("COMMUNITY_LIFECYCLE_OUTPUT_CONFLICT")
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", dir=destination.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(encoded)
+        os.replace(temporary, destination)
+    finally:
+        if temporary.exists() or temporary.is_symlink():
+            temporary.unlink()
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -1025,6 +1318,23 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true", help="允许覆盖已有项目文件")
     init.set_defaults(handler=_init_project)
 
+    setup = commands.add_parser(
+        "setup",
+        help="首次设置项目：绑定模型、数据和目标",
+    )
+    setup.add_argument("--model", help="模型目录；默认发现 ./model 或 ./models")
+    setup.add_argument("--source", help="模型源码目录；可与权重目录分离")
+    setup.add_argument("--data", help="数据目录；默认发现 ./data、./dataset 或 ./datasets")
+    setup.add_argument("--goal", help="想改善的能力，用一句话描述")
+    setup.add_argument("--budget", default="1gpu-hour")
+    setup.add_argument("--mode", choices=("quick-start", "causal-discovery", "hybrid"), default="hybrid")
+    setup.add_argument("--target-metrics", "--metrics", dest="target_metrics", nargs="+", default=[])
+    setup.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
+    setup.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
+    setup.add_argument("--project-file", type=Path)
+    setup.add_argument("--force", action="store_true", help="允许覆盖已有项目文件")
+    setup.set_defaults(handler=_setup)
+
     check_model = commands.add_parser(
         "check-model",
         help="只读检查模型项目是否具备开始接入所需的信息",
@@ -1035,6 +1345,29 @@ def _parser() -> argparse.ArgumentParser:
     check_model.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
     check_model.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
     check_model.set_defaults(handler=_check_model)
+
+    check = commands.add_parser(
+        "check",
+        help="汇总项目接入和本地控制面的 readiness/blocker",
+    )
+    check.add_argument("--model", help="模型目录；默认读取项目配置或发现 ./model")
+    check.add_argument("--source", help="模型源码目录；可与权重目录分离")
+    check.add_argument("--data", help="数据目录；默认读取项目配置或发现 ./data")
+    check.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
+    check.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
+    check.add_argument("--repo-root", type=Path, help="VerdiWM 安装目录")
+    check.set_defaults(handler=_check)
+
+    diagnose = commands.add_parser(
+        "diagnose",
+        help="只读扫描模型入口、权重、运行环境和接入阻塞项",
+    )
+    diagnose.add_argument("--model", help="模型目录；默认读取项目配置或发现 ./model")
+    diagnose.add_argument("--source", help="模型源码目录；可与权重目录分离")
+    diagnose.add_argument("--data", help="数据目录；默认读取项目配置或发现 ./data")
+    diagnose.add_argument("--evaluator-contract", type=Path, help="冻结评测契约")
+    diagnose.add_argument("--runtime-python", type=Path, help="模型环境中的 Python")
+    diagnose.set_defaults(handler=_diagnose)
 
     wan22_droid = commands.add_parser(
         "wan22-droid",
@@ -1076,6 +1409,135 @@ def _parser() -> argparse.ArgumentParser:
     diagnose_gain.add_argument("--verifier-manifest", type=Path, required=True)
     diagnose_gain.add_argument("--output", type=Path)
     diagnose_gain.set_defaults(handler=_diagnose_training_gain)
+
+    batch_plan = commands.add_parser(
+        "batch-plan",
+        help="validate heterogeneous model inputs and compile an immutable batch plan",
+    )
+    batch_plan.add_argument("--manifest", type=Path, required=True)
+    batch_plan.add_argument("--output-root", type=Path, required=True)
+    batch_plan.add_argument("--repo-root", type=Path)
+    batch_plan.set_defaults(handler=_batch_plan)
+
+    batch_run = commands.add_parser(
+        "batch-run",
+        help="将批次计划接入独立 campaigns，并通过统一调度器执行",
+    )
+    batch_run.add_argument("--plan", type=Path, required=True, help="batch-plan 输出的 plan.json")
+    batch_run.add_argument("--output-root", type=Path, help="批次目录；默认使用 plan.json 所在目录")
+    batch_run.add_argument("--queue-only", action="store_true", help="只创建并排队，不启动 dispatcher")
+    batch_run.add_argument("--max-parallel", type=int, default=1)
+    batch_run.add_argument("--repo-root", type=Path)
+    batch_run.set_defaults(handler=_batch_run)
+    batch_status = commands.add_parser(
+        "batch-status", help="只读汇总批次中各模型的最新 campaign 状态"
+    )
+    batch_status.add_argument("--execution", type=Path, required=True)
+    batch_status.add_argument("--repo-root", type=Path)
+    batch_status.set_defaults(handler=_batch_status)
+
+    # Grouped aliases are easier to discover in help output while the
+    # hyphenated commands remain stable for scripts and older examples.
+    batch = commands.add_parser("batch", help="批量模型实验的计划和执行")
+    batch_commands = batch.add_subparsers(dest="batch_command", required=True)
+    batch_plan_group = batch_commands.add_parser("plan", help="编译不可变批次计划")
+    batch_plan_group.add_argument("--manifest", type=Path, required=True)
+    batch_plan_group.add_argument("--output-root", type=Path, required=True)
+    batch_plan_group.add_argument("--repo-root", type=Path)
+    batch_plan_group.set_defaults(handler=_batch_plan)
+    batch_run_group = batch_commands.add_parser("run", help="创建并运行批次 campaigns")
+    batch_run_group.add_argument("--plan", type=Path, required=True)
+    batch_run_group.add_argument("--output-root", type=Path)
+    batch_run_group.add_argument("--queue-only", action="store_true")
+    batch_run_group.add_argument("--max-parallel", type=int, default=1)
+    batch_run_group.add_argument("--repo-root", type=Path)
+    batch_run_group.set_defaults(handler=_batch_run)
+    batch_status_group = batch_commands.add_parser(
+        "status", help="只读汇总批次中各模型的最新 campaign 状态"
+    )
+    batch_status_group.add_argument("--execution", type=Path, required=True)
+    batch_status_group.add_argument("--repo-root", type=Path)
+    batch_status_group.set_defaults(handler=_batch_status)
+
+    community = commands.add_parser("community", help="导出和验证社区共享知识包")
+    community_commands = community.add_subparsers(dest="community_command", required=True)
+    community_publish = community_commands.add_parser(
+        "publish", help="签名并导出 path-free Evidence/knowledge bundle"
+    )
+    document_group = community_publish.add_mutually_exclusive_group(required=True)
+    document_group.add_argument(
+        "--document", type=Path, action="append",
+        help="包含一个语义文档或文档数组的 JSON 文件；可重复指定",
+    )
+    document_group.add_argument(
+        "--documents-dir", type=Path,
+        help="读取目录下按文件名排序的 *.json 语义文档",
+    )
+    community_publish.add_argument("--output-root", type=Path, required=True)
+    community_publish.add_argument("--publisher-id", required=True)
+    community_publish.add_argument("--signing-key", type=Path, required=True)
+    community_publish.add_argument(
+        "--trust-state",
+        choices=("unverified", "locally_validated", "source_reproducible", "target_confirmed", "transfer_licensed", "community_reviewed", "revoked"),
+        default="locally_validated",
+    )
+    community_publish.add_argument("--community-review-state", choices=("unreviewed", "reviewed", "withdrawn"), default="unreviewed")
+    community_publish.add_argument("--license-spdx-id")
+    community_publish.add_argument(
+        "--execution", type=Path,
+        help="可选：绑定 batch run 生成的 execution.json；只提取 path-free 批次身份",
+    )
+    community_publish.set_defaults(handler=_community_publish)
+    community_verify = community_commands.add_parser(
+        "verify", help="验证社区 bundle 的签名、成员 hash 和图重建"
+    )
+    community_verify.add_argument("--bundle-root", type=Path, required=True)
+    community_verify.add_argument("--public-key", type=Path, help="可选：独立提供的 Ed25519 公钥；默认使用 bundle 中嵌入的公钥")
+    community_verify.set_defaults(handler=_community_verify)
+    community_export = community_commands.add_parser(
+        "export", help="从本地语义 JSON 只读发现并整理社区发布记录"
+    )
+    community_export.add_argument(
+        "--source-root", type=Path, action="append", required=True,
+        help="递归扫描语义 JSON 的目录；可重复指定",
+    )
+    community_export.add_argument(
+        "--output-root", type=Path, required=True,
+        help="导出目录；会以临时目录和原子替换写入",
+    )
+    community_export.add_argument(
+        "--execution", type=Path,
+        help="可选：绑定 batch execution 的 path-free 身份",
+    )
+    community_export.add_argument(
+        "--max-files", type=int, default=10_000,
+        help="最多扫描的 JSON 文件数",
+    )
+    community_export.add_argument(
+        "--max-file-bytes", type=int, default=5 * 1024 * 1024,
+        help="单个 JSON 文件的最大字节数；超出者会被忽略",
+    )
+    community_export.add_argument("--repo-root", type=Path, help=argparse.SUPPRESS)
+    community_export.set_defaults(handler=_community_export)
+    community_lifecycle = community_commands.add_parser(
+        "lifecycle", help="生成撤回、弃用或 supersession 的 append-only 生命周期记录"
+    )
+    community_lifecycle.add_argument(
+        "--action", choices=("revocation", "deprecation", "supersession"), required=True
+    )
+    community_lifecycle.add_argument("--subject-kind", required=True)
+    community_lifecycle.add_argument("--subject-id", required=True)
+    community_lifecycle.add_argument("--reason", required=True)
+    community_lifecycle.add_argument(
+        "--authority-ref", required=True, help="权威记录的 cas://、urn: 或 sha256: 引用"
+    )
+    community_lifecycle.add_argument(
+        "--evidence-ref", action="append", default=[], help="证据引用；可重复指定"
+    )
+    community_lifecycle.add_argument("--replacement-kind")
+    community_lifecycle.add_argument("--replacement-id")
+    community_lifecycle.add_argument("--output", type=Path, required=True)
+    community_lifecycle.set_defaults(handler=_community_lifecycle)
     return parser
 
 
@@ -1095,6 +1557,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         ConfiguredBrokerError,
         TrainingGainAttributionError,
         FirstContactError,
+        ModelBatchError,
+        CommunityBundleError,
+        CommunityExportError,
+        CommunityKnowledgeError,
     ) as exc:
         message = explain_blocker(exc)
         print(f"{message['error']} [{message['code']}]", file=sys.stderr)

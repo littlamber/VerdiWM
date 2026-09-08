@@ -75,6 +75,15 @@ class FirstContactTests(unittest.TestCase):
         self.assertIn("运行连接器", result["error"])
         self.assertIn("ADAPTER_PROFILE_NOT_FOUND", result["detail"])
 
+    def test_community_errors_are_explained_in_user_language(self) -> None:
+        result = explain_blocker("COMMUNITY_BUNDLE_CRYPTOGRAPHY_REQUIRED:install dependencies")
+        self.assertEqual(result["code"], "COMMUNITY_BUNDLE_CRYPTOGRAPHY_REQUIRED")
+        self.assertIn("uv sync", result["error"])
+        result = explain_blocker("KNOWLEDGE_LIFECYCLE_AUTHORITY_INVALID:bad ref")
+        self.assertIn("生命周期记录", result["error"])
+        result = explain_blocker("COMMUNITY_EXPORT_SOURCE_ROOT_INVALID:missing")
+        self.assertIn("社区语义导出", result["error"])
+
     def test_readiness_requires_an_explicit_evaluator(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)

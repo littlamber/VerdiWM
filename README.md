@@ -45,13 +45,13 @@ With the conventional layout, put the source in `model/` and the data in
 `data/` (or `dataset/`) and run:
 
 ```bash
-uv run verdiwm init --goal "improve long-horizon prediction stability"
+uv run verdiwm setup --goal "improve long-horizon prediction stability"
 ```
 
 Use explicit locations when your layout is different:
 
 ```bash
-uv run verdiwm init \
+uv run verdiwm setup \
   --model /path/to/model \
   --source /path/to/model-source \
   --data /path/to/data \
@@ -61,7 +61,7 @@ uv run verdiwm init \
 Run the read-only onboarding check next:
 
 ```bash
-uv run verdiwm check-model
+uv run verdiwm check
 ```
 
 For an unfamiliar model, generate a durable questionnaire for the user or an
@@ -80,7 +80,7 @@ If a frozen evaluator contract and model Python environment already exist, bind
 them during init:
 
 ```bash
-uv run verdiwm init \
+uv run verdiwm setup \
   --model /path/to/model \
   --data /path/to/data \
   --goal "improve long-horizon prediction stability" \
@@ -104,14 +104,14 @@ After the check has no blockers, launch a campaign. Pass the checkpoint as an
 asset, for example:
 
 ```bash
-uv run verdiwm check-model
+uv run verdiwm check
 uv run verdiwm run \
   --goal "improve long-horizon action-conditioned prediction" \
   --target-metrics runtime_ready \
   --asset=--ckpt_path=/path/to/checkpoint.pt
 ```
 
-If `check-model` or `run` reports a missing evaluator entrypoint, evaluator
+If `check` or `run` reports a missing evaluator entrypoint, evaluator
 contract, runtime, or weight, that is an intentional safety stop. The command
 lists the missing information instead of guessing scientific semantics or
 allocating a GPU. Existing adapter profiles usually need only the paths; a
@@ -124,6 +124,79 @@ installed adapter profile, resolves declared evaluator metrics, and creates
 an isolated adapter overlay when the model interface requires one. Unknown
 metrics, ambiguous profiles, missing scientific assets, and protocol drift
 fail closed with an actionable diagnostic.
+
+## Batch heterogeneous models
+
+Compile one immutable request for several model instances, then materialize
+each ready row into its own campaign:
+
+```bash
+uv run verdiwm batch plan \
+  --manifest batch-request.json \
+  --output-root ./.verdiwm/batches/my-batch
+uv run verdiwm batch run \
+  --plan ./.verdiwm/batches/my-batch/plan.json \
+  --max-parallel 2
+uv run verdiwm batch status \
+  --execution ./.verdiwm/batches/my-batch/execution.json
+```
+
+The batch shares one budget ledger, Archive, and CAS while preserving separate
+campaign revisions and evaluator receipts. Missing frozen evaluators and input
+drift stay visible as row-level blockers. `batch-plan` and `batch-run` remain
+available as script-friendly aliases.
+
+### Publish community knowledge
+
+After a campaign settles, stage path-free semantic records from one or more local
+artifact directories. The exporter is read-only and validates recognized records
+before they cross the publication boundary:
+
+```bash
+uv run verdiwm community export \
+  --source-root ./local-artifacts \
+  --source-root ./.verdiwm/semantic-records \
+  --execution ./.verdiwm/batches/my-batch/execution.json \
+  --output-root ./.verdiwm/community-export
+```
+
+It ignores unrelated runtime JSON, rejects invalid recognized semantic documents,
+deduplicates by canonical SHA-256, and never imports a model, allocates a GPU, or
+copies execution databases and local paths. Publish only the staged `records/`
+directory:
+
+```bash
+uv run verdiwm community publish \
+  --documents-dir ./.verdiwm/community-export/records \
+  --execution ./.verdiwm/batches/my-batch/execution.json \
+  --output-root ./community-bundle \
+  --publisher-id community/example \
+  --signing-key ./publisher-private.pem
+uv run verdiwm community verify \
+  --bundle-root ./community-bundle \
+  --public-key ./publisher-public.pem
+```
+
+The bundle contains only path-free semantic records, a deterministic graph,
+quality audit, member SHA-256 hashes, and an Ed25519 signature. The optional
+`execution.json` contributes only a batch identity binding; campaign paths,
+budget databases, model paths, and runtime commands are never copied. Retrieved
+records remain hypotheses until target-side frozen verification settles them.
+See [Community bundles](docs/COMMUNITY_BUNDLES.md) for the publication boundary.
+
+Create an append-only lifecycle record when a community artifact is revoked or
+superseded:
+
+```bash
+uv run verdiwm community lifecycle \
+  --action revocation \
+  --subject-kind community_bundle \
+  --subject-id verdiwm-bundle-0123456789abcdef01234567 \
+  --reason "target-side verifier found an invalid claim" \
+  --authority-ref cas://sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  --evidence-ref cas://sha256/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  --output ./lifecycle/revocation.json
+```
 
 Explicit options remain available for CI and reproducibility:
 

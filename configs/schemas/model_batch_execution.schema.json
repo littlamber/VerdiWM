@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "batch_id", "plan_sha256", "shared_budget", "campaigns_root", "rows", "summary", "claim_boundary", "execution_sha256"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-model-batch-execution"]},
+    "state": {"enum": ["blocked", "partial", "queued", "completed", "failed"]},
+    "batch_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "shared_budget": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "total_gpu_hours"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "total_gpu_hours": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "campaigns_root": {"type": "string", "minLength": 1},
+    "rows": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": true}},
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_count", "campaign_count", "blocked_count"],
+      "properties": {
+        "model_count": {"type": "integer", "minimum": 1},
+        "campaign_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "dispatcher": {"type": ["object", "null"]},
+    "claim_boundary": {"type": "string", "minLength": 12},
+    "execution_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

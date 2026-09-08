@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "algorithm", "publisher_id", "signing_key_id", "public_key", "manifest_sha256", "signature", "claim_boundary"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"enum": ["verdiwm-community-bundle-signature"]},
+    "algorithm": {"enum": ["ed25519-v1"]},
+    "publisher_id": {"type": "string", "minLength": 3},
+    "signing_key_id": {"type": "string", "pattern": "^key-[0-9a-f]{16}$"},
+    "public_key": {"type": "string", "pattern": "^[A-Za-z0-9+/]{43}=$"},
+    "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "signature": {"type": "string", "pattern": "^[A-Za-z0-9+/]{86}==$"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}
