@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "stateful",
+    "implementation_files",
+    "checks"
+  ],
+  "properties": {
+    "stateful": {
+      "type": "boolean"
+    },
+    "implementation_files": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "test_name",
+          "observable",
+          "failure_condition"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "hook_execution",
+              "no_future_leakage",
+              "ablation_effect",
+              "optimizer_binding",
+              "parameter_update",
+              "train_infer_parity",
+              "state_lifecycle"
+            ]
+          },
+          "test_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "observable": {
+            "type": "string",
+            "minLength": 12
+          },
+          "failure_condition": {
+            "type": "string",
+            "minLength": 12
+          }
+        }
+      }
+    }
+  }
+}

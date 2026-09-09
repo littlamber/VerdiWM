@@ -30,6 +30,13 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 
 这些示例验证的是编排契约，不代表任何模型质量结论。
 
+开放方法生成和 A/B 组合实验已有独立入口：`verdiwm-generate-method` 可调用
+已配置的 LLM 适配器，将方法实现编译成隔离代码包；`verdiwm-open-method-study`
+编译 baseline、A、B、A+B 四组方案并绑定种子、数据、评测与预算估计。
+它们目前交付待校准候选，不会仅凭代码生成成功声称提点；默认研究流水线的
+自动训练、确认与归档桥接仍待接通。实现检查、接口与使用边界见
+[Method-to-Code](docs/METHOD_TO_CODE.md#open-implementation-and-pairwise-studies)。
+
 ## 第一次使用自己的模型
 
 你需要准备四项信息：模型代码目录、模型权重文件、数据集路径，以及一句

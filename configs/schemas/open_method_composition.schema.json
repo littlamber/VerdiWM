@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "component_method_ids",
+    "complementarity",
+    "predicted_joint_effect",
+    "conflict_resolution",
+    "anti_conditions"
+  ],
+  "properties": {
+    "component_method_ids": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "string",
+        "pattern": "^method-ir-[0-9a-f]{24}$"
+      }
+    },
+    "complementarity": {
+      "type": "string",
+      "minLength": 12
+    },
+    "predicted_joint_effect": {
+      "type": "string",
+      "minLength": 12
+    },
+    "conflict_resolution": {
+      "type": "string",
+      "minLength": 12
+    },
+    "anti_conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

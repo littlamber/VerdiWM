@@ -3,6 +3,97 @@
 This document distinguishes implemented interfaces from empirical claims that
 still require experiments.
 
+## Open implementation and pairwise studies
+
+The open-method path accepts candidate-local implementation and training files
+without a fixed primitive family. Its runnable generation bridge is
+`wmloop.control.open_method_generation.generate_open_method`: it invokes the
+configured `run_llm_task` adapter, checks the response digest, target portrait,
+source provenance and component identities, then calls the isolated proposal
+compiler. Provider failures and rejected proposals retain local receipts. The
+bridge does not execute generated code or certify its scientific correctness.
+
+`build_open_method_request` accepts source evidence, the target portrait,
+probe fingerprints, failure context, a kernel-owned `target_portrait_binding`,
+and optionally two validated `component_methods`. It binds the complete input
+and prompt to the request identity. Components are hypotheses unless separately
+supported by target-side evidence; their supplied source digests identify the
+evidence used, not independent verification of a paper's claims.
+
+New ready proposals require `implementation_validation` in Method IR. Each
+check names a declared test, observable and failure condition. All methods
+declare hook execution, no future leakage and an ablation effect; training
+methods also declare optimizer binding, actual parameter updates and
+train/inference parity; stateful methods declare state lifecycle checks.
+Referenced implementation files must exist in the proposed bundle. Compilation
+emits `implementation-check-plan.json` with `state=declared_not_executed`.
+These checks must subsequently run on the target. A declared check, import
+success, decreasing loss or an LLM assertion cannot establish implementation
+fidelity or improvement. Older Method IR without this field remains readable,
+but cannot be compiled as a new ready proposal.
+
+For A+B, `composition` binds two normalized Method IR IDs and describes
+complementarity, the predicted joint effect, conflict resolution and
+anti-conditions. `compile_open_method_study` compiles four isolated bundles:
+
+| Role | Comparison purpose |
+| --- | --- |
+| `baseline` | Unmodified target control, represented by an explicit proposal |
+| `source_only` | A's effect and removal of B |
+| `target_only` | B's effect and removal of A |
+| `combined` | Joint effect and removal of neither |
+
+The kernel supplies a common checkpoint digest, train/selection/confirmation
+split digests, verifier digest, paired seeds, per-arm cost estimates and total
+GPU budget. Arms must agree on portrait and metric bindings; incomplete,
+inconsistent or over-budget studies do not publish a partial study. The first
+version supports pairs only. Method IDs must differ, but semantic identity
+cannot be proved by hashing: target-side checks must verify that baseline has
+no intervention and that each ablation changes only its intended mechanism.
+
+`study.json` binds every compiled file's hash and requires contrasts A−base,
+B−base, AB−base, AB−A, AB−B, and AB−A−B+base. Effects must first be oriented so
+larger means better. Improvement over both individual methods and positive
+additive interaction are distinct claims. Both need paired uncertainty and
+independent confirmation, with protected metrics and training/inference costs.
+Distinct split hashes do not prove disjoint episodes, and a cost estimate is
+not a GPU lease or an enforced runtime limit. Runtime validation and the
+existing budget ledger remain necessary.
+
+Deployment-facing commands (the request files are internal research artifacts):
+
+```bash
+uv run verdiwm-generate-method \
+  --request /workspace/research/open-method-request.json \
+  --adapter /workspace/research/llm-adapter.json \
+  --base-revision /workspace/research/base-revision.json \
+  --output /workspace/research/generated-a
+
+uv run verdiwm-open-method-study \
+  --request /workspace/research/study-request.json \
+  --output /workspace/research/study-ab
+```
+
+Use fresh output directories outside the VerdiWM checkout. The first request
+is produced by `build_open_method_request`; the adapter uses the existing
+trusted LLM adapter configuration. The second request contains `proposals`
+with exactly the four roles above, `base_revision`, `target_portrait_binding`,
+`experiment_binding` (the five `*_digest` fields above), `seeds`,
+`estimated_gpu_hours_per_seed` (one positive value per role), and
+`budget_gpu_hours`. Module entrypoints are also available through
+`python -m wmloop.control.open_method_generation` and
+`python -m wmloop.control.open_method_study`.
+
+These entrypoints connect provider output to real candidate files and complete
+study compilation. The default literature pipeline still needs an integration
+that selects open candidates, executes their target checks, submits the four
+arms to the scheduler and deposits settled results. Existing registered
+primitive compositions retain their separate execution and settlement path in
+`mechanism_composition.py`; the new study does not bypass that verifier or
+promote an open method on compilation alone.
+
+## Implementation map
+
 | Method object | Code surface | Current evidence |
 |---|---|---|
 | Goal compiler and constitutional contract | `wmloop/control/user_intent_compiler.py`, `wmloop/constitution.py`, `configs/schemas/` | Implemented and contract tested |

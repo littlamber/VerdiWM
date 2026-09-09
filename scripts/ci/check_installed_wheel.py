@@ -23,6 +23,8 @@ def main() -> None:
             ("verdiwm", ["evidence", "project", "--help"]),
             ("verdiwm", ["community", "verify", "--help"]),
             ("verdiwm-workbench", ["--help"]),
+            ("verdiwm-open-method-study", ["--help"]),
+            ("verdiwm-generate-method", ["--help"]),
             ("verdiwm-ctrl-world-autonomous-transfer", ["--help"]),
         ):
             subprocess.run([str(root / "env/bin" / name), *arguments], check=True, cwd=root, env=environment, stdout=subprocess.DEVNULL)

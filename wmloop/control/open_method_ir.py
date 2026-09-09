@@ -39,6 +39,8 @@ def build_method_ir(
     training: Mapping[str, object],
     falsification: Mapping[str, object],
     source_evidence_digest: str | None = None,
+    implementation_validation: Mapping[str, object] | None = None,
+    composition: Mapping[str, object] | None = None,
     mechanism_hypothesis: Mapping[str, object] | None = None,
     target_portrait_binding: Mapping[str, object] | None = None,
     probe_binding: Mapping[str, object] | None = None,
@@ -61,6 +63,10 @@ def build_method_ir(
         "state": state,
         "claim_boundary": claim_boundary,
     }
+    if implementation_validation is not None:
+        body["implementation_validation"] = dict(implementation_validation)
+    if composition is not None:
+        body["composition"] = dict(composition)
     if mechanism_hypothesis is not None:
         body["mechanism_hypothesis"] = dict(mechanism_hypothesis)
     if target_portrait_binding:
@@ -82,6 +88,8 @@ def validate_method_ir(document: Mapping[str, object], *, root: Path | None = No
     method_id = document.get("method_id")
     if method_id != "method-ir-" + method_ir_digest(document)[:24]:
         raise OpenMethodIRError("METHOD_IR_DIGEST_MISMATCH")
+    from wmloop.control.method_realization import validate_realization
+    validate_realization(document, root=root)
     _validate_digests(document.get("source_evidence"))
     hypothesis = document.get("mechanism_hypothesis")
     if hypothesis is not None:

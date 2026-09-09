@@ -33,6 +33,8 @@
         }
       }
     },
+    "implementation_validation": {"type": "object"},
+    "composition": {"type": "object"},
     "mechanism_hypothesis": {"type": "object"},
     "mechanism": {
       "type": "object",

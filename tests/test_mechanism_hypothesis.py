@@ -31,6 +31,13 @@ def method(hypothesis=None):
         training={'mode':'inference','objective':'Reduce scene identity drift', 'trainable_scope':[], 'data_requirements':[], 'scale':{'sequence_length':0,'batch_size':0,'planned_steps':0,'estimated_trainable_parameters':0}},
         falsification={'prediction':'Late-horizon identity error decreases with anchor context', 'primary_metrics':['identity_error'],'protected_metrics':['action_fidelity'], 'ablations':['Remove anchor slot'], 'anti_conditions':['No persistent scene identity']},
         mechanism_hypothesis=hypothesis,
+        implementation_validation={
+            'stateful':False, 'implementation_files':['apply.py'],
+            'checks':[{'kind':kind, 'test_name':'anchor_selection',
+                       'observable':'Selected anchors change the returned context',
+                       'failure_condition':'Reject if context selection ignores the intervention'}
+                      for kind in ['hook_execution','no_future_leakage','ablation_effect']],
+        },
     )
 
 

@@ -73,6 +73,8 @@ PUBLIC_TEST_FILES = (
     "test_scheduler_recovery.py",
     "test_episode_inventory.py",
     "test_mechanism_hypothesis.py",
+    "test_open_method_study.py",
+    "test_open_method_generation.py",
     "test_literature_materialization.py",
     "test_verdiwm_geometry.py",
     "test_acwm_unified_irg_assets.py",

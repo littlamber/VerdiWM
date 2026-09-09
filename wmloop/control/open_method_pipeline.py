@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import shutil
+from copy import deepcopy
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 
@@ -23,6 +24,7 @@ from wmloop.control.candidate_execution import (
 )
 from wmloop.control.open_method_compiler import compile_candidate_overlay
 from wmloop.control.open_method_ir import build_method_ir, validate_method_ir
+from wmloop.control.method_realization import validate_realization_files
 
 
 class OpenMethodPipelineError(RuntimeError):
@@ -44,6 +46,24 @@ target_touchpoint (list), predicted_observation, falsification_test,
 required_capabilities (matching target_mapping), anti_conditions, source_evidence
 (list of source_id values from Method IR), and novelty_status. The kernel assigns
 its identity. No candidate_ready proposal is admitted without this contract.
+Also supply method_ir.implementation_validation: stateful (boolean),
+implementation_files (candidate implementation paths), and checks, each with kind,
+test_name (matching a declared test), observable, and failure_condition.
+Required check kinds: hook_execution, no_future_leakage, ablation_effect;
+training adds optimizer_binding, parameter_update, train_infer_parity;
+stateful methods add state_lifecycle (reset, causal update, train/rollout lifetime).
+These must exercise the target method, not just imports or decreasing loss.
+For combinations use mapping_state=composition_candidate and method_ir.composition:
+component_method_ids (two normalized Method IR identities), complementarity,
+predicted_joint_effect, conflict_resolution, anti_conditions. Explain why the
+mechanisms should interact; do not label a combination as proven synergy.
+When component_methods are supplied, use their exact method_id values and inspect
+their mechanisms, implementation checks, and anti-conditions before composing.
+Their presence does not mean either component is effective on the target.
+Copy target_portrait_binding into Method IR when supplied. Preserve the source_id
+and source_digest of cited input evidence; do not invent source provenance.
+The experiment study must include baseline, source_only, target_only, combined
+with common frozen checkpoint/data/verifier bindings and paired seeds.
 """
 
 
@@ -53,16 +73,33 @@ def build_open_method_request(
     target_portrait: Mapping[str, object],
     probe_fingerprints: Sequence[Mapping[str, object]],
     failure_context: Sequence[str],
+    component_methods: Sequence[Mapping[str, object]] = (),
+    target_portrait_binding: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Build a provider-neutral LLM request with no predefined method ABI."""
 
-    seed = {
+    components = [deepcopy(dict(row)) for row in component_methods]
+    if components:
+        if len(components) != 2:
+            raise OpenMethodPipelineError("OPEN_METHOD_TWO_COMPONENTS_REQUIRED")
+        for component in components:
+            validate_method_ir(component)
+            if component.get("composition") is not None:
+                raise OpenMethodPipelineError("OPEN_METHOD_NESTED_COMPOSITION_UNSUPPORTED")
+        if components[0]["method_id"] == components[1]["method_id"]:
+            raise OpenMethodPipelineError("OPEN_METHOD_DISTINCT_COMPONENTS_REQUIRED")
+    request_input = {
+        "instructions": OPEN_METHOD_PROMPT,
         "source_evidence": [dict(row) for row in source_evidence],
-        "portrait_id": target_portrait.get("portrait_id"),
-        "probe_ids": sorted(str(row.get("fingerprint_id")) for row in probe_fingerprints),
+        "target_portrait": dict(target_portrait),
+        "probe_fingerprints": [dict(row) for row in probe_fingerprints],
         "failure_context": sorted(set(str(value) for value in failure_context)),
+        "component_methods": components,
     }
-    task_id = "open-method-" + _digest(seed)[:24]
+    request_input = deepcopy(request_input)
+    if target_portrait_binding is not None:
+        request_input["target_portrait_binding"] = deepcopy(dict(target_portrait_binding))
+    task_id = "open-method-" + _digest(request_input)[:24]
     return {
         "schema_version": 1,
         "artifact_type": "verdiwm-llm-research-task",
@@ -70,13 +107,7 @@ def build_open_method_request(
         "task_type": "open_method_generation",
         "prompt_template_digest": hashlib.sha256(OPEN_METHOD_PROMPT.encode()).hexdigest(),
         "output_schema": "open_method_proposal",
-        "input": {
-            "instructions": OPEN_METHOD_PROMPT,
-            "source_evidence": [dict(row) for row in source_evidence],
-            "target_portrait": dict(target_portrait),
-            "probe_fingerprints": [dict(row) for row in probe_fingerprints],
-            "failure_context": sorted(set(str(value) for value in failure_context)),
-        },
+        "input": request_input,
     }
 
 
@@ -138,6 +169,7 @@ def compile_open_method_proposal(
             raise OpenMethodPipelineError("OPEN_METHOD_MAPPING_NOT_ADMISSIBLE")
         if not files or not tests or blockers or extensions or execution is None:
             raise OpenMethodPipelineError("OPEN_METHOD_READY_STATE_INCONSISTENT")
+        validate_realization_files(method, files, tests, root=root)
     elif files or execution is not None:
         raise OpenMethodPipelineError("OPEN_METHOD_BLOCKED_FILES_FORBIDDEN")
     if state == "interface_extension_required" and not extensions:
@@ -149,6 +181,14 @@ def compile_open_method_proposal(
     try:
         temporary.mkdir(mode=0o700, parents=True)
         _write_json(temporary / "method-ir.json", method)
+        if state == "candidate_ready":
+            _write_json(temporary / "implementation-check-plan.json", {
+                "method_id": method["method_id"],
+                "state": "declared_not_executed",
+                "requirements": method["implementation_validation"],
+                "tests": tests,
+                "claim_boundary": "Target-side calibration must execute these checks; declarations grant no scientific validity.",
+            })
         if execution is not None:
             _write_json(temporary / "candidate-execution.json", execution)
         for extension in extensions:
@@ -220,6 +260,8 @@ def _normalize_method_ir(raw: Mapping[str, object], *, root: Path) -> dict[str, 
             hypothesis = build_mechanism_hypothesis(**payload)
     method = build_method_ir(
         mechanism_hypothesis=hypothesis,
+        implementation_validation=(_mapping(raw, "implementation_validation") if "implementation_validation" in raw else None),
+        composition=(_mapping(raw, "composition") if "composition" in raw else None),
         source_evidence=_mapping_rows(raw["source_evidence"]),
         mechanism=_mapping(raw, "mechanism"),
         target_mapping=_mapping(raw, "target_mapping"),

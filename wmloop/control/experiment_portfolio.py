@@ -98,8 +98,9 @@ def build_relation_hypothesis_batch(
             | set(str(value) for value in relation["required_ablations"])
         ),
         falsification_criterion=(
-            "The composition is falsified when the combined effect does not exceed "
-            "the additive single-mechanism contrast, or when a protected metric regresses."
+            "The improvement claim is falsified when the combined outcome does not improve "
+            "over both single-mechanism controls, or when a protected metric regresses. "
+            "Test the additive interaction separately before claiming superadditive synergy."
         ),
         known_anti_conditions=sorted(
             set(str(value) for value in source_mechanism["known_anti_conditions"])
