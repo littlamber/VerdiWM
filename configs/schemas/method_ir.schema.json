@@ -33,6 +33,7 @@
         }
       }
     },
+    "mechanism_hypothesis": {"type": "object"},
     "mechanism": {
       "type": "object",
       "additionalProperties": false,

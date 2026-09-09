@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state_id",
+    "phase",
+    "goal",
+    "model_portrait_ref",
+    "irg_ref",
+    "hypotheses",
+    "candidate_actions",
+    "evidence_refs",
+    "budget",
+    "representation_version",
+    "stop_conditions",
+    "claim_boundary",
+    "revision",
+    "last_transition"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_type": {
+      "const": "verdiwm-research-state"
+    },
+    "state_id": {
+      "type": "string",
+      "pattern": "^research-state-[0-9a-f]{24}$"
+    },
+    "phase": {
+      "enum": [
+        "observe",
+        "hypothesize",
+        "select",
+        "implement",
+        "verify",
+        "remember",
+        "refine",
+        "blocked",
+        "settled"
+      ]
+    },
+    "goal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "description",
+        "metrics"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "model_portrait_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "irg_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "candidate_actions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gpu_hours_limit",
+        "gpu_hours_remaining",
+        "trial_count_remaining",
+        "authority"
+      ],
+      "properties": {
+        "gpu_hours_limit": {
+          "type": "number",
+          "minimum": 0
+        },
+        "gpu_hours_remaining": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "trial_count_remaining": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "authority": {
+          "const": "external_budget_ledger"
+        }
+      }
+    },
+    "representation_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "last_transition": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "reason",
+        "parent_state_id"
+      ],
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_state_id": {
+          "type": "string",
+          "pattern": "^research-state-[0-9a-f]{24}$"
+        }
+      }
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 12
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

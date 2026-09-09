@@ -39,6 +39,7 @@ def build_method_ir(
     training: Mapping[str, object],
     falsification: Mapping[str, object],
     source_evidence_digest: str | None = None,
+    mechanism_hypothesis: Mapping[str, object] | None = None,
     target_portrait_binding: Mapping[str, object] | None = None,
     probe_binding: Mapping[str, object] | None = None,
     interface_extension_refs: Sequence[str] = (),
@@ -60,6 +61,8 @@ def build_method_ir(
         "state": state,
         "claim_boundary": claim_boundary,
     }
+    if mechanism_hypothesis is not None:
+        body["mechanism_hypothesis"] = dict(mechanism_hypothesis)
     if target_portrait_binding:
         body["target_portrait_binding"] = dict(target_portrait_binding)
     if probe_binding:
@@ -80,6 +83,15 @@ def validate_method_ir(document: Mapping[str, object], *, root: Path | None = No
     if method_id != "method-ir-" + method_ir_digest(document)[:24]:
         raise OpenMethodIRError("METHOD_IR_DIGEST_MISMATCH")
     _validate_digests(document.get("source_evidence"))
+    hypothesis = document.get("mechanism_hypothesis")
+    if hypothesis is not None:
+        from wmloop.control.mechanism_hypothesis import validate_mechanism_hypothesis
+        validate_mechanism_hypothesis(hypothesis, root=root)
+        source_ids = {row["source_id"] for row in document["source_evidence"]}
+        if not set(hypothesis["source_evidence"]).issubset(source_ids):
+            raise OpenMethodIRError("METHOD_IR_HYPOTHESIS_SOURCE_UNBOUND")
+        if set(hypothesis["required_capabilities"]) != set(document["target_mapping"]["required_capabilities"]):
+            raise OpenMethodIRError("METHOD_IR_HYPOTHESIS_CAPABILITY_MISMATCH")
     evidence_digest = document.get("source_evidence_digest")
     if evidence_digest is not None and evidence_digest != _evidence_digest(document["source_evidence"]):
         raise OpenMethodIRError("METHOD_IR_SOURCE_EVIDENCE_DIGEST_MISMATCH")

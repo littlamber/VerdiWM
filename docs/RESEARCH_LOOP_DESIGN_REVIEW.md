@@ -91,3 +91,26 @@ IRG 应是面向修复选择的、任务与上下文相关的干预响应表示�
 6. 比较加入反例前后的表示，要求外层选择遗憾改善且校准不过度退化。保留没有成功改进的运行，不以筛选后的案例宣称持续进步。
 
 工程目标可以承诺为自动化流程与可复现证据。研究有效性需要用独立确认成功率、首次有效提升成本、最终效果、负迁移和用户人工介入次数来证明，不能承诺每个任意新模型都能在固定预算内获得提升。
+
+## 本轮落地：研究状态与方法准入（2026-09-09）
+
+前述审查条目是修复前的记录。IRG 坐标覆盖、距离版本和默认路由已在 `5c404ce` 修订。本轮实现以下通用控制平面能力，未加入 Wan/DROID 专用判断。
+
+### 已接入的行为
+
+- `wmloop/control/research_state.py` 提供内容绑定的状态和原子日志。`autonomous_pipeline` 从已绑定的 scheduler objective、evaluator metrics 和预算建立日志，记录 observe、hypothesize、select、implement、verify、remember、settled 或 blocked。入口无需新增用户配置。
+- 输出目录中的 `research/research-state.json` 保存当前状态，`research/research-history/` 保存历史，`research/research-binding.json` 绑定输入。相同输入重开日志保留当前状态；中断重试显式记录 blocked → observe，继续复用执行器的原有回执。已结算的同一 pipeline 返回其已有 manifest。
+- 日志是**决策过程的投影**，不是新的实验、预算或知识权威。剩余 GPU 预算未接入 ledger 时保持 null；`settled` 只表示这次执行流程结算，不表示模型提升。`refine` 有状态契约，但本轮未把它伪造为已执行的表示进化。
+- `mechanism_hypothesis` 记录目标故障、因果假设、实际作用位置、预测、否证实验、所需能力、反条件、证据来源与新颖性分类。Method IR 对该对象一起计算摘要，校验来源 ID 与能力声明的一致性。旧 IR 仍可读取，但新 `candidate_ready` 开放方法必须提供机制契约；blocked/missing interface 方法不获得校准资格。
+- 未知文献方法默认返回 `REAL_METHOD_IMPLEMENTATION_REQUIRED`。显式 `interface_smoke_only=True` 可保留接口测试回执，但原样返回输入的 surrogate 即使所有测试通过，也不能进入正式候选目录。automatic materialization 与下游候选编译同时限制这一边界。
+- 新回执记录 `real_method_required_v2` 策略及 surrogate 标记。旧 materialization 回执需在新的输出目录重新验证，不能自动继承新策略的准入资格。文献 materialization 缓存绑定所选 work order 内容与评测输入，并检查 catalog 摘要，拒绝不同输入或模式之间的静默复用。
+
+### 本轮未证明的能力
+
+机制契约的形式有效，不证明其因果解释正确；`surrogate=False` 也不证明实现真实改变了预期机制。后续仍需目标侧实际改动检查、配对实验、机制消融与独立确认。
+
+默认文献入口目前在缺少真实实现时明确阻断；本轮没有宣称它已经自动调用开放方法生成器、修复任意模型接口并获得提升。开放方法编译与主流水线研究状态已有接口基础，竞争解释的自动产生、诊断与修复的统一选择、真实方法生成到调度的完整桥接，以及反例驱动表示更新，仍需逐项接通并验收。日志中的空 hypotheses 必须保持为空，不能把检索词或现有模板文案冒充为已完成的机制推断。
+
+### 验证范围
+
+新增 CPU 回归覆盖阶段顺序、输入不可变性、预算越权拒绝、日志历史与恢复、绑定路径保护、机制来源和能力绑定、开放方法准入，以及 surrogate/旧回执隔离。pipeline 集成测试使用替代执行器检查流程连接，不产生模型效果证据。完整 wheel 构建和隔离安装检查用于验证公开分发。本轮不运行 GPU 研究，不改写已有实验效果或论文数字。

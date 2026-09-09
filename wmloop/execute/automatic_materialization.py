@@ -160,6 +160,9 @@ def run_automatic_materialization(
     )
     resumed = _resume_terminal(destination, input_lock=input_lock)
     if resumed is not None:
+        receipt = _load(destination / "receipt.json", "AUTOMATIC_MATERIALIZATION_RECEIPT_INVALID")
+        if receipt.get("admission_policy") != "real_method_required_v2":
+            raise AutomaticMaterializationError("AUTOMATIC_MATERIALIZATION_LEGACY_RECEIPT_REQUIRES_NEW_OUTPUT")
         return resumed
     destination.mkdir(mode=0o700, parents=True, exist_ok=False)
     _write_json(destination / "input-lock.json", input_lock)
@@ -276,6 +279,9 @@ def run_automatic_materialization(
 
     if plan.get("candidate_template") is None:
         blockers.append({"code": "CANDIDATE_TEMPLATE_MISSING"})
+    implementation_contract = plan.get("implementation_contract")
+    if isinstance(implementation_contract, Mapping) and implementation_contract.get("surrogate") is True:
+        blockers.append({"code": "SURROGATE_IMPLEMENTATION_NOT_FORMAL_CANDIDATE"})
     source_status_after = _git_output(source, ("status", "--porcelain=v1", "-z"))
     if source_status_after != source_status_before or _git_revision(source) != source_revision:
         raise AutomaticMaterializationError("AUTOMATIC_MATERIALIZATION_SOURCE_MUTATED")
@@ -296,6 +302,8 @@ def run_automatic_materialization(
     receipt = {
         "schema_version": 1,
         "artifact_type": "verdiwm-automatic-materialization-receipt",
+        "admission_policy": "real_method_required_v2",
+        "surrogate": isinstance(implementation_contract, Mapping) and implementation_contract.get("surrogate") is True,
         "state": state,
         "candidate_id": plan["candidate_id"],
         "idea_id": idea["idea_id"],

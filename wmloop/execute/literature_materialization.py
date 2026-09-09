@@ -1,11 +1,8 @@
-"""Automatic, receipt-bound materialization for literature method work orders.
+"""Stage literature methods without granting interface surrogates research authority.
 
-Literature records are hypotheses, not executable code.  This module closes
-the control-plane gap by translating each record into a versioned research
-idea and sending it through the existing isolated materialization engine.  The
-default implementation is a small, explicit adapter surrogate: it is useful
-for testing the target runtime contract, but its receipt never claims that the
-paper was faithfully reproduced.
+Unknown methods remain blocked until the open method pipeline supplies a real
+implementation. Explicit interface smoke runs retain their check receipts, but
+produce no scientific candidate catalog entries.
 """
 
 from __future__ import annotations
@@ -18,6 +15,8 @@ import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+
+from wmloop.storage import atomic_write, checked_path
 
 from wmloop.execute.automatic_materialization import (
     AutomaticMaterializationError,
@@ -41,6 +40,7 @@ def run_literature_method_materialization(
     archive_db: Path | None = None,
     cas_root: Path | None = None,
     max_candidates: int = 8,
+    interface_smoke_only: bool = False,
 ) -> dict[str, object]:
     """Materialize staged unknown methods independently and merge ready catalogs."""
 
@@ -50,19 +50,55 @@ def run_literature_method_materialization(
     orders = source.get("work_order_paths")
     if not isinstance(orders, Mapping):
         raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_WORK_ORDERS_INVALID")
-    if max_candidates < 1:
+    if type(max_candidates) is not int or max_candidates < 1:
         raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_LIMIT_INVALID")
-    prototype = _scheduler_prototype(evaluator_contract)
-    destination = Path(output_root).expanduser().resolve()
+    if any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", key)
+           or not isinstance(value, str) for key, value in orders.items()):
+        raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_WORK_ORDERS_INVALID")
+    selected_orders = sorted(orders.items())[:max_candidates]
+    input_sha256 = _sha256(_canonical({
+        "source": source, "max_candidates": max_candidates,
+        "work_orders": {key: _sha256(Path(value).read_bytes()) for key, value in selected_orders},
+        "source_root": str(Path(source_root).resolve()),
+        "evaluator_sha256": _sha256(Path(evaluator_contract).read_bytes()),
+    }))
+    destination = checked_path(output_root, code="LITERATURE_MATERIALIZATION_OUTPUT_INVALID", error=LiteratureMaterializationError)
     if destination.exists() or destination.is_symlink():
         manifest_path = destination / "manifest.json"
         if not manifest_path.is_file() or manifest_path.is_symlink():
             raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_OUTPUT_INVALID")
-        return _load(manifest_path)
+        existing = _load(manifest_path)
+        if existing.get("policy_version") != "real_method_required_v2":
+            raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_LEGACY_SURROGATE_REQUIRES_NEW_OUTPUT")
+        if existing.get("interface_smoke_only") != interface_smoke_only:
+            raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_MODE_MISMATCH")
+        if existing.get("input_sha256") != input_sha256:
+            raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_INPUT_MISMATCH")
+        catalog = checked_path(destination / "candidate-catalog.json", code="LITERATURE_MATERIALIZATION_CATALOG_INVALID", error=LiteratureMaterializationError)
+        if existing.get("candidate_catalog_sha256") != _sha256(catalog.read_bytes()):
+            raise LiteratureMaterializationError("LITERATURE_MATERIALIZATION_CATALOG_CHANGED")
+        return existing
     destination.mkdir(mode=0o700, parents=True)
+    if not interface_smoke_only:
+        records = [{"candidate_id": candidate_id, "state": "blocked", "error": "REAL_METHOD_IMPLEMENTATION_REQUIRED", "work_order_path": raw_order}
+                   for candidate_id, raw_order in selected_orders]
+        catalog = _merge_catalogs([], source=source, model_family="world_model", blocked=records)
+        catalog_path = destination / "candidate-catalog.json"
+        _write(catalog_path, catalog)
+        manifest = {
+            "schema_version": 1, "artifact_type": "wmloop-literature-method-materialization-manifest",
+            "input_sha256": input_sha256,
+            "policy_version": "real_method_required_v2", "interface_smoke_only": False, "state": "blocked" if records else "ready",
+            "record_count": len(records), "ready_count": 0, "blocked_count": len(records), "records": records,
+            "candidate_catalog_path": str(catalog_path), "candidate_catalog_sha256": _sha256(catalog_path.read_bytes()),
+            "claim_boundary": "Unknown methods require a real implementation; interface surrogates grant no experiment authority.",
+        }
+        _write(destination / "manifest.json", manifest)
+        return manifest
+    prototype = _scheduler_prototype(evaluator_contract)
     records: list[dict[str, object]] = []
     catalogs: list[dict[str, object]] = []
-    for candidate_id, raw_order in sorted(orders.items())[:max_candidates]:
+    for candidate_id, raw_order in selected_orders:
         if not isinstance(candidate_id, str) or not isinstance(raw_order, str):
             continue
         try:
@@ -105,8 +141,11 @@ def run_literature_method_materialization(
     _write(catalog_path, merged)
     manifest = {
         "schema_version": 1,
+        "policy_version": "real_method_required_v2",
+        "interface_smoke_only": True,
+        "input_sha256": input_sha256,
         "artifact_type": "wmloop-literature-method-materialization-manifest",
-        "state": "ready",
+        "state": "blocked" if any(row.get("state") == "blocked" for row in records) else "ready",
         "source_staging_manifest": str(Path(method_staging_manifest).resolve()),
         "record_count": len(records),
         "ready_count": sum(row.get("state") == "ready_for_candidate_compilation" for row in records),
@@ -114,7 +153,7 @@ def run_literature_method_materialization(
         "records": records,
         "candidate_catalog_path": str(catalog_path),
         "candidate_catalog_sha256": _sha256(catalog_path.read_bytes()),
-        "claim_boundary": "Ready receipts admit bounded candidate compilation of explicit adapter surrogates; they do not certify faithful reproduction of the cited paper or promotion.",
+        "claim_boundary": "Interface checks grant no scientific candidate or promotion authority; inspect child receipts for smoke results.",
     }
     _write(destination / "manifest.json", manifest)
     return manifest
@@ -188,7 +227,7 @@ def _merge_catalogs(catalogs: Sequence[Mapping[str, Any]], *, source: Mapping[st
         }
         for row in blocked
     ]
-    return {"schema_version": 1, "artifact_type": "verdiwm-method-candidate-catalog", "catalog_id": "literature-materialized-" + _sha256(_canonical(source))[:16], "model_family": model_family, "candidates": candidates, "capability_gaps": gaps, "claim_boundary": "Candidates are admitted only through their bound automatic-materialization receipts; each is an explicit adapter surrogate unless its descriptor says otherwise."}
+    return {"schema_version": 1, "artifact_type": "verdiwm-method-candidate-catalog", "catalog_id": "literature-materialized-" + _sha256(_canonical(source))[:16], "model_family": model_family, "candidates": candidates, "capability_gaps": gaps, "claim_boundary": "Only real implementations may receive candidate authority; interface surrogates remain capability gaps."}
 
 
 def _safe_id(value: str) -> str:
@@ -211,8 +250,7 @@ def _canonical(value: object) -> bytes:
 
 
 def _write(path: Path, value: Mapping[str, object]) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    path.write_bytes(_canonical(value))
+    atomic_write(path, _canonical(value))
 
 
 def _sha256(value: bytes) -> str:

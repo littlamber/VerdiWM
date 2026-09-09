@@ -26,6 +26,7 @@ from wmloop.control.onboarding_compiler import (
     compile_and_plan,
 )
 from wmloop.control.method_candidate_compiler import MethodCandidateCompilerError
+from wmloop.control.research_state import ResearchJournal, build_research_state
 from wmloop.control.research_modes import ResearchModeError, normalize_research_mode
 from wmloop.control.onboarding_conformance import (
     ConformanceOptions,
@@ -239,6 +240,21 @@ def run_autonomous_pipeline(
     )
     compiled = destination / "compiled"
     cpbe_root = destination / "causal-discovery"
+    journal = ResearchJournal.open_or_create(
+        destination / "research", input_hash=input_hash,
+        initial=_initial_research_state(evaluator, budget_total_gpu_hours, model_irg_path),
+    )
+    current = journal.read()
+    if current["phase"] == "settled":
+        manifest = _load_json(destination / "pipeline-manifest.json", "AUTONOMOUS_PIPELINE_MANIFEST_INVALID")
+        validate_document("autonomous_pipeline_manifest", manifest)
+        if manifest["input_hash"] != input_hash or manifest["state"] != "settled":
+            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_RESEARCH_SETTLEMENT_MISMATCH")
+        return manifest
+    if current["phase"] != "observe":
+        if current["phase"] != "blocked":
+            journal.advance("blocked", "Previous pipeline attempt interrupted before settlement.")
+        journal.advance("observe", "Resume bound inputs and existing experiment receipts.")
     stage = "onboarding"
     try:
         if sidecar.exists() or sidecar.is_symlink():
@@ -266,6 +282,7 @@ def run_autonomous_pipeline(
             return _settle_pipeline(
                 destination,
                 input_hash=input_hash,
+                journal=journal,
                 state="blocked",
                 verdict="BLOCKED",
                 blocked_stage="onboarding",
@@ -283,6 +300,7 @@ def run_autonomous_pipeline(
             return _settle_pipeline(
                 destination,
                 input_hash=input_hash,
+                journal=journal,
                 state="blocked",
                 verdict="BLOCKED",
                 blocked_stage="conformance",
@@ -359,6 +377,7 @@ def run_autonomous_pipeline(
                 return _settle_pipeline(
                     destination,
                     input_hash=input_hash,
+                    journal=journal,
                     state="blocked",
                     verdict="BLOCKED",
                     blocked_stage="diagnostic_probe",
@@ -408,6 +427,10 @@ def run_autonomous_pipeline(
         )
         retrieval_context["capsule"] = capsule
         retrieval_context["capsule_path"] = str(capsule_path)
+        journal.advance(
+            "hypothesize", "Diagnostic observations and retrieval evidence are available; causes remain hypotheses.",
+            evidence_refs=[*journal.read()["evidence_refs"], str(capsule_path)],
+        )
         literature_query = options.literature_query
         irg_guided = retrieval_context.get("irg_guided")
         if isinstance(irg_guided, Mapping):
@@ -572,6 +595,7 @@ def run_autonomous_pipeline(
                 return _settle_pipeline(
                     destination,
                     input_hash=input_hash,
+                    journal=journal,
                     state="blocked",
                     verdict="BLOCKED",
                     blocked_stage=blocker,
@@ -580,6 +604,7 @@ def run_autonomous_pipeline(
                     cpbe=cpbe_manifest,
                 )
 
+        journal.advance("select", "Compile implementable candidates under the bound evaluator and budget.")
         stage = "compilation"
         compilation_manifest = compile_and_plan(
             sidecar_root=sidecar,
@@ -615,6 +640,11 @@ def run_autonomous_pipeline(
             )
         queue_path = Path(str(compilation_manifest["queue_path"]))
 
+        queue = _load_json(queue_path, "AUTONOMOUS_PIPELINE_QUEUE_INVALID")
+        journal.advance(
+            "implement", "Execute the selected candidate plans; interface checks do not establish repair effects.",
+            candidate_actions=[dict(row) for row in queue.get("selected", []) if isinstance(row, Mapping)],
+        )
         stage = "execution"
         execution = run_selected_queue(
             queue_path=queue_path,
@@ -630,15 +660,23 @@ def run_autonomous_pipeline(
                 options.budget_require_high_cost_approval
             ),
         )
+        journal.advance("verify", "Inspect scheduler completion; scientific effects remain governed by frozen trial verdicts.")
         candidate_states = execution.get("candidate_states")
         passed = (
             isinstance(candidate_states, Mapping)
             and bool(candidate_states)
             and all(value == "completed" for value in candidate_states.values())
         )
+        if passed:
+            evidence_refs = list(journal.read()["evidence_refs"])
+            execution_path = compiled / "queue" / "execution.json"
+            if execution_path.is_file():
+                evidence_refs.append(str(execution_path))
+            journal.advance("remember", "Retain execution provenance without inferring positive model effects.", evidence_refs=evidence_refs)
         return _settle_pipeline(
             destination,
             input_hash=input_hash,
+            journal=journal,
             state="settled" if passed else "blocked",
             verdict="PASS" if passed else "BLOCKED",
             blocked_stage=None if passed else "execution",
@@ -655,6 +693,8 @@ def run_autonomous_pipeline(
             cpbe=cpbe_manifest,
         )
     except Exception as exc:
+        if journal.read()["phase"] not in {"blocked", "settled"}:
+            journal.advance("blocked", f"Pipeline interrupted at {stage}: {type(exc).__name__}")
         _write_json_atomic(
             destination / "pipeline-manifest.json",
             _manifest(
@@ -667,6 +707,25 @@ def run_autonomous_pipeline(
             ),
         )
         raise
+
+
+def _initial_research_state(evaluator: Path, budget: float, irg: Path | None) -> dict:
+    contract = _load_json(evaluator, "AUTONOMOUS_PIPELINE_EVALUATOR_INVALID")
+    template_path = Path(str(contract["scheduler_template"]))
+    if not template_path.is_absolute():
+        template_path = evaluator.parent / template_path
+    template = _load_json(template_path, "AUTONOMOUS_PIPELINE_TEMPLATE_INVALID")
+    metrics = contract.get("metrics", [])
+    names = list(metrics) if isinstance(metrics, Mapping) else [
+        row if isinstance(row, str) else str(row.get("name") or row.get("metric_id") or "")
+        for row in metrics if isinstance(row, (str, Mapping))
+    ]
+    return build_research_state(
+        goal=str(template["objective"]), metrics=[name for name in names if name],
+        budget_gpu_hours=budget, irg_ref=str(irg) if irg is not None else None,
+        evidence_refs=[str(evaluator)],
+        stop_conditions=[str(template["falsification_criterion"])],
+    )
 
 
 def _pipeline_budget_total(
@@ -910,6 +969,7 @@ def _settle_pipeline(
     destination: Path,
     *,
     input_hash: str,
+    journal: ResearchJournal | None = None,
     state: str,
     verdict: str,
     blocked_stage: str | None,
@@ -940,6 +1000,8 @@ def _settle_pipeline(
         cpbe=cpbe,
     )
     _write_json_atomic(destination / "pipeline-manifest.json", manifest)
+    if journal is not None:
+        journal.advance("settled" if state == "settled" else "blocked", f"Pipeline {state}: {blocked_stage or 'execution receipts retained'}.")
     return manifest
 
 
@@ -992,6 +1054,7 @@ def _manifest(
         ),
         "cpbe": dict(cpbe) if cpbe is not None else None,
         "paths": {
+            "research_state": str(destination / "research" / "research-state.json"),
             "onboarding": str(destination / "onboarding" / "manifest.json"),
             "conformance": str(destination / "conformance" / "manifest.json"),
             "compilation": str(destination / "compiled" / "manifest.json"),

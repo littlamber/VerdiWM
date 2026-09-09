@@ -42,6 +42,7 @@ ROOT_FILES = (
 )
 PUBLIC_TREES = ("wmloop", "scripts", ".github", "ops")
 PUBLIC_DOC_FILES = (
+    "RESEARCH_LOOP_DESIGN_REVIEW.md",
     "ARCHITECTURE.md",
     "ARTIFACT_CONVENTION.md",
     "AUTONOMOUS_TRANSFER_SYSTEM_PLAN.md",
@@ -67,6 +68,10 @@ PUBLIC_DOC_FILES = (
     "acwm_probe_evolution_r1.md",
 )
 PUBLIC_TEST_FILES = (
+    "test_research_state.py",
+    "test_research_pipeline.py",
+    "test_mechanism_hypothesis.py",
+    "test_literature_materialization.py",
     "test_verdiwm_geometry.py",
     "test_acwm_unified_irg_assets.py",
     "test_acwm_joint_fingerprint.py",

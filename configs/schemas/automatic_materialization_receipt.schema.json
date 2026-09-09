@@ -28,6 +28,8 @@
   "properties": {
     "schema_version": {"type": "integer", "enum": [1]},
     "artifact_type": {"enum": ["verdiwm-automatic-materialization-receipt"]},
+    "admission_policy": {"const": "real_method_required_v2"},
+    "surrogate": {"type": "boolean"},
     "state": {"enum": ["ready_for_candidate_compilation", "blocked"]},
     "candidate_id": {"type": "string", "minLength": 1},
     "idea_id": {"type": "string", "minLength": 1},

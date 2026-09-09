@@ -59,6 +59,7 @@
       "additionalProperties": false,
       "required": ["onboarding", "conformance", "compilation", "queue_execution"],
       "properties": {
+        "research_state": {"type": "string", "minLength": 1},
         "onboarding": {"type": "string", "minLength": 1},
         "conformance": {"type": "string", "minLength": 1},
         "compilation": {"type": "string", "minLength": 1},

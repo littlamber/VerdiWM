@@ -229,6 +229,10 @@ def _materialization_receipt_blockers(
         or side_effects.get("candidate_compilation_authority") is not True
     ):
         return [{"code": "MATERIALIZATION_RECEIPT_NOT_ADMITTED", "path": raw_path}]
+    if receipt.get("admission_policy") != "real_method_required_v2":
+        return [{"code": "MATERIALIZATION_RECEIPT_POLICY_REQUIRES_REVALIDATION", "path": raw_path}]
+    if receipt.get("surrogate") is not False:
+        return [{"code": "SURROGATE_IMPLEMENTATION_NOT_FORMAL_CANDIDATE", "path": raw_path}]
     return []
 
 

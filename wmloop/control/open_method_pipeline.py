@@ -34,7 +34,16 @@ Do not select from a fixed ABI or paper-family list. Describe the mechanism as M
 then provide only candidate-local implementation, training, data-transform, configuration,
 and test files needed to falsify it. If a semantic surface is missing, return an interface
 extension proposal instead of weakening the method. Never modify the source tree, evaluator,
-active metrics, data split, GPU policy, verifier, or promotion policy.
+active metrics, data split, GPU policy, verifier, or promotion policy. State the target
+failure, causal assumption, exact target touchpoint, predicted observation, falsification
+test, anti-conditions, source evidence, and whether this is a known reproduction,
+target adaptation, composition, mechanism modification, or unresolved novelty. An
+interface-preserving placeholder is not a scientific candidate and must use state=blocked.
+Include method_ir.mechanism_hypothesis with target_failure, causal_assumption,
+target_touchpoint (list), predicted_observation, falsification_test,
+required_capabilities (matching target_mapping), anti_conditions, source_evidence
+(list of source_id values from Method IR), and novelty_status. The kernel assigns
+its identity. No candidate_ready proposal is admitted without this contract.
 """
 
 
@@ -123,6 +132,10 @@ def compile_open_method_proposal(
             root=root,
         )
     if state == "candidate_ready":
+        if method.get("mechanism_hypothesis") is None:
+            raise OpenMethodPipelineError("OPEN_METHOD_MECHANISM_HYPOTHESIS_REQUIRED")
+        if method["state"] == "blocked" or method["target_mapping"]["mapping_state"] not in {"direct_candidate", "composition_candidate"}:
+            raise OpenMethodPipelineError("OPEN_METHOD_MAPPING_NOT_ADMISSIBLE")
         if not files or not tests or blockers or extensions or execution is None:
             raise OpenMethodPipelineError("OPEN_METHOD_READY_STATE_INCONSISTENT")
     elif files or execution is not None:
@@ -196,7 +209,17 @@ def _normalize_method_ir(raw: Mapping[str, object], *, root: Path) -> dict[str, 
     required = ("source_evidence", "mechanism", "target_mapping", "training", "falsification")
     if any(not isinstance(raw.get(key), (list, Mapping)) for key in required):
         raise OpenMethodPipelineError("OPEN_METHOD_IR_FIELDS_INVALID")
+    hypothesis = None
+    if raw.get("mechanism_hypothesis") is not None:
+        from wmloop.control.mechanism_hypothesis import build_mechanism_hypothesis, validate_mechanism_hypothesis
+        payload = dict(_mapping(raw, "mechanism_hypothesis"))
+        if "hypothesis_id" in payload:
+            validate_mechanism_hypothesis(payload, root=root)
+            hypothesis = payload
+        else:
+            hypothesis = build_mechanism_hypothesis(**payload)
     method = build_method_ir(
+        mechanism_hypothesis=hypothesis,
         source_evidence=_mapping_rows(raw["source_evidence"]),
         mechanism=_mapping(raw, "mechanism"),
         target_mapping=_mapping(raw, "target_mapping"),

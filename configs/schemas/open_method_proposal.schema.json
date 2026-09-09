@@ -18,7 +18,7 @@
   "properties": {
     "schema_version": {"enum": [1]},
     "artifact_type": {"enum": ["verdiwm-open-method-proposal"]},
-    "state": {"enum": ["candidate_ready", "interface_extension_required", "data_regime_missing", "architecture_bound", "unmapped"]},
+    "state": {"enum": ["candidate_ready", "interface_extension_required", "data_regime_missing", "architecture_bound", "unmapped", "blocked"]},
     "method_ir": {"type": "object"},
     "execution_contract": {"type": ["object", "null"]},
     "files": {
