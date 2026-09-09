@@ -71,6 +71,7 @@ PUBLIC_TEST_FILES = (
     "test_research_state.py",
     "test_research_pipeline.py",
     "test_scheduler_recovery.py",
+    "test_episode_inventory.py",
     "test_mechanism_hypothesis.py",
     "test_literature_materialization.py",
     "test_verdiwm_geometry.py",
