@@ -12,6 +12,7 @@ from wmloop.geometry.types import GeometryValidationError
 Vector = tuple[float, ...]
 Matrix = tuple[Vector, ...]
 DoseRepeats = Mapping[float, Sequence[Sequence[float]]]
+IRG_DISTANCE_VERSION = "response_euclidean_v2"
 
 
 @dataclass(frozen=True)
@@ -120,8 +121,15 @@ def irg_distance(
     *,
     capability_distance: float = 0.0,
     capability_weight: float = 1.0,
+    distance_version: str = IRG_DISTANCE_VERSION,
 ) -> float:
-    """Uncertainty-normalized distance between compatible IRG charts."""
+    """Euclidean distance between compatible response charts.
+
+    Measurement uncertainty is deliberately not used as a denominator: doing
+    so makes noisy measurements appear artificially close and can violate the
+    triangle inequality. Callers should use covariance separately for
+    confidence, remeasurement, and transfer abstention decisions.
+    """
 
     if (
         left.goal_schema != right.goal_schema
@@ -134,10 +142,13 @@ def irg_distance(
     cap_weight = _finite(capability_weight, "IRG_CAPABILITY_WEIGHT_INVALID")
     if cap < 0.0 or cap_weight < 0.0:
         raise GeometryValidationError("IRG_CAPABILITY_DISTANCE_INVALID")
+    if distance_version not in {IRG_DISTANCE_VERSION, "uncertainty_normalized_v1"}:
+        raise GeometryValidationError("IRG_DISTANCE_VERSION_INVALID")
     total = 0.0
     for index, (a, b) in enumerate(zip(left.response_coordinate, right.response_coordinate, strict=True)):
         variance = left.covariance[index][index] + right.covariance[index][index]
-        total += ((a - b) ** 2) / (1.0 + max(variance, 0.0))
+        denominator = 1.0 + max(variance, 0.0) if distance_version == "uncertainty_normalized_v1" else 1.0
+        total += (a - b) ** 2 / denominator
     total += cap_weight * cap * cap
     return math.sqrt(total)
 

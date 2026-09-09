@@ -26,6 +26,7 @@ from wmloop.geometry.evolution import (
 )
 from wmloop.geometry.evidence_ir import is_content_addressed, reject_runtime_bindings
 from wmloop.geometry.types import GeometryValidationError
+from wmloop.geometry.irg import IRG_DISTANCE_VERSION
 
 
 class ModelIRGError(ValueError):
@@ -178,6 +179,8 @@ def validate_model_irg(
         if list(document["response_covariance"]) != list(asset["response_covariance"]):
             raise ModelIRGError("MODEL_IRG_RESPONSE_COVARIANCE_MISMATCH")
     dimensions = document["dimensions"]
+    if dimensions["coordinate_count"] != dimensions["probe_count"] * dimensions["outcome_count"]:
+        raise ModelIRGError("MODEL_IRG_DIMENSION_PRODUCT_MISMATCH")
     if dimensions["coordinate_count"] != len(document["response_vector"]):
         raise ModelIRGError("MODEL_IRG_COORDINATE_COUNT_MISMATCH")
     if dimensions["coordinate_count"] != len(document["coordinate_names"]):
@@ -193,6 +196,11 @@ def validate_model_irg(
         len(row) != dimensions["coordinate_count"] for row in covariance
     ):
         raise ModelIRGError("MODEL_IRG_COVARIANCE_SHAPE_INVALID")
+    for i, row in enumerate(covariance):
+        if row[i] < 0 or any(not math.isfinite(float(value)) for value in row):
+            raise ModelIRGError("MODEL_IRG_COVARIANCE_INVALID")
+        if any(not math.isclose(float(value), float(covariance[j][i]), abs_tol=1e-10) for j, value in enumerate(row)):
+            raise ModelIRGError("MODEL_IRG_COVARIANCE_ASYMMETRIC")
     axis_names = [str(row["axis"]) for row in document["diagnostic_axes"]]
     if len(axis_names) != len(set(axis_names)):
         raise ModelIRGError("MODEL_IRG_DIAGNOSTIC_AXIS_DUPLICATE")
@@ -213,8 +221,12 @@ def validate_model_irg(
         raise ModelIRGError("MODEL_IRG_ID_MISMATCH")
 
 
-def model_irg_distance(left: Mapping[str, object], right: Mapping[str, object]) -> float:
-    """Compare two compatible portrait-bound response vectors with uncertainty."""
+def model_irg_distance(left: Mapping[str, object], right: Mapping[str, object], *, distance_version: str = IRG_DISTANCE_VERSION) -> float:
+    """Compare responses on shared support, without treating noise as similarity.
+
+    Incomplete support produces a partial matching score, not a global metric.
+    The explicit v1 option preserves historical ranking for audit replay.
+    """
 
     validate_model_irg(left)
     validate_model_irg(right)
@@ -222,13 +234,30 @@ def model_irg_distance(left: Mapping[str, object], right: Mapping[str, object]) 
         raise ModelIRGError("MODEL_IRG_COORDINATES_INCOMPATIBLE")
     if left["asset_binding"]["goal_schema"] != right["asset_binding"]["goal_schema"]:
         raise ModelIRGError("MODEL_IRG_GOAL_INCOMPATIBLE")
+    if left["dimensions"] != right["dimensions"]:
+        raise ModelIRGError("MODEL_IRG_DIMENSIONS_INCOMPATIBLE")
+    if distance_version not in {IRG_DISTANCE_VERSION, "uncertainty_normalized_v1"}:
+        raise ModelIRGError("MODEL_IRG_DISTANCE_VERSION_INVALID")
+    # ``support_mask`` is probe-level while response vectors are laid out as
+    # outcome × probe. Expand the mask into the actual coordinate space before
+    # comparing charts; otherwise every outcome after the first is silently
+    # ignored.
+    probe_support = tuple(
+        bool(a and b)
+        for a, b in zip(left["support_mask"], right["support_mask"], strict=True)
+    )
+    outcome_count = int(left["dimensions"]["outcome_count"])
+    probe_count = len(probe_support)
     shared = [
-        index
-        for index, (a, b) in enumerate(
-            zip(left["support_mask"], right["support_mask"], strict=True)
-        )
-        if a and b
+        outcome * probe_count + probe
+        for outcome in range(outcome_count)
+        for probe, supported in enumerate(probe_support)
+        if supported
     ]
+    if distance_version == "uncertainty_normalized_v1":
+        # Historical v1 included only the first outcome. Keep that behavior
+        # solely for explicit replay of previously reported rankings.
+        shared = [i for i, supported in enumerate(probe_support) if supported]
     if not shared:
         raise ModelIRGError("MODEL_IRG_NO_SHARED_SUPPORT")
     total = 0.0
@@ -239,7 +268,8 @@ def model_irg_distance(left: Mapping[str, object], right: Mapping[str, object]) 
         delta = float(left["response_vector"][index]) - float(
             right["response_vector"][index]
         )
-        total += (delta * delta) / (1.0 + max(variance, 0.0))
+        denominator = 1.0 + max(variance, 0.0) if distance_version == "uncertainty_normalized_v1" else 1.0
+        total += (delta * delta) / denominator
     asymmetric_support = sum(
         bool(a) != bool(b)
         for a, b in zip(left["support_mask"], right["support_mask"], strict=True)
@@ -276,6 +306,9 @@ def rank_method_effects_by_irg(
                     "effect_id": effect["effect_id"],
                     "source_irg_id": candidate["irg_id"],
                     "irg_distance": distance,
+                    "distance_version": IRG_DISTANCE_VERSION,
+                    "shared_probe_fraction": sum(a and b for a, b in zip(target["support_mask"], candidate["support_mask"], strict=True)) / len(target["support_mask"]),
+                    "uncertainty_policy": "separate_from_distance",
                     "claim_scope": "ranking_only",
                     "prior_only": prior_only,
                     "evidence_refs": list(effect["evidence_refs"]),
@@ -302,32 +335,33 @@ def detect_model_irg_collisions(
 ) -> tuple[RepairCollision, ...]:
     """Detect nearby IRGs whose bound method effects confidently disagree."""
 
-    points: list[AtlasPoint] = []
+    if not all(math.isfinite(value) for value in (distance_threshold, minimum_effect, fdr_alpha)) or distance_threshold < 0 or minimum_effect < 0 or not 0 < fdr_alpha < 1:
+        raise ModelIRGError("MODEL_IRG_COLLISION_THRESHOLDS_INVALID")
     for binding in bindings:
         validate_model_irg(binding)
-        effects = {
-            str(row["primitive"]): EffectEstimate(
-                mean=float(row["mean_effect"]),
-                lower=float(row["lower_bound"]),
-                upper=float(row["upper_bound"]),
-                sign_q_value=float(row["sign_q_value"]),
-            )
-            for row in binding["method_effects"]
-        }
-        points.append(
-            AtlasPoint(
-                campaign_id=str(binding["irg_id"]),
-                chart_id=str(binding["asset_binding"]["goal_schema"]),
-                coordinates=tuple(float(value) for value in binding["response_vector"]),
-                effects=effects,
-            )
-        )
-    return detect_repair_collisions(
-        points,
-        distance_threshold=distance_threshold,
-        minimum_effect=minimum_effect,
-        fdr_alpha=fdr_alpha,
-    )
+    collisions = []
+    for index, left in enumerate(bindings):
+        for right in bindings[index + 1:]:
+            # Partial or different coordinate frames cannot establish a
+            # representation contradiction. They first require remeasurement.
+            if left["support_mask"] != right["support_mask"]:
+                continue
+            try:
+                distance = model_irg_distance(left, right)
+            except ModelIRGError:
+                continue
+            if distance > distance_threshold:
+                continue
+            effects = {str(row["primitive"]): row for row in right["method_effects"]}
+            for a in left["method_effects"]:
+                b = effects.get(str(a["primitive"]))
+                if b is None or any(row["effect_status"] not in {"confirmed", "rejected"} for row in (a, b)):
+                    continue
+                opposite = (a["lower_bound"] > minimum_effect and b["upper_bound"] < -minimum_effect) or (b["lower_bound"] > minimum_effect and a["upper_bound"] < -minimum_effect)
+                q_value = max(a["sign_q_value"], b["sign_q_value"])
+                if opposite and q_value <= fdr_alpha:
+                    collisions.append(RepairCollision(str(left["irg_id"]), str(right["irg_id"]), str(a["primitive"]), distance, float(a["mean_effect"]), float(b["mean_effect"]), q_value))
+    return tuple(sorted(collisions, key=lambda row: (row.q_value, row.distance, row.primitive)))
 
 
 def _normalize_axes(

@@ -594,6 +594,9 @@ def _run(args: argparse.Namespace) -> int:
         payload["research_mode"] = inputs["mode"]
     if args.literature_query is not None:
         payload["literature_query"] = args.literature_query
+    if getattr(args, "model_irg", None) is not None:
+        payload["model_irg_path"] = str(args.model_irg.expanduser().resolve())
+        payload["irg_protected_metrics"] = args.irg_protected_metric
     if args.cpbe_request is not None:
         payload["cpbe_request"] = str(args.cpbe_request.expanduser().resolve())
     if args.cpbe_history is not None:
@@ -1117,6 +1120,8 @@ def _parser() -> argparse.ArgumentParser:
         help="research routing policy; omitted preserves the legacy pipeline",
     )
     run.add_argument("--literature-query")
+    run.add_argument("--model-irg", type=Path, help="已有实测 IRG；诊断查询与用户目标联合用于检索")
+    run.add_argument("--irg-protected-metric", action="append", default=[], help="IRG 方法生成时保护的指标，可重复指定")
     run.add_argument("--cpbe-request", type=Path)
     run.add_argument("--cpbe-history", type=Path)
     run.add_argument("--adapter-profile", type=Path)

@@ -217,6 +217,10 @@ class CampaignStore:
             # The scale receipt becomes part of the immutable campaign revision,
             # rather than an after-the-fact launch flag.
             execution["training_scale_plan"] = dict(training_scale_plan)
+        for field in ("model_irg_path", "irg_protected_metrics"):
+            if payload.get(field) is not None:
+                execution = dict(execution)
+                execution[field] = payload[field]
         research_mode_plan: dict[str, object] | None = None
         if payload.get("research_mode") is not None:
             assert isinstance(execution, dict)
@@ -891,12 +895,16 @@ def _validate_execution(value: object) -> None:
                 raise CampaignAPIError("EXECUTION_ASSET_BINDINGS_INVALID")
         if not isinstance(value.get("probe_imports", True), bool):
             raise CampaignAPIError("EXECUTION_PROBE_IMPORTS_INVALID")
-        for field in ("cpbe_request", "cpbe_history"):
+        for field in ("cpbe_request", "cpbe_history", "model_irg_path"):
             item = value.get(field)
             if item is not None and (
                 not isinstance(item, str) or not Path(item).is_absolute()
             ):
                 raise CampaignAPIError(f"EXECUTION_PATH_INVALID:{field}")
+        if value.get("model_irg_path") is not None:
+            protected = value.get("irg_protected_metrics")
+            if not isinstance(protected, (list, tuple)) or not protected or any(not isinstance(item, str) or not item.strip() for item in protected):
+                raise CampaignAPIError("EXECUTION_IRG_PROTECTED_METRICS_REQUIRED")
     for budget_name in ("budget_total_gpu_hours", "total_budget_gpu_hours"):
         if budget_name in value:
             budget_value = value[budget_name]

@@ -292,6 +292,7 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
                 "literature_timeout_seconds": "--literature-timeout-seconds",
                 "candidate_catalog": "--candidate-catalog",
                 "settlement_manifest": "--settlement-manifest",
+                "model_irg_path": "--model-irg",
                 "research_mode": "--research-mode",
                 "cpbe_request": "--cpbe-request",
                 "cpbe_history": "--cpbe-history",
@@ -301,6 +302,11 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
                 "budget_high_trial_limit": "--budget-high-trial-limit",
             },
         )
+        protected = execution.get("irg_protected_metrics")
+        if isinstance(protected, (list, tuple)):
+            for metric in protected:
+                if isinstance(metric, str) and metric:
+                    command.extend(["--irg-protected-metric", metric])
         _append_assets(command, execution.get("asset_bindings"))
         _append_adapter_asset_parameters(command, execution.get("adapter_asset_parameters"))
         if execution.get("adapter_contract_ready") is True:

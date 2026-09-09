@@ -410,7 +410,7 @@ def run_autonomous_pipeline(
         retrieval_context["capsule_path"] = str(capsule_path)
         literature_query = options.literature_query
         irg_guided = retrieval_context.get("irg_guided")
-        if literature_query is None and isinstance(irg_guided, Mapping):
+        if isinstance(irg_guided, Mapping):
             request_payload = irg_guided.get("request")
             if isinstance(request_payload, Mapping):
                 lenses = request_payload.get("cross_domain_lenses", ())
@@ -418,6 +418,7 @@ def run_autonomous_pipeline(
                 literature_query = " ".join(
                     str(value)
                     for value in (
+                        literature_query,
                         request_payload.get("model_family"),
                         *(lenses if isinstance(lenses, (list, tuple)) else ()),
                         *(failures if isinstance(failures, (list, tuple)) else ()),
