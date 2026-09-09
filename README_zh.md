@@ -36,6 +36,8 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 它们目前交付待校准候选，不会仅凭代码生成成功声称提点；默认研究流水线的
 自动训练、确认与归档桥接仍待接通。实现检查、接口与使用边界见
 [Method-to-Code](docs/METHOD_TO_CODE.md#open-implementation-and-pairwise-studies)。
+生成候选后可先运行 `uv run verdiwm-calibrate-method --compilation ... --output ...`，
+执行声明的实现检查并保存通过或失败回执；失败检查不会被当作模型效果。
 
 ## 第一次使用自己的模型
 

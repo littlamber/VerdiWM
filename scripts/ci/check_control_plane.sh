@@ -23,6 +23,7 @@ required = {
     "wmloop/control/method_realization.py",
     "wmloop/control/open_method_study.py",
     "wmloop/control/open_method_generation.py",
+    "wmloop/control/method_calibration.py",
     "configs/schemas/research_state.schema.json",
     "configs/schemas/mechanism_hypothesis.schema.json",
     "configs/schemas/method_implementation_validation.schema.json",

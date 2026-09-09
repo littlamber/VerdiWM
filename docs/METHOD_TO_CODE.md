@@ -60,6 +60,12 @@ Distinct split hashes do not prove disjoint episodes, and a cost estimate is
 not a GPU lease or an enforced runtime limit. Runtime validation and the
 existing budget ledger remain necessary.
 
+Before target-side experiments, `verdiwm-calibrate-method` executes the declared
+implementation tests in the isolated candidate workspace and writes a bounded
+calibration receipt. A failed check is retained as `state=failed` and cannot be
+promoted or treated as a model result. This local calibration intentionally has
+no GPU, evaluator, network or source-write authority.
+
 Deployment-facing commands (the request files are internal research artifacts):
 
 ```bash
