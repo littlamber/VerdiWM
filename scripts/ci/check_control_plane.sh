@@ -32,12 +32,17 @@ required = {
     "configs/schemas/community_bundle.schema.json",
     "configs/schemas/community_bundle_signature.schema.json",
     "configs/schemas/community_export.schema.json",
+    "configs/schemas/settled_evidence.schema.json",
+    "wmloop/archive/community_projection.py",
+    "wmloop/control/campaign_repository.py",
     "configs/retrieval/mechanism_tag_ontology_v1.json",
 }
 missing = sorted(required - names)
 if missing:
     raise SystemExit(f"wheel is missing public files: {missing}")
 PY
+
+python scripts/ci/check_installed_wheel.py "$wheel_path"
 
 # Compile every Python file that is actually present in the public tree.
 mapfile -d '' python_files < <(find wmloop experiments scripts -type f -name '*.py' -print0)

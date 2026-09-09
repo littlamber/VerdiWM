@@ -21,6 +21,8 @@ uv run pytest -q \
 
 uv run verdiwm doctor >/dev/null
 uv run verdiwm community export --help >/dev/null
+uv run verdiwm evidence project --help >/dev/null
+uv run verdiwm-workbench --help >/dev/null
 uv run verdiwm community publish --help >/dev/null
 uv run verdiwm community verify --help >/dev/null
 uv run verdiwm-ctrl-world-autonomous-transfer --help >/dev/null

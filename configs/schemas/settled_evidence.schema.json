@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "evidence_id", "receipt_ref", "verdict_ref", "failure_context_ref", "evaluator_sha256", "hypothesis_sha256", "implementation_sha256", "decision", "evidence_scope", "claim_scope", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-settled-evidence"},
+    "evidence_id": {"type": "string", "pattern": "^settled-evidence-[0-9a-f]{24}$"},
+    "receipt_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "verdict_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "failure_context_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "evaluator_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "hypothesis_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "implementation_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "decision": {"enum": ["ACCEPT", "REJECT", "INCONCLUSIVE", "VOID", "UNINTERPRETED"]},
+    "evidence_scope": {"enum": ["verified", "exploratory"]},
+    "claim_scope": {"const": "settlement_only"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

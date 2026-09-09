@@ -101,3 +101,17 @@ campaign records and use the existing adapter compiler, budget ledger, GPU
 lease, scheduler, receipt settlement, frozen verifier, Archive, and CAS. A
 batch plan cannot establish an IRG result, a transfer claim, or a model-quality
 improvement by itself.
+
+## State and recovery
+
+Campaign state is authoritative in `campaigns/campaigns.sqlite3`; adjacent JSON
+files are compatibility projections. Existing JSON campaigns are imported on
+mutation. Stop older VerdiWM processes before upgrading: old processes do not
+participate in SQLite transactions. Keep the SQLite database together with its
+campaign directory when backing up or moving state.
+
+`batch run` drains every queued row, up to the selected concurrency, and reuses
+running or terminal campaign states on repeated invocation. Output directories
+are bound to one plan digest before any campaign is created. `batch status`
+uses a read-only view; missing/corrupt records become `unavailable`, and active
+workers are reported as `running`.

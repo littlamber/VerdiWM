@@ -497,6 +497,17 @@ def _community_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def _evidence_project(args: argparse.Namespace) -> int:
+    from wmloop.archive.community_projection import project_archive_evidence, EvidenceProjectionError
+    try:
+        report = project_archive_evidence(archive=args.archive, cas=args.cas, output_root=args.output,
+                                          execution_manifest=args.batch, max_trials=args.max_trials)
+    except (EvidenceProjectionError, ContractValidationError) as exc:
+        raise CommunityExportError(str(exc)) from exc
+    _print(report)
+    return 0
+
+
 def _community_lifecycle(args: argparse.Namespace) -> int:
     record = build_knowledge_lifecycle_record(
         action=args.action,
@@ -1538,6 +1549,15 @@ def _parser() -> argparse.ArgumentParser:
     community_lifecycle.add_argument("--replacement-id")
     community_lifecycle.add_argument("--output", type=Path, required=True)
     community_lifecycle.set_defaults(handler=_community_lifecycle)
+    evidence = commands.add_parser("evidence", help="Project settled archive evidence")
+    evidence_commands = evidence.add_subparsers(dest="evidence_command", required=True)
+    project = evidence_commands.add_parser("project", help="Export settled Archive/CAS records")
+    project.add_argument("--archive", type=Path, required=True)
+    project.add_argument("--cas", type=Path, required=True)
+    project.add_argument("--batch", type=Path)
+    project.add_argument("--output", type=Path, required=True)
+    project.add_argument("--max-trials", type=int, default=10_000)
+    project.set_defaults(handler=_evidence_project)
     return parser
 
 

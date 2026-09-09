@@ -75,6 +75,9 @@ PUBLIC_TEST_FILES = (
     "test_community_bundle.py",
     "test_community_export.py",
     "test_model_batch.py",
+    "test_control_plane_recovery.py",
+    "test_publication_boundaries.py",
+    "test_archive_community_projection.py",
     "test_acwm_public_experience_bundle.py",
     "test_acwm_multiseed_eval_summary.py",
     "test_acwm_formal_visualization.py",
@@ -201,6 +204,15 @@ PUBLIC_AUTONOMOUS_TRANSFER_FILES = (
     "scale_plan.json",
     "state.py",
     "workflow.py",
+    "workflow_stages/__init__.py",
+    "workflow_stages/common.py",
+    "workflow_stages/configuration.py",
+    "workflow_stages/discovery.py",
+    "workflow_stages/observation.py",
+    "workflow_stages/planning.py",
+    "workflow_stages/materialization.py",
+    "workflow_stages/execution.py",
+    "workflow_stages/publication.py",
 )
 PUBLIC_TRANSFER_DEPENDENCIES = {
     "ctrl_world_hybrid_memory_transfer_v1": (

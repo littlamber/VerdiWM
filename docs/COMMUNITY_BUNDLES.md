@@ -38,7 +38,7 @@ verdiwm community publish \
   --signing-key ./publisher-private.pem
 ```
 
-`community export` 只递归读取 JSON，不导入模型、不启动 GPU、不修改源目录，也
+`community export` 只递归读取 JSON 和 JSONL，不导入模型、不启动 GPU、不修改源目录，也
 不会把 `execution.json`、Archive、CAS 数据库或本地运行路径复制到输出。它接受
 单个语义对象和 JSON 数组，按 canonical SHA-256 去重，并对已识别的语义类型运行
 完整 graph 和 quality audit；无关的运行时 manifest 会在 `export.json` 中计数并
@@ -178,3 +178,20 @@ batch execution
 ## 第一版社区部署边界
 
 第一版采用“本地运行、社区共享 bundle”的模式：用户在自己的环境中接入模型并运行实验，社区 registry 接收签名后的 path-free bundle，提供校验、检索、审核和版本治理。陌生用户提交的 bundle 不会触发共享 GPU worker 执行任意代码；社区服务只处理 JSON、签名和内容地址引用。后续如果要提供托管实验，需要单独设计沙箱、资源配额、镜像白名单、人工审核和 receipt settlement 协议，不能把 registry 上传直接连接到执行器。
+
+## 从 Archive/CAS 生成社区记录
+
+```bash
+uv run verdiwm evidence project \
+  --archive ./.verdiwm/archive.db \
+  --cas ./.verdiwm/artifacts \
+  --output ./.verdiwm/community-records
+```
+
+`--cas` 指向包含 `cas/` 子目录的本地存储根目录。投影只读取已结算 trials，
+验证 CAS 哈希、receipt、verdict 和 failure context 的绑定。它保留 verifier
+的原始决策，不把 `ACCEPT` 自动解释为可迁移正向效果；效果大小、不确定性和
+transfer license 仍需对应的 target-side evidence。
+
+重复导出会检查目录中的全部文件和子目录。额外文件、symlink、损坏记录或不同
+批次身份都会使操作失败，不会静默接受旧目录。

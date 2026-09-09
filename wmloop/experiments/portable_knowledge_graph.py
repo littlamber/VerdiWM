@@ -37,6 +37,7 @@ from wmloop.geometry.community_knowledge import (
     validate_transformation_contract,
 )
 from wmloop.geometry.evidence_ir import validate_evidence_ir
+from wmloop.geometry.settled_evidence import validate_settled_evidence
 from wmloop.geometry.portable_experience import validate_portable_experience
 from wmloop.geometry.model_irg import ModelIRGError, validate_model_irg
 from wmloop.geometry.portable_transfer_knowledge import (
@@ -415,6 +416,16 @@ class _PortableKnowledgeGraph:
 
 def _project_document(graph: _PortableKnowledgeGraph, document: Mapping[str, object]) -> None:
     artifact = document.get("artifact_type")
+    if artifact == "verdiwm-settled-evidence":
+        validate_settled_evidence(document)
+        identifier = graph.node("settled_evidence", str(document["evidence_id"]),
+                                decision=document["decision"], evidence_scope=document["evidence_scope"],
+                                claim_scope="settlement_only")
+        for name in ("receipt_ref", "verdict_ref", "failure_context_ref"):
+            reference = str(document[name])
+            graph.edge(identifier, name.removesuffix("_ref"), graph.node("evidence", reference), evidence=reference)
+        graph.document_count += 1
+        return
     if artifact == "verdiwm-model-capability-ir":
         try:
             validate_model_capability_ir(document)

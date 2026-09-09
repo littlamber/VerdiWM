@@ -6,7 +6,7 @@
   "properties": {
     "schema_version": {"type": "integer", "enum": [1]},
     "artifact_type": {"enum": ["verdiwm-model-batch-execution"]},
-    "state": {"enum": ["blocked", "partial", "queued", "completed", "failed"]},
+    "state": {"enum": ["blocked", "partial", "queued", "running", "completed", "failed", "cancelled", "unavailable"]},
     "batch_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
     "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "shared_budget": {

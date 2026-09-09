@@ -153,20 +153,11 @@ def _dispatch_one(
         "schema_version": 1,
     }
     try:
-        if store.get(campaign_id).get("status") == "cancelled":
-            try:
-                dispatch = _load_dispatch(source)
-            except CampaignDispatchError:
-                dispatch = {"campaign_id": campaign_id, "schema_version": 1}
-            dispatch["state"] = "cancelled"
-            _write_json(cancelled / source.name, dispatch)
-            source.unlink(missing_ok=True)
-            store.record_dispatch_location(campaign_id, cancelled / source.name)
+        if store.claim_dispatch(campaign_id, source, active) is None:
             return "cancelled", campaign_id
-        source.replace(active)
         dispatch = _load_dispatch(active)
-        store.record_dispatch_result(campaign_id, status="running")
-        store.record_dispatch_location(campaign_id, active)
+        if _cancel_requested(store, campaign_id):
+            raise CampaignDispatchError("DISPATCH_CANCELLED_BEFORE_LAUNCH")
         if runner is None and dispatch.get("model_run") is not None:
             result = dict(execute_model_run(dispatch["model_run"]))
         elif runner is None:
@@ -178,76 +169,23 @@ def _dispatch_one(
             )
         else:
             result = dict(runner(dispatch["execution"]))
-        if result.get("cancelled") or _cancel_requested(store, campaign_id):
-            if not _cancel_requested(store, campaign_id):
-                store.cancel(campaign_id)
-            dispatch["state"] = "cancelled"
-            dispatch["result"] = result
-            dispatch["cancelled_at"] = store.get(campaign_id).get(
-                "cancellation_requested_at"
-            )
-            _write_json(cancelled / source.name, dispatch)
-            active.unlink(missing_ok=True)
-            store.record_dispatch_location(campaign_id, cancelled / source.name)
-            return "cancelled", campaign_id
-        if result.get("outcome") == "blocked":
-            store.record_dispatch_result(campaign_id, status="blocked", result=result)
-            dispatch["state"] = "blocked"
-            dispatch["result"] = result
-            _write_json(blocked / source.name, dispatch)
-            active.unlink(missing_ok=True)
-            store.record_dispatch_location(campaign_id, blocked / source.name)
-            return "blocked", campaign_id
-        store.record_dispatch_result(campaign_id, status="completed", result=result)
-        dispatch["state"] = "completed"
-        dispatch["result"] = result
-        _write_json(completed / source.name, dispatch)
-        active.unlink(missing_ok=True)
-        store.record_dispatch_location(campaign_id, completed / source.name)
-        return "completed", campaign_id
+        if result.get("cancelled") and not _cancel_requested(store, campaign_id):
+            store.cancel(campaign_id)
+        state = "blocked" if result.get("outcome") == "blocked" else "completed"
+        state = store.settle_dispatch(campaign_id, dispatch=dispatch, status=state, result=result)
+        return state, campaign_id
     except Exception as exc:
-        if _cancel_requested(store, campaign_id):
-            dispatch["state"] = "cancelled"
-            dispatch["error"] = {
-                "type": type(exc).__name__,
-                "message": str(exc)[:500],
-            }
-            if isinstance(exc, CampaignProcessError):
-                dispatch["result"] = exc.result
-            _write_json(cancelled / source.name, dispatch)
-            active.unlink(missing_ok=True)
-            source.unlink(missing_ok=True)
-            store.record_dispatch_location(campaign_id, cancelled / source.name)
-            return "cancelled", campaign_id
         error = {"type": type(exc).__name__, "message": str(exc)[:500]}
-        try:
-            store.record_dispatch_result(campaign_id, status="failed", error=error)
-        except CampaignAPIError:
-            pass
-        if dispatch.get("artifact_type") != "verdiwm-campaign-dispatch":
-            try:
-                dispatch = _load_dispatch(active)
-            except Exception:
-                dispatch = {"campaign_id": campaign_id, "schema_version": 1}
-        dispatch["state"] = "failed"
-        dispatch["error"] = error
-        if isinstance(exc, CampaignProcessError):
-            dispatch["result"] = exc.result
-        _write_json(failed / source.name, dispatch)
-        active.unlink(missing_ok=True)
-        source.unlink(missing_ok=True)
-        try:
-            store.record_dispatch_location(campaign_id, failed / source.name)
-        except CampaignAPIError:
-            pass
-        return "failed", campaign_id
+        result = exc.result if isinstance(exc, CampaignProcessError) else None
+        state = store.settle_dispatch(campaign_id, dispatch=dispatch, status="failed", result=result, error=error)
+        return state, campaign_id
 
 
 def _cancel_requested(store: CampaignStore, campaign_id: str) -> bool:
     try:
         return store.get(campaign_id).get("status") == "cancelled"
-    except CampaignAPIError:
-        return False
+    except CampaignAPIError as exc:
+        raise CampaignDispatchError("DISPATCH_STATE_UNAVAILABLE") from exc
 
 
 def _recover_interrupted(
@@ -258,42 +196,19 @@ def _recover_interrupted(
         if active.is_symlink() or not active.is_file():
             continue
         campaign_id = active.stem
-        if _cancel_requested(store, campaign_id):
-            try:
-                dispatch = json.loads(active.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                dispatch = {"campaign_id": campaign_id, "schema_version": 1}
-            dispatch["state"] = "cancelled"
-            dispatch["error"] = {
-                "type": "DISPATCH_CANCELLED_DURING_INTERRUPTION",
-                "message": "The prior dispatcher stopped while cancellation was pending.",
-            }
-            _write_json(cancelled / active.name, dispatch)
-            active.unlink(missing_ok=True)
-            store.record_dispatch_location(campaign_id, cancelled / active.name)
-            recovered["cancelled"].append(campaign_id)
-            continue
-        error = {
-            "type": "DISPATCH_INTERRUPTED",
-            "message": "The previous dispatcher stopped after claiming this campaign. It was not relaunched automatically to prevent duplicate execution.",
-        }
-        try:
-            store.record_dispatch_result(campaign_id, status="failed", error=error)
-        except CampaignAPIError:
-            pass
         try:
             dispatch = json.loads(active.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             dispatch = {"campaign_id": campaign_id, "schema_version": 1}
-        dispatch["state"] = "failed"
-        dispatch["error"] = error
-        _write_json(failed / active.name, dispatch)
-        active.unlink(missing_ok=True)
-        try:
-            store.record_dispatch_location(campaign_id, failed / active.name)
-        except CampaignAPIError:
-            pass
-        recovered["failed"].append(campaign_id)
+        error = {
+            "type": "DISPATCH_INTERRUPTED",
+            "message": "The previous dispatcher stopped after claiming this campaign; inspect receipts before retrying.",
+        }
+        state = store.get(campaign_id)["status"]
+        terminal = state if state in {"completed", "blocked", "failed", "cancelled"} else "failed"
+        final = store.settle_dispatch(campaign_id, dispatch=dispatch, status=terminal, error=error)
+        if final in recovered:
+            recovered[final].append(campaign_id)
     return recovered
 
 
@@ -506,25 +421,33 @@ def _run_subprocess(
             text=True,
             start_new_session=True,
         )
-        while process.poll() is None:
-            if cancel_requested():
-                cancelled = True
-                termination = "SIGTERM"
-                try:
-                    os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                try:
-                    process.wait(timeout=terminate_grace_seconds)
-                except subprocess.TimeoutExpired:
-                    termination = "SIGKILL"
+        try:
+            while process.poll() is None:
+                if cancel_requested():
+                    cancelled = True
+                    termination = "SIGTERM"
                     try:
-                        os.killpg(process.pid, signal.SIGKILL)
+                        os.killpg(process.pid, signal.SIGTERM)
                     except ProcessLookupError:
                         pass
-                    process.wait()
-                break
-            time.sleep(poll_seconds)
+                    try:
+                        process.wait(timeout=terminate_grace_seconds)
+                    except subprocess.TimeoutExpired:
+                        termination = "SIGKILL"
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                        process.wait()
+                    break
+                time.sleep(poll_seconds)
+        except BaseException:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+            raise
         returncode = process.wait()
         stdout.seek(0)
         stderr.seek(0)

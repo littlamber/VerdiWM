@@ -144,6 +144,14 @@ capabilities can grow across version boundaries.
 
 ### Background campaign execution
 
+Campaign intent is stored in the transactional `CampaignRepository` used by
+the API, CLI, and dispatcher. SQLite is authoritative for state transitions;
+JSON files under the campaign root are compatibility projections and dispatch
+outbox entries. Transactions and version checks prevent cancellation from being
+overwritten by stale worker snapshots. Batch execution binds its output to one
+plan digest before creating campaigns and reports unreadable state as
+`unavailable` instead of reusing an old status.
+
 `wmloop.execute.campaign_daemon` is the durable coordinator for draining one or
 more admitted candidate queues. It does not create hypotheses, edit model code,
 or bypass conformance. It projects each candidate into a stable isolated worker
@@ -211,3 +219,31 @@ useful for planning but is not licensed for formal claims.
 - Agent-written patches cannot modify frozen evaluators or held-out data.
 - The archive is append-oriented and content addressed.
 - Transfer is opt-in and abstains when evidence is insufficient.
+
+### Community evidence projection
+
+`verdiwm evidence project` is the one-way bridge from settled Archive/CAS state
+to path-free community records. It checks receipt, verdict and failure-context
+content digests and settlement bindings. `verdiwm-settled-evidence` preserves
+verifier decisions without estimating effects or granting target transfer
+licenses. Community export and signed Bundle publication consume these records;
+private campaign paths and raw artifacts remain local.
+
+## Implementation boundaries
+
+The original import entrypoints remain compatible. Batch planning, execution
+reconciliation, and read-only status live in `model_batch_plan`, `model_batch_run`,
+and `model_batch_status`. Community publishing uses separate manifest, signing,
+filesystem, and verification modules. `CampaignRepository` owns state transactions;
+`storage` owns atomic writes, process locks, and filesystem admission checks.
+
+The Ctrl-World controller consumes the unchanged `workflow.StageResult` API.
+Its implementations live under `workflow_stages`: configuration, discovery,
+observation, planning, materialization, execution, publication, and common
+bindings. These stages have no cyclic imports; observation and materialization
+depend on planning, while execution may use materialization. Model-specific
+stages continue to delegate authority to the existing frozen verifier and archive.
+
+`validate_document` and `validate_instance` use the same Draft 2020-12 validator.
+Missing validation dependencies are an explicit error. Offline inspection can
+explicitly call `validate_bootstrap_instance`; it is not a production fallback.

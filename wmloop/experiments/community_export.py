@@ -19,6 +19,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.storage import checked_path
+from wmloop.experiments.community_files import CommunityExportError, semantic_files, bounded_read
 from wmloop.control.model_batch import (
     ModelBatchError,
     build_model_batch_execution_binding,
@@ -29,12 +31,9 @@ from wmloop.experiments.portable_knowledge_graph import (
 )
 
 
-class CommunityExportError(ValueError):
-    """A semantic export input or immutable output invariant failed."""
-
-
 SUPPORTED_ARTIFACT_TYPES = frozenset(
     {
+        "verdiwm-settled-evidence",
         "verdiwm-model-capability-ir",
         "verdiwm-model-portrait",
         "verdiwm-model-irg",
@@ -85,7 +84,7 @@ def export_community_knowledge(
         raise CommunityExportError("COMMUNITY_EXPORT_SOURCE_ROOTS_INVALID")
     sources: list[Path] = []
     for raw in source_roots:
-        source = Path(raw).expanduser().resolve()
+        source = checked_path(raw, code="COMMUNITY_EXPORT_SOURCE_ROOT_INVALID", error=CommunityExportError)
         if source.is_symlink() or not source.is_dir():
             raise CommunityExportError("COMMUNITY_EXPORT_SOURCE_ROOT_INVALID")
         if source not in sources:
@@ -93,61 +92,65 @@ def export_community_knowledge(
     if not sources:
         raise CommunityExportError("COMMUNITY_EXPORT_SOURCE_ROOTS_EMPTY")
 
-    destination = Path(output_root).expanduser().resolve()
+    destination = checked_path(output_root, code="COMMUNITY_EXPORT_OUTPUT_INVALID", error=CommunityExportError)
     documents: dict[str, Mapping[str, object]] = {}
     artifact_counts: Counter[str] = Counter()
     ignored_counts: Counter[str] = Counter()
     scanned_files = 0
     candidate_documents = 0
-    for source in sorted(sources):
-        for path in sorted(source.rglob("*.json")):
-            if path.is_symlink() or not path.is_file() or _is_within(path, destination):
-                continue
-            scanned_files += 1
-            if scanned_files > max_files:
-                raise CommunityExportError("COMMUNITY_EXPORT_FILE_LIMIT_EXCEEDED")
-            try:
-                size = path.stat().st_size
-            except OSError as exc:
-                raise CommunityExportError("COMMUNITY_EXPORT_SOURCE_READ_FAILED") from exc
-            if size > max_file_bytes:
+    for path in semantic_files(sources, destination, max_files=max_files):
+        if path.is_symlink() or not path.is_file() or _is_within(path, destination):
+            continue
+        scanned_files += 1
+        if scanned_files > max_files:
+            raise CommunityExportError("COMMUNITY_EXPORT_FILE_LIMIT_EXCEEDED")
+        try:
+            size = path.stat().st_size
+        except OSError as exc:
+            raise CommunityExportError("COMMUNITY_EXPORT_SOURCE_READ_FAILED") from exc
+        if size > max_file_bytes:
+            ignored_counts["oversized_json"] += 1
+            continue
+        try:
+            content = bounded_read(path, max_file_bytes)
+            if len(content) > max_file_bytes:
                 ignored_counts["oversized_json"] += 1
                 continue
+            value = ([json.loads(line) for line in content.splitlines() if line.strip()]
+                     if path.suffix == ".jsonl" else json.loads(content))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            ignored_counts["invalid_json"] += 1
+            continue
+        rows: list[object]
+        if isinstance(value, Mapping):
+            rows = [value]
+        elif isinstance(value, list):
+            rows = list(value)
+        else:
+            ignored_counts["non_document_json"] += 1
+            continue
+        for row in rows:
+            candidate_documents += 1
+            if not isinstance(row, Mapping):
+                ignored_counts["non_object_document"] += 1
+                continue
+            artifact = row.get("artifact_type")
+            if not isinstance(artifact, str) or artifact not in SUPPORTED_ARTIFACT_TYPES:
+                ignored_counts["unsupported_artifact_type"] += 1
+                continue
+            document = dict(row)
             try:
-                value = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-                ignored_counts["invalid_json"] += 1
-                continue
-            rows: list[object]
-            if isinstance(value, Mapping):
-                rows = [value]
-            elif isinstance(value, list):
-                rows = list(value)
-            else:
-                ignored_counts["non_document_json"] += 1
-                continue
-            for row in rows:
-                candidate_documents += 1
-                if not isinstance(row, Mapping):
-                    ignored_counts["non_object_document"] += 1
-                    continue
-                artifact = row.get("artifact_type")
-                if not isinstance(artifact, str) or artifact not in SUPPORTED_ARTIFACT_TYPES:
-                    ignored_counts["unsupported_artifact_type"] += 1
-                    continue
-                document = dict(row)
-                try:
-                    single_graph = build_portable_knowledge_graph([document])
-                    audit_portable_knowledge_graph(
-                        documents=[document], graph=single_graph
-                    )
-                except Exception as exc:
-                    raise CommunityExportError(
-                        f"COMMUNITY_EXPORT_DOCUMENT_INVALID:{artifact}:{exc}"
-                    ) from exc
-                digest = _digest(document)
-                documents.setdefault(digest, document)
-                artifact_counts[artifact] += 1
+                single_graph = build_portable_knowledge_graph([document])
+                audit_portable_knowledge_graph(
+                    documents=[document], graph=single_graph
+                )
+            except Exception as exc:
+                raise CommunityExportError(
+                    f"COMMUNITY_EXPORT_DOCUMENT_INVALID:{artifact}:{exc}"
+                ) from exc
+            digest = _digest(document)
+            documents.setdefault(digest, document)
+            artifact_counts[artifact] += 1
 
     if not documents:
         raise CommunityExportError("COMMUNITY_EXPORT_NO_PORTABLE_DOCUMENTS")

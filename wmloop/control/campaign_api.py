@@ -1,6 +1,6 @@
 """Small, dependency-free Campaign API for the VerdiWM control plane.
 
-The API stores request state as JSON documents and deliberately does not run
+The API stores request state in SQLite with JSON projections and does not run
 experiments itself.  Execution remains owned by the existing pipeline/daemon;
 this boundary only accepts, validates, and durably records user intent.
 """
@@ -14,7 +14,6 @@ import math
 import os
 import re
 import tempfile
-import threading
 import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -43,6 +42,7 @@ from wmloop.control.automatic_campaign import (
     isolate_execution_for_revision,
 )
 from wmloop.experiments.evidence_graph import query_evidence_graph
+from wmloop.control.campaign_repository import CampaignAPIError, CampaignRepository
 
 
 SCHEMA_VERSION = 4
@@ -58,10 +58,6 @@ _TRANSITIONS = {
 }
 
 
-class CampaignAPIError(ValueError):
-    """Stable client-facing validation failure."""
-
-
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -71,13 +67,15 @@ def _canonical(value: Any) -> str:
 
 
 class CampaignStore:
-    """Atomic JSON-backed campaign store suitable for a single API instance."""
+    """Transactional campaign state shared by API, CLI, and dispatcher processes."""
 
-    def __init__(self, root: Path, *, project_root: Path | None = None):
-        self.root = Path(root).expanduser().resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: Path, *, project_root: Path | None = None, read_only: bool = False):
+        self.repository = CampaignRepository(root, read_only=read_only)
+        self.root = self.repository.root
         self.project_root = (Path(project_root) if project_root is not None else Path(__file__).resolve().parents[2]).expanduser().resolve()
-        self._lock = threading.RLock()
+
+    def transaction(self):
+        return self.repository.transaction()
 
     def _path(self, campaign_id: str) -> Path:
         if not campaign_id or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in campaign_id):
@@ -91,18 +89,7 @@ class CampaignStore:
         return self.root / "revisions" / campaign_id / f"{revision_id}.json"
 
     def _write(self, path: Path, value: dict[str, Any]) -> None:
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(value, handle, sort_keys=True, indent=2)
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temp_name, path)
-        finally:
-            if os.path.exists(temp_name):
-                os.unlink(temp_name)
+        self.repository.write(path, value)
 
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         goal = _required_text(payload, "goal", "GOAL_REQUIRED")
@@ -341,17 +328,23 @@ class CampaignStore:
                 record[field] = payload[field]
         if bootstrap_manifest is not None:
             record["executor_bootstrap"] = bootstrap_manifest
-        with self._lock:
+        with self.transaction():
             path = self._path(campaign_id)
-            if path.exists():
-                existing = json.loads(path.read_text(encoding="utf-8"))
+            try:
+                existing = self.get(campaign_id)
+            except CampaignAPIError as exc:
+                if str(exc) != "CAMPAIGN_NOT_FOUND":
+                    raise
+                existing = None
+            if existing is not None:
+                record["state_version"] = existing["state_version"]
                 if existing.get("request_hash") != record["request_hash"]:
                     raise CampaignAPIError("CAMPAIGN_ID_CONFLICT")
                 if existing.get("revision_id") == record["revision_id"]:
                     return existing
                 # A draft has no dispatcher claim or GPU side effect yet, so a changed
                 # source/policy snapshot may safely supersede it automatically.
-                if str(existing.get("status")) not in {"created", "completed", "failed", "cancelled"}:
+                if (self.root / "dispatch" / "running" / f"{campaign_id}.json").exists() or str(existing.get("status")) not in {"created", "completed", "failed", "cancelled"}:
                     raise CampaignAPIError("CAMPAIGN_REVISION_ACTIVE")
                 history = list(existing.get("revision_history", []))
                 history.append(
@@ -401,32 +394,27 @@ class CampaignStore:
         return record
 
     def get(self, campaign_id: str) -> dict[str, Any]:
-        path = self._path(campaign_id)
-        if not path.is_file():
-            raise CampaignAPIError("CAMPAIGN_NOT_FOUND")
-        return json.loads(path.read_text(encoding="utf-8"))
+        self._path(campaign_id)
+        return self.repository.get(campaign_id)
 
     def list(self, *, status: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
         if limit < 1 or limit > 1000:
             raise CampaignAPIError("CAMPAIGN_LIMIT_INVALID")
         if status is not None and status not in _TRANSITIONS:
             raise CampaignAPIError("STATUS_INVALID")
-        rows: list[dict[str, Any]] = []
-        for path in sorted(self.root.glob("*.json")):
-            if path.is_symlink() or not path.is_file():
-                continue
-            try:
-                record = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
-                continue
-            if isinstance(record, dict) and (status is None or record.get("status") == status):
+        rows = []
+        for campaign_id in self.repository.ids():
+            record = self.get(campaign_id)
+            if status is None or record["status"] == status:
                 rows.append(record)
-        return rows[:limit]
+            if len(rows) >= limit:
+                break
+        return rows
 
     def transition(self, campaign_id: str, status: str) -> dict[str, Any]:
         if status not in _TRANSITIONS:
             raise CampaignAPIError("STATUS_INVALID")
-        with self._lock:
+        with self.transaction():
             record = self.get(campaign_id)
             current = str(record.get("status"))
             if status != current and status not in _TRANSITIONS.get(current, set()):
@@ -436,10 +424,57 @@ class CampaignStore:
             self._write(self._path(campaign_id), record)
             return record
 
+    def claim_dispatch(self, campaign_id: str, source: Path, active: Path) -> dict[str, Any] | None:
+        """Claim a queued revision and its outbox entry in one transaction."""
+        with self.transaction():
+            record = self.get(campaign_id)
+            if record["status"] == "cancelled":
+                return None
+            if record["status"] != "queued":
+                raise CampaignAPIError("DISPATCH_ALREADY_CLAIMED")
+            try:
+                dispatch = json.loads(source.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise CampaignAPIError("DISPATCH_MANIFEST_INVALID") from exc
+            if dispatch.get("revision_id") != record.get("revision_id"):
+                raise CampaignAPIError("DISPATCH_REVISION_MISMATCH")
+            record["status"] = "running"
+            record["dispatch_ref"] = str(active)
+            record["updated_at"] = _now()
+            self._write(active, dispatch)
+            self.repository.delete_projection(source)
+            self._write(self._path(campaign_id), record)
+            return record
+
+    def settle_dispatch(self, campaign_id: str, *, dispatch: dict[str, Any], status: str,
+                        result: dict[str, Any] | None = None, error: dict[str, Any] | None = None) -> str:
+        """Commit terminal state, manifest and queue removal as one outbox update."""
+        with self.transaction():
+            record = self.get(campaign_id)
+            if dispatch.get("revision_id") is not None and dispatch["revision_id"] != record.get("revision_id"):
+                raise CampaignAPIError("DISPATCH_REVISION_MISMATCH")
+            if record["status"] == "cancelled":
+                status = "cancelled"
+            else:
+                record = self.record_dispatch_result(campaign_id, status=status, result=result, error=error)
+            destination = self.root / "dispatch" / status / f"{campaign_id}.json"
+            terminal = {**dispatch, "state": status}
+            if result is not None:
+                terminal["result"] = result
+            if error is not None:
+                terminal["error"] = error
+            if status == "cancelled":
+                terminal["cancelled_at"] = record.get("cancellation_requested_at")
+            self._write(destination, terminal)
+            for state in ("pending", "running"):
+                self.repository.delete_projection(self.root / "dispatch" / state / destination.name)
+            self.record_dispatch_location(campaign_id, destination)
+            return status
+
     def confirm(self, campaign_id: str) -> dict[str, Any]:
         """Confirm intent and enqueue an execution contract when present."""
 
-        with self._lock:
+        with self.transaction():
             record = self.get(campaign_id)
             execution = record.get("execution")
             if execution is None:
@@ -492,7 +527,7 @@ class CampaignStore:
     def cancel(self, campaign_id: str) -> dict[str, Any]:
         """Request cancellation and withdraw an unclaimed dispatch immediately."""
 
-        with self._lock:
+        with self.transaction():
             record = self.get(campaign_id)
             current = str(record.get("status"))
             if current == "cancelled":
@@ -512,7 +547,7 @@ class CampaignStore:
                 dispatch["cancelled_at"] = record["cancellation_requested_at"]
                 cancelled_path = self.root / "dispatch" / "cancelled" / pending.name
                 self._write(cancelled_path, dispatch)
-                pending.unlink(missing_ok=True)
+                self.repository.delete_projection(pending)
                 record["dispatch_ref"] = str(cancelled_path.resolve())
             self._write(self._path(campaign_id), record)
             return record
@@ -527,7 +562,7 @@ class CampaignStore:
     ) -> dict[str, Any]:
         if status not in {"running", "completed", "blocked", "failed"}:
             raise CampaignAPIError("DISPATCH_STATUS_INVALID")
-        with self._lock:
+        with self.transaction():
             record = self.get(campaign_id)
             current = str(record.get("status"))
             if current == "cancelled":
@@ -551,7 +586,7 @@ class CampaignStore:
     ) -> dict[str, Any]:
         """Bind campaign status to the dispatch manifest's current location."""
 
-        with self._lock:
+        with self.transaction():
             record = self.get(campaign_id)
             record["dispatch_ref"] = str(Path(dispatch_path).resolve())
             record["updated_at"] = _now()
@@ -571,7 +606,7 @@ class CampaignStore:
         deployment_ref = deployment.get("controller_config")
         if not isinstance(deployment_ref, str) or not Path(deployment_ref).is_absolute():
             raise CampaignAPIError("AUTONOMOUS_DEPLOYMENT_REF_INVALID")
-        with self._lock:
+        with self.transaction():
             record = self.get(campaign_id)
             if str(record.get("status")) not in {"created", "confirmed", "queued", "running"}:
                 raise CampaignAPIError("STATUS_TRANSITION_INVALID")
@@ -602,6 +637,7 @@ class CampaignStore:
             "execution_result_hash",
             "execution_error",
             "cancellation_requested_at",
+            "state_version",
         ):
             child.pop(field, None)
         child_execution = _reproduction_execution(execution, campaign_id=child_id)
@@ -627,7 +663,7 @@ class CampaignStore:
                 }
             ).encode()
         ).hexdigest()
-        with self._lock:
+        with self.transaction():
             self._write(self._path(child_id), child)
         return self.confirm(child_id)
 

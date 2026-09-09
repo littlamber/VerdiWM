@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -155,6 +156,18 @@ def validate_document(schema_name: str, document: Mapping[str, Any], *, root: Pa
     if not schema_path.is_file():
         raise ContractValidationError(f"SCHEMA_NOT_FOUND:{schema_name}")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    validate_instance(schema, document)
+
+
+@lru_cache(maxsize=256)
+def _compiled_validator(encoded: str):
+    schema = json.loads(encoded)
+    Draft202012Validator.check_schema(schema)
+    return Draft202012Validator(schema)
+
+
+def validate_bootstrap_instance(schema: Mapping[str, Any], document: Any) -> None:
+    """Explicit offline inspection only; unsupported keywords fail closed."""
     _validate(schema, document, path="$")
 
 
@@ -167,13 +180,14 @@ def validate_instance(schema: Mapping[str, Any], document: Any) -> None:
     """
 
     if Draft202012Validator is None:
-        _validate(schema, document, path="$")
-        return
+        raise ContractValidationError("SCHEMA_VALIDATOR_UNAVAILABLE:install jsonschema")
     try:
-        validator = Draft202012Validator(schema)
+        validator = _compiled_validator(json.dumps(schema, sort_keys=True))
     except SchemaError as exc:
         raise ContractValidationError(f"SCHEMA_INVALID:{exc.message}") from exc
-    errors = sorted(validator.iter_errors(document), key=lambda error: list(error.absolute_path))
+    except TypeError as exc:
+        raise ContractValidationError("SCHEMA_NOT_JSON") from exc
+    errors = sorted(validator.iter_errors(document), key=lambda error: tuple(str(part) for part in error.absolute_path))
     if errors:
         error = errors[0]
         location = "$" + "".join(
@@ -271,6 +285,10 @@ def _validate(
         for name, child_schema in properties.items():
             if name in value:
                 _validate(child_schema, value[name], path=f"{path}.{name}", root_schema=root_schema)
+        additional = schema.get("additionalProperties")
+        if isinstance(additional, Mapping):
+            for name in set(value) - set(properties):
+                _validate(additional, value[name], path=f"{path}.{name}", root_schema=root_schema)
 
 
 def _matches_type(value: Any, expected: str | Sequence[str]) -> bool:
