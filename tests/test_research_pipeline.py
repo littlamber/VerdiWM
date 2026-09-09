@@ -75,3 +75,86 @@ def test_onboarding_blocker_is_projected_without_experiment_execution(tmp_path, 
     monkeypatch.setattr(pipeline, 'run_selected_queue', lambda **kwargs: pytest.fail('Blocked onboarding ran experiment'))
     assert pipeline.run_autonomous_pipeline(options)['blocked_stage'] == 'onboarding'
     assert state(options)['phase'] == 'blocked'
+
+
+def test_negative_outcomes_are_snapshotted_before_retry(tmp_path, monkeypatch):
+    options, execute = setup_pipeline(tmp_path, monkeypatch)
+    def negative(**kwargs):
+        result = {'candidate_states':{'repair-a':'blocked'}, 'results':{'repair-a:gate':{'verdict':'FAIL'}}}
+        (options.output_root/'compiled'/'queue'/'execution.json').write_text(json.dumps(result))
+        return result
+    monkeypatch.setattr(pipeline, 'run_selected_queue', negative)
+    assert pipeline.run_autonomous_pipeline(options)['state'] == 'blocked'
+    previous = state(options)
+    refs = [Path(ref) for ref in previous['evidence_refs'] if 'execution-snapshots' in ref]
+    assert len(refs) == 1
+    snapshot = refs[0].read_bytes()
+    assert json.loads(snapshot)['results']['repair-a:gate']['verdict'] == 'FAIL'
+    monkeypatch.setattr(pipeline, 'run_selected_queue', execute)
+    pipeline.run_autonomous_pipeline(options)
+    assert refs[0].read_bytes() == snapshot
+    assert str(refs[0]) in state(options)['evidence_refs']
+
+
+def test_partial_execution_snapshot_survives_an_exception(tmp_path, monkeypatch):
+    options, _ = setup_pipeline(tmp_path, monkeypatch)
+    def fail(**kwargs):
+        (options.output_root/'compiled'/'queue'/'execution.json').write_text(json.dumps({'results':{'repair-a:screen':{'verdict':'PASS'}}}))
+        raise RuntimeError('interrupted after first stage')
+    monkeypatch.setattr(pipeline, 'run_selected_queue', fail)
+    with pytest.raises(RuntimeError, match='interrupted after first stage'):
+        pipeline.run_autonomous_pipeline(options)
+    refs = [Path(ref) for ref in state(options)['evidence_refs'] if 'execution-snapshots' in ref]
+    assert len(refs) == 1
+    assert json.loads(refs[0].read_text())['results']['repair-a:screen']['verdict'] == 'PASS'
+
+
+def test_same_output_cannot_run_concurrently(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    options, execute = setup_pipeline(tmp_path, monkeypatch)
+    entered, release = Event(), Event()
+    def run(**kwargs):
+        entered.set()
+        assert release.wait(timeout=5)
+        return execute(**kwargs)
+    monkeypatch.setattr(pipeline, 'run_selected_queue', run)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(pipeline.run_autonomous_pipeline, options)
+        try:
+            assert entered.wait(timeout=5)
+            with pytest.raises(pipeline.AutonomousPipelineError, match='ALREADY_RUNNING'):
+                pipeline.run_autonomous_pipeline(options)
+        finally:
+            release.set()
+        assert first.result(timeout=5)['state'] == 'settled'
+    # Lock is released at terminal completion, with no manual cleanup.
+    assert pipeline.run_autonomous_pipeline(options)['state'] == 'settled'
+
+
+def test_scheduler_template_change_rejected_even_when_goal_is_unchanged(tmp_path, monkeypatch):
+    real_input_document = pipeline._input_document
+    options, _ = setup_pipeline(tmp_path, monkeypatch)
+    monkeypatch.setattr(pipeline, '_input_document', real_input_document)
+    monkeypatch.setattr(pipeline, 'compute_source_revision', lambda *args, **kwargs: 'fixed-revision')
+    monkeypatch.setattr(pipeline, 'compute_source_tree_revision', lambda *args, **kwargs: 'fixed-tree')
+    pipeline.run_autonomous_pipeline(options)
+    path = tmp_path/'template.json'
+    value = json.loads(path.read_text())
+    value['candidates'] = [{'candidate_id':'changed-method'}]
+    path.write_text(json.dumps(value))
+    with pytest.raises(pipeline.AutonomousPipelineError, match='INPUT_MISMATCH'):
+        pipeline.run_autonomous_pipeline(options)
+
+
+def test_corrupt_partial_receipt_does_not_mask_executor_failure(tmp_path, monkeypatch):
+    options, _ = setup_pipeline(tmp_path, monkeypatch)
+    def fail(**kwargs):
+        (options.output_root/'compiled'/'queue'/'execution.json').write_bytes(b'{incomplete')
+        raise RuntimeError('original executor failure')
+    monkeypatch.setattr(pipeline, 'run_selected_queue', fail)
+    with pytest.raises(RuntimeError, match='original executor failure'):
+        pipeline.run_autonomous_pipeline(options)
+    refs = [Path(ref) for ref in state(options)['evidence_refs'] if 'execution-snapshots' in ref]
+    assert refs[0].read_bytes() == b'{incomplete'
+    assert state(options)['phase'] == 'blocked'

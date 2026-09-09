@@ -26,7 +26,7 @@ _TRANSITIONS = {
     "blocked": {"observe", "settled"},
     "settled": set(),
 }
-_MUTABLE = {"model_portrait_ref", "irg_ref", "hypotheses", "candidate_actions", "evidence_refs", "budget", "stop_conditions"}
+_MUTABLE = {"model_portrait_ref", "irg_ref", "hypotheses", "candidate_actions", "evidence_refs", "budget"}
 
 
 class ResearchStateError(ValueError):
@@ -121,6 +121,7 @@ class ResearchJournal:
         self.root = checked_path(root, code="RESEARCH_STATE_PATH_INVALID", error=ResearchStateError)
         self.root.mkdir(parents=True, exist_ok=True)
         self.input_hash = input_hash
+        self.initial = json.loads(canonical_bytes(initial))
         self.path = self.root / "research-state.json"
         self.lock = self.root / ".research-state.lock"
         validate_research_state(initial)
@@ -138,8 +139,10 @@ class ResearchJournal:
                 # Resuming the same bound campaign must preserve its decision
                 # state.  A new input hash is rejected above; therefore an
                 # existing snapshot is authoritative for this journal.
-                self.read()
+                self._validate_history(self.read())
             else:
+                if (self.root / "research-history").exists():
+                    raise ResearchStateError("RESEARCH_STATE_SNAPSHOT_MISSING")
                 write_research_state(self.path, initial)
 
     @classmethod
@@ -151,7 +154,36 @@ class ResearchJournal:
         path = checked_path(self.path, code="RESEARCH_STATE_PATH_INVALID", error=ResearchStateError)
         document = json.loads(path.read_bytes())
         validate_research_state(document)
+        for key in ("goal", "budget", "representation_version", "stop_conditions"):
+            if document[key] != self.initial[key]:
+                raise ResearchStateError("RESEARCH_STATE_IMMUTABLE_BINDING")
         return document
+
+    def _validate_history(self, current: Mapping[str, object]) -> None:
+        """Verify ancestry once on open; a valid digest alone does not bind a campaign."""
+        while current["revision"] > 0:
+            transition = current["last_transition"]
+            if not isinstance(transition, Mapping):
+                raise ResearchStateError("RESEARCH_STATE_HISTORY_INVALID")
+            parent_id = str(transition["parent_state_id"])
+            path = checked_path(
+                self.root / "research-history" / f"{parent_id}.json",
+                code="RESEARCH_STATE_PATH_INVALID", error=ResearchStateError,
+            )
+            if not path.is_file():
+                raise ResearchStateError("RESEARCH_STATE_HISTORY_MISSING")
+            parent = json.loads(path.read_bytes())
+            validate_research_state(parent)
+            if any(parent[key] != self.initial[key] for key in ("goal", "budget", "representation_version", "stop_conditions")):
+                raise ResearchStateError("RESEARCH_STATE_IMMUTABLE_BINDING")
+            if (parent["state_id"] != parent_id or parent["revision"] + 1 != current["revision"]
+                    or transition["from"] != parent["phase"] or transition["to"] != current["phase"]
+                    or parent["phase"] == "settled"
+                    or (parent["phase"] != current["phase"] and current["phase"] not in _TRANSITIONS[parent["phase"]])):
+                raise ResearchStateError("RESEARCH_STATE_HISTORY_INVALID")
+            current = parent
+        if current != self.initial:
+            raise ResearchStateError("RESEARCH_STATE_INPUT_MISMATCH")
 
     def advance(self, phase: str, reason: str, **updates: object) -> dict:
         with exclusive_file_lock(self.lock):

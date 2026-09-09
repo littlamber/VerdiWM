@@ -179,6 +179,13 @@ def run_selected_queue(
     shared_budget = (
         Path(budget_db).resolve() if budget_db is not None else root / "budget.db"
     )
+    queue_sha256 = _sha256_bytes(queue_source.read_bytes())
+    if execution and (
+        execution.get("campaign_id") != queue.get("campaign_id")
+        or execution.get("batch_sha256") != queue.get("batch_sha256")
+        or execution.get("queue_sha256") != queue_sha256
+    ):
+        raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_EXECUTION_BINDING_MISMATCH")
     if execution and execution.get("budget_db") != str(shared_budget):
         raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_BUDGET_PATH_MISMATCH")
     if budget_total_gpu_hours is not None and (
@@ -208,24 +215,20 @@ def run_selected_queue(
         for stage_record in selected["stages"]:
             stage = str(stage_record["stage"])
             result_key = f"{candidate_id}:{stage}"
+            plan_path = _resolve_inside(
+                root, str(stage_record["plan_path"]), "EXPERIMENT_SCHEDULER_PLAN_PATH_INVALID",
+            )
+            if _sha256_bytes(plan_path.read_bytes()) != stage_record.get("plan_sha256"):
+                raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_PLAN_HASH_MISMATCH")
             previous = results.get(result_key)
             if isinstance(previous, Mapping) and previous.get("state") in {
                 "completed",
                 "blocked",
             }:
-                if previous.get("state") == "blocked":
+                if previous.get("state") == "blocked" and stage != "screen":
                     candidate_state = "blocked"
                     break
                 continue
-            plan_path = _resolve_inside(
-                root,
-                str(stage_record["plan_path"]),
-                "EXPERIMENT_SCHEDULER_PLAN_PATH_INVALID",
-            )
-            if _sha256_bytes(plan_path.read_bytes()) != stage_record.get("plan_sha256"):
-                raise ExperimentSchedulerError(
-                    "EXPERIMENT_SCHEDULER_PLAN_HASH_MISMATCH"
-                )
             run_root = root / "runs" / candidate_id / stage
             try:
                 manifest = run_auto_experiment(
@@ -256,6 +259,7 @@ def run_selected_queue(
                         shared_budget,
                         budget_total_gpu_hours=budget_total_gpu_hours,
                         resource_policy=policy,
+                        queue_sha256=queue_sha256,
                     ),
                 )
                 raise
@@ -276,6 +280,7 @@ def run_selected_queue(
                     shared_budget,
                     budget_total_gpu_hours=budget_total_gpu_hours,
                     resource_policy=policy,
+                    queue_sha256=queue_sha256,
                 ),
             )
             # A screen failure is diagnostic routing evidence, not a scientific
@@ -292,6 +297,7 @@ def run_selected_queue(
         shared_budget,
         budget_total_gpu_hours=budget_total_gpu_hours,
         resource_policy=policy,
+        queue_sha256=queue_sha256,
     )
     document["candidate_states"] = candidate_states
     document["promotion_decisions"] = _promotion_decisions(
@@ -604,10 +610,12 @@ def _execution_document(
     *,
     budget_total_gpu_hours: float | None,
     resource_policy: Mapping[str, object],
+    queue_sha256: str,
 ) -> dict[str, object]:
     document = {
         "schema_version": 1,
         "artifact_type": "verdiwm-auto-experiment-queue-execution",
+        "queue_sha256": queue_sha256,
         "state": "ready",
         "campaign_id": queue["campaign_id"],
         "batch_sha256": queue["batch_sha256"],

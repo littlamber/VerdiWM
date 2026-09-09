@@ -9,10 +9,12 @@ import math
 import os
 import re
 from dataclasses import dataclass
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Mapping, Sequence
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
 from wmloop.control.onboarding import (
     OnboardingError,
     OnboardingOptions,
@@ -113,7 +115,27 @@ class AutonomousPipelineOptions:
 def run_autonomous_pipeline(
     options: AutonomousPipelineOptions,
 ) -> dict[str, object]:
-    """Run or resume the declared closed loop and return its durable manifest."""
+    """Run one writer per output root, regardless of CLI or daemon entry point."""
+    destination = checked_path(
+        options.output_root, code="AUTONOMOUS_PIPELINE_OUTPUT_INVALID", error=AutonomousPipelineError,
+    )
+    repo = Path(options.repo_root).expanduser().resolve()
+    if _overlaps(destination, repo):
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_OUTPUT_OVERLAPS_SOURCE")
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # The lock lives beside the output so acquiring it does not create an
+    # unbound output directory. Never unlink it: concurrent callers share its inode.
+    lock = destination.parent / (".verdiwm-pipeline-" + _sha256(str(destination).encode())[:24] + ".lock")
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(exclusive_file_lock(lock, blocking=False))
+        except BlockingIOError as exc:
+            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_ALREADY_RUNNING") from exc
+        return _run_autonomous_pipeline(options)
+
+
+def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, object]:
+    """Run or resume the declared closed loop under the output execution lock."""
 
     repo = Path(options.repo_root).expanduser().resolve()
     destination = Path(options.output_root).expanduser().resolve()
@@ -667,12 +689,10 @@ def run_autonomous_pipeline(
             and bool(candidate_states)
             and all(value == "completed" for value in candidate_states.values())
         )
-        if passed:
-            evidence_refs = list(journal.read()["evidence_refs"])
-            execution_path = compiled / "queue" / "execution.json"
-            if execution_path.is_file():
-                evidence_refs.append(str(execution_path))
-            journal.advance("remember", "Retain execution provenance without inferring positive model effects.", evidence_refs=evidence_refs)
+        journal.advance(
+            "remember", "Retain all available execution outcomes, including blocked candidates; no positive effect is inferred.",
+            evidence_refs=_execution_evidence_refs(journal, compiled),
+        )
         return _settle_pipeline(
             destination,
             input_hash=input_hash,
@@ -694,7 +714,10 @@ def run_autonomous_pipeline(
         )
     except Exception as exc:
         if journal.read()["phase"] not in {"blocked", "settled"}:
-            journal.advance("blocked", f"Pipeline interrupted at {stage}: {type(exc).__name__}")
+            journal.advance(
+                "blocked", f"Pipeline interrupted at {stage}: {type(exc).__name__}",
+                evidence_refs=_execution_evidence_refs(journal, compiled),
+            )
         _write_json_atomic(
             destination / "pipeline-manifest.json",
             _manifest(
@@ -709,11 +732,40 @@ def run_autonomous_pipeline(
         raise
 
 
+def _execution_evidence_refs(journal: ResearchJournal, compiled: Path) -> list[str]:
+    refs = list(journal.read()["evidence_refs"])
+    path = compiled / "queue" / "execution.json"
+    if path.is_file() and not path.is_symlink():
+        # Snapshot the mutable resume projection so a retry cannot overwrite
+        # the evidence seen by an earlier decision. Individual verdict receipts
+        # remain authoritative for scientific conclusions.
+        # Preserve even an incomplete/corrupt execution file on an error path;
+        # parsing it here could mask the original executor failure.
+        payload = path.read_bytes()
+        digest = _sha256(payload)
+        snapshot = checked_path(
+            journal.root / "execution-snapshots" / f"{digest}.json",
+            code="AUTONOMOUS_PIPELINE_SNAPSHOT_PATH_INVALID", error=AutonomousPipelineError,
+        )
+        atomic_write(snapshot, payload)
+        refs.append(str(snapshot))
+    return list(dict.fromkeys(refs))
+
+
+def _scheduler_template_path(evaluator: Path) -> Path:
+    contract = _load_json(evaluator, "AUTONOMOUS_PIPELINE_EVALUATOR_INVALID")
+    raw = contract.get("scheduler_template")
+    if not isinstance(raw, str) or not raw:
+        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_TEMPLATE_INVALID")
+    path = Path(raw)
+    if not path.is_absolute():
+        path = evaluator.parent / path
+    return checked_path(path, code="AUTONOMOUS_PIPELINE_TEMPLATE_INVALID", error=AutonomousPipelineError)
+
+
 def _initial_research_state(evaluator: Path, budget: float, irg: Path | None) -> dict:
     contract = _load_json(evaluator, "AUTONOMOUS_PIPELINE_EVALUATOR_INVALID")
-    template_path = Path(str(contract["scheduler_template"]))
-    if not template_path.is_absolute():
-        template_path = evaluator.parent / template_path
+    template_path = _scheduler_template_path(evaluator)
     template = _load_json(template_path, "AUTONOMOUS_PIPELINE_TEMPLATE_INVALID")
     metrics = contract.get("metrics", [])
     names = list(metrics) if isinstance(metrics, Mapping) else [
@@ -864,6 +916,8 @@ def _input_document(
         "runtime_python": runtime,
         "evaluator_contract": str(evaluator),
         "evaluator_sha256": _sha256(evaluator.read_bytes()),
+        "scheduler_template_sha256": _sha256(_scheduler_template_path(evaluator).read_bytes()),
+        "adapter_contract_ready": options.adapter_contract_ready,
         "asset_bindings": sorted(bindings, key=lambda row: row["parameter"]),
         "adapter_asset_parameters": sorted(
             {

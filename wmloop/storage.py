@@ -41,11 +41,11 @@ def atomic_write(path: Path, payload: bytes) -> None:
 
 
 @contextmanager
-def exclusive_file_lock(path: Path):
+def exclusive_file_lock(path: Path, *, blocking: bool = True):
     """Process lock; kernel releases it after crashes. Never unlink a lock file."""
     descriptor = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        fcntl.flock(descriptor, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
         yield
     finally:
         fcntl.flock(descriptor, fcntl.LOCK_UN)

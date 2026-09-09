@@ -73,3 +73,28 @@ def test_hypotheses_must_have_valid_mechanism_contracts():
         transition_research_state(state, phase='select', reason='Choose explanation', updates={'hypotheses':[bad]})
     with pytest.raises(MechanismHypothesisError):
         transition_research_state(state, phase='select', reason='Choose explanation', updates={'hypotheses':[{'claim':'untyped guess'}]})
+
+
+def test_journal_rejects_replaced_snapshot_from_an_unrelated_history(tmp_path):
+    state = initial()
+    journal = ResearchJournal(tmp_path, input_hash='a'*64, initial=state)
+    journal.advance('hypothesize', 'Record actual observations')
+    other = transition_research_state(state, phase='hypothesize', reason='Different observations')
+    graft = transition_research_state(other, phase='select', reason='Select from unrelated observations')
+    journal.path.write_text(json.dumps(graft))
+    with pytest.raises(ResearchStateError, match='HISTORY_MISSING'):
+        ResearchJournal(tmp_path, input_hash='a'*64, initial=state)
+
+
+def test_journal_does_not_silently_reset_missing_current_snapshot(tmp_path):
+    state = initial()
+    journal = ResearchJournal(tmp_path, input_hash='a'*64, initial=state)
+    journal.advance('hypothesize', 'Record actual observations')
+    journal.path.unlink()
+    with pytest.raises(ResearchStateError, match='SNAPSHOT_MISSING'):
+        ResearchJournal(tmp_path, input_hash='a'*64, initial=state)
+
+
+def test_stop_conditions_cannot_be_weakened_by_transition():
+    with pytest.raises(ResearchStateError, match='IMMUTABLE_BINDING'):
+        transition_research_state(initial(), phase='hypothesize', reason='Weaken campaign constraints', updates={'stop_conditions':[]})
