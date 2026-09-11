@@ -1169,7 +1169,10 @@ def _parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {_installed_version()}")
-    commands = parser.add_subparsers(dest="command", required=True)
+    # Showing the top-level guide on a bare ``verdi`` invocation is friendlier
+    # for first contact.  Existing explicit commands and the legacy ``verdiwm``
+    # alias keep their normal argparse behavior.
+    commands = parser.add_subparsers(dest="command", required=False)
 
     doctor = commands.add_parser(
         "doctor", help="verify the local CPU control-plane installation"
@@ -1678,6 +1681,9 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if getattr(args, "command", None) is None:
+        _parser().print_help()
+        return 0
     try:
         return int(args.handler(args))
     except (
