@@ -94,6 +94,39 @@ uv run verdiwm setup \
   --runtime-python /path/to/model/.venv/bin/python
 ```
 
+### 一次确认的研究闭环入口
+
+如果不想先手写项目配置，可以直接让系统把模型、数据、目标、运行环境和
+评测器编译成一份可审阅计划。计划阶段只读扫描文件并计算摘要，不会导入模型、
+联网调用研究服务或占用 GPU：
+
+```bash
+uv run verdiwm research plan \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "提升分钟级长程交互一致性" \
+  --budget 4gpu-hours \
+  --mode hybrid \
+  --output ./.verdiwm/research-plan.json
+```
+
+检查计划中的 `state`、`blockers`、`evaluator_contract`、`input_digest` 和阶段
+顺序。只有计划处于 `ready` 或 `ready_with_deferred_discovery` 时才可以确认：
+
+```bash
+uv run verdiwm research run \
+  --plan ./.verdiwm/research-plan.json \
+  --confirm
+```
+
+确认命令会再次校验模型、数据、适配器资源、运行 Python 和评测器的内容摘要，
+然后复用 CampaignStore 创建不可变 revision，按当前适配器和证据门禁推进
+onboarding、IRG/诊断、证据检索、候选物化、配对筛选、独立确认和知识沉淀阶段；
+无法证明的阶段会停在对应门禁。任何输入在计划生成后被
+替换都会停止并要求重新生成计划。检索、生成代码、接口校准或单次 loss 下降都
+不会自动形成“有效提升”结论；开放方法只有在目标侧四臂 study、冻结 verifier
+和 held-out confirmation 完成后才具备科学结论权。
+
 ## 运行自己的项目
 
 在模型和数据集旁边创建 `verdiwm.toml`：

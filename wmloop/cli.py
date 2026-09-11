@@ -29,6 +29,13 @@ from wmloop.control.research_proposal import (
     write_compiled_experiment_manifest,
 )
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.research_request import (
+    ResearchRequestError,
+    compile_research_plan,
+    load_research_plan,
+    run_research_plan,
+    write_research_plan,
+)
 from wmloop.control.model_batch import (
     ModelBatchError,
     compile_model_batch,
@@ -281,8 +288,8 @@ def _check(args: argparse.Namespace) -> int:
     configured: dict[str, Any] = {}
     try:
         configured = load_project_config(cwd=Path.cwd()).values
-    except ProjectConfigError:
-        configured = {}
+    except ProjectConfigError as exc:
+        raise ResearchRequestError(str(exc)) from exc
     readiness = inspect_project(
         root=Path.cwd(),
         model=args.model or configured.get("model"),
@@ -696,6 +703,50 @@ def _run(args: argparse.Namespace) -> int:
     campaign = store.get(str(created["campaign_id"]))
     _print({"campaign": campaign, "dispatcher": dispatcher})
     return 0 if campaign.get("status") in {"completed", "cancelled"} else 2
+
+
+def _research_plan(args: argparse.Namespace) -> int:
+    configured: dict[str, Any] = {}
+    try:
+        configured = load_project_config(cwd=Path.cwd()).values
+    except ProjectConfigError as exc:
+        raise ResearchRequestError(str(exc)) from exc
+    plan = compile_research_plan(
+        model=args.model or configured.get("model"),
+        data=args.data or configured.get("data", configured.get("dataset")),
+        source=args.source or configured.get("source"),
+        goal=args.goal or configured.get("goal"),
+        budget=args.budget or configured.get("budget", "1gpu-hour"),
+        mode=args.mode or configured.get("mode", "hybrid"),
+        adapter=args.adapter or configured.get("adapter", "auto"),
+        evaluator_contract=args.evaluator_contract or configured.get("evaluator_contract"),
+        runtime_python=args.runtime_python or configured.get("runtime_python"),
+        adapter_profile=args.adapter_profile or configured.get("adapter_profile"),
+        target_metrics=args.target_metrics or configured.get("target_metrics", configured.get("metrics", configured.get("metric"))),
+        model_irg=args.model_irg,
+        irg_protected_metrics=args.irg_protected_metric,
+        state_root=args.state_root or configured.get("state_root"),
+        project_root=args.project_root or Path.cwd(),
+    )
+    destination = write_research_plan(plan, args.output)
+    _print({**plan, "plan_path": str(destination)})
+    return 0 if plan["state"] in {"ready", "ready_with_deferred_discovery"} else 2
+
+
+def _research_run(args: argparse.Namespace) -> int:
+    plan = load_research_plan(args.plan)
+    state_root = args.state_root
+    if state_root is None:
+        state_root = Path(str(plan.get("state_root", Path(str(plan.get("project_root", Path.cwd()))) / ".verdiwm" / "state")))
+    result = run_research_plan(
+        plan,
+        store=_store(state_root),
+        confirm=args.confirm,
+        queue_only=args.queue_only,
+        max_parallel=args.max_parallel,
+    )
+    _print(result)
+    return 0 if result["state"] in {"awaiting_confirmation", "queued", "completed", "cancelled"} else 2
 
 
 def _status(args: argparse.Namespace) -> int:
@@ -1145,6 +1196,45 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--max-parallel", type=int, default=1)
     run.set_defaults(handler=_run)
 
+    research = commands.add_parser(
+        "research", help="从一句研究目标生成计划，并在一次确认后进入完整闭环"
+    )
+    research_commands = research.add_subparsers(dest="research_command", required=True)
+    research_plan = research_commands.add_parser(
+        "plan", help="只读生成可审阅的研究计划；不会导入模型或启动 GPU"
+    )
+    research_plan.add_argument("--model", help="模型目录；默认读取 verdiwm.toml")
+    research_plan.add_argument("--source", help="模型源码目录；可与权重目录分离")
+    research_plan.add_argument("--data", help="数据目录；默认读取 verdiwm.toml")
+    research_plan.add_argument("--goal", help="想改善的能力，用一句话描述")
+    research_plan.add_argument("--target-metrics", "--metrics", dest="target_metrics", nargs="+")
+    research_plan.add_argument("--budget", default=None, help="例如 4gpu-hours")
+    research_plan.add_argument("--adapter", default=None, help="适配器 profile 或 auto")
+    research_plan.add_argument("--mode", choices=("quick-start", "causal-discovery", "hybrid"))
+    research_plan.add_argument("--evaluator-contract", type=Path)
+    research_plan.add_argument("--runtime-python", type=Path)
+    research_plan.add_argument("--adapter-profile", type=Path)
+    research_plan.add_argument("--model-irg", type=Path, help="已有 IRG/行为画像文件")
+    research_plan.add_argument("--irg-protected-metric", action="append", default=[])
+    research_plan.add_argument("--state-root", type=Path)
+    research_plan.add_argument("--project-root", type=Path)
+    research_plan.add_argument(
+        "--output", type=Path,
+        default=Path.cwd() / ".verdiwm" / "research-plan.json",
+        help="研究计划输出路径",
+    )
+    research_plan.set_defaults(handler=_research_plan)
+
+    research_run = research_commands.add_parser(
+        "run", help="校验计划输入并在一次确认后创建/运行 campaign"
+    )
+    research_run.add_argument("--plan", type=Path, required=True)
+    research_run.add_argument("--confirm", action="store_true", help="确认后创建并调度 campaign")
+    research_run.add_argument("--queue-only", action="store_true", help="只入队，不立即执行")
+    research_run.add_argument("--state-root", type=Path)
+    research_run.add_argument("--max-parallel", type=int, default=1)
+    research_run.set_defaults(handler=_research_run)
+
     job = commands.add_parser(
         "job", help="submit and control detached long-running model jobs"
     )
@@ -1586,6 +1676,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         CommunityBundleError,
         CommunityExportError,
         CommunityKnowledgeError,
+        ResearchRequestError,
     ) as exc:
         message = explain_blocker(exc)
         print(f"{message['error']} [{message['code']}]", file=sys.stderr)

@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "plan_id", "request_id", "state",
+    "created_at", "project_root", "state_root", "goal", "model", "data", "source",
+    "target_metrics", "budget", "mode", "adapter", "adapter_profile",
+    "evaluator_contract", "runtime_python", "model_irg",
+    "irg_protected_metrics", "input_bindings", "input_digest", "adapter_preview",
+    "readiness", "research_mode_plan", "stages", "open_method_policy",
+    "confirmation_required", "side_effects", "blockers", "claim_boundary",
+    "plan_digest"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-research-plan"},
+    "plan_id": {"type": "string", "pattern": "^research-plan-[0-9a-f]{24}$"},
+    "request_id": {"type": "string", "pattern": "^research-request-[0-9a-f]{24}$"},
+    "state": {"enum": ["ready", "ready_with_deferred_discovery", "blocked"]},
+    "created_at": {"type": "string", "minLength": 10},
+    "project_root": {"type": "string", "minLength": 1},
+    "state_root": {"type": "string", "minLength": 1},
+    "goal": {"type": "string", "minLength": 1},
+    "model": {"type": "string", "minLength": 1},
+    "data": {"type": "string", "minLength": 1},
+    "source": {"type": ["string", "null"]},
+    "target_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "budget": {
+      "type": "object", "additionalProperties": false, "required": ["gpu_hours"],
+      "properties": {"gpu_hours": {"type": "number", "exclusiveMinimum": 0}}
+    },
+    "mode": {"enum": ["quick_start", "causal_discovery", "hybrid"]},
+    "adapter": {"type": "string", "minLength": 1},
+    "adapter_profile": {"type": ["string", "null"]},
+    "evaluator_contract": {"type": ["string", "null"]},
+    "runtime_python": {"type": ["string", "null"]},
+    "model_irg": {"type": ["string", "null"]},
+    "irg_protected_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "input_bindings": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["path", "kind", "sha256", "size_bytes", "file_count"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["file", "directory"]},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "file_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "input_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "adapter_preview": {"type": "object"},
+    "readiness": {"type": "object"},
+    "research_mode_plan": {"type": "object"},
+    "stages": {
+      "type": "array", "minItems": 7,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["order", "stage", "state", "purpose"],
+        "properties": {
+          "order": {"type": "integer", "minimum": 1},
+          "stage": {"type": "string", "minLength": 1},
+          "state": {"type": "string", "minLength": 1},
+          "purpose": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "open_method_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enabled", "mode", "max_methods", "require_four_arm_study", "require_target_side_validation", "authority"],
+      "properties": {
+        "enabled": {"const": true},
+        "mode": {"const": "evidence_grounded"},
+        "max_methods": {"type": "integer", "minimum": 1},
+        "require_four_arm_study": {"const": true},
+        "require_target_side_validation": {"const": true},
+        "authority": {"const": "four_arm_study_only"}
+      }
+    },
+    "confirmation_required": {"const": true},
+    "side_effects": {
+      "type": "object", "additionalProperties": false,
+      "required": ["model_import_executed", "gpu_execution_started", "source_modified"],
+      "properties": {
+        "model_import_executed": {"const": false},
+        "gpu_execution_started": {"const": false},
+        "source_modified": {"const": false}
+      }
+    },
+    "blockers": {
+      "type": "array", "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code", "message", "action"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "message": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 32},
+    "plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

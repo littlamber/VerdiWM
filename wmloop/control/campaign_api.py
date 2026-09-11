@@ -221,6 +221,30 @@ class CampaignStore:
             if payload.get(field) is not None:
                 execution = dict(execution)
                 execution[field] = payload[field]
+        open_method_policy = payload.get("open_method_policy")
+        if open_method_policy is not None:
+            if not isinstance(open_method_policy, Mapping):
+                raise CampaignAPIError("OPEN_METHOD_POLICY_OBJECT_REQUIRED")
+            required_policy = {
+                "enabled": True,
+                "mode": "evidence_grounded",
+                "require_four_arm_study": True,
+                "require_target_side_validation": True,
+                "authority": "four_arm_study_only",
+            }
+            if any(open_method_policy.get(key) != value for key, value in required_policy.items()):
+                raise CampaignAPIError("OPEN_METHOD_POLICY_INVALID")
+            max_methods = open_method_policy.get("max_methods")
+            if isinstance(max_methods, bool) or not isinstance(max_methods, int) or max_methods < 1:
+                raise CampaignAPIError("OPEN_METHOD_POLICY_INVALID")
+            execution = dict(execution)
+            execution["open_method_policy"] = dict(open_method_policy)
+        if isinstance(payload.get("plan_binding"), Mapping):
+            binding = dict(payload["plan_binding"])
+            if not all(isinstance(binding.get(key), str) and binding.get(key) for key in ("plan_id", "plan_digest", "input_digest")):
+                raise CampaignAPIError("RESEARCH_PLAN_BINDING_INVALID")
+            execution = dict(execution)
+            execution["research_plan_binding"] = binding
         research_mode_plan: dict[str, object] | None = None
         if payload.get("research_mode") is not None:
             assert isinstance(execution, dict)

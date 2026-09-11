@@ -37,6 +37,13 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         "COMMUNITY_BUNDLE_CRYPTOGRAPHY_REQUIRED": "当前环境缺少社区签名依赖，请运行 uv sync --group dev 后重试。",
         "COMMUNITY_LIFECYCLE_OUTPUT_CONFLICT": "生命周期文件已经存在且内容不同，请换一个输出路径或先检查已有记录。",
         "COMMUNITY_LIFECYCLE_OUTPUT_INVALID": "生命周期输出路径不可用，请选择普通文件路径。",
+        "RESEARCH_PLAN_BLOCKED": "研究计划还有硬性阻塞项，系统没有启动实验。请先补齐计划中的评测器、运行环境或适配器绑定。",
+        "RESEARCH_PLAN_INPUT_DIGEST_DRIFT": "研究计划生成后输入文件发生了变化，系统已停止以避免把结果绑定到错误的模型或评测器。请重新生成计划。",
+        "RESEARCH_PLAN_DIGEST_MISMATCH": "研究计划文件的内容摘要不一致，请重新生成计划。",
+        "RESEARCH_PLAN_INPUT_BINDINGS_MISSING": "研究计划没有锁定完整的输入摘要，请重新生成计划。",
+        "RESEARCH_PLAN_OUTPUT_CONFLICT": "研究计划输出文件已经存在且内容不同，请换一个路径或先检查已有计划。",
+        "RESEARCH_PLAN_OUTPUT_INSIDE_INPUT": "研究计划不能写入模型、源码或数据目录内部。",
+        "RESEARCH_PLAN_ADAPTER_PREVIEW_MISSING": "研究计划没有保存可复现的适配器预览，请重新生成计划。",
     }
     message = exact.get(code)
     if message is None and any(token in detail for token in ("TARGET_METRIC", "METRIC_")):
