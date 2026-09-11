@@ -24,7 +24,7 @@ from wmloop.control.adapter_profiles import (
     compile_adapter_execution,
     parse_gpu_budget,
 )
-from wmloop.control.first_contact import inspect_project
+from wmloop.control.first_contact import infer_source_root, inspect_project
 from wmloop.control.project_config import ProjectConfigError, load_project_config
 from wmloop.control.research_modes import (
     ResearchModeError,
@@ -38,6 +38,18 @@ class ResearchRequestError(ValueError):
 
 
 _SKIP_DIRS = frozenset({".git", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".verdiwm"})
+# Source checkouts often contain local training artifacts beside the code.  A
+# source binding should capture the checkout that defines the adapter, while
+# avoiding an accidental walk through multi-gigabyte checkpoints and latent
+# caches that are already bound separately as model/data inputs.
+_SOURCE_SKIP_DIRS = frozenset({"checkpoints", "outputs", "runs", "wandb", "logs", "artifacts"})
+_SOURCE_SKIP_PREFIXES = ("checkpoint", "video_latent", "latent_cache")
+# Model repositories commonly contain multi-gigabyte checkpoints and cached
+# videos.  Reading those files during a read-only plan makes first contact
+# needlessly slow.  Small files still receive a complete content digest;
+# large files use a deterministic metadata plus head/tail fingerprint.
+_LARGE_FILE_FAST_BYTES = 256 * 1024 * 1024
+_FAST_SAMPLE_BYTES = 1024 * 1024
 _OPEN_METHOD_POLICY: dict[str, object] = {
     "enabled": True,
     "mode": "evidence_grounded",
@@ -59,77 +71,110 @@ def _sha256_bytes(chunks: Sequence[bytes]) -> str:
     return digest.hexdigest()
 
 
-def _path_digest(path: Path) -> dict[str, object]:
+def _path_digest(path: Path, *, source_tree: bool = False) -> dict[str, object]:
     """Digest a file or directory without following internal symlinks."""
 
     path = path.expanduser().resolve()
     if path.is_symlink() or not path.exists():
         raise ResearchRequestError(f"INPUT_PATH_INVALID:{path}")
     if path.is_file():
-        digest = hashlib.sha256()
-        size = 0
         try:
+            stat = path.stat()
+            size = int(stat.st_size)
             with path.open("rb") as handle:
-                while True:
-                    chunk = handle.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    size += len(chunk)
-                    digest.update(chunk)
+                digest = _file_content_digest(handle, size=size, stat=stat)
         except OSError as exc:
             raise ResearchRequestError(f"INPUT_PATH_UNREADABLE:{path}") from exc
-        return {"path": str(path), "kind": "file", "sha256": digest.hexdigest(), "size_bytes": size, "file_count": 1}
+        return {"path": str(path), "kind": "file", "sha256": digest, "size_bytes": size, "file_count": 1}
 
     digest = hashlib.sha256()
     file_count = 0
     byte_count = 0
+    excluded = set(_SKIP_DIRS)
+    if source_tree:
+        excluded.update(_SOURCE_SKIP_DIRS)
     try:
-        entries = sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix())
+        # ``os.walk`` lets us prune ignored artifact directories before the
+        # filesystem enumerates their contents.  This matters for source
+        # checkouts that colocate tens or hundreds of gigabytes of artifacts.
+        for current, directories, filenames in os.walk(path, topdown=True, followlinks=False):
+            current_path = Path(current)
+            kept_directories: list[str] = []
+            for name in sorted(directories):
+                numeric_artifact = source_tree and current_path == path and name.isdigit() and len(name) >= 4
+                if name in excluded or (source_tree and (name.casefold().startswith(_SOURCE_SKIP_PREFIXES) or numeric_artifact)):
+                    continue
+                child = current_path / name
+                if child.is_symlink():
+                    relative_text = child.relative_to(path).as_posix()
+                    digest.update(f"link:{relative_text}:{os.readlink(child)}\n".encode("utf-8"))
+                    continue
+                kept_directories.append(name)
+            directories[:] = kept_directories
+            for name in sorted(filenames):
+                entry = current_path / name
+                relative_text = entry.relative_to(path).as_posix()
+                if entry.is_symlink():
+                    digest.update(f"link:{relative_text}:{os.readlink(entry)}\n".encode("utf-8"))
+                    continue
+                if not entry.is_file():
+                    continue
+                size = 0
+                try:
+                    stat = entry.stat()
+                    size = int(stat.st_size)
+                    with entry.open("rb") as handle:
+                        file_digest = _file_content_digest(handle, size=size, stat=stat)
+                except OSError as exc:
+                    raise ResearchRequestError(f"INPUT_PATH_UNREADABLE:{entry}") from exc
+                digest.update(f"file:{relative_text}:{size}:".encode("utf-8"))
+                digest.update(bytes.fromhex(file_digest))
+                file_count += 1
+                byte_count += size
     except OSError as exc:
         raise ResearchRequestError(f"INPUT_PATH_UNREADABLE:{path}") from exc
-    for entry in entries:
-        relative = entry.relative_to(path)
-        if any(part in _SKIP_DIRS for part in relative.parts):
-            continue
-        relative_text = relative.as_posix()
-        if entry.is_symlink():
-            target = os.readlink(entry)
-            digest.update(f"link:{relative_text}:{target}\n".encode("utf-8"))
-            continue
-        if not entry.is_file():
-            continue
-        file_digest = hashlib.sha256()
-        size = 0
-        try:
-            with entry.open("rb") as handle:
-                while True:
-                    chunk = handle.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    size += len(chunk)
-                    file_digest.update(chunk)
-        except OSError as exc:
-            raise ResearchRequestError(f"INPUT_PATH_UNREADABLE:{entry}") from exc
-        digest.update(f"file:{relative_text}:{size}:".encode("utf-8"))
-        digest.update(file_digest.digest())
-        file_count += 1
-        byte_count += size
     return {
         "path": str(path),
         "kind": "directory",
         "sha256": digest.hexdigest(),
         "size_bytes": byte_count,
         "file_count": file_count,
-    }
+}
 
 
-def _resolve(value: object, *, base: Path) -> Path | None:
+def _file_content_digest(handle: Any, *, size: int, stat: os.stat_result) -> str:
+    """Hash a file fully when small and by stable head/tail samples when huge."""
+
+    digest = hashlib.sha256()
+    if size <= _LARGE_FILE_FAST_BYTES:
+        while True:
+            chunk = handle.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    else:
+        # Include metadata and both ends of the file.  This is intentionally
+        # deterministic and is also used by the pre-dispatch drift check;
+        # conformance receipts remain responsible for any full-content
+        # verification required by a publication workflow.
+        digest.update(f"fast:{size}:{stat.st_mtime_ns}:{stat.st_mode}\n".encode("ascii"))
+        digest.update(handle.read(_FAST_SAMPLE_BYTES))
+        handle.seek(max(0, size - _FAST_SAMPLE_BYTES))
+        digest.update(handle.read(_FAST_SAMPLE_BYTES))
+    return digest.hexdigest()
+
+
+def _resolve(value: object, *, base: Path, preserve_symlink: bool = False) -> Path | None:
     if value is None:
         return None
     if not isinstance(value, (str, Path)) or not str(value).strip():
         return None
     path = Path(str(value)).expanduser()
-    return (path if path.is_absolute() else base / path).resolve()
+    candidate = path if path.is_absolute() else base / path
+    # Runtime launchers are often virtualenv symlinks.  Keep the spelling the
+    # user supplied so the child process receives the intended environment;
+    # ordinary inputs remain fully resolved for stable digest bindings.
+    return candidate.absolute() if preserve_symlink else candidate.resolve()
 
 
 def _blocker(code: str, message: str, action: str, detail: object | None = None) -> dict[str, object]:
@@ -220,7 +265,16 @@ def _project_values(base: Path) -> dict[str, object]:
 
 def _find_profile(root: Path, profile_id: str) -> Path | None:
     candidate = root / "configs" / "adapters" / f"{profile_id}.json"
-    return candidate if candidate.is_file() else None
+    if candidate.is_file():
+        return candidate
+    for path in sorted((root / "configs" / "adapters").glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, Mapping) and payload.get("profile_id") == profile_id:
+            return path
+    return None
 
 
 def _input_bindings(
@@ -247,8 +301,15 @@ def _input_bindings(
         for parameter, raw_path in sorted(asset_bindings.items()):
             values[f"asset:{parameter}"] = Path(str(raw_path)).expanduser().resolve()
     result: dict[str, dict[str, object]] = {}
+    cache: dict[tuple[str, bool], dict[str, object]] = {}
     for name, path in sorted(values.items()):
-        result[name] = _path_digest(path)
+        source_binding = name == "source" or (
+            name.startswith("asset:") and any(token in name.casefold() for token in ("source", "repo"))
+        )
+        cache_key = (str(path), source_binding)
+        if cache_key not in cache:
+            cache[cache_key] = _path_digest(path, source_tree=source_binding)
+        result[name] = dict(cache[cache_key])
     return result
 
 
@@ -282,8 +343,20 @@ def compile_research_plan(
     model_path = _resolve(model or configured.get("model"), base=base)
     data_path = _resolve(data or configured.get("data", configured.get("dataset")), base=base)
     source_path = _resolve(source or configured.get("source"), base=base)
-    evaluator_path = _resolve(evaluator_contract or configured.get("evaluator_contract"), base=base)
-    runtime_path = _resolve(runtime_python or configured.get("runtime_python"), base=base)
+    if source_path is None:
+        # Checkpoint-only requests are common.  Infer a nearby source checkout
+        # so the user does not have to repeat the repository path on every
+        # campaign, while leaving explicit bindings authoritative.
+        source_path = infer_source_root(model_path)
+    # Keep the distinction between a user-frozen evaluator and a profile
+    # default.  A profile may carry a verifier template, but a model checkout
+    # can expose a more appropriate candidate; silently freezing that file
+    # would make the first-contact evidence boundary meaningless.
+    requested_evaluator = evaluator_contract or configured.get("evaluator_contract")
+    evaluator_path = _resolve(requested_evaluator, base=base)
+    evaluator_was_explicit = evaluator_path is not None
+    runtime_value = runtime_python if runtime_python is not None else configured.get("runtime_python")
+    runtime_path = _resolve(runtime_value, base=base, preserve_symlink=True)
     profile_path = _resolve(adapter_profile or configured.get("adapter_profile"), base=base)
     irg_path = _resolve(model_irg, base=base)
     normalized_goal = goal or configured.get("goal")
@@ -303,8 +376,6 @@ def compile_research_plan(
         raise ResearchRequestError("MODEL_PATH_INVALID")
     if not data_path.exists() or data_path.is_symlink():
         raise ResearchRequestError("DATA_PATH_INVALID")
-    _ensure_outside_inputs(base / ".verdiwm" / "research-plan.json", (model_path, data_path, source_path))
-
     repo_root = Path(__file__).resolve().parents[2]
     plan_seed = hashlib.sha256(_canonical({
         "model": str(model_path), "data": str(data_path), "goal": normalized_goal.strip(),
@@ -327,6 +398,7 @@ def compile_research_plan(
             adapter_profile_path=profile_path,
             runtime_python=runtime_path,
             project_root=repo_root,
+            source_root=source_path,
         )
         preview_execution = dict(resolved.execution)
         selected_profile = selected_profile or _find_profile(repo_root, resolved.profile_id)
@@ -335,7 +407,7 @@ def compile_research_plan(
         if evaluator_path is None:
             evaluator_path = _resolve(preview_execution.get("evaluator_contract"), base=repo_root)
         if runtime_path is None:
-            runtime_path = _resolve(preview_execution.get("runtime_python"), base=repo_root)
+            runtime_path = _resolve(preview_execution.get("runtime_python"), base=repo_root, preserve_symlink=True)
     except (AdapterProfileError, OSError, ValueError) as exc:
         preview_error = exc
         blockers.append(_adapter_blocker(exc))
@@ -345,11 +417,27 @@ def compile_research_plan(
         model=str(model_path),
         source=str(source_path) if source_path is not None else None,
         data=str(data_path),
-        evaluator_contract=str(evaluator_path) if evaluator_path is not None else None,
+        evaluator_contract=(str(evaluator_path) if evaluator_was_explicit and evaluator_path is not None else None),
         runtime_python=str(runtime_path) if runtime_path is not None else None,
     )
     blockers.extend(item for item in readiness.get("blockers", []) if isinstance(item, Mapping))
-    if evaluator_path is None or not evaluator_path.is_file() or evaluator_path.is_symlink():
+    discovered_candidates = readiness.get("discovered", {}).get("evaluator_discovery", {})
+    has_candidates = (
+        isinstance(discovered_candidates, Mapping)
+        and discovered_candidates.get("state") == "candidates_available"
+        and bool(discovered_candidates.get("candidates"))
+    )
+    if not evaluator_was_explicit and has_candidates:
+        # Hold the profile default in the preview only.  The campaign cannot
+        # be scheduled until one candidate is explicitly overlaid and frozen.
+        evaluator_path = None
+        blockers = [item for item in blockers if str(item.get("code")) != "EVALUATOR_CONTRACT_REQUIRED"]
+        blockers.append(_blocker(
+            "EVALUATOR_CONFIRMATION_REQUIRED",
+            "发现了模型源码中的评测候选，但它们尚未冻结。",
+            "确认一个候选；系统会在 VERDI 输出目录生成带摘要和路径改写的 overlay，再重新生成计划。",
+        ))
+    elif evaluator_path is None or not evaluator_path.is_file() or evaluator_path.is_symlink():
         blockers.append(_blocker(
             "EVALUATOR_CONTRACT_REQUIRED",
             "还没有锁定一个冻结的目标侧评测契约，系统不能判断方法是否真的有效。",
@@ -529,6 +617,7 @@ def plan_to_campaign_payload(plan: Mapping[str, object]) -> dict[str, object]:
         "goal": str(plan["goal"]),
         "model": str(plan["model"]),
         "dataset": str(plan["data"]),
+        "source": str(plan["source"]) if plan.get("source") else None,
         "budget": plan["budget"],
         "adapter": str(plan.get("adapter") or "auto"),
         "adapter_profile_path": str(plan["adapter_profile"]) if plan.get("adapter_profile") else None,

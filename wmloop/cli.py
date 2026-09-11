@@ -58,6 +58,7 @@ from wmloop.geometry.community_knowledge import (
 from wmloop.control.first_contact import (
     FirstContactError,
     explain_blocker,
+    infer_source_root,
     initialize_project,
     inspect_project,
 )
@@ -189,8 +190,13 @@ def _resolve_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
         raise CampaignAPIError("MODEL_PATH_REQUIRED:configure project.model or pass --model")
     if not data:
         raise CampaignAPIError("DATA_PATH_REQUIRED:configure project.data or pass --data")
+    source = args.source or configured.get("source")
+    if source is None:
+        source_path = infer_source_root(Path(str(model)))
+        source = str(source_path) if source_path is not None else None
     return {
         "model": str(model),
+        "source": str(source) if source else None,
         "data": str(data),
         "goal": goal.strip(),
         "target_metrics": (
@@ -606,6 +612,8 @@ def _run(args: argparse.Namespace) -> int:
         "budget": inputs["budget"],
         "adapter": inputs["adapter"],
     }
+    if inputs.get("source"):
+        payload["source"] = inputs["source"]
     if inputs.get("target_metrics") is not None:
         payload["target_metrics"] = inputs["target_metrics"]
     if inputs["mode"] is not None:
@@ -672,6 +680,7 @@ def _run(args: argparse.Namespace) -> int:
         ).hexdigest()[:24]
         repair = run_adapter_repair(
             model=Path(inputs["model"]),
+            source=Path(inputs["source"]) if inputs.get("source") else None,
             data=Path(inputs["data"]),
             goal=inputs["goal"],
             budget=inputs["budget"],
@@ -1077,6 +1086,39 @@ def _wan22_droid(args: argparse.Namespace) -> int:
         return 2
 
 
+def _evaluator_overlay(args: argparse.Namespace) -> int:
+    """Copy a discovered evaluator candidate into a VERDI-owned overlay."""
+    from wmloop.control.evaluator_overlay import (
+        EvaluatorOverlayError,
+        materialize_evaluator_overlay,
+    )
+
+    try:
+        result = materialize_evaluator_overlay(
+            args.candidate,
+            source_root=args.source_root,
+            model_root=args.model_root,
+            data_root=args.data_root,
+            output_root=args.output_root,
+            confirm=args.confirm,
+        )
+    except EvaluatorOverlayError as exc:
+        _print({"state": "blocked", "error": str(exc)})
+        return 2
+    _print(result)
+    return 0 if result["state"] == "frozen" else 1
+
+
+def _evaluator_discover(args: argparse.Namespace) -> int:
+    """List read-only evaluator candidates from an external model checkout."""
+
+    from wmloop.control.evaluator_discovery import discover_evaluator_candidates
+
+    report = discover_evaluator_candidates(args.source_root)
+    _print(report)
+    return 0
+
+
 def _diagnose_training_gain(args: argparse.Namespace) -> int:
     plan = build_training_gain_attribution(
         training_receipt_path=args.training_receipt,
@@ -1198,6 +1240,7 @@ def _parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="compile and run a model optimization campaign")
     run.add_argument("intent", nargs="?", help="plain-language research goal")
     run.add_argument("--model")
+    run.add_argument("--source", help="模型源码目录；省略时从 checkpoint 父目录自动推断")
     run.add_argument("--data")
     run.add_argument("--goal")
     run.add_argument("--target-metrics", "--metrics", dest="target_metrics", nargs="+", help="metrics to improve; validated against the frozen evaluator catalog")
@@ -1529,6 +1572,28 @@ def _parser() -> argparse.ArgumentParser:
     wan22_droid.add_argument("--horizon-frames", type=int, default=150)
     wan22_droid.add_argument("--stride", type=int, default=30)
     wan22_droid.set_defaults(handler=_wan22_droid)
+
+    evaluator = commands.add_parser(
+        "evaluator", help="发现、改写并冻结外部模型的评测候选"
+    )
+    evaluator_commands = evaluator.add_subparsers(dest="evaluator_command", required=True)
+    evaluator_discover = evaluator_commands.add_parser(
+        "discover", help="只读扫描源码中的评测候选（不会自动冻结）"
+    )
+    evaluator_discover.add_argument("--source-root", type=Path, required=True)
+    evaluator_discover.set_defaults(handler=_evaluator_discover)
+    evaluator_overlay = evaluator_commands.add_parser(
+        "materialize", help="把一个候选复制到 VERDI 输出目录并记录路径改写"
+    )
+    evaluator_overlay.add_argument("--candidate", type=Path, required=True)
+    evaluator_overlay.add_argument("--source-root", type=Path, required=True)
+    evaluator_overlay.add_argument("--model-root", type=Path, required=True)
+    evaluator_overlay.add_argument("--data-root", type=Path, required=True)
+    evaluator_overlay.add_argument("--output-root", type=Path, required=True)
+    evaluator_overlay.add_argument(
+        "--confirm", action="store_true", help="确认此 overlay 作为冻结评测契约"
+    )
+    evaluator_overlay.set_defaults(handler=_evaluator_overlay)
 
     guide_model = commands.add_parser(
         "guide-model",

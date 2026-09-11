@@ -224,6 +224,7 @@ def _compile_batch_payload(
         raise ModelBatchError("MODEL_BATCH_PLAN_INVALID")
     model = Path(str(files["model"])).resolve()
     data = Path(str(files["data"])).resolve()
+    source = Path(str(files["source"])).resolve() if files.get("source") else None
     profile = files.get("adapter_profile")
     runtime = files.get("runtime_python")
     evaluator = files.get("evaluator_contract")
@@ -241,6 +242,7 @@ def _compile_batch_payload(
         runtime_python=Path(str(runtime)).resolve() if isinstance(runtime, str) and runtime else None,
         asset_overrides=(raw.get("assets") if isinstance(raw.get("assets"), Mapping) else None),
         project_root=project_root,
+        source_root=source,
     )
     execution = dict(resolved.execution)
     evaluator_path = str(Path(evaluator).resolve())
@@ -254,6 +256,7 @@ def _compile_batch_payload(
         "campaign_id": campaign_id,
         "goal": str(raw["goal"]),
         "model": str(model),
+        "source": str(source) if source else None,
         "dataset": str(data),
         "budget": float(raw["budget"]),
         "adapter": resolved.profile_id,

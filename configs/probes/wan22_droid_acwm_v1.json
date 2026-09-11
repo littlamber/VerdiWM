@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-probe-registry",
+  "library_version": "wan22-droid-acwm-v1",
+  "probes": [
+    {"id": "subject_consistency", "role": "verdict", "report_field": "subject_consistency", "description": "Paired rollout subject identity consistency on the frozen DROID split."},
+    {"id": "background_consistency", "role": "verdict", "report_field": "background_consistency", "description": "Paired rollout background stability on the frozen DROID split."},
+    {"id": "motion_smoothness", "role": "verdict", "report_field": "motion_smoothness", "description": "Temporal motion smoothness under the paired rollout protocol."},
+    {"id": "photometric_smoothness", "role": "verdict", "report_field": "photometric_smoothness", "description": "Photometric temporal stability under the paired rollout protocol."},
+    {"id": "trajectory_accuracy", "role": "verdict", "report_field": "trajectory_accuracy", "description": "Action-conditioned trajectory accuracy against the paired DROID target."},
+    {"id": "action_following", "role": "verdict", "report_field": "action_following", "description": "Causal action-following gate for closed-loop predictions."},
+    {"id": "state_persistence", "role": "diagnostic", "report_field": "state_persistence", "description": "Diagnostic response to context-retention and history-dose probes."},
+    {"id": "action_causal_fidelity", "role": "diagnostic", "report_field": "action_causal_fidelity", "description": "Diagnostic response to paired action perturbation probes."},
+    {"id": "closed_loop_drift", "role": "diagnostic", "report_field": "closed_loop_drift", "description": "Error growth across chained closed-loop chunks."}
+  ]
+}

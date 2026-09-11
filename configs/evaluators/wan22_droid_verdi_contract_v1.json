@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-evaluator-contract",
+  "evaluator_id": "wan22-droid-verdi-contract-v1",
+  "command": [
+    "{python}",
+    "scripts/evaluate_wan22_worldarena.py",
+    "--help"
+  ],
+  "input_artifacts": [
+    "generated_rollout_video",
+    "paired_droid_ground_truth",
+    "droid_action_sequence"
+  ],
+  "output_artifacts": [
+    "wan22_metrics.json",
+    "evaluator_stdout.log",
+    "evaluator_stderr.log"
+  ],
+  "metrics": [
+    "subject_consistency",
+    "background_consistency",
+    "motion_smoothness",
+    "photometric_smoothness",
+    "trajectory_accuracy",
+    "action_following"
+  ],
+  "verifier": "wan22_droid_acwm_frozen_verifier_v1",
+  "working_directory": ".",
+  "entrypoint_probe": "help",
+  "claim_boundary": "This contract licenses only paired target-side evidence. The bundled 150-frame protocol supports a 30-second claim; minute-level claims require a separately frozen 300-frame or longer overlay."
+}

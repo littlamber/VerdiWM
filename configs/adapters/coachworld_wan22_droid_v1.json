@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-adapter-profile",
+  "profile_id": "coachworld-wan22-droid-v1",
+  "aliases": ["coachworld", "wan22-droid", "wan2.2-coachworld", "wan2.2"],
+  "model_family": "wan22_coachworld",
+  "capability_level": "L2",
+  "execution_kind": "pipeline",
+  "repo_markers": [
+    "sa_wm/world_model/causal_trainer.py",
+    "scripts/training/train_world_model.py",
+    "scripts/evaluation/run_sa_wm_eval_manifest.py",
+    "sa_wm/rollout/marker_closed_loop.py"
+  ],
+  "goal_keywords": [
+    "wan", "wan2.2", "coachworld", "droid", "long horizon", "long-horizon", "closed loop", "state persistence", "action causal", "minute", "分钟级", "长程", "一致性", "状态持久性", "动作因果", "闭环"
+  ],
+  "evaluator_contract": "configs/evaluators/wan22_droid_verdi_contract_v1.json",
+  "probe_contract": "configs/probes/wan22_droid_acwm_v1.json",
+  "constitution_freeze": "configs/constitution/wan22_droid_acwm_v1.freeze.json",
+  "runtime_candidates": [
+    "{env:VERDIWM_WAN22_PYTHON}",
+    "{source}/.venv/bin/python",
+    "{model_parent}/.venv/bin/python",
+    "{model}/.venv/bin/python"
+  ],
+  "asset_bindings": [
+    {"parameter": "--data-root", "candidates": ["{data}"]},
+    {"parameter": "--checkpoint", "candidates": ["{model}"]},
+    {"parameter": "--source-root", "candidates": ["{source}"]},
+    {"parameter": "--wan22-adapter", "candidates": ["{verdiwm_root}/experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py"]}
+  ],
+  "runner": {
+    "protocol_version": 1,
+    "adapter_id": "wan22_droid_closed_loop_v1",
+    "requires_training": true,
+    "train": [
+      "{verdiwm_root}/scripts/run_wan22_droid_model_train.py",
+      "--verdiwm-model-run",
+      "{model_run_manifest}"
+    ],
+    "evaluate": [
+      "{verdiwm_root}/scripts/run_wan22_droid_model_eval.py",
+      "--verdiwm-model-run",
+      "{model_run_manifest}"
+    ],
+    "checkpoint_receipt": "receipts/checkpoint-receipt.json",
+    "evaluation_receipt": "receipts/heldout-evidence-receipt.json"
+  },
+  "probe_imports": false
+}

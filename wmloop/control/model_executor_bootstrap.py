@@ -85,6 +85,7 @@ def bootstrap_model_executor(
     repair_output_root: Path | None = None,
     max_attempts: int = 3,
     repair_runner: AdapterRepairRunner | None = None,
+    source_root: Path | None = None,
 ) -> dict[str, object]:
     """Resolve an executor, triggering bounded repair on first contact.
 
@@ -109,6 +110,7 @@ def bootstrap_model_executor(
             runtime_python=runtime_python,
             asset_overrides=asset_overrides,
             project_root=root,
+            source_root=source_root,
         )
         return _ready_manifest(resolved, source="existing_profile")
     except AdapterProfileError as exc:
@@ -144,6 +146,7 @@ def bootstrap_model_executor(
         repair = dict(
             runner(
                 model=model_path,
+                source=source_root,
                 data=data_path,
                 goal=goal,
                 budget=budget,
@@ -181,6 +184,7 @@ def bootstrap_model_executor(
             runtime_python=runtime_python,
             asset_overrides=asset_overrides,
             project_root=root,
+            source_root=source_root,
         )
     except AdapterProfileError as exc:
         return _blocked_manifest(

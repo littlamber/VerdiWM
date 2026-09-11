@@ -4,12 +4,24 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from wmloop.control.first_contact import explain_blocker, initialize_project, inspect_project
+from wmloop.control.first_contact import explain_blocker, infer_source_root, initialize_project, inspect_project
 from wmloop.control.onboarding_assistant import build_onboarding_questionnaire, write_onboarding_questionnaire
 from wmloop.control.project_config import load_project_config
 
 
 class FirstContactTests(unittest.TestCase):
+    def test_checkpoint_only_input_infers_parent_source_checkout(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "RoboCoach"
+            checkpoint = source / "checkpoints" / "run" / "checkpoint-1"
+            checkpoint.mkdir(parents=True)
+            (source / "configs").mkdir()
+            (source / "scripts").mkdir()
+            self.assertEqual(infer_source_root(checkpoint), source)
+            report = inspect_project(root=root, model=str(checkpoint), data=str(root))
+            self.assertEqual(report["source"], str(source))
+
     def test_readiness_combines_separate_source_and_weight_directories(self) -> None:
         with TemporaryDirectory() as raw:
             root = Path(raw)

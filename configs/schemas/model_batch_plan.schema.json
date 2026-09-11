@@ -20,6 +20,7 @@
           "state": {"enum": ["ready", "blocked"]},
           "model": {"type": "string", "minLength": 1},
           "data": {"type": "string", "minLength": 1},
+          "source": {"type": ["string", "null"]},
           "goal": {"type": "string", "minLength": 1},
           "budget": {"type": "number", "exclusiveMinimum": 0},
           "target_metrics": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
@@ -29,7 +30,7 @@
             "type": "object", "additionalProperties": false,
             "required": ["model", "data"],
             "properties": {
-              "model": {"type": "string", "minLength": 1}, "data": {"type": "string", "minLength": 1},
+              "model": {"type": "string", "minLength": 1}, "data": {"type": "string", "minLength": 1}, "source": {"type": ["string", "null"]},
               "adapter_profile": {"type": ["string", "null"]}, "runtime_python": {"type": ["string", "null"]},
               "evaluator_contract": {"type": ["string", "null"]}, "instance_config": {"type": ["string", "null"]},
               "dataset_freeze": {"type": ["string", "null"]}
@@ -41,6 +42,7 @@
             "properties": {
               "model": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
               "data": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "source": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
               "adapter_profile": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
               "runtime_python": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
               "evaluator_contract": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},

@@ -52,6 +52,7 @@ _SENSITIVE_NAMES = re.compile(
 def run_adapter_repair(
     *,
     model: Path,
+    source: Path | None = None,
     data: Path,
     goal: str,
     budget: object,
@@ -66,7 +67,7 @@ def run_adapter_repair(
     """Generate and validate an adapter overlay, retrying on bounded diagnostics."""
 
     root = Path(project_root).expanduser().resolve()
-    model_root = _directory(model, "ADAPTER_REPAIR_MODEL_INVALID")
+    model_root = _directory(source or model, "ADAPTER_REPAIR_MODEL_INVALID")
     data_root = _existing(data, "ADAPTER_REPAIR_DATA_INVALID")
     base_path = _file(base_profile_path, "ADAPTER_REPAIR_BASE_PROFILE_INVALID")
     try:

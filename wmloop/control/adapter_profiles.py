@@ -91,11 +91,17 @@ def compile_adapter_execution(
     runtime_python: Path | None = None,
     asset_overrides: Mapping[str, object] | None = None,
     project_root: Path | None = None,
+    source_root: Path | None = None,
 ) -> ResolvedAdapter:
     """Compile portable adapter rules into an absolute pipeline contract."""
 
     root = (project_root or Path(__file__).resolve().parents[2]).resolve()
     model_path = _existing_path(model, directory=True, code="MODEL_PATH_INVALID")
+    source_path = (
+        _existing_path(source_root, directory=True, code="MODEL_SOURCE_PATH_INVALID")
+        if source_root is not None
+        else model_path
+    )
     data_path = _existing_path(data, directory=False, code="DATA_PATH_INVALID")
     normalized_goal = goal.strip()
     if not normalized_goal:
@@ -103,6 +109,7 @@ def compile_adapter_execution(
     profile = _select_profile(
         root=root,
         model=model_path,
+        marker_root=source_path,
         goal=normalized_goal,
         adapter=adapter,
         profile_path=adapter_profile_path,
@@ -119,8 +126,11 @@ def compile_adapter_execution(
     values = {
         "model": str(model_path),
         "model_parent": str(model_path.parent),
+        "source": str(source_path),
+        "source_parent": str(source_path.parent),
         "data": str(data_path),
         "data_parent": str(data_path.parent),
+        "verdiwm_root": str(root),
     }
     runtime = (
         _existing_executable(runtime_python, "RUNTIME_PYTHON_INVALID")
@@ -158,7 +168,11 @@ def compile_adapter_execution(
     state_root = Path(campaign_root).expanduser().resolve().parent
     execution: dict[str, Any] = {
         "kind": "pipeline",
-        "repo_root": str(model_path),
+        # Pipeline entrypoints execute from the source checkout.  The
+        # checkpoint remains a separate {model} binding in asset bindings.
+        "repo_root": str(source_path),
+        "model_root": str(model_path),
+        "source_root": str(source_path),
         "output_root": str(state_root / "runs" / campaign_id),
         "evaluator_contract": str(
             _project_file(
@@ -234,6 +248,7 @@ def _select_profile(
     goal: str,
     adapter: str | None,
     profile_path: Path | None,
+    marker_root: Path | None = None,
 ) -> dict[str, Any]:
     # An explicit profile is an immutable caller binding, including when the
     # public adapter selector is ``auto`` after an isolated repair.  Automatic
@@ -243,7 +258,7 @@ def _select_profile(
         if adapter and adapter != "auto":
             if adapter not in {profile["profile_id"], *profile["aliases"]}:
                 raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
-        _require_repo_markers(profile, model=model)
+        _require_repo_markers(profile, model=model, marker_root=marker_root)
         return profile
     paths = sorted((root / "configs" / "adapters").glob("*.json"))
     profiles = [_load_profile(path, root=root) for path in paths]
@@ -255,10 +270,10 @@ def _select_profile(
         ]
         if len(matches) != 1:
             raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
-        _require_repo_markers(matches[0], model=model)
+        _require_repo_markers(matches[0], model=model, marker_root=marker_root)
         return matches[0]
     compatible = [
-        profile for profile in profiles if _repo_markers_present(profile, model=model)
+        profile for profile in profiles if _repo_markers_present(profile, model=model, marker_root=marker_root)
     ]
     if not compatible:
         raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
@@ -343,13 +358,14 @@ def _load_profile(path: Path, *, root: Path) -> dict[str, Any]:
     return profile
 
 
-def _require_repo_markers(profile: Mapping[str, Any], *, model: Path) -> None:
-    if not _repo_markers_present(profile, model=model):
+def _require_repo_markers(profile: Mapping[str, Any], *, model: Path, marker_root: Path | None = None) -> None:
+    if not _repo_markers_present(profile, model=model, marker_root=marker_root):
         raise AdapterProfileError("ADAPTER_MODEL_INCOMPATIBLE")
 
 
-def _repo_markers_present(profile: Mapping[str, Any], *, model: Path) -> bool:
-    return all((model / str(marker)).is_file() for marker in profile["repo_markers"])
+def _repo_markers_present(profile: Mapping[str, Any], *, model: Path, marker_root: Path | None = None) -> bool:
+    root = marker_root or model
+    return all((root / str(marker)).is_file() for marker in profile["repo_markers"])
 
 
 def _resolve_candidates(
@@ -379,7 +395,10 @@ def _resolve_candidates(
         resolved = path.resolve()
         if executable and (not resolved.is_file() or not os.access(resolved, os.X_OK)):
             continue
-        return resolved
+        # Preserve virtualenv launcher spelling for executable candidates;
+        # resolving it can silently switch to the base interpreter and lose
+        # the model checkout's installed dependencies.
+        return path.absolute() if executable else resolved
     raise AdapterProfileError(code)
 
 

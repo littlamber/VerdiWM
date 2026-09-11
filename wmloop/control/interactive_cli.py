@@ -59,6 +59,7 @@ COMMANDS: tuple[InteractiveCommand, ...] = (
     InteractiveCommand("check", (), "检查项目接入和本地 readiness", "/check"),
     InteractiveCommand("doctor", (), "检查 Verdi 本地安装", "/doctor"),
     InteractiveCommand("diagnose", (), "只读诊断模型项目", "/diagnose"),
+    InteractiveCommand("evaluator", ("eval",), "发现并查看评测候选（需确认后才能冻结）", "/evaluator discover --source-root PATH"),
     InteractiveCommand("setup", ("configure",), "首次接入模型、数据和目标", "/setup"),
     InteractiveCommand("guide", (), "生成模型接入问卷", "/guide"),
     InteractiveCommand("models", (), "查看当前项目绑定", "/models"),
@@ -726,6 +727,15 @@ def _dispatch_slash(
     if name in {"guide", "guide-model"}:
         argv = ["guide-model", *args]
         return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label="/guide", session=session)
+    if name in {"evaluator", "eval"}:
+        if not args:
+            config = _project_snapshot()
+            source = config.get("source") if config else None
+            if not source:
+                stdout.write(theme.warn("  尚未绑定源码目录；输入 /setup 或显式指定 --source-root PATH。\n"))
+                return True
+            args = ["discover", "--source-root", str(source)]
+        return _dispatch_command(["evaluator", *args], dispatch, stdout=stdout, theme=theme, label="/evaluator", session=session)
     if name == "setup" and not args:
         config = _project_snapshot()
         if config:
@@ -822,6 +832,21 @@ def _render_result(raw: str, *, stdout: TextIO, theme: _Theme) -> None:
         for item in items[:8]:
             if isinstance(item, dict):
                 stdout.write(f"    {item.get('campaign_id', '?')}  {item.get('status', item.get('state', '?'))}\n")
+    candidates = payload.get("candidates")
+    if isinstance(candidates, list):
+        stdout.write(f"  Evaluators {len(candidates)} candidates (none frozen)\n")
+        for candidate in candidates[:8]:
+            if not isinstance(candidate, dict):
+                continue
+            horizon = candidate.get("horizon_seconds")
+            horizon_text = f"{horizon}s" if horizon is not None else "horizon?"
+            marker = "minute-ready" if candidate.get("minute_level_supported") else "short/unknown"
+            stdout.write(
+                f"    {candidate.get('candidate_id', '?')}  {horizon_text}  {marker}  {candidate.get('relative_path', '')}\n"
+            )
+        hint = payload.get("selection_hint")
+        if isinstance(hint, dict) and hint.get("candidate_id"):
+            stdout.write(theme.accent(f"  Hint     review {hint['candidate_id']} first; confirmation is still required\n"))
     stages = payload.get("stages")
     if isinstance(stages, list):
         stdout.write(f"  Stages    {len(stages)}\n")

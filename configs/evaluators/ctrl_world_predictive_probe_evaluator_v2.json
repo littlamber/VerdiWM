@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-evaluator-contract",
+  "evaluator_id": "ctrl-world-predictive-probe-v2",
+  "command": [
+    "{python}",
+    "{repo_root}/scripts/run_ctrl_world_model_eval.py",
+    "--help"
+  ],
+  "input_artifacts": [
+    "checkpoint",
+    "paired_ground_truth_rollout",
+    "action_sequence",
+    "heldout_split"
+  ],
+  "output_artifacts": [
+    "predictive_metrics.json",
+    "rollout_video",
+    "evaluator_stdout.log",
+    "evaluator_stderr.log"
+  ],
+  "metrics": [
+    "rollout_video_psnr",
+    "rollout_video_l1",
+    "segment_final_mae",
+    "segment_view_pair_mae",
+    "segment_view_fused_mae"
+  ],
+  "verifier": "ctrl_world_predictive_paired_target_verifier_v2",
+  "working_directory": "{repo_root}",
+  "entrypoint_probe": "help",
+  "claim_boundary": "This contract licenses only paired ground-truth predictive evidence on the frozen held-out split. It makes no downstream task-success claim and does not authorize source mutation or GPU execution by itself."
+}

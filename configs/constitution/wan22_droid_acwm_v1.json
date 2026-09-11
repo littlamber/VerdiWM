@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-constitutional-config",
+  "constitution_id": "wan22_droid_acwm_v1",
+  "goal_spec": "configs/goal/wan22_droid_acwm_v1.yaml",
+  "dataset_freeze": "configs/backbones/ctrl_world_g2_dataset_freeze.json",
+  "heldout_protocol": "configs/goal/ctrl_world_heldout_split.json",
+  "evaluator_freeze": "configs/evaluators/wan22_droid_verdi_contract_v1.json",
+  "probe_registry": "configs/probes/wan22_droid_acwm_v1.json",
+  "verdict_probe_ids": [
+    "subject_consistency",
+    "background_consistency",
+    "motion_smoothness",
+    "photometric_smoothness",
+    "trajectory_accuracy",
+    "action_following"
+  ],
+  "frozen_code": {
+    "verdict_policy": [
+      "scripts/verify_wan22_droid_worldarena.py",
+      "configs/schemas/verdict.schema.json"
+    ],
+    "experiment_runner": [
+      "experiments/wan22_droid_acwm_v1/run.py",
+      "experiments/wan22_droid_acwm_v1/wan22_droid_runner.py"
+    ],
+    "probe_contracts": [
+      "wmloop/primitives/hooks.py",
+      "wmloop/diagnose/probe_registry.py"
+    ],
+    "schema_contracts": [
+      "configs/schemas/goal_spec.schema.json",
+      "configs/schemas/probe_registry.schema.json",
+      "configs/schemas/constitutional_config.schema.json",
+      "configs/schemas/constitutional_manifest.schema.json"
+    ]
+  }
+}

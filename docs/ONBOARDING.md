@@ -203,7 +203,7 @@ without a handwritten Python adapter:
 uv run verdiwm-run /path/to/Ctrl-World \
   --output-root /path/to/verdiwm-runs/ctrl-world-universal-loop-v3 \
   --runtime-python /path/to/ctrl-world-env/bin/python \
-  --evaluator-contract configs/onboarding/ctrl_world_replay_evaluator_v1.json \
+  --evaluator-contract configs/evaluators/ctrl_world_predictive_probe_evaluator_v2.json \
   --asset=--svd_model_path=/path/to/models/stable-video-diffusion-img2vid \
   --asset=--clip_model_path=/path/to/models/clip-vit-base-patch32 \
   --asset=--ckpt_path=/path/to/Ctrl-World/checkpoint-10000.pt \
@@ -230,7 +230,7 @@ nohup uv run verdiwm-run-daemon /path/to/Ctrl-World \
   --output-root /path/to/verdiwm-runs/ctrl-world-predictive-v1 \
   --daemon-state-root /path/to/verdiwm-state/ctrl-world-predictive-v1/daemon \
   --runtime-python /path/to/ctrl-world-env/bin/python \
-  --evaluator-contract /path/to/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
+  --evaluator-contract /path/to/VerdiWM/configs/evaluators/ctrl_world_predictive_probe_evaluator_v2.json \
   --probe-contract /path/to/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
   --retrieval-db /path/to/verdiwm-state/ctrl-world-predictive-v1/retrieval.db \
   --archive-db /path/to/verdiwm-state/ctrl-world-predictive-v1/archive.db \
@@ -272,7 +272,7 @@ authoritative memory and resource boundary.
 nohup uv run verdiwm-evolution-daemon /path/to/Ctrl-World \
   --output-root /path/to/verdiwm-runs/ctrl-world-evolution \
   --state-root /path/to/verdiwm-state/ctrl-world-evolution \
-  --evaluator-contract /path/to/VerdiWM/configs/onboarding/ctrl_world_predictive_probe_evaluator_v1.json \
+  --evaluator-contract /path/to/VerdiWM/configs/evaluators/ctrl_world_predictive_probe_evaluator_v2.json \
   --probe-contract /path/to/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
   --retrieval-db /path/to/verdiwm-state/ctrl-world-evolution/retrieval.db \
   --archive-db /path/to/verdiwm-state/ctrl-world-evolution/archive.db \

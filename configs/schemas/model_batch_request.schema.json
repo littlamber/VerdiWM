@@ -18,6 +18,7 @@
         "properties": {
           "model_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{2,63}$"},
           "model": {"type": "string", "minLength": 1},
+          "source": {"type": "string", "minLength": 1},
           "data": {"type": "string", "minLength": 1},
           "goal": {"type": "string", "minLength": 1},
           "budget": {"type": ["string", "number", "object"]},

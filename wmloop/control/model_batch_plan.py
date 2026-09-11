@@ -130,6 +130,8 @@ def _compile_model_row(raw: Mapping[str, object], *, request: Mapping[str, objec
     if _ID.fullmatch(model_id) is None:
         raise ModelBatchError(f"MODEL_BATCH_MODEL_ID_INVALID:{model_id}")
     model = _required_path(raw["model"], directory=True, code="MODEL_BATCH_MODEL_INVALID")
+    source_value = raw.get("source")
+    source = _required_path(source_value, directory=True, code="MODEL_BATCH_SOURCE_INVALID") if source_value is not None else None
     data = _required_path(raw["data"], directory=False, code="MODEL_BATCH_DATA_INVALID")
     goal = str(raw.get("goal") or request["goal"]).strip()
     if not goal:
@@ -141,8 +143,8 @@ def _compile_model_row(raw: Mapping[str, object], *, request: Mapping[str, objec
     metrics = raw.get("target_metrics", request.get("target_metrics", []))
     if not isinstance(metrics, list) or any(not isinstance(value, str) or not value.strip() for value in metrics):
         raise ModelBatchError(f"MODEL_BATCH_TARGET_METRICS_INVALID:{model_id}")
-    files: dict[str, str | None] = {"model": str(model), "data": str(data)}
-    file_sha256: dict[str, str | None] = {"model": _sha256_path(model), "data": _sha256_path(data)}
+    files: dict[str, str | None] = {"model": str(model), "data": str(data), "source": str(source) if source else None}
+    file_sha256: dict[str, str | None] = {"model": _sha256_path(model), "data": _sha256_path(data), "source": _sha256_path(source) if source else None}
     blockers: list[str] = []
     for field in ("adapter_profile", "runtime_python", "evaluator_contract", "instance_config", "dataset_freeze"):
         raw_value = raw.get(field)
@@ -172,7 +174,7 @@ def _compile_model_row(raw: Mapping[str, object], *, request: Mapping[str, objec
     if raw.get("evaluator_contract") is None:
         blockers.append("evaluator_contract_required")
     digest_body = {
-        "model_id": model_id, "model": str(model), "data": str(data), "goal": goal,
+        "model_id": model_id, "model": str(model), "data": str(data), "source": str(source) if source else None, "goal": goal,
         "budget": budget, "adapter": raw.get("adapter"), "assets": normalized_assets,
         "files": files, "file_sha256": file_sha256, "source_revision": raw.get("source_revision"), "target_metrics": list(metrics),
     }

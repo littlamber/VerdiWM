@@ -1,0 +1,24 @@
+goal_id: wan22_droid_acwm_v1
+metric_family:
+  - subject_consistency
+  - background_consistency
+  - motion_smoothness
+  - photometric_smoothness
+  - trajectory_accuracy
+  - action_following
+horizons: [30, 60, 150, 300]
+primary_objective: long_horizon_closed_loop_consistency
+action_following_gate:
+  tau_af: 0.0
+eval_protocol:
+  dev_split: local_overlay#dev
+  accept_split: local_overlay#accept
+  accept_horizon_extra: 150
+  seeds_accept: [101, 202, 303]
+  mode: uniform_horizons
+  long_horizon_claim_policy: "A 150-frame 5 FPS bundle supports a 30-second claim; minute-level claims require at least 300 frames at 5 FPS."
+budget:
+  total_gpu_hours: 24
+  per_trial_max_gpu_hours: 4
+envs:
+  - droid

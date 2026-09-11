@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from wmloop.control.onboarding import OnboardingError, OnboardingOptions, scan_repository
+from wmloop.control.evaluator_discovery import discover_evaluator_candidates
 
 
 class FirstContactError(ValueError):
@@ -31,6 +32,8 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         "PROJECT_CONFIG_NOT_FOUND": "还没有项目配置，请先完成首次设置。",
         "PROJECT_FILE_EXISTS": "项目配置已经存在；如需替换请明确使用覆盖选项。",
         "EVALUATOR_CONTRACT_REQUIRED": "还没有确认如何判断模型变好，请先绑定冻结的评测方法。",
+        "EVALUATOR_CONFIRMATION_REQUIRED": "发现了模型自带的评测候选，但它们尚未冻结；请确认评测切分、时域和 verifier 后再开始实验。",
+        "RUNTIME_PYTHON_INVALID": "你指定的 Python 运行环境不可执行；请检查路径和权限。",
         "EVALUATION_ENTRYPOINT_MISSING": "没有发现可用于评测的入口，请说明评测命令和输出指标。",
         "CHECKPOINT_MISSING": "没有发现权重或 checkpoint 文件，请补充权重路径。",
         "RUNTIME_UNREADY": "模型运行环境还没有准备好，请选择正确的 Python 环境并检查依赖。",
@@ -71,6 +74,31 @@ def discover_project_inputs(root: Path) -> tuple[Path | None, Path | None]:
     return model, data
 
 
+def infer_source_root(model_path: Path | None) -> Path | None:
+    """Infer a nearby source checkout from a checkpoint-only model path.
+
+    Checkpoints are often nested several levels below the repository that
+    owns the training/evaluation entrypoints.  We only accept a parent with
+    conventional source markers, and never inspect or import model code while
+    making this inference.
+    """
+
+    if model_path is None:
+        return None
+    model = Path(model_path).expanduser().absolute()
+    if not model.exists() or model.is_symlink():
+        return None
+    current = model if model.is_dir() else model.parent
+    for depth, candidate in enumerate((current, *current.parents)):
+        if depth > 6:
+            break
+        if any((candidate / marker).is_file() for marker in ("pyproject.toml", "setup.py", "setup.cfg")):
+            return candidate
+        if (candidate / "configs").is_dir() and (candidate / "scripts").is_dir():
+            return candidate
+    return None
+
+
 def inspect_project(
     *,
     root: Path,
@@ -87,13 +115,16 @@ def inspect_project(
     """
     base = Path(root).expanduser().resolve()
     discovered_model, discovered_data = discover_project_inputs(base)
-    def resolve_input(value: str) -> Path:
+    def resolve_input(value: str, *, preserve_symlink: bool = False) -> Path:
         path = Path(value).expanduser()
-        return (path if path.is_absolute() else base / path).resolve()
+        candidate = path if path.is_absolute() else base / path
+        # A virtualenv's ``bin/python`` is commonly a symlink.  Resolving it
+        # here silently switches the selected interpreter to the base Python,
+        # so retain the launcher spelling while still making it absolute.
+        return candidate.absolute() if preserve_symlink else candidate.resolve()
 
     model_path = resolve_input(model) if model else discovered_model
-    source_path = resolve_input(source) if source else None
-    source_path = resolve_input(source) if source else model_path
+    source_path = resolve_input(source) if source else (infer_source_root(model_path) or model_path)
     data_path = resolve_input(data) if data else discovered_data
     checks: list[dict[str, Any]] = []
     blockers: list[dict[str, Any]] = []
@@ -136,14 +167,16 @@ def inspect_project(
             })
     path_check("data", data_path, directory=False)
     report: dict[str, Any] | None = None
+    evaluator_discovery: dict[str, Any] = {"state": "none", "candidates": []}
     model_assets_available = False
     scan_path = source_path
     if scan_path is not None and scan_path.is_dir() and not scan_path.is_symlink():
+        evaluator_discovery = discover_evaluator_candidates(scan_path)
         try:
             report = scan_repository(
                 OnboardingOptions(
                     repo_root=scan_path,
-                    runtime_python=resolve_input(runtime_python) if runtime_python else None,
+                    runtime_python=resolve_input(runtime_python, preserve_symlink=True) if runtime_python else None,
                     evaluator_contract=resolve_input(evaluator_contract) if evaluator_contract else None,
                     probe_imports=False,
                 )
@@ -207,6 +240,15 @@ def inspect_project(
                 message = "模型接入还缺少一项可验证信息。"
                 action = "打开检查详情，按列出的项目补齐。"
             blockers.append({"code": code, "message": message, "action": action, "detail": item.get("detail")})
+    if evaluator_contract is None and evaluator_discovery.get("state") == "candidates_available":
+        # A discovered file is useful evidence, but silently treating it as a
+        # frozen verifier would invalidate every downstream quality claim.
+        blockers = [item for item in blockers if item.get("code") != "EVALUATOR_CONTRACT_REQUIRED"]
+        blockers.append({
+            "code": "EVALUATOR_CONFIRMATION_REQUIRED",
+            "message": "发现了评测候选，但它们尚未冻结。",
+            "action": "确认一个候选；系统随后会在 VERDI 输出目录生成带摘要和路径改写的评测 overlay。",
+        })
     # Keep the list deterministic and avoid repeating the same blocker from a
     # missing top-level path and the onboarding scanner.
     unique: list[dict[str, Any]] = []
@@ -238,6 +280,7 @@ def inspect_project(
             "runtime": report.get("runtime", {}) if report else {},
             "source_revision": report.get("source_revision") if report else None,
             "evaluator": report.get("evaluator_contract", {}) if report else {},
+            "evaluator_discovery": evaluator_discovery,
         },
         "next_step": (
             "先补齐上面的信息，再运行检查。"
@@ -273,7 +316,7 @@ def initialize_project(
         return (path if path.is_absolute() else base / path).resolve()
 
     model_path = resolve_input(model) if model else discovered_model
-    source_path = resolve_input(source) if source else None
+    source_path = resolve_input(source) if source else infer_source_root(model_path)
     data_path = resolve_input(data) if data else discovered_data
     errors: list[dict[str, str]] = []
     if model_path is None:
@@ -312,12 +355,16 @@ def initialize_project(
             return os.path.relpath(path, destination.parent)
         except ValueError:
             return str(path)
+    # Keep the source checkout's virtualenv ahead of any checkpoint-local
+    # environment and preserve its launcher symlink spelling.
     runtime = explicit_runtime or next(
         (
             candidate
+            for path in (source_path, model_path)
+            if path is not None
             for candidate in (
-                model_path / ".venv" / "bin" / "python",
-                model_path / "venv" / "bin" / "python",
+                path / ".venv" / "bin" / "python",
+                path / "venv" / "bin" / "python",
             )
             if candidate.is_file() and os.access(candidate, os.X_OK)
         ),

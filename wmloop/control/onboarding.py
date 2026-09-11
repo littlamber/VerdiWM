@@ -57,6 +57,16 @@ _SKIP_DIRECTORIES = frozenset(
         ".cache",
     }
 )
+_ARTIFACT_DIRECTORY_PREFIXES = ("video_latent", "latent_cache", "checkpoint")
+
+
+def _is_artifact_directory(name: str, *, top_level: bool = False) -> bool:
+    """Identify common local rollout/training artifact directories early."""
+
+    lowered = name.casefold()
+    return lowered.startswith(_ARTIFACT_DIRECTORY_PREFIXES) or (
+        top_level and name.isdigit() and len(name) >= 4
+    )
 _DEPENDENCY_FILENAMES = frozenset(
     {
         "pyproject.toml",
@@ -356,8 +366,10 @@ def _discover_files(repo: Path, *, max_files: int) -> tuple[list[Path], bool]:
             if child.is_symlink():
                 continue
             if child.is_dir():
-                if child.name not in _SKIP_DIRECTORIES and not child.name.startswith(
-                    "."
+                if (
+                    child.name not in _SKIP_DIRECTORIES
+                    and not child.name.startswith(".")
+                    and not _is_artifact_directory(child.name, top_level=directory == repo)
                 ):
                     pending.append(child)
                 continue

@@ -152,6 +152,11 @@ class CampaignStore:
                         if payload.get("runtime_python") is not None
                         else None
                     ),
+                    source_root=(
+                        Path(str(payload["source"]))
+                        if payload.get("source") is not None
+                        else None
+                    ),
                     asset_overrides=assets,
                     base_profile_path=(
                         Path(str(options["base_profile_path"]))
@@ -203,6 +208,7 @@ class CampaignStore:
                             else None
                         ),
                         asset_overrides=assets,
+                        source_root=(Path(str(payload["source"])) if payload.get("source") is not None else None),
                     )
                 except AdapterProfileError as exc:
                     raise CampaignAPIError(str(exc)) from exc
