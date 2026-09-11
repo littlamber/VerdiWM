@@ -86,10 +86,13 @@ uv run verdiwm-run-open-method-study \
   --selection-split /workspace/assets/selection.json \
   --confirmation-split /workspace/assets/confirmation.json \
   --verifier /workspace/research/verifier/verifier.json \
+  --runtime-python /workspace/model/.venv/bin/python \
   --output /workspace/research/executions/study-ab \
   --gpus 0
 ```
 
+Use the model's own runtime when its dependencies are separate from VerdiWM;
+the command defaults to the current Python only when no runtime is supplied.
 Use fresh output directories outside the VerdiWM checkout. The first request
 is produced by `build_open_method_request`; the adapter uses the existing
 trusted LLM adapter configuration. The second request contains `proposals`

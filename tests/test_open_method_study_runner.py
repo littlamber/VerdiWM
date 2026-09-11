@@ -9,6 +9,7 @@ from wmloop.execute.open_method_study_runner import (
     artifact_digest,
     build_open_method_verifier,
     execute_open_method_study,
+    _evaluation_gates_valid,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -157,3 +158,15 @@ def test_study_runner_refuses_unproven_episode_disjointness(tmp_path):
     else:  # pragma: no cover - defensive assertion
         raise AssertionError("overlapping split unexpectedly executed")
     assert not (tmp_path / "execution").exists()
+
+
+def test_trial_success_requires_schema_and_identity_gates():
+    verifier = {"required_validity_gates": ["data_bound"]}
+    valid = [
+        {"validity_gates": {"data_bound": True, "verifier_process": True, "evaluation_schema": True, "identity_binding": True}},
+        {"validity_gates": {"data_bound": True, "verifier_process": True, "evaluation_schema": True, "identity_binding": True}},
+    ]
+    invalid = [dict(valid[0]), {"validity_gates": {"data_bound": True, "verifier_process": True, "evaluation_schema": False, "identity_binding": True}}]
+
+    assert _evaluation_gates_valid(valid, verifier)
+    assert not _evaluation_gates_valid(invalid, verifier)

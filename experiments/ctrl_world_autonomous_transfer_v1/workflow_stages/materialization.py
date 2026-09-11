@@ -325,7 +325,7 @@ def _prepare_open_method(
             state="blocked",
             outcome="open_method_generation_blocked",
             payload={
-                "materialization_next_state": "pending_replan",
+                "materialization_next_state": _open_method_failure_next_state(config),
                 "open_method_task_manifest": task,
             },
             receipt_path=Path(str(task["receipt_path"])),
@@ -391,10 +391,10 @@ def _prepare_open_method(
         "interface_extension_required": "pending_interface_extension",
         "data_regime_missing": "missing_data_regime",
         "architecture_bound": "architecture_bound",
-        "unmapped": "pending_replan",
+        "unmapped": _open_method_failure_next_state(config),
     }
     payload["materialization_next_state"] = next_states.get(
-        str(compilation["proposal_state"]), "pending_replan"
+        str(compilation["proposal_state"]), _open_method_failure_next_state(config)
     )
     return StageResult(
         state="blocked",
@@ -491,6 +491,7 @@ def calibrate_open_method(
     # for the default closed loop.
     adapter_config = config.get("open_method_generation")
     adapter = adapter_config.get("calibration_adapter") if isinstance(adapter_config, Mapping) else None
+    next_state = _open_method_calibration_next_state(config)
     if not isinstance(adapter, Mapping):
         try:
             calibration = run_method_calibration(
@@ -518,7 +519,7 @@ def calibrate_open_method(
                 state="blocked",
                 outcome="open_method_calibration_failed",
                 payload={
-                    "open_method_calibration_next_state": "pending_replan",
+                    "open_method_calibration_next_state": _open_method_failure_next_state(config),
                     "open_method_calibration_receipt_path": str(receipt),
                 },
                 receipt_path=receipt,
@@ -530,7 +531,7 @@ def calibrate_open_method(
                 state="blocked",
                 outcome="open_method_calibration_failed",
                 payload={
-                    "open_method_calibration_next_state": "pending_replan",
+                    "open_method_calibration_next_state": _open_method_failure_next_state(config),
                     "open_method_calibration_receipt_path": str(receipt),
                 },
                 receipt_path=receipt,
@@ -539,7 +540,7 @@ def calibrate_open_method(
             state="completed",
             outcome="open_method_calibration_passed",
             payload={
-                "open_method_calibration_next_state": "pending_resource_admission",
+                "open_method_calibration_next_state": next_state,
                 "open_method_calibration_receipt_path": str(receipt),
                 "method_id": method["method_id"],
                 "overlay_id": overlay["overlay_id"],
@@ -579,7 +580,7 @@ def calibrate_open_method(
             state="blocked",
             outcome="open_method_calibration_broker_blocked",
             payload={
-                "open_method_calibration_next_state": "pending_replan",
+                "open_method_calibration_next_state": _open_method_failure_next_state(config),
                 "open_method_calibration_task_manifest": task,
             },
             receipt_path=Path(str(task["receipt_path"])),
@@ -609,7 +610,7 @@ def calibrate_open_method(
             state="blocked",
             outcome="open_method_calibration_failed",
             payload={
-                "open_method_calibration_next_state": "pending_replan",
+                "open_method_calibration_next_state": _open_method_failure_next_state(config),
                 "open_method_calibration": dict(calibration),
                 "open_method_calibration_task_manifest": task,
             },
@@ -651,13 +652,40 @@ def calibrate_open_method(
         state="completed",
         outcome="open_method_calibration_passed",
         payload={
-            "open_method_calibration_next_state": "pending_resource_admission",
+            "open_method_calibration_next_state": next_state,
             "candidate_catalog_path": str(catalog),
             "candidate_catalog_sha256": expected_catalog_sha,
             "open_method_calibration_receipt_path": str(receipt),
             "candidate_id": candidate_id,
         },
         receipt_path=receipt,
+    )
+
+
+def _open_method_calibration_next_state(config: Mapping[str, object]) -> str:
+    """Choose the next admission stage without requiring optional policy config.
+
+    Resource portfolio admission is an optional scheduling policy.  When it is
+    absent, an implementation-calibrated candidate is still eligible for the
+    existing screen path; leaving it in ``pending_resource_admission`` would
+    make the default open-method loop permanently stall before any target-side
+    evidence can be collected.
+    """
+
+    return (
+        "pending_resource_admission"
+        if isinstance(config.get("resource_portfolio"), Mapping)
+        else "pending_screen"
+    )
+
+
+def _open_method_failure_next_state(config: Mapping[str, object]) -> str:
+    """Route failed candidates to replanning only when that stage is enabled."""
+
+    return (
+        "pending_replan"
+        if isinstance(config.get("closed_loop"), Mapping)
+        else "pending_knowledge"
     )
 
 

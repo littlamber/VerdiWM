@@ -395,12 +395,45 @@ def _run_trial(*, study_path: Path, study: Mapping[str, object], arm: Mapping[st
             documents.append(eval_doc)
         operation_seconds = sum(float(row.get("duration_seconds", 0.0)) for row in operations)
         within_budget = operation_seconds <= float(arm["estimated_gpu_hours_per_seed"]) * 3600.0
-        state = "passed" if len(documents) == 2 and within_budget and all(row.get("state") == "passed" for row in operations) and all(doc.get("validity_gates", {}).get("verifier_process", False) for doc in documents) else "failed"
+        evaluations_valid = _evaluation_gates_valid(documents, verifier_spec)
+        state = (
+            "passed"
+            if len(documents) == 2
+            and within_budget
+            and all(row.get("state") == "passed" for row in operations)
+            and evaluations_valid
+            else "failed"
+        )
         result = {"role": role, "method_id": method["method_id"], "seed": seed, "state": state, "gpu_lease": lease.to_document(), "gpu_seconds": operation_seconds, "lease_seconds": time.monotonic() - started, "budget_state": "within_bound" if within_budget else "exceeded", "operations": operations, "evaluations": documents, "_evaluation_documents": documents}
     finally:
         lease.release()
     _write_json(output_root / "trial.json", {key: value for key, value in result.items() if key != "_evaluation_documents"})
     return result
+
+
+def _evaluation_gates_valid(
+    documents: Sequence[Mapping[str, object]],
+    verifier_spec: Mapping[str, object],
+) -> bool:
+    """Require every evaluator receipt gate before marking a trial passed.
+
+    Settlement already applies these gates, but the per-trial state is also
+    consumed by budget and recovery summaries.  Keeping an invalid evaluator
+    receipt in a ``passed`` trial would make those operational projections
+    claim success even though the phase must abstain.
+    """
+
+    if len(documents) != 2:
+        return False
+    required = set(verifier_spec["required_validity_gates"]) | {
+        "verifier_process",
+        "evaluation_schema",
+        "identity_binding",
+    }
+    return all(
+        all(bool(document.get("validity_gates", {}).get(gate)) for gate in required)
+        for document in documents
+    )
 
 
 def _run_frozen_verifier(*, verifier_spec: Mapping[str, object], verifier_root: Path, candidate_output: Path, input_document: Mapping[str, object], output_root: Path, runtime_python: Path) -> dict[str, object]:
@@ -634,10 +667,50 @@ def main() -> int:
     parser.add_argument("--confirmation-split", type=Path, required=True)
     parser.add_argument("--verifier", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--runtime-python",
+        type=Path,
+        default=Path(sys.executable),
+        help="candidate model environment Python (defaults to this interpreter)",
+    )
+    parser.add_argument(
+        "--lock-root",
+        type=Path,
+        default=Path("/tmp/verdiwm-gpu-leases"),
+        help="shared GPU lease directory",
+    )
+    parser.add_argument(
+        "--calibration-timeout-seconds",
+        type=float,
+        default=300.0,
+        help="per-method CPU calibration timeout",
+    )
+    parser.add_argument(
+        "--gpu-wait-seconds",
+        type=float,
+        default=60.0,
+        help="maximum wait for a leased GPU per trial",
+    )
     parser.add_argument("--gpus", default="0")
     parser.add_argument("--max-parallel", type=int, default=1)
     args = parser.parse_args()
-    receipt = execute_open_method_study(study_root=args.study, checkpoint=args.checkpoint, train_split=args.train_split, selection_split=args.selection_split, confirmation_split=args.confirmation_split, verifier=args.verifier, output_root=args.output, gpu_indices=tuple(int(value) for value in args.gpus.split(",") if value.strip()), max_parallel=args.max_parallel)
+    receipt = execute_open_method_study(
+        study_root=args.study,
+        checkpoint=args.checkpoint,
+        train_split=args.train_split,
+        selection_split=args.selection_split,
+        confirmation_split=args.confirmation_split,
+        verifier=args.verifier,
+        output_root=args.output,
+        runtime_python=args.runtime_python,
+        gpu_indices=tuple(
+            int(value) for value in args.gpus.split(",") if value.strip()
+        ),
+        lock_root=args.lock_root,
+        max_parallel=args.max_parallel,
+        calibration_timeout_seconds=args.calibration_timeout_seconds,
+        gpu_wait_seconds=args.gpu_wait_seconds,
+    )
     print(json.dumps({"execution_id": receipt["execution_id"], "state": receipt["state"], "output": str(args.output)}, ensure_ascii=True))
     return 0
 

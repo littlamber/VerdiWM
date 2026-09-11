@@ -40,7 +40,9 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 当四组候选、冻结 verifier、checkpoint 和三份 episode manifest 已经准备好后，
 可以用 `verdiwm-run-open-method-study` 自动执行本地校准、配对 seed 的训练/推理、
 冻结评测、interaction 计算和本地 evidence CAS 归档。该命令需要显式提供 GPU
-编号和一次确认过的输出目录；没有 GPU、split 重叠、文件 digest 漂移或校准失败
+编号和一次确认过的输出目录；如果模型依赖独立的 Python 环境，可用
+`--runtime-python /path/to/model/.venv/bin/python` 指定，避免候选进程误用控制面环境。
+没有 GPU、split 重叠、文件 digest 漂移或校准失败
 时会安全阻断并保留回执。它不会直接发布到社区或提升模型版本。
 生成候选后可先运行 `uv run verdiwm-calibrate-method --compilation ... --output ...`，
 执行声明的实现检查并保存通过或失败回执；失败检查不会被当作模型效果。
