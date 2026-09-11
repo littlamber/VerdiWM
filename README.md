@@ -5,6 +5,9 @@ world-model systems. Describe the model, data, and objective once; VerdiWM
 resolves the adapter and evaluation contract, runs bounded experiments, and
 keeps evidence for every decision.
 
+The user-facing CLI is `verdi`. The existing `verdiwm` command remains as a
+backward-compatible alias, so existing scripts continue to work.
+
 This repository is model-agnostic at the control-plane level. It does not
 ship model weights, datasets, API keys, or a GPU runtime. Those remain the
 responsibility of each deployment.

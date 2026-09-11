@@ -19,6 +19,8 @@ def main() -> None:
         subprocess.run(["uv", "venv", "--python", sys.executable, str(root / "env")], check=True, cwd=root, env=environment)
         subprocess.run(["uv", "pip", "install", "--python", str(python), str(wheel)], check=True, cwd=root, env=environment)
         for name, arguments in (
+            ("verdi", ["--help"]),
+            ("verdi", ["--version"]),
             ("verdiwm", ["--help"]),
             ("verdiwm", ["evidence", "project", "--help"]),
             ("verdiwm", ["community", "verify", "--help"]),

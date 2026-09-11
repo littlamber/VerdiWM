@@ -35,6 +35,7 @@ dev = ["pytest>=8,<9"]
 torch-tests = ["torch>=2.2,<3"]
 
 [project.scripts]
+verdi = "wmloop.cli:main"
 verdiwm = "wmloop.cli:main"
 verdiwm-backbone-audit = "wmloop.control.backbone_instance:main"
 verdiwm-capability-matrix = "wmloop.control.backbone_capability_matrix:main"

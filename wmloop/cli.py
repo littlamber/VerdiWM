@@ -108,6 +108,20 @@ def _default_state_root() -> Path:
     return Path.home() / ".local" / "state" / "verdiwm"
 
 
+def _cli_program_name() -> str:
+    """Use the short product name for the public alias, keep legacy help stable."""
+
+    executable = Path(sys.argv[0]).name.casefold()
+    return "verdi" if executable in {"verdi", "verdi.exe"} else "verdiwm"
+
+
+def _installed_version() -> str:
+    try:
+        return version("verdiwm")
+    except PackageNotFoundError:
+        return "source"
+
+
 def _asset(value: str) -> tuple[str, str]:
     parameter, separator, path = value.partition("=")
     if not separator or not parameter.strip() or not path.strip():
@@ -261,10 +275,7 @@ def _doctor_report(args: argparse.Namespace) -> dict[str, object]:
     blocked = any(
         row["required"] is True and row["state"] != "pass" for row in checks
     )
-    try:
-        package_version = version("verdiwm")
-    except PackageNotFoundError:
-        package_version = "source"
+    package_version = _installed_version()
     return {
         "schema_version": 1,
         "artifact_type": "verdiwm-doctor-report",
@@ -1148,7 +1159,16 @@ def _load_training_scale_plan(path: Path, *, root: Path) -> dict[str, object]:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="verdiwm", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog=_cli_program_name(),
+        description="Verdi：面向世界模型的证据驱动研究工作台。",
+        epilog=(
+            "常用流程：verdi research plan → 检查计划 → "
+            "verdi research run --plan PLAN --confirm。"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_installed_version()}")
     commands = parser.add_subparsers(dest="command", required=True)
 
     doctor = commands.add_parser(
