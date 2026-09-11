@@ -38,7 +38,13 @@ def validate_realization(method: Mapping[str, object], *, root: Path | None = No
         validate_document('method_implementation_validation', realization, root=root)
     except ContractValidationError as exc:
         raise MethodRealizationError(f'METHOD_IMPLEMENTATION_VALIDATION_INVALID:{exc}') from exc
-    required = {'hook_execution', 'no_future_leakage', 'ablation_effect'}
+    role = method.get('study_role')
+    required = {'no_future_leakage'}
+    required |= (
+        {'control_equivalence'}
+        if role == 'baseline'
+        else {'hook_execution', 'ablation_effect'}
+    )
     if method['training']['mode'] == 'training':
         required |= {'optimizer_binding', 'parameter_update', 'train_infer_parity'}
     if realization['stateful']:

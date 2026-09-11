@@ -53,6 +53,8 @@ def compile_open_method_study(
         raise OpenMethodStudyError('OPEN_STUDY_FOUR_ARM_BUDGET_EXCEEDED')
     root = Path(project_root).resolve()
     methods = {role:_normalize_method_ir(proposals[role]['method_ir'],root=root) for role in ROLES}
+    if any(methods[role].get('study_role') != role for role in ROLES):
+        raise OpenMethodStudyError('OPEN_STUDY_ROLE_BINDING_MISMATCH')
     expected = [methods['source_only']['method_id'], methods['target_only']['method_id']]
     composition = methods['combined'].get('composition')
     if expected[0] == expected[1] or not isinstance(composition, Mapping) or composition.get('component_method_ids') != expected:

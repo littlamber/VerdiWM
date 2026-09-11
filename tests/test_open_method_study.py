@@ -24,6 +24,11 @@ def request():
     for role in ('baseline','source_only','target_only','combined'):
         value = proposal(explanation(causal_assumption=f'The {role} mechanism predicts reduced held-out state drift'))
         value['method_ir']['target_portrait_binding'] = PORTRAIT
+        value['method_ir']['study_role'] = role
+        if role == 'baseline':
+            for check in value['method_ir']['implementation_validation']['checks']:
+                if check['kind'] == 'ablation_effect':
+                    check['kind'] = 'control_equivalence'
         proposals[role] = value
     ids = [_normalize_method_ir(proposals[r]['method_ir'],root=ROOT)['method_id'] for r in ('source_only','target_only')]
     combined = proposals['combined']['method_ir']
@@ -56,7 +61,7 @@ def test_four_arm_compilation_binds_components_cost_and_validation(tmp_path):
     ('missing_arm','FOUR_ARMS'),('budget','BUDGET_EXCEEDED'),('component','COMPONENT_BINDING'),
     ('metrics','METRIC_MISMATCH'),('split','DISTINCT_SPLITS'),('seed','SEEDS_INVALID'),
     ('blocked','ARM_NOT_READY'),
-    ('duplicate_arm','DISTINCT_ARMS'),
+    ('role','ROLE_BINDING'),
 ])
 def test_invalid_or_partial_study_is_not_published(tmp_path,change,error):
     req=request()
@@ -67,7 +72,11 @@ def test_invalid_or_partial_study_is_not_published(tmp_path,change,error):
     if change=='split': req['experiment_binding']['confirmation_split_digest']=req['experiment_binding']['selection_split_digest']
     if change=='seed': req['seeds']=[11,11]
     if change=='blocked': req['proposals']['combined'].update(state='blocked',files=[],tests=[],execution_contract=None)
-    if change=='duplicate_arm': req['proposals']['baseline'] = deepcopy(req['proposals']['source_only'])
+    if change=='role':
+        req['proposals']['baseline']['method_ir']['study_role'] = 'source_only'
+        for check in req['proposals']['baseline']['method_ir']['implementation_validation']['checks']:
+            if check['kind'] == 'control_equivalence':
+                check['kind'] = 'ablation_effect'
     with pytest.raises(OpenMethodStudyError,match=error):
         compile_open_method_study(**req,output_root=tmp_path/'study',project_root=ROOT)
     assert not (tmp_path/'study').exists()

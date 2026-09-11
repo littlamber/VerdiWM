@@ -35,6 +35,7 @@
     },
     "implementation_validation": {"type": "object"},
     "composition": {"type": "object"},
+    "study_role": {"enum": ["baseline", "source_only", "target_only", "combined"]},
     "mechanism_hypothesis": {"type": "object"},
     "mechanism": {
       "type": "object",

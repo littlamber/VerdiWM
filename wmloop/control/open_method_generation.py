@@ -41,6 +41,9 @@ def generate_open_method(
     if not isinstance(portrait_binding, Mapping) or not portrait_binding:
         raise OpenMethodGenerationError('OPEN_GENERATION_PORTRAIT_BINDING_REQUIRED')
     components = inputs.get('component_methods', [])
+    probe_binding = inputs.get('probe_binding')
+    if probe_binding is not None and not isinstance(probe_binding, Mapping):
+        raise OpenMethodGenerationError('OPEN_GENERATION_PROBE_BINDING_INVALID')
     from wmloop.control.open_method_ir import validate_method_ir
     for component in components:
         validate_method_ir(component, root=root)
@@ -84,21 +87,26 @@ def generate_open_method(
                 raise OpenMethodGenerationError('OPEN_GENERATION_RESPONSE_BINDING_MISMATCH')
             proposal = response['output']
             validate_document('open_method_proposal', proposal, root=root)
-            method = proposal['method_ir']
-            if any((row.get('source_id'), row.get('source_digest')) not in allowed_sources
-                   for row in method.get('source_evidence', [])):
-                raise OpenMethodGenerationError('OPEN_GENERATION_SOURCE_UNBOUND')
-            composition = method.get('composition')
-            if composition is not None:
-                expected = [row['method_id'] for row in components]
-                if len(expected) != 2 or composition.get('component_method_ids') != expected:
-                    raise OpenMethodGenerationError('OPEN_GENERATION_COMPONENT_BINDING_MISMATCH')
-            elif components and proposal['state'] == 'candidate_ready':
-                raise OpenMethodGenerationError('OPEN_GENERATION_COMPOSITION_REQUIRED')
-            compiled = compile_open_method_proposal(
-                proposal=proposal, base_revision=base_revision, output_root=destination/'candidate',
-                project_root=root, expected_portrait_binding=portrait_binding,
-            )
+            try:
+                compiled = compile_open_method_proposal(
+                    proposal=proposal, base_revision=base_revision, output_root=destination/'candidate',
+                    project_root=root, expected_portrait_binding=portrait_binding,
+                    expected_probe_binding=probe_binding,
+                    allowed_source_evidence=supplied_evidence,
+                    expected_component_method_ids=[row['method_id'] for row in components],
+                )
+            except Exception as exc:
+                message = str(exc)
+                aliases = {
+                    'SOURCE_EVIDENCE_UNBOUND': 'OPEN_GENERATION_SOURCE_UNBOUND',
+                    'SOURCE_EVIDENCE_DIGEST_MISMATCH': 'OPEN_GENERATION_SOURCE_UNBOUND',
+                    'COMPONENT_BINDING_MISMATCH': 'OPEN_GENERATION_COMPONENT_BINDING_MISMATCH',
+                    'UNREQUESTED_COMPOSITION': 'OPEN_GENERATION_COMPOSITION_REQUIRED',
+                }
+                for marker, code in aliases.items():
+                    if marker in message:
+                        raise OpenMethodGenerationError(code) from exc
+                raise
             result['compilation'] = compiled
             result['state'] = compiled['state']
             result['blockers'] = compiled['blockers']

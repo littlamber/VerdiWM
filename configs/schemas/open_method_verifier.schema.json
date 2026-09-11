@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "verifier_id", "command",
+    "implementation_files", "primary_metrics", "protected_metrics",
+    "metric_policy", "required_validity_gates", "effect_context",
+    "composition_operator", "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-open-method-verifier"},
+    "verifier_id": {"type": "string", "pattern": "^open-verifier-[0-9a-f]{24}$"},
+    "command": {
+      "type": "array", "minItems": 1,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "implementation_files": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["relative_path", "sha256"],
+        "properties": {
+          "relative_path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "primary_metrics": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "protected_metrics": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "metric_policy": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": ["direction", "minimum_effect", "maximum_regression"],
+        "properties": {
+          "direction": {"enum": ["maximize", "minimize"]},
+          "minimum_effect": {"type": "number", "minimum": 0},
+          "maximum_regression": {"type": "number", "minimum": 0}
+        }
+      }
+    },
+    "required_validity_gates": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "effect_context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["backbone_family", "capability_class", "goal_schema", "outcome_schema", "chart_id", "data_regime", "horizons"],
+      "properties": {
+        "backbone_family": {"type": "string", "minLength": 1},
+        "capability_class": {"type": "string", "minLength": 1},
+        "goal_schema": {"type": "string", "minLength": 1},
+        "outcome_schema": {"type": "string", "minLength": 1},
+        "chart_id": {"type": "string", "minLength": 1},
+        "data_regime": {"type": "string", "minLength": 1},
+        "horizons": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}
+      }
+    },
+    "composition_operator": {"enum": ["parallel", "sequential", "gated", "conditional"]},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

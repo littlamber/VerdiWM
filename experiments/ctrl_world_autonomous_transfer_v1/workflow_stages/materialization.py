@@ -11,6 +11,7 @@ from wmloop.execute.automatic_materialization import materialization_plan_digest
 from wmloop.execute.llm_task_adapter import run_llm_task
 from wmloop.control.automatic_module_plan import AutomaticModulePlanError, compile_automatic_module_plan, load_automatic_module_admission
 from wmloop.control.open_method_pipeline import OpenMethodPipelineError, build_open_method_request, compile_open_method_proposal
+from wmloop.control.method_calibration import MethodCalibrationError, run_method_calibration
 from wmloop.control.module_manufacturing import ModuleManufacturingError, build_intervention_manufacturing_work_order
 from .planning import _load_bound_context_document, _load_bound_gap_plan, _load_bound_portfolio, _load_manufacturing_composition
 from .common import AutonomousTransferWorkflowError, StageResult, _attempt_number, _canonical_bytes, _load, _load_active_portrait, _paths, _require_file, _state_root_from_attempt, _write_json_idempotent
@@ -310,11 +311,9 @@ def _prepare_open_method(
         target_portrait=portrait,
         probe_fingerprints=current_fingerprints,
         failure_context=failure_context,
+        target_portrait_binding=portrait_binding,
+        target_probe_binding=probe_binding,
     )
-    request["input"]["required_bindings"] = {
-        "target_portrait_binding": portrait_binding,
-        "probe_binding": probe_binding,
-    }
     task = run_llm_task(
         request=request,
         adapter=settings["llm_adapter"],
@@ -364,6 +363,8 @@ def _prepare_open_method(
             project_root=root,
             expected_portrait_binding=portrait_binding,
             expected_probe_binding=probe_binding,
+            allowed_source_evidence=_open_source_evidence(assessment),
+            expected_component_method_ids=[],
         )
     except OpenMethodPipelineError as exc:
         raise AutonomousTransferWorkflowError(
@@ -484,35 +485,64 @@ def calibrate_open_method(
         compilation_root / "candidate-overlay.json",
         "AUTONOMOUS_OPEN_METHOD_OVERLAY_INVALID",
     )
+    # Candidate conformance checks are executed by the local runtime directly.
+    # The optional calibration adapter remains available for deployments that
+    # require a stronger container boundary, but it is no longer a prerequisite
+    # for the default closed loop.
     adapter_config = config.get("open_method_generation")
-    adapter = (
-        adapter_config.get("calibration_adapter")
-        if isinstance(adapter_config, Mapping)
-        else None
-    )
+    adapter = adapter_config.get("calibration_adapter") if isinstance(adapter_config, Mapping) else None
     if not isinstance(adapter, Mapping):
-        receipt = attempt_root / "calibration-blocked.json"
-        payload = {
-            "schema_version": 1,
-            "artifact_type": "verdiwm-open-method-calibration",
-            "state": "blocked",
-            "method_id": method["method_id"],
-            "overlay_id": overlay["overlay_id"],
-            "blockers": [
-                {
-                    "code": "CALIBRATION_BACKEND_REQUIRED",
-                    "detail": "Configure a trusted sandbox broker before arbitrary candidate execution.",
-                }
-            ],
-            "claim_boundary": "No candidate code was executed and no execution authority was granted.",
-        }
-        _write_json_idempotent(receipt, payload)
+        try:
+            calibration = run_method_calibration(
+                compilation_root=compilation_root,
+                output_root=attempt_root / "local-calibration",
+                timeout_seconds=float(
+                    adapter_config.get("calibration_timeout_seconds", 300.0)
+                    if isinstance(adapter_config, Mapping)
+                    else 300.0
+                ),
+            )
+        except MethodCalibrationError as exc:
+            receipt = attempt_root / "calibration-failed.json"
+            payload = {
+                "schema_version": 1,
+                "artifact_type": "verdiwm-open-method-calibration",
+                "state": "failed",
+                "method_id": method["method_id"],
+                "overlay_id": overlay["overlay_id"],
+                "blockers": [{"code": "LOCAL_CALIBRATION_FAILED", "detail": str(exc)}],
+                "claim_boundary": "Candidate checks failed; no target effect or promotion authority was granted.",
+            }
+            _write_json_idempotent(receipt, payload)
+            return StageResult(
+                state="blocked",
+                outcome="open_method_calibration_failed",
+                payload={
+                    "open_method_calibration_next_state": "pending_replan",
+                    "open_method_calibration_receipt_path": str(receipt),
+                },
+                receipt_path=receipt,
+            )
+        receipt = attempt_root / "calibration.json"
+        _write_json_idempotent(receipt, calibration)
+        if calibration["state"] != "passed":
+            return StageResult(
+                state="blocked",
+                outcome="open_method_calibration_failed",
+                payload={
+                    "open_method_calibration_next_state": "pending_replan",
+                    "open_method_calibration_receipt_path": str(receipt),
+                },
+                receipt_path=receipt,
+            )
         return StageResult(
-            state="blocked",
-            outcome="open_method_calibration_backend_required",
+            state="completed",
+            outcome="open_method_calibration_passed",
             payload={
-                "open_method_calibration_next_state": "pending_replan",
+                "open_method_calibration_next_state": "pending_resource_admission",
                 "open_method_calibration_receipt_path": str(receipt),
+                "method_id": method["method_id"],
+                "overlay_id": overlay["overlay_id"],
             },
             receipt_path=receipt,
         )

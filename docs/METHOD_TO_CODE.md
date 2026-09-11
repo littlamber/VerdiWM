@@ -78,6 +78,16 @@ uv run verdiwm-generate-method \
 uv run verdiwm-open-method-study \
   --request /workspace/research/study-request.json \
   --output /workspace/research/study-ab
+
+uv run verdiwm-run-open-method-study \
+  --study /workspace/research/study-ab \
+  --checkpoint /workspace/assets/checkpoint.pt \
+  --train-split /workspace/assets/train.json \
+  --selection-split /workspace/assets/selection.json \
+  --confirmation-split /workspace/assets/confirmation.json \
+  --verifier /workspace/research/verifier/verifier.json \
+  --output /workspace/research/executions/study-ab \
+  --gpus 0
 ```
 
 Use fresh output directories outside the VerdiWM checkout. The first request
@@ -91,7 +101,9 @@ with exactly the four roles above, `base_revision`, `target_portrait_binding`,
 `python -m wmloop.control.open_method_study`.
 
 These entrypoints connect provider output to real candidate files and complete
-study compilation. The default literature pipeline still needs an integration
+study compilation. `verdiwm-run-open-method-study` then executes the declared
+checks, bounded candidate operations, frozen verifier, paired contrasts and
+local CAS evidence archive. The default literature pipeline still needs an integration
 that selects open candidates, executes their target checks, submits the four
 arms to the scheduler and deposits settled results. Existing registered
 primitive compositions retain their separate execution and settlement path in

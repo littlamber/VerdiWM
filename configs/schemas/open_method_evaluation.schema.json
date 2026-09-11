@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "study_id", "method_id", "role",
+    "phase", "seed", "verifier_id", "validity_gates", "unit_metrics",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-open-method-evaluation"},
+    "study_id": {"type": "string", "pattern": "^open-study-[0-9a-f]{24}$"},
+    "method_id": {"type": "string", "pattern": "^method-ir-[0-9a-f]{24}$"},
+    "role": {"enum": ["baseline", "source_only", "target_only", "combined"]},
+    "phase": {"enum": ["selection", "confirmation"]},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "verifier_id": {"type": "string", "pattern": "^open-verifier-[0-9a-f]{24}$"},
+    "validity_gates": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {"type": "boolean"}
+    },
+    "unit_metrics": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["unit_id", "metrics"],
+        "properties": {
+          "unit_id": {"type": "string", "minLength": 1},
+          "metrics": {
+            "type": "object", "minProperties": 1,
+            "additionalProperties": {"type": "number"}
+          }
+        }
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

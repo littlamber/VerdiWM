@@ -60,8 +60,12 @@ mechanisms should interact; do not label a combination as proven synergy.
 When component_methods are supplied, use their exact method_id values and inspect
 their mechanisms, implementation checks, and anti-conditions before composing.
 Their presence does not mean either component is effective on the target.
-Copy target_portrait_binding into Method IR when supplied. Preserve the source_id
-and source_digest of cited input evidence; do not invent source provenance.
+For a four-arm study set method_ir.study_role exactly to baseline, source_only,
+target_only, or combined. Baseline declares control_equivalence instead of
+ablation_effect and must execute the unmodified target control.
+Copy target_portrait_binding and probe_binding into Method IR when supplied.
+Preserve the source_id and source_digest of cited input evidence; do not invent
+source provenance.
 The experiment study must include baseline, source_only, target_only, combined
 with common frozen checkpoint/data/verifier bindings and paired seeds.
 """
@@ -75,6 +79,7 @@ def build_open_method_request(
     failure_context: Sequence[str],
     component_methods: Sequence[Mapping[str, object]] = (),
     target_portrait_binding: Mapping[str, object] | None = None,
+    target_probe_binding: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Build a provider-neutral LLM request with no predefined method ABI."""
 
@@ -99,6 +104,8 @@ def build_open_method_request(
     request_input = deepcopy(request_input)
     if target_portrait_binding is not None:
         request_input["target_portrait_binding"] = deepcopy(dict(target_portrait_binding))
+    if target_probe_binding is not None:
+        request_input["probe_binding"] = deepcopy(dict(target_probe_binding))
     task_id = "open-method-" + _digest(request_input)[:24]
     return {
         "schema_version": 1,
@@ -119,6 +126,8 @@ def compile_open_method_proposal(
     project_root: Path,
     expected_portrait_binding: Mapping[str, object] | None = None,
     expected_probe_binding: Mapping[str, object] | None = None,
+    allowed_source_evidence: Sequence[Mapping[str, object]] | None = None,
+    expected_component_method_ids: Sequence[str] | None = None,
 ) -> dict[str, object]:
     """Normalize one LLM proposal and emit an immutable local compilation record."""
 
@@ -134,6 +143,25 @@ def compile_open_method_proposal(
         raise OpenMethodPipelineError(f"OPEN_METHOD_PROPOSAL_INVALID:{exc}") from exc
 
     method = _normalize_method_ir(_mapping(proposal, "method_ir"), root=root)
+    if allowed_source_evidence is not None:
+        allowed_sources = {
+            (str(row.get("source_id") or ""), str(row.get("source_digest") or ""))
+            for row in allowed_source_evidence
+        }
+        if not allowed_sources or any(
+            (str(row.get("source_id") or ""), str(row.get("source_digest") or ""))
+            not in allowed_sources
+            for row in method["source_evidence"]
+        ):
+            raise OpenMethodPipelineError("OPEN_METHOD_SOURCE_EVIDENCE_UNBOUND")
+    if expected_component_method_ids is not None:
+        expected_components = [str(value) for value in expected_component_method_ids]
+        composition = method.get("composition")
+        if expected_components:
+            if not isinstance(composition, Mapping) or composition.get("component_method_ids") != expected_components:
+                raise OpenMethodPipelineError("OPEN_METHOD_COMPONENT_BINDING_MISMATCH")
+        elif composition is not None:
+            raise OpenMethodPipelineError("OPEN_METHOD_UNREQUESTED_COMPOSITION")
     if expected_portrait_binding is not None and method.get("target_portrait_binding") != dict(
         expected_portrait_binding
     ):
@@ -262,6 +290,7 @@ def _normalize_method_ir(raw: Mapping[str, object], *, root: Path) -> dict[str, 
         mechanism_hypothesis=hypothesis,
         implementation_validation=(_mapping(raw, "implementation_validation") if "implementation_validation" in raw else None),
         composition=(_mapping(raw, "composition") if "composition" in raw else None),
+        study_role=(str(raw["study_role"]) if raw.get("study_role") else None),
         source_evidence=_mapping_rows(raw["source_evidence"]),
         mechanism=_mapping(raw, "mechanism"),
         target_mapping=_mapping(raw, "target_mapping"),

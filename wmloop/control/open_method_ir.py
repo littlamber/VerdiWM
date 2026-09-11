@@ -41,6 +41,7 @@ def build_method_ir(
     source_evidence_digest: str | None = None,
     implementation_validation: Mapping[str, object] | None = None,
     composition: Mapping[str, object] | None = None,
+    study_role: str | None = None,
     mechanism_hypothesis: Mapping[str, object] | None = None,
     target_portrait_binding: Mapping[str, object] | None = None,
     probe_binding: Mapping[str, object] | None = None,
@@ -67,6 +68,8 @@ def build_method_ir(
         body["implementation_validation"] = dict(implementation_validation)
     if composition is not None:
         body["composition"] = dict(composition)
+    if study_role is not None:
+        body["study_role"] = study_role
     if mechanism_hypothesis is not None:
         body["mechanism_hypothesis"] = dict(mechanism_hypothesis)
     if target_portrait_binding:

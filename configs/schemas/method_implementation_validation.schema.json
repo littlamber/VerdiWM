@@ -38,6 +38,7 @@
               "hook_execution",
               "no_future_leakage",
               "ablation_effect",
+              "control_equivalence",
               "optimizer_binding",
               "parameter_update",
               "train_infer_parity",

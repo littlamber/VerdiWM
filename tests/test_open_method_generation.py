@@ -23,6 +23,7 @@ def generation_case(tmp_path, *, composed=False):
         target_portrait={'portrait_id':PORTRAIT['portrait_id']}, probe_fingerprints=[],
         failure_context=['Identity drift'], component_methods=components,
         target_portrait_binding=PORTRAIT,
+        target_probe_binding=None,
     )
     candidate_path = tmp_path/'provider-proposal.json'
     candidate_path.write_text(json.dumps(candidate))
