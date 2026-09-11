@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import StringIO
+import json
 from pathlib import Path
 
 from wmloop.control import interactive_cli
@@ -68,6 +69,16 @@ def test_plan_shortcut_preserves_quoted_goal() -> None:
     assert calls == [["research", "plan", "--goal", "improve long horizon"]]
 
 
+def test_plan_without_arguments_reuses_last_natural_language_goal() -> None:
+    stdin = FakeTerminal("improve consistency\n/plan\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(
+        stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0
+    )
+    assert calls == [["research", "plan", "--goal", "improve consistency"]]
+
+
 def test_unknown_slash_command_does_not_dispatch() -> None:
     stdin = FakeTerminal("/does-not-exist\n/exit\n")
     stdout = FakeTerminal()
@@ -77,6 +88,29 @@ def test_unknown_slash_command_does_not_dispatch() -> None:
     )
     assert calls == []
     assert "未知命令" in stdout.getvalue()
+
+
+def test_unknown_prefix_suggests_matching_command() -> None:
+    stdin = FakeTerminal("/sta\n/exit\n")
+    stdout = FakeTerminal()
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: 0)
+    assert "你可能想输入" in stdout.getvalue()
+    assert "/status" in stdout.getvalue()
+
+
+def test_command_result_is_rendered_as_readable_card() -> None:
+    stdin = FakeTerminal("/check\n/exit\n")
+    stdout = FakeTerminal()
+
+    def dispatch(argv: list[str]) -> int:
+        print(json.dumps({"state": "blocked", "blockers": [{"code": "MODEL_REQUIRED", "message": "需要模型"}]}))
+        return 2
+
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=dispatch)
+    text = stdout.getvalue()
+    assert "State" in text
+    assert "MODEL_REQUIRED" in text
+    assert "命令返回状态 2" in text
 
 
 def test_natural_language_is_advisory_and_does_not_dispatch() -> None:
@@ -141,6 +175,32 @@ def test_ctrl_c_keeps_session_open() -> None:
     )
     assert "已清除当前输入" in stdout.getvalue()
     assert "已退出 Verdi" in stdout.getvalue()
+
+
+def test_guided_setup_collects_three_values(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    model = tmp_path / "model"
+    data = tmp_path / "data"
+    model.mkdir()
+    data.mkdir()
+    stdin = FakeTerminal("/start\n\n\n提高长程一致性\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(
+        stdin=stdin,
+        stdout=stdout,
+        dispatch=lambda argv: calls.append(argv) or 0,
+    )
+    assert calls == [[
+        "setup",
+        "--model",
+        str(model),
+        "--data",
+        str(data),
+        "--goal",
+        "提高长程一致性",
+    ]]
+    assert "首次接入 Verdi" in stdout.getvalue()
 
 
 def test_explicit_chat_parser_is_available(monkeypatch) -> None:

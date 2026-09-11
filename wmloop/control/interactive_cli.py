@@ -8,11 +8,15 @@ review and confirm a generated research plan before expensive work begins.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import contextlib
 import importlib.metadata
+import io
+import json
 import os
 from pathlib import Path
 import shlex
 import sys
+import time
 from typing import Callable, Iterable, TextIO
 
 
@@ -30,12 +34,15 @@ class InteractiveCommand:
 COMMANDS: tuple[InteractiveCommand, ...] = (
     InteractiveCommand("help", ("h", "?"), "显示命令面板和使用说明", "/help"),
     InteractiveCommand("research", ("r",), "进入研究计划或执行流程", "/research plan ..."),
-    InteractiveCommand("plan", (), "生成可审阅的研究计划（只读）", "/plan --goal \"...\""),
+    InteractiveCommand("start", ("go", "next"), "按当前项目状态继续下一步", "/start"),
+    InteractiveCommand("plan", (), "生成可审阅的研究计划（只读）", "/plan \"研究目标\""),
     InteractiveCommand("run", (), "执行已确认的研究计划", "/run --plan PATH --confirm"),
     InteractiveCommand("status", ("s",), "查看 campaign 状态", "/status [CAMPAIGN_ID]"),
     InteractiveCommand("check", (), "检查项目接入和本地 readiness", "/check"),
+    InteractiveCommand("doctor", (), "检查 Verdi 本地安装", "/doctor"),
     InteractiveCommand("diagnose", (), "只读诊断模型项目", "/diagnose"),
-    InteractiveCommand("setup", (), "首次接入模型、数据和目标", "/setup --model PATH --data PATH --goal \"...\""),
+    InteractiveCommand("setup", ("configure",), "首次接入模型、数据和目标", "/setup"),
+    InteractiveCommand("guide", (), "生成模型接入问卷", "/guide"),
     InteractiveCommand("models", (), "查看当前项目绑定", "/models"),
     InteractiveCommand("clear", (), "清屏并重新显示欢迎界面", "/clear"),
     InteractiveCommand("version", (), "显示 Verdi 版本", "/version"),
@@ -107,6 +114,26 @@ def _project_snapshot() -> dict[str, object] | None:
         return None
 
 
+def _discovered_inputs() -> tuple[str | None, str | None]:
+    """Discover conventional paths for the setup wizard without scanning code."""
+
+    try:
+        from wmloop.control.first_contact import discover_project_inputs
+
+        model, data = discover_project_inputs(Path.cwd())
+        return (str(model) if model else None, str(data) if data else None)
+    except Exception:
+        return None, None
+
+
+def _next_step(config: dict[str, object] | None) -> tuple[str, str]:
+    if not config:
+        return "SETUP", "/setup"
+    if not config.get("goal"):
+        return "GOAL REQUIRED", "/plan \"你的研究目标\""
+    return "READY", "/start"
+
+
 def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = None, color: bool | None = None) -> None:
     theme = _Theme(_supports_color(stdout) if color is None else color)
     root = (project_root or Path.cwd()).expanduser().resolve()
@@ -116,6 +143,7 @@ def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = N
     goal = config.get("goal") if config else None
     ready = bool(config and model and data and goal)
     status = theme.good("READY") if ready else theme.warn("NEEDS SETUP")
+    next_label, next_command = _next_step(config)
     stdout.write("\n")
     stdout.write(theme.title(f"  VERDI  v{_version()}\n"))
     stdout.write(theme.muted("  Evidence-driven world-model research\n\n"))
@@ -125,6 +153,7 @@ def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = N
     stdout.write(f"  Data     {data or '未绑定（输入 /setup）'}\n")
     if goal:
         stdout.write(f"  Goal     {goal}\n")
+    stdout.write(f"  Next     {theme.accent(next_label)}  {next_command}\n")
     stdout.write("\n")
     stdout.write(theme.accent("  输入 / 查看命令，或直接描述一个研究目标。\n"))
     stdout.write(theme.muted("  计划生成是只读的；正式实验始终需要显式确认。\n\n"))
@@ -163,6 +192,66 @@ def _clear_screen(stdout: TextIO, theme: _Theme) -> None:
     if theme.enabled:
         stdout.write("\033[2J\033[H")
     render_welcome(stdout=stdout, color=theme.enabled)
+
+
+def _prompt_value(
+    stdin: TextIO,
+    stdout: TextIO,
+    prompt: str,
+    *,
+    default: str | None = None,
+) -> str | None:
+    suffix = f" [{default}]" if default else ""
+    stdout.write(f"  {prompt}{suffix}: ")
+    stdout.flush()
+    try:
+        if stdin is sys.stdin and stdout is sys.stdout:
+            value = input()
+        else:
+            value = stdin.readline()
+    except (EOFError, KeyboardInterrupt):
+        stdout.write("\n")
+        return None
+    if value == "":
+        return None
+    value = value.strip()
+    return value or default
+
+
+def _guided_setup(
+    stdin: TextIO,
+    stdout: TextIO,
+    dispatch: Dispatch,
+    theme: _Theme,
+) -> bool:
+    """Collect only the three facts needed for a first project configuration."""
+
+    model_default, data_default = _discovered_inputs()
+    stdout.write("\n" + theme.title("  首次接入 Verdi") + "\n")
+    stdout.write(theme.muted("  只需回答三个问题，系统会生成本地 verdiwm.toml。\n"))
+    model = _prompt_value(stdin, stdout, "模型目录", default=model_default)
+    if model is None:
+        stdout.write(theme.warn("  已取消设置。输入 /setup --help 查看完整参数。\n"))
+        return True
+    data = _prompt_value(stdin, stdout, "数据目录", default=data_default)
+    if data is None:
+        stdout.write(theme.warn("  已取消设置。\n"))
+        return True
+    goal = _prompt_value(stdin, stdout, "研究目标（例如：提升分钟级长程一致性）")
+    if goal is None:
+        stdout.write(theme.warn("  还需要一句研究目标；设置未执行。\n"))
+        return True
+    result = _dispatch_slash(
+        "setup",
+        ["--model", model, "--data", data, "--goal", goal],
+        dispatch,
+        stdout=stdout,
+        theme=theme,
+    )
+    if result:
+        render_welcome(stdout=stdout, color=theme.enabled)
+        stdout.write(theme.accent("  接入完成后可以直接输入 /plan 生成只读研究计划。\n"))
+    return result
 
 
 def _configure_readline(stdin: TextIO, stdout: TextIO) -> tuple[object | None, object | None, object | None, str | None]:
@@ -240,13 +329,21 @@ def _restore_readline(
             pass
 
 
-def _dispatch_slash(command: str, args: list[str], dispatch: Dispatch, *, stdout: TextIO, theme: _Theme) -> bool:
+def _dispatch_slash(
+    command: str,
+    args: list[str],
+    dispatch: Dispatch,
+    *,
+    stdout: TextIO,
+    theme: _Theme,
+    stdin: TextIO | None = None,
+) -> bool:
     name = command.casefold()
     if name in {"exit", "quit", "q"}:
         stdout.write(theme.muted("\n  已退出 Verdi。\n"))
         return False
     if name in {"help", "h", "?"}:
-        render_command_palette(stdout=stdout, color=theme.enabled)
+        render_command_palette(args[0] if args else "", stdout=stdout, color=theme.enabled)
         return True
     if name == "clear":
         _clear_screen(stdout, theme)
@@ -254,6 +351,27 @@ def _dispatch_slash(command: str, args: list[str], dispatch: Dispatch, *, stdout
     if name == "version":
         stdout.write(f"  verdi {_version()}\n")
         return True
+    if name in {"start", "go", "next"}:
+        config = _project_snapshot()
+        if not config:
+            if stdin is None:
+                stdout.write(theme.warn("  还没有项目配置；输入 /setup 开始接入。\n"))
+                return True
+            return _guided_setup(stdin, stdout, dispatch, theme)
+        if not config.get("goal"):
+            stdout.write(theme.warn("  还没有研究目标；输入 /plan \"你的目标\"。\n"))
+            return True
+        stdout.write("  当前项目已配置，下一步生成研究计划：/plan\n")
+        return _dispatch_slash(
+            "plan",
+            ["--goal", str(config["goal"])],
+            dispatch,
+            stdout=stdout,
+            theme=theme,
+            stdin=stdin,
+        )
+    if name == "doctor":
+        return _dispatch_command(["doctor", *args], dispatch, stdout=stdout, theme=theme, label="/doctor")
     if name == "models":
         config = _project_snapshot()
         if not config:
@@ -265,10 +383,20 @@ def _dispatch_slash(command: str, args: list[str], dispatch: Dispatch, *, stdout
             if value is not None:
                 stdout.write(f"    {key:<15} {value}\n")
         return True
+    if name in {"guide", "guide-model"}:
+        argv = ["guide-model", *args]
+        return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label="/guide")
+    if name == "setup" and not args:
+        config = _project_snapshot()
+        if config:
+            stdout.write(theme.warn("  当前目录已经有 verdiwm.toml；输入 /models 查看，或使用 /setup --help。\n"))
+            return True
+        if stdin is None:
+            stdout.write(theme.warn("  输入 /setup 后会启动首次接入向导。\n"))
+            return True
+        return _guided_setup(stdin, stdout, dispatch, theme)
     if name == "research" and not args:
-        stdout.write("  研究闭环：先用 /plan 生成并审阅计划，再用 /run --plan PATH --confirm 执行。\n")
-        stdout.write("  示例：/plan --goal \"提升分钟级长程一致性\"\n")
-        return True
+        return _dispatch_slash("start", [], dispatch, stdout=stdout, theme=theme, stdin=stdin)
     mapping = {
         "check": ["check", *args],
         "status": ["status", *args],
@@ -281,19 +409,95 @@ def _dispatch_slash(command: str, args: list[str], dispatch: Dispatch, *, stdout
     }
     argv = mapping.get(name)
     if argv is None:
-        stdout.write(theme.warn(f"  未知命令 /{command}。输入 / 查看可用命令。\n"))
+        matches = tuple(_matching_commands(name))
+        if matches:
+            stdout.write(theme.warn(f"  未知命令 /{command}；你可能想输入：\n"))
+            render_command_palette(name, stdout=stdout, color=theme.enabled)
+        else:
+            stdout.write(theme.warn(f"  未知命令 /{command}。输入 / 查看可用命令。\n"))
         return True
     if name == "run" and "--confirm" in args:
         stdout.write(theme.warn("  即将执行已确认计划；Verdi 会继续遵守计划和证据门禁。\n"))
+    # Friendly shorthand: ``/plan \"goal\"`` and ``/run PLAN`` are expanded
+    # into the explicit argparse forms while retaining the same safety gates.
+    if name == "plan" and argv[2:] and not any(token.startswith("-") for token in argv[2:]):
+        argv = ["research", "plan", "--goal", " ".join(argv[2:])]
+    elif name == "run" and len(argv) > 2 and not argv[2].startswith("-"):
+        argv = ["research", "run", "--plan", argv[2], *argv[3:]]
+    return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label=f"/{name}")
+
+
+def _render_result(raw: str, *, stdout: TextIO, theme: _Theme) -> None:
+    """Turn machine JSON into a compact human-facing result card."""
+
+    text = raw.strip()
+    if not text:
+        return
+    payload: object | None = None
     try:
-        result = int(dispatch(argv))
+        payload = json.loads(text.splitlines()[-1])
+    except (json.JSONDecodeError, TypeError):
+        stdout.write(text + ("\n" if not text.endswith("\n") else ""))
+        return
+    if not isinstance(payload, dict):
+        stdout.write(text + "\n")
+        return
+    state = payload.get("state")
+    if state is not None:
+        state_text = str(state)
+        painter = theme.good if state_text in {"ready", "queued", "completed", "verified"} else theme.warn if state_text in {"blocked", "needs_input", "awaiting_confirmation", "running"} else theme.bad
+        stdout.write(f"  {theme.muted('State')}  {painter(state_text)}\n")
+    for key, label in (("plan_path", "Plan"), ("project_file", "Project"), ("campaign_id", "Campaign"), ("job_id", "Job"), ("output", "Output")):
+        if payload.get(key) is not None:
+            stdout.write(f"  {label:<8} {payload[key]}\n")
+    blockers = payload.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        stdout.write(theme.warn(f"  Blockers ({len(blockers)})\n"))
+        for blocker in blockers[:5]:
+            if isinstance(blocker, dict):
+                stdout.write(f"    - {blocker.get('code', 'BLOCKED')}: {blocker.get('message', blocker.get('detail', ''))}\n")
+    items = payload.get("items")
+    if isinstance(items, list):
+        stdout.write(f"  Campaigns {len(items)}\n")
+        for item in items[:8]:
+            if isinstance(item, dict):
+                stdout.write(f"    {item.get('campaign_id', '?')}  {item.get('status', item.get('state', '?'))}\n")
+    stages = payload.get("stages")
+    if isinstance(stages, list):
+        stdout.write(f"  Stages    {len(stages)}\n")
+    if state is None and not any(key in payload for key in ("plan_path", "project_file", "campaign_id", "items", "blockers")):
+        stdout.write(text + "\n")
+
+
+def _dispatch_command(
+    argv: list[str],
+    dispatch: Dispatch,
+    *,
+    stdout: TextIO,
+    theme: _Theme,
+    label: str,
+) -> bool:
+    """Run one existing CLI command and keep the shell responsive on errors."""
+
+    stdout.write(theme.muted(f"  执行 {label} …\n"))
+    captured_out = io.StringIO()
+    captured_err = io.StringIO()
+    started = time.monotonic()
+    try:
+        with contextlib.redirect_stdout(captured_out), contextlib.redirect_stderr(captured_err):
+            result = int(dispatch(argv))
     except SystemExit as exc:
         result = int(exc.code or 0)
     except KeyboardInterrupt:
         stdout.write(theme.warn("  已中断当前命令，交互会话仍保持打开。\n"))
         return True
+    _render_result(captured_out.getvalue(), stdout=stdout, theme=theme)
+    error_text = captured_err.getvalue().strip()
+    if error_text:
+        stdout.write(theme.bad("  " + error_text.replace("\n", "\n  ") + "\n"))
+    elapsed = time.monotonic() - started
     if result == 0:
-        stdout.write(theme.good("  命令完成。\n"))
+        stdout.write(theme.good(f"  命令完成（{elapsed:.1f}s）。\n"))
     else:
         stdout.write(theme.bad(f"  命令返回状态 {result}。\n"))
     return True
@@ -316,6 +520,7 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
     render_welcome(stdout=stdout, color=theme.enabled)
     readline, history, old_completer, old_delims = _configure_readline(stdin, stdout)
     use_builtin_input = stdin is sys.stdin and stdout is sys.stdout
+    last_goal: str | None = None
     try:
         while True:
             try:
@@ -351,12 +556,15 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
                 if not tokens:
                     render_command_palette(stdout=stdout, color=theme.enabled)
                     continue
-                if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme):
+                if tokens[0].casefold() in {"plan", "research"} and len(tokens) == 1 and last_goal:
+                    tokens.extend(["--goal", last_goal])
+                if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme, stdin=stdin):
                     return 0
                 continue
             # Natural-language input is intentionally advisory.  It gives the
             # user the next safe command without silently allocating a GPU.
             goal = text
+            last_goal = goal
             quoted = shlex.join([goal])
             stdout.write(theme.accent("  已收到研究目标：") + goal + "\n")
             stdout.write("  " + theme.muted(f"下一步可输入 /plan --goal {quoted}" ) + "\n")

@@ -31,15 +31,26 @@ history and Tab completion when available. Set `NO_COLOR=1` for plain output:
 
 ```text
 verdi> /
-verdi> /setup --model /path/to/model --data /path/to/data --goal "improve long-horizon consistency"
-verdi> /plan --goal "improve minute-scale consistency"
+verdi> /start
+Model directory [/path/to/model]:
+Data directory [/path/to/data]:
+Research goal (for example: improve long-horizon consistency):
+verdi> /plan "improve minute-scale consistency"
 verdi> /run --plan ./.verdiwm/research-plan.json --confirm
 verdi> /status
 verdi> /exit
 ```
 
-Natural-language lines in the session only produce a safe next-step plan hint;
-they never import a model or start a GPU campaign silently. `/run` still
+On a first run, `/start` or `/setup` discovers conventional `model/` and
+`data/` paths and asks only for confirmation and one research goal. Once the
+project file exists, `/start` continues by generating a reviewable plan. Common
+shortcuts are accepted: `/plan "goal"` expands to `/plan --goal "goal"`, and
+`/run PLAN` expands to `/run --plan PLAN`.
+
+Command execution displays a short progress line and then a readable result card
+with state, paths, campaign identifiers, and blockers instead of requiring users
+to parse raw JSON. Natural-language lines in the session only produce a safe
+next-step plan hint; they never import a model or start a GPU campaign silently. `/run` still
 requires an explicit `--confirm` and keeps the research-plan, evaluator, and
 evidence gates. Non-TTY, CI, and pipeline invocations continue to print normal
 help, and the `verdiwm` compatibility alias keeps its existing behavior. Use

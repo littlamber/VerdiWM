@@ -28,15 +28,25 @@ uv run verdiwm doctor
 
 ```text
 verdi> /
-verdi> /setup --model /path/to/model --data /path/to/data --goal "提升长程一致性"
-verdi> /plan --goal "提升分钟级长程一致性"
+verdi> /start
+模型目录 [/path/to/model]:
+数据目录 [/path/to/data]:
+研究目标（例如：提升分钟级长程一致性）:
+verdi> /plan "提升分钟级长程一致性"
 verdi> /run --plan ./.verdiwm/research-plan.json --confirm
 verdi> /status
 verdi> /exit
 ```
 
-交互会话中的自然语言只会生成下一步计划提示，不会静默导入模型或启动 GPU。
-`/run` 仍要求显式 `--confirm`，并继续执行研究计划、评测器和证据门禁。脚本、
+首次输入 `/start` 或 `/setup` 时，如果当前目录有 `model/` 和 `data/`，向导会
+自动填入路径；用户只需确认路径并输入一句目标。项目配置生成后，`/start` 会继续
+生成研究计划。常用命令支持短写法，例如 `/plan "目标"` 等价于显式的
+`/plan --goal "目标"`，`/run PLAN` 会补全为 `--plan PLAN`。
+
+命令执行时会先显示“执行 …”，随后将状态、计划路径、campaign 和 blocker 等
+关键字段整理成可读结果卡，不要求用户阅读原始 JSON。交互会话中的自然语言只会
+生成下一步计划提示，不会静默导入模型或启动 GPU。`/run` 仍要求显式 `--confirm`，
+并继续执行研究计划、评测器和证据门禁。脚本、
 CI 和管道环境不会进入会话，继续使用普通命令帮助；`verdiwm` 兼容入口也保持
 原有行为。需要强制进入会话时可运行 `verdi chat`（或 `verdi shell`）。
 
