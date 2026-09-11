@@ -24,6 +24,27 @@ uv sync --group dev
 uv run verdiwm doctor
 ```
 
+Run `verdi` with no subcommand in a terminal to open the lightweight interactive
+session. Type `/` to show the command palette; prefixes such as `/res` filter
+the list. Python's optional standard-library readline integration supplies
+history and Tab completion when available. Set `NO_COLOR=1` for plain output:
+
+```text
+verdi> /
+verdi> /setup --model /path/to/model --data /path/to/data --goal "improve long-horizon consistency"
+verdi> /plan --goal "improve minute-scale consistency"
+verdi> /run --plan ./.verdiwm/research-plan.json --confirm
+verdi> /status
+verdi> /exit
+```
+
+Natural-language lines in the session only produce a safe next-step plan hint;
+they never import a model or start a GPU campaign silently. `/run` still
+requires an explicit `--confirm` and keeps the research-plan, evaluator, and
+evidence gates. Non-TTY, CI, and pipeline invocations continue to print normal
+help, and the `verdiwm` compatibility alias keeps its existing behavior. Use
+`verdi chat` (or `verdi shell`) to force the session explicitly.
+
 `doctor` validates the installed package, schemas, adapter profiles, and
 lightweight runtime contracts. A CPU-only installation is enough for the
 included control-plane examples:

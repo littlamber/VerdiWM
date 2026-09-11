@@ -80,6 +80,7 @@ PUBLIC_TEST_FILES = (
     "test_autonomous_open_method_flow.py",
     "test_research_request.py",
     "test_cli_alias.py",
+    "test_interactive_cli.py",
     "test_literature_materialization.py",
     "test_verdiwm_geometry.py",
     "test_acwm_unified_irg_assets.py",

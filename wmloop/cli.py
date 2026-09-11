@@ -1158,6 +1158,14 @@ def _load_training_scale_plan(path: Path, *, root: Path) -> dict[str, object]:
     return value
 
 
+def _interactive(args: argparse.Namespace) -> int:
+    """Enter the optional line-oriented shell from an explicit subcommand."""
+
+    from wmloop.control.interactive_cli import run_interactive_session
+
+    return run_interactive_session()
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=_cli_program_name(),
@@ -1173,6 +1181,13 @@ def _parser() -> argparse.ArgumentParser:
     # for first contact.  Existing explicit commands and the legacy ``verdiwm``
     # alias keep their normal argparse behavior.
     commands = parser.add_subparsers(dest="command", required=False)
+
+    chat = commands.add_parser(
+        "chat",
+        aliases=("shell",),
+        help="进入交互式 Verdi 会话；输入 / 查看命令面板",
+    )
+    chat.set_defaults(handler=_interactive)
 
     doctor = commands.add_parser(
         "doctor", help="verify the local CPU control-plane installation"
@@ -1680,9 +1695,19 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    parser = _parser()
+    args = parser.parse_args(argv)
     if getattr(args, "command", None) is None:
-        _parser().print_help()
+        # ``verdi`` is the interactive product entrypoint when attached to a
+        # terminal.  Keep non-TTY invocations deterministic for scripts, CI,
+        # pipes, and tests; the legacy ``verdiwm`` alias always keeps help
+        # behavior on a bare invocation.
+        if _cli_program_name() == "verdi":
+            from wmloop.control.interactive_cli import interactive_supported, run_interactive_session
+
+            if interactive_supported(sys.stdin, sys.stdout):
+                return run_interactive_session()
+        parser.print_help()
         return 0
     try:
         return int(args.handler(args))

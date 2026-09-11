@@ -22,6 +22,24 @@ uv sync --group dev
 uv run verdiwm doctor
 ```
 
+直接运行 `verdi` 会进入一个轻量的交互会话。输入 `/` 打开命令面板，输入
+`/res`、`/sta` 等前缀可以筛选命令；在真实终端中还会启用 Python 标准库的
+历史记录和 Tab 补全（可用 `NO_COLOR=1` 关闭颜色）：
+
+```text
+verdi> /
+verdi> /setup --model /path/to/model --data /path/to/data --goal "提升长程一致性"
+verdi> /plan --goal "提升分钟级长程一致性"
+verdi> /run --plan ./.verdiwm/research-plan.json --confirm
+verdi> /status
+verdi> /exit
+```
+
+交互会话中的自然语言只会生成下一步计划提示，不会静默导入模型或启动 GPU。
+`/run` 仍要求显式 `--confirm`，并继续执行研究计划、评测器和证据门禁。脚本、
+CI 和管道环境不会进入会话，继续使用普通命令帮助；`verdiwm` 兼容入口也保持
+原有行为。需要强制进入会话时可运行 `verdi chat`（或 `verdi shell`）。
+
 `doctor` 会检查已安装的包、schema、适配器配置和轻量运行时契约。仓库内的
 控制面示例不需要 GPU 或模型权重：
 
