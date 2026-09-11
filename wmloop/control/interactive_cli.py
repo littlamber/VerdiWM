@@ -491,6 +491,9 @@ def _dispatch_command(
     except KeyboardInterrupt:
         stdout.write(theme.warn("  已中断当前命令，交互会话仍保持打开。\n"))
         return True
+    except Exception as exc:  # keep one bad command from tearing down the shell
+        result = 1
+        captured_err.write(f"{type(exc).__name__}: {exc}")
     _render_result(captured_out.getvalue(), stdout=stdout, theme=theme)
     error_text = captured_err.getvalue().strip()
     if error_text:

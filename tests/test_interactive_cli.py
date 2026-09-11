@@ -113,6 +113,19 @@ def test_command_result_is_rendered_as_readable_card() -> None:
     assert "命令返回状态 2" in text
 
 
+def test_dispatch_exception_is_reported_without_closing_shell() -> None:
+    stdin = FakeTerminal("/check\n/exit\n")
+    stdout = FakeTerminal()
+
+    def dispatch(argv: list[str]) -> int:
+        raise RuntimeError("temporary failure")
+
+    assert interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=dispatch) == 0
+    text = stdout.getvalue()
+    assert "RuntimeError: temporary failure" in text
+    assert "已退出 Verdi" in text
+
+
 def test_natural_language_is_advisory_and_does_not_dispatch() -> None:
     stdin = FakeTerminal("提升分钟级长程一致性\n/exit\n")
     stdout = FakeTerminal()
