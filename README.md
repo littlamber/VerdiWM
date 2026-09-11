@@ -88,6 +88,39 @@ uv run verdiwm setup \
   --runtime-python /path/to/model/.venv/bin/python
 ```
 
+### One-confirmation research flow
+
+For a low-configuration entry point, compile a reviewable plan directly from a
+model, dataset, and objective. Planning only scans and hashes inputs; it does
+not import the model, call a research service, or allocate a GPU:
+
+```bash
+uv run verdiwm research plan \
+  --model /path/to/model \
+  --data /path/to/data \
+  --goal "improve minute-scale long-horizon interaction consistency" \
+  --budget 4gpu-hours \
+  --mode hybrid \
+  --output ./.verdiwm/research-plan.json
+```
+
+Review the plan's `state`, `blockers`, evaluator binding, input digest, and
+stage order. When the plan is ready, confirm it once:
+
+```bash
+uv run verdiwm research run \
+  --plan ./.verdiwm/research-plan.json \
+  --confirm
+```
+
+The confirmation rechecks every bound file, creates an immutable CampaignStore
+revision, and enters the available onboarding, IRG/diagnostic, retrieval,
+candidate materialization, paired screening, confirmation, and knowledge stages.
+Stages that cannot be proven remain gated. Generated text, compilation, interface
+calibration, or a single loss decrease never establishes a model improvement;
+open methods require target-side four-arm validation with a frozen verifier and
+held-out confirmation.
+
 ## Run your project
 
 Create a project file next to your model and dataset:
