@@ -34,8 +34,13 @@ verdi> /start
 数据目录 [/path/to/data]:
 研究目标（例如：提升分钟级长程一致性）:
 verdi> /plan "提升分钟级长程一致性"
-verdi> /run --plan ./.verdiwm/research-plan.json --confirm
+verdi> /run
+  研究计划 …
+  确认创建并执行这个 campaign？ [y/N]: y
 verdi> /status
+verdi> /recent
+verdi> /progress
+verdi> /resume
 verdi> /exit
 ```
 
@@ -50,6 +55,11 @@ verdi> /exit
 并继续执行研究计划、评测器和证据门禁。脚本、
 CI 和管道环境不会进入会话，继续使用普通命令帮助；`verdiwm` 兼容入口也保持
 原有行为。需要强制进入会话时可运行 `verdi chat`（或 `verdi shell`）。
+
+`/recent` 会显示默认计划、最近 campaign 和推荐下一步；`/resume` 会优先恢复正在
+排队或运行的任务，否则展示默认计划并要求确认；`/progress` 可复用当前会话最近的
+campaign ID；`/cancel ID` 只取消明确指定的任务。长命令会显示存活状态，按
+`Ctrl-C` 只停止当前命令或进度查看，不会删除研究记录。
 
 `doctor` 会检查已安装的包、schema、适配器配置和轻量运行时契约。仓库内的
 控制面示例不需要 GPU 或模型权重：

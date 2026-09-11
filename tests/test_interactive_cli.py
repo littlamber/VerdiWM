@@ -261,3 +261,80 @@ def test_bare_verdi_enters_session_only_on_tty(monkeypatch) -> None:
     assert cli.main([]) == 0
     assert "VERDI" in stdout.getvalue()
     assert "已退出 Verdi" in stdout.getvalue()
+
+
+def test_recent_without_project_explains_next_step(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    stdin = FakeTerminal("/recent\n/exit\n")
+    stdout = FakeTerminal()
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: 0)
+    text = stdout.getvalue()
+    assert "尚未生成" in text
+    assert "Next     /setup" in text
+
+
+def test_run_without_arguments_previews_default_plan_and_requires_confirmation(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / ".verdiwm" / "research-plan.json"
+    plan.parent.mkdir()
+    plan.write_text(json.dumps({"state": "ready", "goal": "improve consistency", "model": "model", "budget": {"gpu_hours": 1}, "mode": "hybrid"}), encoding="utf-8")
+    stdin = FakeTerminal("/run\ny\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0)
+    assert calls == [["research", "run", "--plan", str(plan), "--confirm"]]
+    assert "确认创建并执行" in stdout.getvalue()
+
+
+def test_run_rejection_does_not_dispatch_or_consume_a_campaign(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / ".verdiwm" / "research-plan.json"
+    plan.parent.mkdir()
+    plan.write_text(json.dumps({"state": "ready", "goal": "improve consistency"}), encoding="utf-8")
+    stdin = FakeTerminal("/run\nno\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0)
+    assert calls == []
+    assert "已取消执行" in stdout.getvalue()
+
+
+def test_progress_reuses_last_campaign_id_from_status_result() -> None:
+    stdin = FakeTerminal("/status\n/progress\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+
+    def dispatch(argv: list[str]) -> int:
+        calls.append(argv)
+        if argv == ["status"]:
+            print(json.dumps({"items": [{"campaign_id": "demo", "status": "running"}]}))
+        else:
+            print(json.dumps({"campaign_id": "demo", "status": "running"}))
+        return 0
+
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=dispatch)
+    assert calls == [["status"], ["status", "demo"]]
+
+
+def test_cancel_requires_explicit_campaign_id() -> None:
+    stdin = FakeTerminal("/cancel\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0)
+    assert calls == []
+    assert "明确指定 campaign ID" in stdout.getvalue()
+
+
+def test_welcome_marks_configured_but_blocked_project(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "verdiwm.toml").write_text(
+        "[project]\nmodel = \"model\"\ndata = \"data\"\ngoal = \"improve consistency\"\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "model").mkdir()
+    (tmp_path / "data").mkdir()
+    output = FakeTerminal()
+    interactive_cli.render_welcome(stdout=output, project_root=tmp_path, color=False)
+    text = output.getvalue()
+    assert "BLOCKED" in text
+    assert "Next     BLOCKED  /check" in text

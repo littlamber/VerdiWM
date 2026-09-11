@@ -37,8 +37,12 @@ Model directory [/path/to/model]:
 Data directory [/path/to/data]:
 Research goal (for example: improve long-horizon consistency):
 verdi> /plan "improve minute-scale consistency"
-verdi> /run --plan ./.verdiwm/research-plan.json --confirm
+verdi> /run
+  Review the plan summary, then confirm with y when prompted.
 verdi> /status
+verdi> /recent
+verdi> /progress
+verdi> /resume
 verdi> /exit
 ```
 
@@ -56,6 +60,14 @@ requires an explicit `--confirm` and keeps the research-plan, evaluator, and
 evidence gates. Non-TTY, CI, and pipeline invocations continue to print normal
 help, and the `verdiwm` compatibility alias keeps its existing behavior. Use
 `verdi chat` (or `verdi shell`) to force the session explicitly.
+
+`/recent` shows the default plan, recent campaigns, and the recommended next
+step. `/resume` follows an active queued/running campaign when one exists;
+otherwise it previews the default plan and asks for confirmation. `/progress`
+reuses the most recent campaign ID in the current session, while `/cancel ID`
+requires an explicit ID. Long commands emit a small heartbeat so the terminal
+does not look stalled; `Ctrl-C` interrupts the current view without deleting
+campaign history.
 
 `doctor` validates the installed package, schemas, adapter profiles, and
 lightweight runtime contracts. A CPU-only installation is enough for the

@@ -17,6 +17,7 @@ from pathlib import Path
 import select
 import shlex
 import sys
+import threading
 import time
 from typing import Callable, Iterable, TextIO
 
@@ -32,13 +33,29 @@ class InteractiveCommand:
     usage: str
 
 
+@dataclass
+class SessionState:
+    """Ephemeral context that makes consecutive shell commands composable."""
+
+    last_goal: str | None = None
+    last_plan: str | None = None
+    last_campaign_id: str | None = None
+    last_state: str | None = None
+    last_command: str | None = None
+    last_error: str | None = None
+
+
 COMMANDS: tuple[InteractiveCommand, ...] = (
     InteractiveCommand("help", ("h", "?"), "显示命令面板和使用说明", "/help"),
     InteractiveCommand("research", ("r",), "进入研究计划或执行流程", "/research plan ..."),
     InteractiveCommand("start", ("go", "next"), "按当前项目状态继续下一步", "/start"),
     InteractiveCommand("plan", (), "生成可审阅的研究计划（只读）", "/plan \"研究目标\""),
-    InteractiveCommand("run", (), "执行已确认的研究计划", "/run --plan PATH --confirm"),
+    InteractiveCommand("run", (), "预览并确认后执行研究计划", "/run  或  /run --plan PATH --confirm"),
     InteractiveCommand("status", ("s",), "查看 campaign 状态", "/status [CAMPAIGN_ID]"),
+    InteractiveCommand("recent", (), "查看最近计划、任务和下一步", "/recent"),
+    InteractiveCommand("resume", (), "恢复最近任务或审阅默认计划", "/resume"),
+    InteractiveCommand("progress", ("p",), "查看最近任务的进度", "/progress [CAMPAIGN_ID]"),
+    InteractiveCommand("cancel", (), "取消一个排队或运行中的任务", "/cancel CAMPAIGN_ID"),
     InteractiveCommand("check", (), "检查项目接入和本地 readiness", "/check"),
     InteractiveCommand("doctor", (), "检查 Verdi 本地安装", "/doctor"),
     InteractiveCommand("diagnose", (), "只读诊断模型项目", "/diagnose"),
@@ -106,11 +123,11 @@ def _version() -> str:
     return "source"
 
 
-def _project_snapshot() -> dict[str, object] | None:
+def _project_snapshot(project_root: Path | None = None) -> dict[str, object] | None:
     try:
         from wmloop.control.project_config import load_project_config
 
-        return dict(load_project_config().values)
+        return dict(load_project_config(cwd=project_root).values)
     except Exception:  # a status panel should never make the shell unusable
         return None
 
@@ -127,24 +144,86 @@ def _discovered_inputs() -> tuple[str | None, str | None]:
         return None, None
 
 
-def _next_step(config: dict[str, object] | None) -> tuple[str, str]:
+def _default_plan_path(project_root: Path | None = None) -> Path:
+    root = (project_root or Path.cwd()).expanduser().resolve()
+    return root / ".verdiwm" / "research-plan.json"
+
+
+def _state_root(config: dict[str, object] | None, project_root: Path | None = None) -> Path:
+    root = (project_root or Path.cwd()).expanduser().resolve()
+    configured = config.get("state_root") if config else None
+    if configured:
+        return Path(str(configured)).expanduser().resolve()
+    return root / ".verdiwm" / "state"
+
+
+def _readiness_snapshot(config: dict[str, object] | None, project_root: Path) -> dict[str, object] | None:
+    """Run the bounded, read-only onboarding check for welcome/start panels."""
+
+    if not config:
+        return None
+    try:
+        from wmloop.control.first_contact import inspect_project
+
+        return inspect_project(
+            root=project_root,
+            model=str(config.get("model")) if config.get("model") else None,
+            source=str(config.get("source")) if config.get("source") else None,
+            data=str(config.get("data", config.get("dataset"))) if config.get("data", config.get("dataset")) else None,
+            evaluator_contract=str(config.get("evaluator_contract")) if config.get("evaluator_contract") else None,
+            runtime_python=str(config.get("runtime_python")) if config.get("runtime_python") else None,
+        )
+    except Exception:
+        return None
+
+
+def _recent_campaigns(config: dict[str, object] | None, project_root: Path | None = None, *, limit: int = 5) -> list[dict[str, object]]:
+    try:
+        from wmloop.control.campaign_api import CampaignStore
+
+        records = CampaignStore(_state_root(config, project_root), read_only=True).list(limit=1000)
+    except Exception:
+        return []
+    records.sort(key=lambda item: str(item.get("updated_at", item.get("created_at", ""))), reverse=True)
+    return records[:limit]
+
+
+def _next_step(
+    config: dict[str, object] | None,
+    *,
+    readiness: dict[str, object] | None = None,
+    plan_path: Path | None = None,
+    campaigns: Iterable[dict[str, object]] = (),
+) -> tuple[str, str]:
     if not config:
         return "SETUP", "/setup"
     if not config.get("goal"):
         return "GOAL REQUIRED", "/plan \"你的研究目标\""
+    blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
+    if isinstance(blockers, list) and blockers:
+        return "BLOCKED", "/check"
+    for campaign in campaigns:
+        if campaign.get("status") in {"queued", "running"}:
+            return "IN PROGRESS", "/progress"
+    if plan_path is not None and plan_path.is_file():
+        return "PLAN READY", "/run"
     return "READY", "/start"
 
 
 def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = None, color: bool | None = None) -> None:
     theme = _Theme(_supports_color(stdout) if color is None else color)
     root = (project_root or Path.cwd()).expanduser().resolve()
-    config = _project_snapshot()
+    config = _project_snapshot(root)
     model = config.get("model") if config else None
     data = config.get("data", config.get("dataset")) if config else None
     goal = config.get("goal") if config else None
-    ready = bool(config and model and data and goal)
-    status = theme.good("READY") if ready else theme.warn("NEEDS SETUP")
-    next_label, next_command = _next_step(config)
+    readiness = _readiness_snapshot(config, root)
+    campaigns = _recent_campaigns(config, root)
+    blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
+    ready = bool(config and model and data and goal and not blockers)
+    status = theme.good("READY") if ready else theme.bad("BLOCKED") if blockers else theme.warn("NEEDS SETUP")
+    plan_path = _default_plan_path(root)
+    next_label, next_command = _next_step(config, readiness=readiness, plan_path=plan_path, campaigns=campaigns)
     stdout.write("\n")
     stdout.write(theme.title(f"  VERDI  v{_version()}\n"))
     stdout.write(theme.muted("  Evidence-driven world-model research\n\n"))
@@ -154,6 +233,15 @@ def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = N
     stdout.write(f"  Data     {data or '未绑定（输入 /setup）'}\n")
     if goal:
         stdout.write(f"  Goal     {goal}\n")
+    if plan_path.is_file():
+        stdout.write(f"  Plan     {plan_path}\n")
+    if campaigns:
+        latest = campaigns[0]
+        stdout.write(f"  Latest   {latest.get('campaign_id', '?')}  {latest.get('status', '?')}\n")
+    if isinstance(blockers, list) and blockers:
+        first = blockers[0]
+        if isinstance(first, dict):
+            stdout.write(theme.warn(f"  Blocker  {first.get('code', 'BLOCKED')}: {first.get('message', '')}\n"))
     stdout.write(f"  Next     {theme.accent(next_label)}  {next_command}\n")
     stdout.write("\n")
     stdout.write(theme.accent("  输入 / 查看命令，或直接描述一个研究目标。\n"))
@@ -328,6 +416,17 @@ def _prompt_value(
     return value or default
 
 
+def _prompt_confirmation(stdin: TextIO, stdout: TextIO, theme: _Theme, prompt: str) -> bool:
+    stdout.write(f"  {prompt} [y/N]: ")
+    stdout.flush()
+    try:
+        value = input() if stdin is sys.stdin and stdout is sys.stdout else stdin.readline()
+    except (EOFError, KeyboardInterrupt):
+        stdout.write("\n")
+        return False
+    return value.strip().casefold() in {"y", "yes"}
+
+
 def _render_command_help(command: InteractiveCommand, *, stdout: TextIO, theme: _Theme) -> None:
     stdout.write(f"\n{theme.title('  /' + command.name)}  {command.summary}\n")
     stdout.write(f"  用法  {command.usage}\n")
@@ -336,7 +435,7 @@ def _render_command_help(command: InteractiveCommand, *, stdout: TextIO, theme: 
     elif command.name == "plan":
         stdout.write("  说明  只读生成计划；目标可直接作为第一个参数，不会启动 GPU。\n")
     elif command.name == "run":
-        stdout.write("  说明  只有带 --confirm 的计划才会进入正式 campaign。\n")
+        stdout.write("  说明  无参数时会预览默认计划并询问确认；正式 campaign 仍必须带 --confirm。\n")
     stdout.write("\n")
 
 
@@ -376,6 +475,72 @@ def _guided_setup(
     return result
 
 
+def _plan_summary(path: Path) -> tuple[dict[str, object] | None, str | None]:
+    if path.is_symlink() or not path.is_file():
+        return None, None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, "计划文件无法读取，请重新生成 /plan。"
+    if not isinstance(payload, dict):
+        return None, "计划文件格式无效，请重新生成 /plan。"
+    return payload, None
+
+
+def _render_plan_preview(payload: dict[str, object], path: Path, *, stdout: TextIO, theme: _Theme) -> None:
+    stdout.write(theme.title("  研究计划") + "\n")
+    stdout.write(f"    Goal     {payload.get('goal', '未填写')}\n")
+    stdout.write(f"    Model    {payload.get('model', '未绑定')}\n")
+    stdout.write(f"    Budget   {payload.get('budget', '未填写')}\n")
+    stdout.write(f"    Mode     {payload.get('mode', '未填写')}\n")
+    stdout.write(f"    State    {payload.get('state', 'unknown')}\n")
+    stdout.write(f"    File     {path}\n")
+
+
+def _render_recent(
+    *,
+    stdout: TextIO,
+    theme: _Theme,
+    project_root: Path | None = None,
+    state: SessionState | None = None,
+) -> bool:
+    root = (project_root or Path.cwd()).expanduser().resolve()
+    config = _project_snapshot(root)
+    plan_path = _default_plan_path(root)
+    campaigns = _recent_campaigns(config, root, limit=8)
+    stdout.write("\n" + theme.title("  Recent Verdi work") + "\n")
+    if plan_path.is_file():
+        payload, error = _plan_summary(plan_path)
+        if payload is not None:
+            stdout.write(f"  Plan     {plan_path}\n")
+            stdout.write(f"  Goal     {payload.get('goal', '未填写')}\n")
+            stdout.write(f"  State    {payload.get('state', 'unknown')}\n")
+        elif error:
+            stdout.write(theme.warn(f"  Plan     {error}\n"))
+    else:
+        stdout.write(theme.muted("  Plan     尚未生成（输入 /plan）。\n"))
+    if campaigns:
+        stdout.write("  Campaigns\n")
+        for item in campaigns:
+            stdout.write(f"    {item.get('campaign_id', '?')}  {item.get('status', '?')}  {item.get('goal', '')}\n")
+    else:
+        stdout.write(theme.muted("  Campaigns 尚无记录。\n"))
+    active = next((item for item in campaigns if item.get("status") in {"queued", "running"}), None)
+    if active:
+        stdout.write(theme.accent(f"  Next     /progress {active.get('campaign_id')}\n"))
+    elif plan_path.is_file():
+        stdout.write(theme.accent("  Next     /run\n"))
+    elif config and config.get("goal"):
+        stdout.write(theme.accent("  Next     /plan\n"))
+    else:
+        stdout.write(theme.accent("  Next     /setup\n"))
+    stdout.write("\n")
+    if state is not None and campaigns:
+        state.last_campaign_id = str(campaigns[0].get("campaign_id"))
+        state.last_state = str(campaigns[0].get("status"))
+    return True
+
+
 def _configure_readline(stdin: TextIO, stdout: TextIO) -> tuple[object | None, object | None, object | None, str | None]:
     if stdin is not sys.stdin or stdout is not sys.stdout:
         return None, None, None, None
@@ -386,12 +551,28 @@ def _configure_readline(stdin: TextIO, stdout: TextIO) -> tuple[object | None, o
 
     names = sorted({command.name for command in COMMANDS} | {alias for command in COMMANDS for alias in command.aliases})
 
+    def completion_candidates(line: str, text: str) -> list[str]:
+        if not line.startswith("/"):
+            return []
+        body = line[1:]
+        try:
+            tokens = shlex.split(body)
+        except ValueError:
+            tokens = body.split()
+        command = tokens[0].casefold() if tokens else ""
+        if command in {"run", "resume"} and len(tokens) <= 1:
+            plan = _default_plan_path()
+            return [str(plan)] if plan.is_file() else []
+        if command in {"status", "progress", "p", "cancel"} and len(tokens) <= 1:
+            campaigns = _recent_campaigns(_project_snapshot(), Path.cwd(), limit=20)
+            return [str(item.get("campaign_id")) for item in campaigns if item.get("campaign_id")]
+        if len(tokens) <= 1:
+            return ["/" + name for name in names if ("/" + name).startswith(text)]
+        return []
+
     def completer(text: str, state: int) -> str | None:
         line = readline.get_line_buffer()
-        if not line.startswith("/"):
-            return None
-        prefix = line[1:].split(maxsplit=1)[0] if line[1:] else ""
-        candidates = ["/" + name for name in names if name.startswith(prefix)]
+        candidates = completion_candidates(line, text)
         return candidates[state] if state < len(candidates) else None
 
     old_completer = readline.get_completer()
@@ -459,6 +640,7 @@ def _dispatch_slash(
     stdout: TextIO,
     theme: _Theme,
     stdin: TextIO | None = None,
+    session: SessionState | None = None,
 ) -> bool:
     name = command.casefold()
     if name in {"exit", "quit", "q"}:
@@ -473,8 +655,34 @@ def _dispatch_slash(
     if name == "version":
         stdout.write(f"  verdi {_version()}\n")
         return True
+    if name == "recent":
+        return _render_recent(stdout=stdout, theme=theme, state=session)
+    if name == "resume":
+        root = Path.cwd().expanduser().resolve()
+        config = _project_snapshot(root)
+        campaigns = _recent_campaigns(config, root)
+        active = next((item for item in campaigns if item.get("status") in {"queued", "running"}), None)
+        if active:
+            campaign_id = str(active.get("campaign_id"))
+            stdout.write(theme.accent(f"  发现进行中的 campaign：{campaign_id}\n"))
+            return _dispatch_slash("progress", [campaign_id], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
+        return _dispatch_slash("run", [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
+    if name == "progress":
+        campaign_id = args[0] if args else (session.last_campaign_id if session else None)
+        if campaign_id:
+            args = [campaign_id]
+        else:
+            return _dispatch_slash("recent", [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
+        return _dispatch_command(["status", *args], dispatch, stdout=stdout, theme=theme, label="/progress", session=session)
+    if name == "cancel":
+        campaign_id = args[0] if args else None
+        if not campaign_id:
+            stdout.write(theme.warn("  请明确指定 campaign ID，例如 /cancel CAMPAIGN_ID；系统不会猜测任务。\n"))
+            return True
+        return _dispatch_command(["cancel", campaign_id], dispatch, stdout=stdout, theme=theme, label="/cancel", session=session)
     if name in {"start", "go", "next"}:
-        config = _project_snapshot()
+        root = Path.cwd().expanduser().resolve()
+        config = _project_snapshot(root)
         if not config:
             if stdin is None:
                 stdout.write(theme.warn("  还没有项目配置；输入 /setup 开始接入。\n"))
@@ -483,6 +691,15 @@ def _dispatch_slash(
         if not config.get("goal"):
             stdout.write(theme.warn("  还没有研究目标；输入 /plan \"你的目标\"。\n"))
             return True
+        readiness = _readiness_snapshot(config, root)
+        blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
+        if isinstance(blockers, list) and blockers:
+            stdout.write(theme.bad("  当前接入仍有阻塞项；先运行 /check 查看可执行的修复步骤。\n"))
+            return True
+        plan_path = _default_plan_path(root)
+        if plan_path.is_file():
+            stdout.write(theme.accent(f"  已发现研究计划：{plan_path}\n"))
+            return _dispatch_slash("run", [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
         stdout.write("  当前项目已配置，下一步生成研究计划：/plan\n")
         return _dispatch_slash(
             "plan",
@@ -491,9 +708,10 @@ def _dispatch_slash(
             stdout=stdout,
             theme=theme,
             stdin=stdin,
+            session=session,
         )
     if name == "doctor":
-        return _dispatch_command(["doctor", *args], dispatch, stdout=stdout, theme=theme, label="/doctor")
+        return _dispatch_command(["doctor", *args], dispatch, stdout=stdout, theme=theme, label="/doctor", session=session)
     if name == "models":
         config = _project_snapshot()
         if not config:
@@ -507,7 +725,7 @@ def _dispatch_slash(
         return True
     if name in {"guide", "guide-model"}:
         argv = ["guide-model", *args]
-        return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label="/guide")
+        return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label="/guide", session=session)
     if name == "setup" and not args:
         config = _project_snapshot()
         if config:
@@ -518,7 +736,7 @@ def _dispatch_slash(
             return True
         return _guided_setup(stdin, stdout, dispatch, theme)
     if name == "research" and not args:
-        return _dispatch_slash("start", [], dispatch, stdout=stdout, theme=theme, stdin=stdin)
+        return _dispatch_slash("start", [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
     mapping = {
         "check": ["check", *args],
         "status": ["status", *args],
@@ -538,6 +756,21 @@ def _dispatch_slash(
         else:
             stdout.write(theme.warn(f"  未知命令 /{command}。输入 / 查看可用命令。\n"))
         return True
+    if name == "run" and not args:
+        plan_path = _default_plan_path(Path.cwd())
+        payload, error = _plan_summary(plan_path)
+        if payload is None:
+            stdout.write(theme.warn(f"  {error or '还没有默认研究计划；输入 /plan 先生成。'}\n"))
+            return True
+        _render_plan_preview(payload, plan_path, stdout=stdout, theme=theme)
+        if payload.get("state") not in {"ready", "ready_with_deferred_discovery"}:
+            stdout.write(theme.bad("  计划当前不可执行；请先解决 blocker，再输入 /plan 重新生成。\n"))
+            return True
+        if stdin is None or not _prompt_confirmation(stdin, stdout, theme, "确认创建并执行这个 campaign？"):
+            stdout.write(theme.muted("  已取消执行；计划仍保留在原路径。\n"))
+            return True
+        args = ["--plan", str(plan_path), "--confirm"]
+        argv = ["research", "run", *args]
     if name == "run" and "--confirm" in args:
         stdout.write(theme.warn("  即将执行已确认计划；Verdi 会继续遵守计划和证据门禁。\n"))
     # Friendly shorthand: ``/plan \"goal\"`` and ``/run PLAN`` are expanded
@@ -551,7 +784,7 @@ def _dispatch_slash(
         argv = ["research", "plan", "--goal", " ".join(argv[2:first_option]), *argv[first_option:]]
     elif name == "run" and len(argv) > 2 and not argv[2].startswith("-"):
         argv = ["research", "run", "--plan", argv[2], *argv[3:]]
-    return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label=f"/{name}")
+    return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label=f"/{name}", session=session)
 
 
 def _render_result(raw: str, *, stdout: TextIO, theme: _Theme) -> None:
@@ -603,6 +836,7 @@ def _dispatch_command(
     stdout: TextIO,
     theme: _Theme,
     label: str,
+    session: SessionState | None = None,
 ) -> bool:
     """Run one existing CLI command and keep the shell responsive on errors."""
 
@@ -610,6 +844,23 @@ def _dispatch_command(
     captured_out = io.StringIO()
     captured_err = io.StringIO()
     started = time.monotonic()
+    heartbeat_stop = threading.Event()
+    heartbeat_visible = threading.Event()
+
+    def heartbeat() -> None:
+        # Keep long-running commands visibly alive without touching their
+        # stdout capture.  The worker writes only to the caller's terminal.
+        while not heartbeat_stop.wait(1.0):
+            elapsed = time.monotonic() - started
+            try:
+                heartbeat_visible.set()
+                stdout.write(theme.muted(f"\r  {label} 进行中 … {elapsed:.0f}s"))
+                stdout.flush()
+            except (OSError, ValueError):
+                return
+
+    heartbeat_thread = threading.Thread(target=heartbeat, daemon=True)
+    heartbeat_thread.start()
     try:
         with contextlib.redirect_stdout(captured_out), contextlib.redirect_stderr(captured_err):
             result = int(dispatch(argv))
@@ -621,9 +872,46 @@ def _dispatch_command(
     except Exception as exc:  # keep one bad command from tearing down the shell
         result = 1
         captured_err.write(f"{type(exc).__name__}: {exc}")
-    _render_result(captured_out.getvalue(), stdout=stdout, theme=theme)
+    finally:
+        heartbeat_stop.set()
+        heartbeat_thread.join(timeout=0.2)
+        # Remove a possible in-place heartbeat before rendering the result.
+        if heartbeat_visible.is_set():
+            stdout.write("\r\033[2K" if theme.enabled else "\r" + (" " * 48) + "\r")
+            stdout.flush()
+    raw_output = captured_out.getvalue()
+    _render_result(raw_output, stdout=stdout, theme=theme)
+    if session is not None:
+        session.last_command = label
+        session.last_error = None
+        try:
+            payload = json.loads(raw_output.strip().splitlines()[-1]) if raw_output.strip() else None
+        except (json.JSONDecodeError, TypeError):
+            payload = None
+        if isinstance(payload, dict):
+            if payload.get("plan_path") is not None:
+                session.last_plan = str(payload["plan_path"])
+            if payload.get("campaign_id") is not None:
+                session.last_campaign_id = str(payload["campaign_id"])
+            campaign = payload.get("campaign")
+            if isinstance(campaign, dict):
+                if campaign.get("campaign_id") is not None:
+                    session.last_campaign_id = str(campaign["campaign_id"])
+                if campaign.get("status") is not None:
+                    session.last_state = str(campaign["status"])
+            items = payload.get("items")
+            if isinstance(items, list) and items and isinstance(items[0], dict):
+                latest = items[0]
+                if latest.get("campaign_id") is not None:
+                    session.last_campaign_id = str(latest["campaign_id"])
+                if latest.get("status") is not None:
+                    session.last_state = str(latest["status"])
+            if payload.get("state") is not None:
+                session.last_state = str(payload["state"])
     error_text = captured_err.getvalue().strip()
     if error_text:
+        if session is not None:
+            session.last_error = error_text
         stdout.write(theme.bad("  " + error_text.replace("\n", "\n  ") + "\n"))
     elapsed = time.monotonic() - started
     if result == 0:
@@ -650,7 +938,7 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
     render_welcome(stdout=stdout, color=theme.enabled)
     readline, history, old_completer, old_delims = _configure_readline(stdin, stdout)
     use_builtin_input = stdin is sys.stdin and stdout is sys.stdout
-    last_goal: str | None = None
+    session = SessionState()
     try:
         while True:
             try:
@@ -674,16 +962,12 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
             text = line.strip()
             if not text:
                 continue
-                if text == "/":
-                    selected = _live_palette_selection(stdin=stdin, stdout=stdout, theme=theme)
-                    if selected:
-                        _dispatch_slash(selected, [], dispatch, stdout=stdout, theme=theme, stdin=stdin)
-                    elif (
-                        stdin is not sys.stdin
-                        or stdout is not sys.stdout
-                        or not theme.enabled
-                    ):
-                        render_command_palette(stdout=stdout, color=theme.enabled)
+            if text == "/":
+                selected = _live_palette_selection(stdin=stdin, stdout=stdout, theme=theme)
+                if selected:
+                    _dispatch_slash(selected, [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
+                elif stdin is not sys.stdin or stdout is not sys.stdout or not theme.enabled:
+                    render_command_palette(stdout=stdout, color=theme.enabled)
                 continue
             if text.startswith("/"):
                 try:
@@ -700,15 +984,15 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
                     if command is not None:
                         _render_command_help(command, stdout=stdout, theme=theme)
                         continue
-                if tokens[0].casefold() in {"plan", "research"} and len(tokens) == 1 and last_goal:
-                    tokens.extend(["--goal", last_goal])
-                if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme, stdin=stdin):
+                if tokens[0].casefold() in {"plan", "research"} and len(tokens) == 1 and session.last_goal:
+                    tokens.extend(["--goal", session.last_goal])
+                if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session):
                     return 0
                 continue
             # Natural-language input is intentionally advisory.  It gives the
             # user the next safe command without silently allocating a GPU.
             goal = text
-            last_goal = goal
+            session.last_goal = goal
             quoted = shlex.join([goal])
             stdout.write(theme.accent("  已收到研究目标：") + goal + "\n")
             stdout.write("  " + theme.muted(f"下一步可输入 /plan --goal {quoted}" ) + "\n")
