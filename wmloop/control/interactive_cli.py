@@ -420,8 +420,13 @@ def _dispatch_slash(
         stdout.write(theme.warn("  即将执行已确认计划；Verdi 会继续遵守计划和证据门禁。\n"))
     # Friendly shorthand: ``/plan \"goal\"`` and ``/run PLAN`` are expanded
     # into the explicit argparse forms while retaining the same safety gates.
-    if name == "plan" and argv[2:] and not any(token.startswith("-") for token in argv[2:]):
-        argv = ["research", "plan", "--goal", " ".join(argv[2:])]
+    if name == "plan" and argv[2:] and not argv[2].startswith("-") and "--goal" not in argv[2:]:
+        # Accept both ``/plan \"goal\"`` and ``/plan \"goal\" --budget 4gpu-hours``.
+        first_option = next(
+            (index for index, token in enumerate(argv[2:], start=2) if token.startswith("-")),
+            len(argv),
+        )
+        argv = ["research", "plan", "--goal", " ".join(argv[2:first_option]), *argv[first_option:]]
     elif name == "run" and len(argv) > 2 and not argv[2].startswith("-"):
         argv = ["research", "run", "--plan", argv[2], *argv[3:]]
     return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label=f"/{name}")

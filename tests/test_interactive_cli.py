@@ -69,6 +69,16 @@ def test_plan_shortcut_preserves_quoted_goal() -> None:
     assert calls == [["research", "plan", "--goal", "improve long horizon"]]
 
 
+def test_plan_shortcut_allows_options_after_goal() -> None:
+    stdin = FakeTerminal('/plan "improve consistency" --budget 2gpu-hours\n/exit\n')
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(
+        stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0
+    )
+    assert calls == [["research", "plan", "--goal", "improve consistency", "--budget", "2gpu-hours"]]
+
+
 def test_plan_without_arguments_reuses_last_natural_language_goal() -> None:
     stdin = FakeTerminal("improve consistency\n/plan\n/exit\n")
     stdout = FakeTerminal()
