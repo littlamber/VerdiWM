@@ -104,8 +104,10 @@ def _candidate(path: Path, root: Path, payload: Mapping[str, Any]) -> dict[str, 
     frames = _numbers(payload, _FRAME_KEYS)
     if fps and frames:
         horizon_seconds = round(max(frames) / fps, 3)
+        horizon_min_seconds = round(min(frames) / fps, 3)
     else:
         horizon_seconds = _number(payload, {"horizon_seconds", "duration_seconds"})
+        horizon_min_seconds = horizon_seconds
     closed_loop = _number(payload, {"closed_loop_chunks", "closed_loop_steps", "closed_loop_frames"})
     split = _first(payload, {"source_split", "split", "evaluation_split"})
     metrics = sorted(set(_strings_for_keys(payload, _METRIC_KEYS)))
@@ -116,7 +118,7 @@ def _candidate(path: Path, root: Path, payload: Mapping[str, Any]) -> dict[str, 
     protocol_warnings: list[str] = []
     if horizon_seconds is None:
         protocol_warnings.append("HORIZON_UNDECLARED")
-    elif horizon_seconds < 60:
+    elif horizon_min_seconds is not None and horizon_min_seconds < 60:
         protocol_warnings.append("MINUTE_LEVEL_CLAIM_UNSUPPORTED")
     if split is None:
         protocol_warnings.append("SPLIT_UNDECLARED")
@@ -129,7 +131,8 @@ def _candidate(path: Path, root: Path, payload: Mapping[str, Any]) -> dict[str, 
         "requires_user_confirmation": True,
         "fps": fps,
         "horizon_seconds": horizon_seconds,
-        "minute_level_supported": bool(horizon_seconds is not None and horizon_seconds >= 60),
+        "horizon_min_seconds": horizon_min_seconds,
+        "minute_level_supported": bool(horizon_min_seconds is not None and horizon_min_seconds >= 60),
         "closed_loop_chunks": int(closed_loop) if isinstance(closed_loop, (int, float)) else None,
         "unit_count": len(units) if units is not None else None,
         "split": split,
