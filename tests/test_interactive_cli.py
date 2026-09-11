@@ -34,6 +34,15 @@ def test_palette_query_filters_commands() -> None:
     assert "/status" not in text
 
 
+def test_contextual_help_describes_one_command() -> None:
+    stdin = FakeTerminal("/help plan\n/exit\n")
+    stdout = FakeTerminal()
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: 0)
+    text = stdout.getvalue()
+    assert "/plan" in text
+    assert "不会启动 GPU" in text
+
+
 def test_session_dispatches_shortcuts_and_exits() -> None:
     stdin = FakeTerminal("/check\n/status demo\n/exit\n")
     stdout = FakeTerminal()

@@ -14,6 +14,7 @@ import io
 import json
 import os
 from pathlib import Path
+import select
 import shlex
 import sys
 import time
@@ -188,6 +189,115 @@ def render_command_palette(query: str = "", *, stdout: TextIO = sys.stdout, colo
     stdout.write("\n")
 
 
+def _draw_live_palette(
+    matches: list[InteractiveCommand],
+    query: str,
+    selected: int,
+    *,
+    stdout: TextIO,
+    theme: _Theme,
+    previous_lines: int,
+) -> int:
+    """Draw a small terminal-native palette used after typing ``/``.
+
+    This uses only ANSI cursor movement and the standard terminal APIs.  It is
+    deliberately enabled only for the real stdin/stdout pair, so redirected
+    streams and tests retain deterministic line output.
+    """
+
+    if previous_lines:
+        stdout.write(f"\033[{previous_lines}A")
+    visible = matches[:10]
+    lines = [
+        f"  {theme.title('Command palette')}  {theme.muted('/' + query)}",
+        theme.muted("  ↑/↓ choose   Enter run   type to filter   Esc close"),
+    ]
+    if visible:
+        for index, command in enumerate(visible):
+            marker = ">" if index == selected else " "
+            label = f"/{command.name}".ljust(18)
+            line = f"  {marker} {label} {command.summary}"
+            lines.append(theme.accent(line) if index == selected else line)
+    else:
+        lines.append(theme.warn("  没有匹配命令；Esc 关闭面板。"))
+    for line in lines:
+        stdout.write("\033[2K\r" + line + "\n")
+    stdout.flush()
+    return len(lines)
+
+
+def _live_palette_selection(*, stdin: TextIO, stdout: TextIO, theme: _Theme) -> str | None:
+    """Let a real TTY select a slash command with arrows and live filtering."""
+
+    if stdin is not sys.stdin or stdout is not sys.stdout or not theme.enabled:
+        return None
+    try:
+        import termios
+        import tty
+
+        fd = stdin.fileno()
+        previous_settings = termios.tcgetattr(fd)
+    except (AttributeError, OSError, ImportError):
+        return None
+    query = ""
+    selected = 0
+    previous_lines = 0
+    try:
+        tty.setcbreak(fd)
+        while True:
+            matches = list(_matching_commands(query))
+            if matches:
+                selected = min(selected, len(matches) - 1)
+            else:
+                selected = 0
+            previous_lines = _draw_live_palette(
+                matches,
+                query,
+                selected,
+                stdout=stdout,
+                theme=theme,
+                previous_lines=previous_lines,
+            )
+            char = stdin.read(1)
+            if char == "":
+                return None
+            if char in {"\r", "\n"}:
+                return matches[selected].name if matches else None
+            if char in {"\x03", "\x1b"}:
+                if char == "\x1b":
+                    # Arrow keys send ESC [ A/B.  A bare ESC closes the panel.
+                    sequence = ""
+                    for _ in range(2):
+                        ready, _, _ = select.select([stdin], [], [], 0.05)
+                        if not ready:
+                            break
+                        sequence += stdin.read(1)
+                    if sequence == "[A":
+                        selected = (selected - 1) % max(len(matches), 1)
+                        continue
+                    if sequence == "[B":
+                        selected = (selected + 1) % max(len(matches), 1)
+                        continue
+                return None
+            if char in {"\x7f", "\b"}:
+                query = query[:-1]
+                selected = 0
+            elif char == "\t" and matches:
+                selected = (selected + 1) % len(matches)
+            elif char.isprintable():
+                query += char
+                selected = 0
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, previous_settings)
+        # Clear the live menu and leave a clean prompt line behind.
+        if previous_lines:
+            stdout.write(f"\033[{previous_lines}A")
+            for _ in range(previous_lines):
+                stdout.write("\033[2K\r\n")
+            stdout.write(f"\033[{previous_lines}A")
+        stdout.flush()
+
+
 def _clear_screen(stdout: TextIO, theme: _Theme) -> None:
     if theme.enabled:
         stdout.write("\033[2J\033[H")
@@ -216,6 +326,18 @@ def _prompt_value(
         return None
     value = value.strip()
     return value or default
+
+
+def _render_command_help(command: InteractiveCommand, *, stdout: TextIO, theme: _Theme) -> None:
+    stdout.write(f"\n{theme.title('  /' + command.name)}  {command.summary}\n")
+    stdout.write(f"  用法  {command.usage}\n")
+    if command.name == "start":
+        stdout.write("  说明  自动发现 model/ 和 data/；项目已准备好时直接生成研究计划。\n")
+    elif command.name == "plan":
+        stdout.write("  说明  只读生成计划；目标可直接作为第一个参数，不会启动 GPU。\n")
+    elif command.name == "run":
+        stdout.write("  说明  只有带 --confirm 的计划才会进入正式 campaign。\n")
+    stdout.write("\n")
 
 
 def _guided_setup(
@@ -552,8 +674,16 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
             text = line.strip()
             if not text:
                 continue
-            if text == "/":
-                render_command_palette(stdout=stdout, color=theme.enabled)
+                if text == "/":
+                    selected = _live_palette_selection(stdin=stdin, stdout=stdout, theme=theme)
+                    if selected:
+                        _dispatch_slash(selected, [], dispatch, stdout=stdout, theme=theme, stdin=stdin)
+                    elif (
+                        stdin is not sys.stdin
+                        or stdout is not sys.stdout
+                        or not theme.enabled
+                    ):
+                        render_command_palette(stdout=stdout, color=theme.enabled)
                 continue
             if text.startswith("/"):
                 try:
@@ -564,6 +694,12 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
                 if not tokens:
                     render_command_palette(stdout=stdout, color=theme.enabled)
                     continue
+                if tokens[0].casefold() == "help" and len(tokens) == 2:
+                    # ``/help plan`` is a concise contextual help view.
+                    command = next((item for item in COMMANDS if item.name == tokens[1].casefold()), None)
+                    if command is not None:
+                        _render_command_help(command, stdout=stdout, theme=theme)
+                        continue
                 if tokens[0].casefold() in {"plan", "research"} and len(tokens) == 1 and last_goal:
                     tokens.extend(["--goal", last_goal])
                 if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme, stdin=stdin):

@@ -22,8 +22,9 @@ uv sync --group dev
 uv run verdiwm doctor
 ```
 
-直接运行 `verdi` 会进入一个轻量的交互会话。输入 `/` 打开命令面板，输入
-`/res`、`/sta` 等前缀可以筛选命令；在真实终端中还会启用 Python 标准库的
+直接运行 `verdi` 会进入一个轻量的交互会话。输入 `/` 并回车打开命令面板；在
+支持 raw TTY 的真实终端中，面板会实时响应字符筛选、上下方向键、Tab、Enter
+和 Esc。输入 `/res`、`/sta` 等前缀可以筛选命令；还会启用 Python 标准库的
 历史记录和 Tab 补全（可用 `NO_COLOR=1` 关闭颜色）：
 
 ```text

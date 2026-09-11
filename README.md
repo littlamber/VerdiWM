@@ -25,8 +25,9 @@ uv run verdiwm doctor
 ```
 
 Run `verdi` with no subcommand in a terminal to open the lightweight interactive
-session. Type `/` to show the command palette; prefixes such as `/res` filter
-the list. Python's optional standard-library readline integration supplies
+session. Type `/` and press Enter to open the command palette. On a real raw TTY,
+the palette also supports live filtering, Up/Down selection, Tab, Enter, and
+Escape; prefixes such as `/res` filter the list. Python's optional standard-library readline integration supplies
 history and Tab completion when available. Set `NO_COLOR=1` for plain output:
 
 ```text
