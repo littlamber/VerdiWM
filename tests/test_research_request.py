@@ -126,6 +126,44 @@ def test_ready_plan_binds_open_method_policy_and_campaign_revision() -> None:
         assert created["execution"]["research_plan_binding"]["plan_id"] == plan["plan_id"]
 
 
+def test_explicit_evaluator_and_runtime_are_bound_into_execution() -> None:
+    with TemporaryDirectory() as raw:
+        root = Path(raw)
+        model = root / "model"
+        data = root / "data"
+        model.mkdir()
+        data.mkdir()
+        (model / "weights.bin").write_bytes(b"v1")
+        execution = _ready_execution(root)
+        evaluator = Path(str(execution["evaluator_contract"]))
+        runtime = Path(str(execution["runtime_python"]))
+        profile = root / "adapter.json"
+        profile.write_text("{}", encoding="utf-8")
+        readiness = {
+            "state": "ready_for_conformance",
+            "blockers": [],
+            "model": str(model),
+            "source": str(model),
+            "data": str(data),
+            "discovered": {"entrypoints": ["evaluate.py"], "assets": [], "runtime": {}},
+        }
+        fake_adapter = SimpleNamespace(
+            execution={**execution, "evaluator_contract": str(root / "profile-evaluator.json")},
+            profile_id="test-profile", model_family="test", capability_level="L1", constitution_freeze="freeze",
+        )
+        Path(str(fake_adapter.execution["evaluator_contract"])).write_text('{"metrics": ["metric"]}', encoding="utf-8")
+        with patch("wmloop.control.research_request.compile_adapter_execution", return_value=fake_adapter), patch(
+            "wmloop.control.research_request.inspect_project", return_value=readiness
+        ):
+            plan = compile_research_plan(
+                project_root=root, model=model, data=data, goal="goal", adapter_profile=profile,
+                evaluator_contract=evaluator, runtime_python=runtime,
+            )
+        payload = plan_to_campaign_payload(plan)
+        assert payload["evaluator_contract"] == str(evaluator)
+        assert payload["runtime_python"] == str(runtime)
+
+
 def test_tampered_plan_file_is_rejected() -> None:
     with TemporaryDirectory() as raw:
         root = Path(raw)

@@ -540,6 +540,10 @@ def plan_to_campaign_payload(plan: Mapping[str, object]) -> dict[str, object]:
     }
     if isinstance(assets, Mapping):
         payload["assets"] = {str(key): str(value) for key, value in assets.items()}
+    if plan.get("evaluator_contract"):
+        payload["evaluator_contract"] = str(plan["evaluator_contract"])
+    if plan.get("runtime_python"):
+        payload["runtime_python"] = str(plan["runtime_python"])
     metrics = list(plan.get("target_metrics") or ())
     if metrics:
         payload["target_metrics"] = metrics

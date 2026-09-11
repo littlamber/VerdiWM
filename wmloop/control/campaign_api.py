@@ -217,6 +217,17 @@ class CampaignStore:
             # The scale receipt becomes part of the immutable campaign revision,
             # rather than an after-the-fact launch flag.
             execution["training_scale_plan"] = dict(training_scale_plan)
+        # An explicit user binding may replace the profile default while still
+        # remaining inside the immutable execution contract.  This keeps the
+        # high-level research plan honest when a model uses a local evaluator or
+        # Python environment rather than the profile's conventional location.
+        for field in ("evaluator_contract", "runtime_python"):
+            override = payload.get(field)
+            if override is not None:
+                if not isinstance(override, str) or not Path(override).is_absolute():
+                    raise CampaignAPIError(f"{field.upper()}_INVALID")
+                execution = dict(execution)
+                execution[field] = override
         for field in ("model_irg_path", "irg_protected_metrics"):
             if payload.get(field) is not None:
                 execution = dict(execution)
