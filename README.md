@@ -82,6 +82,24 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 These examples validate orchestration contracts. They do not make a claim
 about model quality.
 
+### CPU-only evaluator maturity audit
+
+Before connecting a real model, run the local audit to exercise the first-contact
+control plane, paired evaluator, evidence receipt, and CAS-backed knowledge path:
+
+```bash
+uv run verdi audit local-smoke \
+  --repo-root /path/to/VerdiWM \
+  --output-root /path/to/verdi-runs/local-maturity-audit
+```
+
+The audit uses the frozen `configs/evaluators/wan22_droid_psnr_ssim_smoke_v1.json`
+contract and synthetic paired frames. It checks PSNR/SSIM, positive/null/harmful
+comparison outcomes, malformed-input rejection, receipt and input digests, CAS
+round trips, source immutability, and deterministic replay. `state: ready` is a
+control-plane result only; it does not establish real Wan/DROID execution, IRG
+transfer validity, minute-level consistency, or a model-quality improvement.
+
 ## First project
 
 Prepare four inputs: the model weights/configuration directory, the executable

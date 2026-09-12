@@ -864,6 +864,16 @@ def _import_settlements(args: argparse.Namespace) -> int:
 
 
 def _audit(args: argparse.Namespace) -> int:
+    if getattr(args, "audit_command", None) == "local-smoke":
+        from wmloop.evaluate.local_maturity_audit import LocalMaturityAuditError, run_local_maturity_audit
+
+        root = (args.repo_root or Path(__file__).resolve().parents[1]).expanduser().resolve()
+        try:
+            report = run_local_maturity_audit(repo_root=root, output_root=args.output_root)
+        except LocalMaturityAuditError as exc:
+            raise SystemUtilityAuditError(str(exc)) from exc
+        _print(report)
+        return 0 if report["state"] == "ready" else 3
     root = (args.repo_root or Path.cwd()).expanduser().resolve()
     config = args.config or root / "configs" / "experiments" / "system_utility_audit_v1.json"
     manifest = run_system_utility_audit(
@@ -1379,6 +1389,7 @@ def _parser() -> argparse.ArgumentParser:
         "audit",
         help="summarize operational usability and evidence-backed research utility",
     )
+    audit.add_argument("audit_command", nargs="?", choices=("local-smoke",), help="run the CPU-only first-contact maturity audit")
     audit.add_argument("--config", type=Path)
     audit.add_argument("--repo-root", type=Path)
     audit.add_argument("--output-root", type=Path, required=True)

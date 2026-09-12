@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-evaluator-contract",
+  "evaluator_id": "wan22-droid-psnr-ssim-smoke-v1",
+  "command": [
+    "{python}",
+    "{verdiwm_root}/scripts/evaluate_psnr_ssim_smoke.py",
+    "--help"
+  ],
+  "input_artifacts": [
+    "predicted_frames",
+    "paired_ground_truth_frames"
+  ],
+  "output_artifacts": [
+    "psnr-ssim-receipt.json",
+    "psnr-ssim-metrics.json",
+    "evaluator_stdout.log",
+    "evaluator_stderr.log"
+  ],
+  "metrics": ["psnr", "ssim"],
+  "verifier": "paired_psnr_ssim_smoke_verifier_v1",
+  "working_directory": "{verdiwm_root}",
+  "entrypoint_probe": "help",
+  "runtime_requirements": {
+    "python": "3.10",
+    "cuda": false,
+    "dependencies": ["numpy"]
+  },
+  "claim_boundary": "Local paired PSNR/SSIM evaluator smoke only; this does not establish Wan/DROID improvement, minute-level consistency, or transfer validity."
+}

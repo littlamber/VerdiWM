@@ -69,6 +69,7 @@ packages = ["wmloop"]
 
 [tool.hatch.build.targets.wheel.force-include]
 configs = "configs"
+"scripts/evaluate_psnr_ssim_smoke.py" = "scripts/evaluate_psnr_ssim_smoke.py"
 "experiments/ctrl_world_autonomous_transfer_v1" = "experiments/ctrl_world_autonomous_transfer_v1"
 "experiments/ctrl_world_hybrid_memory_transfer_v1" = "experiments/ctrl_world_hybrid_memory_transfer_v1"
 "experiments/ctrl_world_research_loop_v2" = "experiments/ctrl_world_research_loop_v2"

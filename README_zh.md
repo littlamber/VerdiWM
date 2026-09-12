@@ -299,6 +299,30 @@ uv run verdiwm reproduce CAMPAIGN_ID
 
 ## 本地交互界面
 
+### 本地成熟度审计（PSNR/SSIM）
+
+第一次接入真实模型之前，可以用无 GPU 的本地审计验证 VERDI 的控制面、成对评测、证据回执和知识沉淀是否闭环：
+
+```bash
+uv run verdi audit local-smoke \
+  --repo-root /path/to/VerdiWM \
+  --output-root /path/to/verdi-runs/local-maturity-audit
+```
+
+审计会生成合成的成对帧，使用冻结契约 `configs/evaluators/wan22_droid_psnr_ssim_smoke_v1.json` 计算 PSNR、SSIM，并验证完美预测、退化预测、输入错误、receipt digest、输入漂移、CAS 往返和源树不可变性。输出 `state: ready` 只表示 CPU 控制面和证据闭环通过；它不代表 Wan/DROID 真实训练成功、分钟级一致性提升、IRG 迁移预测有效或产生了科学结论。真实实验仍需用户确认 research plan，并在目标模型的冻结 evaluator 上运行。
+
+评测器也可以单独使用。预测帧和 ground truth 帧放在两个目录中，文件名（不含扩展名）必须一一对应，支持 `.npy` 和常见图像格式：
+
+```bash
+uv run python scripts/evaluate_psnr_ssim_smoke.py \
+  --predicted-dir ./predicted \
+  --ground-truth-dir ./ground-truth \
+  --output-root /path/to/verdi-runs/psnr-ssim \
+  --contract configs/evaluators/wan22_droid_psnr_ssim_smoke_v1.json
+```
+
+加入 `--baseline-receipt` 后，评测器会在两个指标都改善时输出 `POSITIVE`，都下降时输出 `HARMFUL`，其余情况输出 `NULL`。回执可用 `--verify-receipt` 离线复核；shape 不匹配、缺帧、NaN/Inf、输入输出目录重叠或文件漂移都会 fail closed。
+
 启动 workbench：
 
 ```bash

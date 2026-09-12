@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "receipt_id", "evaluator_id",
+    "evaluator_contract_sha256", "state", "verdict", "metrics", "per_frame",
+    "comparison", "input_artifacts", "baseline_receipt", "side_effects", "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-psnr-ssim-evidence-receipt"},
+    "receipt_id": {"type": "string", "pattern": "^psnr-ssim-receipt-[0-9a-f]{24}$"},
+    "evaluator_id": {"const": "wan22-droid-psnr-ssim-smoke-v1"},
+    "evaluator_contract_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "state": {"const": "ready"},
+    "verdict": {"enum": ["MEASURED", "POSITIVE", "NULL", "HARMFUL"]},
+    "metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["psnr", "psnr_is_infinite", "ssim", "frame_count", "data_range"],
+      "properties": {
+        "psnr": {"type": ["number", "null"]},
+        "psnr_is_infinite": {"type": "boolean"},
+        "ssim": {"type": "number", "minimum": -1, "maximum": 1},
+        "frame_count": {"type": "integer", "minimum": 1},
+        "data_range": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "per_frame": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["frame_id", "psnr_db", "psnr_is_infinite", "ssim", "mse"],
+        "properties": {
+          "frame_id": {"type": "string", "minLength": 1},
+          "psnr_db": {"type": ["number", "null"]},
+          "psnr_is_infinite": {"type": "boolean"},
+          "ssim": {"type": "number", "minimum": -1, "maximum": 1},
+          "mse": {"type": "number", "minimum": 0}
+        }
+      }
+    },
+    "comparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["verdict", "delta_psnr", "delta_ssim", "threshold"],
+      "properties": {
+        "verdict": {"enum": ["MEASURED", "POSITIVE", "NULL", "HARMFUL"]},
+        "delta_psnr": {"type": ["number", "null"]},
+        "delta_psnr_is_infinite": {"type": "boolean"},
+        "delta_ssim": {"type": ["number", "null"]},
+        "baseline_receipt_id": {"type": ["string", "null"]},
+        "threshold": {"type": "number", "minimum": 0}
+      }
+    },
+    "input_artifacts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["predicted_frames", "paired_ground_truth_frames"],
+      "properties": {
+        "predicted_frames": {"$ref": "#/$defs/binding"},
+        "paired_ground_truth_frames": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "baseline_receipt": {"type": ["string", "null"]},
+    "side_effects": {
+      "type": "object", "additionalProperties": false,
+      "required": ["gpu_execution_started", "source_modified", "input_modified"],
+      "properties": {
+        "gpu_execution_started": {"const": false},
+        "source_modified": {"const": false},
+        "input_modified": {"const": false}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 32}
+  },
+  "$defs": {
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "size_bytes", "file_count"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "file_count": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}
