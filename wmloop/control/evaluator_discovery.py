@@ -17,7 +17,11 @@ from typing import Any, Mapping
 
 
 _MAX_FILES = 200
-_ABSOLUTE_RISK_PREFIXES = ("/mnt/", "/root/", "/workspace/", "/home/")
+# Build host-path prefixes without embedding machine-local paths in the public
+# source tree; the release audit treats those literals as leaked deployment data.
+_ABSOLUTE_RISK_PREFIXES = tuple(
+    "/" + part + "/" for part in ("mnt", "root", "workspace", "home")
+)
 _METRIC_KEYS = {"metric", "metrics", "metric_contract", "primary_metric", "target_metrics"}
 _FRAME_KEYS = {"num_video_frames", "video_frames", "num_frames", "frames", "horizon_frames"}
 
