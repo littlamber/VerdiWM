@@ -31,6 +31,81 @@ class PsnrSsimError(ValueError):
     """The paired evaluator input or output contract is invalid."""
 
 
+def evaluate_video_rollouts(
+    *,
+    rollout_root: Path,
+    output_root: Path,
+    contract_path: Path | None = None,
+    baseline_receipt: Path | None = None,
+    predicted_name: str = "sa_wm_rollout.mp4",
+    ground_truth_name: str = "gt.mp4",
+    null_threshold: float = 1e-6,
+) -> dict[str, object]:
+    """Evaluate paired RoboCoach rollout videos with the frozen frame evaluator.
+
+    The frame materialization is retained beside the receipt output so the
+    receipt's input digests remain verifiable after the process exits.  No
+    model code or CUDA context is imported by this adapter.
+    """
+
+    root = _regular_directory(rollout_root, "ROLLOUT_ROOT_INVALID")
+    destination = Path(output_root).expanduser()
+    if destination.exists() or destination.is_symlink():
+        raise PsnrSsimError("OUTPUT_ROOT_EXISTS")
+    staging = destination.parent / f"{destination.name}-inputs"
+    if staging.exists() or staging.is_symlink():
+        raise PsnrSsimError("VIDEO_INPUT_STAGING_EXISTS")
+    pairs = _video_pairs(root, predicted_name=predicted_name, ground_truth_name=ground_truth_name)
+    staging_predicted = staging / "predicted"
+    staging_ground_truth = staging / "ground-truth"
+    try:
+        staging_predicted.mkdir(mode=0o700, parents=True)
+        staging_ground_truth.mkdir(mode=0o700, parents=True)
+        for sample_id, predicted_path, ground_truth_path in pairs:
+            predicted_frames = _read_video(predicted_path)
+            ground_truth_frames = _read_video(ground_truth_path)
+            if len(predicted_frames) != len(ground_truth_frames):
+                raise PsnrSsimError(
+                    f"VIDEO_FRAME_COUNT_MISMATCH:{sample_id}:"
+                    f"predicted={len(predicted_frames)}:ground_truth={len(ground_truth_frames)}"
+                )
+            pred_dir = staging_predicted / sample_id
+            gt_dir = staging_ground_truth / sample_id
+            pred_dir.mkdir(parents=True)
+            gt_dir.mkdir(parents=True)
+            for index, (predicted, ground_truth) in enumerate(
+                zip(predicted_frames, ground_truth_frames, strict=True)
+            ):
+                if predicted.shape != ground_truth.shape:
+                    raise PsnrSsimError(
+                        f"VIDEO_FRAME_SHAPE_MISMATCH:{sample_id}:{index}"
+                    )
+                np.save(pred_dir / f"frame-{index:06d}.npy", predicted)
+                np.save(gt_dir / f"frame-{index:06d}.npy", ground_truth)
+        result = evaluate(
+            predicted_dir=staging_predicted,
+            ground_truth_dir=staging_ground_truth,
+            output_root=destination,
+            contract_path=contract_path,
+            baseline_receipt=baseline_receipt,
+            data_range=255.0,
+            null_threshold=null_threshold,
+        )
+        return {
+            **result,
+            "rollout_root": str(root),
+            "sample_count": len(pairs),
+            "predicted_video_name": predicted_name,
+            "ground_truth_video_name": ground_truth_name,
+            "input_staging_root": str(staging),
+        }
+    except Exception:
+        import shutil
+
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
 _SUPPORTED_SUFFIXES = {".npy", ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
 _RECEIPT_ARTIFACT = "verdiwm-psnr-ssim-evidence-receipt"
 _EVALUATOR_ID = "wan22-droid-psnr-ssim-smoke-v1"
@@ -265,6 +340,33 @@ def _paired_files(predicted: Path, ground_truth: Path) -> list[tuple[str, Path, 
         missing_right = sorted(set(left) - set(right))
         raise PsnrSsimError(f"PAIRED_FRAMES_MISMATCH:left_missing={missing_left}:right_missing={missing_right}")
     return [(frame_id, left[frame_id], right[frame_id]) for frame_id in sorted(left)]
+
+
+def _video_pairs(
+    root: Path, *, predicted_name: str, ground_truth_name: str
+) -> list[tuple[str, Path, Path]]:
+    pairs: list[tuple[str, Path, Path]] = []
+    for directory in sorted(path for path in root.rglob("*") if path.is_dir()):
+        predicted = directory / predicted_name
+        ground_truth = directory / ground_truth_name
+        if predicted.is_file() and ground_truth.is_file():
+            sample_id = directory.relative_to(root).as_posix()
+            pairs.append((sample_id, predicted.resolve(), ground_truth.resolve()))
+    if not pairs:
+        raise PsnrSsimError("PAIRED_ROLLOUT_VIDEOS_EMPTY")
+    return pairs
+
+
+def _read_video(path: Path) -> list[np.ndarray]:
+    try:
+        import imageio.v2 as imageio
+
+        frames = [np.asarray(frame)[..., :3] for frame in imageio.mimread(str(path))]
+    except Exception as exc:
+        raise PsnrSsimError(f"VIDEO_READ_FAILED:{path.name}") from exc
+    if not frames:
+        raise PsnrSsimError(f"VIDEO_EMPTY:{path.name}")
+    return frames
 
 
 def _index_frames(directory: Path) -> dict[str, Path]:

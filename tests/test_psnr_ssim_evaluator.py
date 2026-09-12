@@ -7,7 +7,12 @@ import unittest
 
 import numpy as np
 
-from scripts.evaluate_psnr_ssim_smoke import PsnrSsimError, evaluate, verify_receipt
+from scripts.evaluate_psnr_ssim_smoke import (
+    PsnrSsimError,
+    evaluate,
+    evaluate_video_rollouts,
+    verify_receipt,
+)
 
 
 class PsnrSsimEvaluatorTests(unittest.TestCase):
@@ -81,6 +86,63 @@ class PsnrSsimEvaluatorTests(unittest.TestCase):
             output_link.symlink_to(root / "missing-output")
             with self.assertRaisesRegex(PsnrSsimError, "OUTPUT_ROOT_EXISTS"):
                 evaluate(predicted_dir=root / "prediction", ground_truth_dir=root / "target", output_root=output_link)
+
+    def test_evaluates_paired_rollout_videos_and_keeps_inputs_verifiable(self) -> None:
+        import imageio.v2 as imageio
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sample = root / "rollouts" / "droid_ext2" / "sample-000"
+            sample.mkdir(parents=True)
+            target = [np.full((8, 10, 3), 100 + index, dtype=np.uint8) for index in range(3)]
+            prediction = [frame.copy() for frame in target]
+            prediction[1] = np.clip(prediction[1].astype(np.int16) + 8, 0, 255).astype(np.uint8)
+            imageio.mimwrite(sample / "gt.mp4", target, fps=5)
+            imageio.mimwrite(sample / "sa_wm_rollout.mp4", prediction, fps=5)
+            contract = Path("configs/evaluators/wan22_droid_psnr_ssim_smoke_v1.json").resolve()
+
+            result = evaluate_video_rollouts(
+                rollout_root=root / "rollouts",
+                output_root=root / "measurement",
+                contract_path=contract,
+            )
+
+            self.assertEqual(result["verdict"], "MEASURED")
+            self.assertEqual(result["sample_count"], 1)
+            receipt = verify_receipt(Path(str(result["receipt_path"])), contract_path=contract)
+            self.assertEqual(receipt["metrics"]["frame_count"], 3)
+            self.assertTrue(Path(str(result["input_staging_root"])).is_dir())
+
+    def test_video_pair_rejects_frame_count_mismatch(self) -> None:
+        import imageio.v2 as imageio
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sample = root / "rollouts" / "sample-000"
+            sample.mkdir(parents=True)
+            frame = np.zeros((8, 10, 3), dtype=np.uint8)
+            imageio.mimwrite(sample / "gt.mp4", [frame, frame], fps=5)
+            imageio.mimwrite(sample / "sa_wm_rollout.mp4", [frame], fps=5)
+            with self.assertRaisesRegex(PsnrSsimError, "VIDEO_FRAME_COUNT_MISMATCH"):
+                evaluate_video_rollouts(
+                    rollout_root=root / "rollouts",
+                    output_root=root / "measurement",
+                )
+
+    def test_video_pair_rejects_shape_mismatch(self) -> None:
+        import imageio.v2 as imageio
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sample = root / "rollouts" / "sample-000"
+            sample.mkdir(parents=True)
+            imageio.mimwrite(sample / "gt.mp4", [np.zeros((8, 16, 3), dtype=np.uint8)], fps=5, macro_block_size=1)
+            imageio.mimwrite(sample / "sa_wm_rollout.mp4", [np.zeros((10, 16, 3), dtype=np.uint8)], fps=5, macro_block_size=1)
+            with self.assertRaisesRegex(PsnrSsimError, "VIDEO_FRAME_SHAPE_MISMATCH"):
+                evaluate_video_rollouts(
+                    rollout_root=root / "rollouts",
+                    output_root=root / "measurement",
+                )
 
 
 if __name__ == "__main__":

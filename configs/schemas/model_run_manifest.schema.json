@@ -26,10 +26,11 @@
     },
     "source": {
       "type": "object", "additionalProperties": false,
-      "required": ["model_root", "dataset_root", "asset_bindings"],
+      "required": ["model_root", "dataset_root", "source_root", "asset_bindings"],
       "properties": {
         "model_root": {"type": "string", "minLength": 1},
         "dataset_root": {"type": "string", "minLength": 1},
+        "source_root": {"type": "string", "minLength": 1},
         "adapter_root": {"type": "string", "minLength": 1},
         "asset_bindings": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
       }

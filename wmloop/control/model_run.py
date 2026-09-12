@@ -53,6 +53,10 @@ def compile_model_run(
 
     model_root = _directory(model, "MODEL_RUN_MODEL_INVALID")
     dataset_root = _existing(data, "MODEL_RUN_DATASET_INVALID")
+    source_root = _directory(
+        Path(_text(execution.get("source_root") or execution.get("repo_root") or model_root, "MODEL_RUN_SOURCE_INVALID")),
+        "MODEL_RUN_SOURCE_INVALID",
+    )
     output_root = _output_root(execution, model_root, dataset_root, base)
     manifest_path = output_root / "model-run.json"
     evaluator = _file(
@@ -110,6 +114,7 @@ def compile_model_run(
         "source": {
             "model_root": str(model_root),
             "dataset_root": str(dataset_root),
+            "source_root": str(source_root),
             "asset_bindings": assets,
             **({"adapter_root": str(adapter_root)} if adapter_root is not None else {}),
         },
@@ -172,8 +177,13 @@ def validate_model_run(
     source = document["source"]
     model_root = _directory(Path(_text(source["model_root"], "MODEL_RUN_MODEL_INVALID")), "MODEL_RUN_MODEL_INVALID")  # type: ignore[index]
     dataset_root = _existing(Path(_text(source["dataset_root"], "MODEL_RUN_DATASET_INVALID")), "MODEL_RUN_DATASET_INVALID")  # type: ignore[index]
+    source_root = _directory(
+        Path(_text(source.get("source_root") or source.get("model_root"), "MODEL_RUN_SOURCE_INVALID")),
+        "MODEL_RUN_SOURCE_INVALID",
+    )
     _require_disjoint(output, model_root, "MODEL_RUN_OUTPUT_OVERLAPS_MODEL")
     _require_disjoint(output, dataset_root, "MODEL_RUN_OUTPUT_OVERLAPS_DATA")
+    _require_disjoint(output, source_root, "MODEL_RUN_OUTPUT_OVERLAPS_SOURCE")
     adapter_root = _optional_adapter_root(
         source.get("adapter_root"), output, model_root, dataset_root, base  # type: ignore[union-attr]
     )
