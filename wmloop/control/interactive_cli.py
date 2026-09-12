@@ -21,6 +21,8 @@ import threading
 import time
 from typing import Callable, Iterable, TextIO
 
+from wmloop.control.llm_setup import inspect_llm_config
+
 
 Dispatch = Callable[[list[str]], int]
 
@@ -58,6 +60,7 @@ COMMANDS: tuple[InteractiveCommand, ...] = (
     InteractiveCommand("cancel", (), "取消一个排队或运行中的任务", "/cancel CAMPAIGN_ID"),
     InteractiveCommand("check", (), "检查项目接入和本地 readiness", "/check"),
     InteractiveCommand("doctor", (), "检查 Verdi 本地安装", "/doctor"),
+    InteractiveCommand("llm", ("api", "provider"), "配置或检查研究 LLM API", "/llm [status]"),
     InteractiveCommand("diagnose", (), "只读诊断模型项目", "/diagnose"),
     InteractiveCommand("evaluator", ("eval",), "发现并查看评测候选（需确认后才能冻结）", "/evaluator discover --source-root PATH"),
     InteractiveCommand("setup", ("configure",), "首次接入模型、数据和目标", "/setup"),
@@ -220,6 +223,7 @@ def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = N
     goal = config.get("goal") if config else None
     readiness = _readiness_snapshot(config, root)
     campaigns = _recent_campaigns(config, root)
+    llm_report = inspect_llm_config()
     blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
     ready = bool(config and model and data and goal and not blockers)
     status = theme.good("READY") if ready else theme.bad("BLOCKED") if blockers else theme.warn("NEEDS SETUP")
@@ -234,6 +238,9 @@ def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = N
     stdout.write(f"  Data     {data or '未绑定（输入 /setup）'}\n")
     if goal:
         stdout.write(f"  Goal     {goal}\n")
+    llm_state = str(llm_report.get("state", "missing"))
+    llm_label = theme.good("READY") if llm_state == "ready" else theme.warn("未配置，输入 /llm")
+    stdout.write(f"  LLM      {llm_label}\n")
     if plan_path.is_file():
         stdout.write(f"  Plan     {plan_path}\n")
     if campaigns:
@@ -437,6 +444,8 @@ def _render_command_help(command: InteractiveCommand, *, stdout: TextIO, theme: 
         stdout.write("  说明  只读生成计划；目标可直接作为第一个参数，不会启动 GPU。\n")
     elif command.name == "run":
         stdout.write("  说明  无参数时会预览默认计划并询问确认；正式 campaign 仍必须带 --confirm。\n")
+    elif command.name == "llm":
+        stdout.write("  说明  研究助手的 API 配置教程；/llm status 只读检查，不会发送网络请求或显示密钥。\n")
     stdout.write("\n")
 
 
@@ -713,6 +722,12 @@ def _dispatch_slash(
         )
     if name == "doctor":
         return _dispatch_command(["doctor", *args], dispatch, stdout=stdout, theme=theme, label="/doctor", session=session)
+    if name in {"llm", "api", "provider"}:
+        action = args[0] if args and args[0].casefold() == "status" else None
+        argv = ["llm"] + (["status"] if action else [])
+        remaining = args[1:] if action else args
+        argv.extend(remaining)
+        return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label="/llm", session=session)
     if name == "models":
         config = _project_snapshot()
         if not config:

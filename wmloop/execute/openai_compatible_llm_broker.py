@@ -36,6 +36,7 @@ def forward(
     model: str,
     token_environment_key: str,
     token_file: Path | None = None,
+    auth_required: bool = True,
     api_style: str = "responses",
     base_url: str | None = None,
     reasoning_effort: str | None = None,
@@ -48,9 +49,14 @@ def forward(
     _validate_endpoint(endpoint)
     if not model or "\x00" in model:
         raise OpenAICompatibleBrokerError("OPENAI_BROKER_MODEL_INVALID")
-    _validate_token_environment_key(token_environment_key)
-    token = _resolve_token(token_environment_key=token_environment_key, token_file=token_file)
-    if not token:
+    if auth_required:
+        _validate_token_environment_key(token_environment_key)
+    token = (
+        _resolve_token(token_environment_key=token_environment_key, token_file=token_file)
+        if auth_required
+        else ""
+    )
+    if auth_required and not token:
         raise OpenAICompatibleBrokerError("OPENAI_BROKER_TOKEN_MISSING")
     if api_style not in {"responses", "chat_completions"}:
         raise OpenAICompatibleBrokerError("OPENAI_BROKER_API_STYLE_INVALID")
@@ -123,14 +129,16 @@ def _post_json(
     body = json.dumps(payload, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
     if len(body) > maximum_bytes:
         raise OpenAICompatibleBrokerError("OPENAI_BROKER_REQUEST_TOO_LARGE")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(
         endpoint,
         data=body,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
+        headers=headers,
         method="POST",
     )
     try:
@@ -280,6 +288,8 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--token-environment-key", default="VERDIWM_LLM_BROKER_TOKEN")
     parser.add_argument("--token-file", type=Path)
+    parser.add_argument("--auth-required", dest="auth_required", action="store_true", default=True)
+    parser.add_argument("--no-auth-required", dest="auth_required", action="store_false")
     parser.add_argument("--api-style", choices=("responses", "chat_completions"), default="responses")
     parser.add_argument("--reasoning-effort")
     parser.add_argument("--allow-response-storage", action="store_true")
@@ -294,6 +304,7 @@ def main() -> int:
         model=args.model,
         token_environment_key=args.token_environment_key,
         token_file=args.token_file,
+        auth_required=args.auth_required,
         api_style=args.api_style,
         reasoning_effort=args.reasoning_effort,
         disable_response_storage=not args.allow_response_storage,

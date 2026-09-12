@@ -82,6 +82,90 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 These examples validate orchestration contracts. They do not make a claim
 about model quality.
 
+## Configure the research LLM
+
+VERDI uses an LLM as a bounded research assistant: it can read IRG and
+diagnostic results, help retrieve cross-domain methods, propose candidates, and
+draft an adapter in an isolated workspace. This is separate from the Wan, JEPA,
+or other world model that you want to evaluate. Model weights, datasets, and
+GPU runtimes remain on your machine.
+
+The fastest setup uses a local, owner-only token file. Create the configuration
+and credential separately so the key is never written to a project file:
+
+```bash
+mkdir -p ~/.config/verdiwm
+cat > ~/.config/verdiwm/config.toml <<'EOF'
+[llm]
+base_url = "https://api.openai.com"
+model = "gpt-4.1"
+api_style = "responses"
+token_file = "auth"
+EOF
+read -r -s -p 'LLM API key: ' VERDI_LLM_KEY
+printf '\n'
+printf '%s' "$VERDI_LLM_KEY" > ~/.config/verdiwm/auth
+unset VERDI_LLM_KEY
+chmod 600 ~/.config/verdiwm/auth
+uv run verdi llm status
+```
+
+The default file is `~/.config/verdiwm/config.toml`. `token_file` is relative to
+that file, and must be a regular file with owner-only permissions. You can use
+any OpenAI-compatible HTTPS provider by changing `base_url` and `model`. For a
+provider that only exposes Chat Completions, use:
+
+```toml
+[llm]
+base_url = "https://api.example.com"
+model = "provider-model"
+api_style = "chat_completions"
+token_environment_key = "MY_VERDI_LLM_TOKEN"
+```
+
+```bash
+read -r -s -p 'LLM API key: ' VERDI_LLM_KEY
+printf '\n'
+export MY_VERDI_LLM_TOKEN="$VERDI_LLM_KEY"
+unset VERDI_LLM_KEY
+uv run verdi llm status
+```
+
+When using an environment variable, omit `token_file`. The configuration can
+live anywhere outside the repository; set `VERDIWM_CONFIG=/path/to/config.toml`
+or pass `--config /path/to/config.toml` to `verdi llm status`. Commands that
+invoke the research LLM accept `--llm-config`, for example:
+
+```bash
+uv run verdi run \
+  --model /path/to/model --data /path/to/data \
+  --goal "improve minute-scale long-horizon consistency" \
+  --llm-config ~/.config/verdiwm/config.toml
+uv run verdi repair-adapter ... --llm-config ~/.config/verdiwm/config.toml
+```
+
+For a local Ollama or vLLM endpoint that intentionally has no authentication,
+make that choice explicit:
+
+```toml
+[llm]
+base_url = "http://127.0.0.1:11434"
+model = "qwen2.5:32b"
+api_style = "chat_completions"
+auth_required = false
+```
+
+Only `localhost`, `127.0.0.1`, and `::1` may use HTTP; remote providers must use
+HTTPS. `uv run verdi llm status` is a local, no-network check. It reports the
+provider, model, API style, credential source, and permission problems without
+printing the key. `uv run verdi llm` prints the same copyable tutorial, and the
+interactive shell exposes it as `/llm` and `/llm status`.
+
+Never put a real key in `verdiwm.toml`, a research plan, questionnaire, prompt,
+receipt, evidence artifact, log, or Git. Retrieved or generated ideas remain
+hypotheses until target-side evaluator, frozen verifier, and evidence gates
+settle them; the LLM cannot declare a model improvement by itself.
+
 ### CPU-only evaluator maturity audit
 
 Before connecting a real model, run the local audit to exercise the first-contact

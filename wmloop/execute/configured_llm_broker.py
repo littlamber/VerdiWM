@@ -63,17 +63,31 @@ def _normalize_config(raw: dict[str, Any], *, config_path: Path) -> dict[str, An
     api_style = raw.get("api_style", "responses")
     if api_style not in {"responses", "chat_completions"}:
         raise ConfiguredBrokerError("VERDIWM_CONFIG_API_STYLE_INVALID")
-    token_file = raw.get("token_file", "auth")
-    if not isinstance(token_file, str) or not token_file.strip():
+    token_file = raw.get("token_file")
+    if token_file is not None and (
+        not isinstance(token_file, str) or not token_file.strip()
+    ):
         raise ConfiguredBrokerError("VERDIWM_CONFIG_TOKEN_FILE_INVALID")
-    token_path = Path(token_file).expanduser()
-    if not token_path.is_absolute():
-        token_path = config_path.parent / token_path
+    # A conventional ``auth`` file remains supported for existing deployments.
+    # When it is absent, leave credential resolution to the explicitly named
+    # environment variable so a secret never has to be copied into a file.
+    token_path: Path | None = None
+    if token_file is not None:
+        token_path = Path(token_file).expanduser()
+        if not token_path.is_absolute():
+            token_path = config_path.parent / token_path
+    else:
+        conventional = config_path.parent / "auth"
+        if conventional.exists() and not conventional.is_symlink():
+            token_path = conventional
     token_environment_key = raw.get(
         "token_environment_key", "VERDIWM_LLM_BROKER_TOKEN"
     )
     if not isinstance(token_environment_key, str):
         raise ConfiguredBrokerError("VERDIWM_CONFIG_TOKEN_KEY_INVALID")
+    auth_required = raw.get("auth_required", True)
+    if not isinstance(auth_required, bool):
+        raise ConfiguredBrokerError("VERDIWM_CONFIG_AUTH_REQUIRED_INVALID")
     return {
         "endpoint": endpoint,
         "base_url": base_url,
@@ -82,6 +96,7 @@ def _normalize_config(raw: dict[str, Any], *, config_path: Path) -> dict[str, An
         "reasoning_effort": raw.get("reasoning_effort"),
         "token_environment_key": token_environment_key,
         "token_file": token_path,
+        "auth_required": auth_required,
         "timeout_seconds": raw.get("timeout_seconds", 180.0),
         "maximum_bytes": raw.get("maximum_bytes", 524288),
     }
@@ -102,6 +117,7 @@ def main() -> int:
         model=config["model"],
         token_environment_key=config["token_environment_key"],
         token_file=config["token_file"],
+        auth_required=bool(config["auth_required"]),
         api_style=config["api_style"],
         reasoning_effort=config["reasoning_effort"],
         timeout_seconds=float(config["timeout_seconds"]),

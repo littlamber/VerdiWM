@@ -31,6 +31,16 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         "PROJECT_CONFIG_INVALID": "项目配置无法读取，请检查 verdiwm.toml。",
         "PROJECT_CONFIG_NOT_FOUND": "还没有项目配置，请先完成首次设置。",
         "PROJECT_FILE_EXISTS": "项目配置已经存在；如需替换请明确使用覆盖选项。",
+        "VERDIWM_CONFIG_INVALID": "研究 LLM 配置文件无法读取；请运行 verdi llm 查看示例，并用 verdi llm status 检查。",
+        "VERDIWM_CONFIG_LLM_SECTION_MISSING": "研究 LLM 配置缺少 [llm] 区块；请运行 verdi llm 查看可复制示例。",
+        "VERDIWM_CONFIG_ENDPOINT_INVALID": "研究 LLM 的 endpoint/base_url 配置无效；请运行 verdi llm status 查看检查结果。",
+        "VERDIWM_CONFIG_MODEL_INVALID": "研究 LLM 没有配置 model；请运行 verdi llm 查看示例。",
+        "VERDIWM_CONFIG_API_STYLE_INVALID": "研究 LLM 的 api_style 只能是 responses 或 chat_completions；请运行 verdi llm 查看示例。",
+        "VERDIWM_CONFIG_TOKEN_FILE_INVALID": "研究 LLM 的 token_file 配置无效；请使用权限为 600 的普通文件，或改用环境变量。",
+        "VERDIWM_CONFIG_TOKEN_KEY_INVALID": "研究 LLM 的 token_environment_key 无效；请使用合法的环境变量名。",
+        "VERDIWM_CONFIG_AUTH_REQUIRED_INVALID": "研究 LLM 的 auth_required 必须是 true 或 false；请运行 verdi llm 查看示例。",
+        "OPENAI_BROKER_TOKEN_MISSING": "研究 LLM 尚未找到密钥；请运行 verdi llm 查看教程，再运行 verdi llm status 检查。",
+        "OPENAI_BROKER_TOKEN_FILE_PERMISSIONS": "研究 LLM 密钥文件权限不安全；请运行 chmod 600 PATH_TO_AUTH_FILE 后重试。",
         "EVALUATOR_CONTRACT_REQUIRED": "还没有确认如何判断模型变好，请先绑定冻结的评测方法。",
         "EVALUATOR_CONFIRMATION_REQUIRED": "发现了模型自带的评测候选，但它们尚未冻结；请确认评测切分、时域和 verifier 后再开始实验。",
         "RUNTIME_PYTHON_INVALID": "你指定的 Python 运行环境不可执行；请检查路径和权限。",
@@ -54,7 +64,7 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
     if message is None and any(token in detail for token in ("ADAPTER", "PROFILE")):
         message = "这个模型还没有可用的运行连接器。系统已安全停止且没有占用 GPU；请确认模型平时如何启动和评测。"
     if message is None and any(token in detail for token in ("CONFIG_NOT_FOUND", "PROVIDER", "LLM_")):
-        message = "当前安装尚未配置生成模型连接器所需的代码服务。请联系部署管理员，不要在页面粘贴密钥。"
+        message = "研究 LLM 尚未配置或配置无效。请运行 verdi llm 查看教程，再运行 verdi llm status 检查；不要在页面粘贴密钥。"
     if message is None and code.startswith("COMMUNITY_BUNDLE_"):
         message = "社区 Bundle 输入或验证失败，请检查语义文档、签名密钥、执行摘要和内容地址。"
     if message is None and code.startswith("COMMUNITY_EXPORT_"):

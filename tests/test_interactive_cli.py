@@ -23,6 +23,7 @@ def test_palette_for_slash_lists_commands() -> None:
     text = output.getvalue()
     assert "/research" in text
     assert "/status" in text
+    assert "/llm" in text
     assert "/exit" in text
 
 
@@ -41,6 +42,16 @@ def test_contextual_help_describes_one_command() -> None:
     text = stdout.getvalue()
     assert "/plan" in text
     assert "不会启动 GPU" in text
+
+
+def test_llm_command_dispatches_help_and_status() -> None:
+    stdin = FakeTerminal("/llm\n/llm status\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(
+        stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0
+    )
+    assert calls == [["llm"], ["llm", "status"]]
 
 
 def test_session_dispatches_shortcuts_and_exits() -> None:

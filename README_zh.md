@@ -72,6 +72,83 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 
 这些示例验证的是编排契约，不代表任何模型质量结论。
 
+## 配置研究 LLM
+
+VERDI 使用 LLM 作为受约束的研究助手：读取 IRG 和诊断结果、跨领域检索方法、
+提出候选 idea，并在隔离目录中起草 adapter。它和你要评测的 Wan、JEPA 或其他
+世界模型是两件事；模型权重、数据集和 GPU 运行环境仍保留在你的机器上。
+
+推荐把配置和密钥分开保存。默认配置路径是
+`~/.config/verdiwm/config.toml`，密钥文件必须是只有当前用户可读的普通文件：
+
+```bash
+mkdir -p ~/.config/verdiwm
+cat > ~/.config/verdiwm/config.toml <<'EOF'
+[llm]
+base_url = "https://api.openai.com"
+model = "gpt-4.1"
+api_style = "responses"
+token_file = "auth"
+EOF
+read -r -s -p 'LLM API key: ' VERDI_LLM_KEY
+printf '\n'
+printf '%s' "$VERDI_LLM_KEY" > ~/.config/verdiwm/auth
+unset VERDI_LLM_KEY
+chmod 600 ~/.config/verdiwm/auth
+uv run verdi llm status
+```
+
+第三方 OpenAI-compatible 服务只需修改 `base_url` 和 `model`。如果服务只提供
+Chat Completions API：
+
+```toml
+[llm]
+base_url = "https://api.example.com"
+model = "provider-model"
+api_style = "chat_completions"
+token_environment_key = "MY_VERDI_LLM_TOKEN"
+```
+
+```bash
+read -r -s -p 'LLM API key: ' VERDI_LLM_KEY
+printf '\n'
+export MY_VERDI_LLM_TOKEN="$VERDI_LLM_KEY"
+unset VERDI_LLM_KEY
+uv run verdi llm status
+```
+
+使用环境变量时不要再设置 `token_file`。配置可以放在仓库外的任意位置，用
+`VERDIWM_CONFIG=/path/to/config.toml` 指定；也可以把路径传给
+`verdi llm status --config /path/to/config.toml`。需要研究 LLM 的命令可以显式
+传 `--llm-config`：
+
+```bash
+uv run verdi run \
+  --model /path/to/model --data /path/to/data \
+  --goal "提升分钟级长程交互一致性" \
+  --llm-config ~/.config/verdiwm/config.toml
+uv run verdi repair-adapter ... --llm-config ~/.config/verdiwm/config.toml
+```
+
+本地 Ollama 或 vLLM 如果明确不需要认证，请显式写出：
+
+```toml
+[llm]
+base_url = "http://127.0.0.1:11434"
+model = "qwen2.5:32b"
+api_style = "chat_completions"
+auth_required = false
+```
+
+只有 `localhost`、`127.0.0.1` 和 `::1` 允许使用 HTTP；远程服务必须使用 HTTPS。
+`uv run verdi llm status` 只读取本地配置和环境变量，不会联网，也不会显示 key，
+只报告 provider、model、API 类型、凭据来源和权限问题。`uv run verdi llm` 会打印
+同一份可复制教程；交互式 CLI 中输入 `/llm` 或 `/llm status` 也可以查看。
+
+不要把真实 key 写入 `verdiwm.toml`、研究计划、问卷、prompt、receipt、evidence、
+日志或 Git。检索和生成的 idea 仍然必须经过目标侧 evaluator、冻结 verifier 和
+证据门禁；LLM 本身不能宣布模型提升。
+
 开放方法生成和 A/B 组合实验已有独立入口：`verdiwm-generate-method` 可调用
 已配置的 LLM 适配器，将方法实现编译成隔离代码包；`verdiwm-open-method-study`
 编译 baseline、A、B、A+B 四组方案并绑定种子、数据、评测与预算估计。

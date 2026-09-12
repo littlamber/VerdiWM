@@ -63,6 +63,7 @@ from wmloop.control.first_contact import (
     inspect_project,
 )
 from wmloop.control.onboarding_assistant import build_onboarding_questionnaire, write_onboarding_questionnaire
+from wmloop.control.llm_setup import inspect_llm_config, render_llm_guide
 from wmloop.evaluate.system_utility import (
     SystemUtilityAuditError,
     run_system_utility_audit,
@@ -295,6 +296,18 @@ def _doctor(args: argparse.Namespace) -> int:
     report = _doctor_report(args)
     _print(report)
     return 2 if report["state"] == "blocked" else 0
+
+
+def _llm(args: argparse.Namespace) -> int:
+    """Show first-contact LLM guidance or inspect local configuration."""
+
+    config_path = getattr(args, "config", None)
+    if getattr(args, "llm_action", None) == "status":
+        report = inspect_llm_config(config_path)
+        _print(report)
+        return 0 if report.get("state") == "ready" else 2
+    print(render_llm_guide(config_path=config_path))
+    return 0
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -1246,6 +1259,13 @@ def _parser() -> argparse.ArgumentParser:
     )
     doctor.add_argument("--repo-root", type=Path)
     doctor.set_defaults(handler=_doctor)
+
+    llm = commands.add_parser(
+        "llm", help="配置或检查用于研究助手、检索和方法生成的 LLM API"
+    )
+    llm.add_argument("llm_action", nargs="?", choices=("status",), help="只读检查本地配置")
+    llm.add_argument("--config", type=Path, help="配置文件路径；默认 ~/.config/verdiwm/config.toml")
+    llm.set_defaults(handler=_llm)
 
     run = commands.add_parser("run", help="compile and run a model optimization campaign")
     run.add_argument("intent", nargs="?", help="plain-language research goal")
