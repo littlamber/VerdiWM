@@ -33,4 +33,6 @@ figures/
 RELEASE_AUDIT.json
 MANIFEST.sha256
 .verdiwm-public-release
+# Local historical evidence checks depend on bundles kept outside this source repo.
+tests/test_acwm_probe_information_public_example.py
 vendor/ACWM-Phys/
