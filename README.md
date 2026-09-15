@@ -74,13 +74,15 @@ lightweight runtime contracts. A CPU-only installation is enough for the
 included control-plane examples:
 
 ```bash
-uv run python scripts/export/validate_public_example.py \
-  examples/acwm_minimal_loop_cloth_next_forcing_v2
+uv run verdi doctor
 uv run python examples/portrait_first_minimal_loop_v1/run.py
 ```
 
-These examples validate orchestration contracts. They do not make a claim
-about model quality.
+The repository intentionally keeps one small, CPU-only onboarding demo. It
+validates orchestration contracts and does not load model weights, use a GPU,
+or make a claim about model quality. Experimental evidence bundles, media, and
+paper figures are exported and versioned separately through the community
+bundle workflow described in [Community Bundles](docs/COMMUNITY_BUNDLES.md).
 
 ## Configure the research LLM
 
@@ -470,8 +472,10 @@ that a repair improves model quality, and quality claims still require the
 model's actual runtime, data, and frozen verification protocol.
 
 For release checks and contribution guidance, see
-[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the
-repository's machine-readable `RELEASE_AUDIT.json`.
+[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
+[Release Checklist](docs/RELEASE_CHECKLIST.md), and
+[Community Bundles](docs/COMMUNITY_BUNDLES.md). The GitHub source repository
+does not contain generated evidence manifests or experiment archives.
 
 ## License
 

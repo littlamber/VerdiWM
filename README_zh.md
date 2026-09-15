@@ -65,12 +65,14 @@ campaign ID；`/cancel ID` 只取消明确指定的任务。长命令会显示�
 控制面示例不需要 GPU 或模型权重：
 
 ```bash
-uv run python scripts/export/validate_public_example.py \
-  examples/acwm_minimal_loop_cloth_next_forcing_v2
+uv run verdi doctor
 uv run python examples/portrait_first_minimal_loop_v1/run.py
 ```
 
-这些示例验证的是编排契约，不代表任何模型质量结论。
+仓库有意只保留一个很小的 CPU onboarding 示例。它只验证编排契约，不加载模型
+权重、不使用 GPU，也不代表任何模型质量结论。实验中的证据 bundle、媒体和论文
+图表通过 [社区 Bundle 流程](docs/COMMUNITY_BUNDLES.md) 在仓库之外单独导出、版本化
+和共享。
 
 ## 配置研究 LLM
 
@@ -455,7 +457,9 @@ profile 和受约束修复 provider 后，新模型族可以自动生成并验�
 仍必须基于真实模型运行时、数据和冻结的验证协议。
 
 发布检查、贡献和安全说明分别见 [CONTRIBUTING.md](CONTRIBUTING.md)、
-[SECURITY.md](SECURITY.md) 以及仓库中的 `RELEASE_AUDIT.json`。
+[SECURITY.md](SECURITY.md)、[Release Checklist](docs/RELEASE_CHECKLIST.md) 和
+[社区 Bundle](docs/COMMUNITY_BUNDLES.md)。GitHub 源码仓库不包含自动生成的证据
+manifest 或历史实验归档。
 
 ## 许可证
 

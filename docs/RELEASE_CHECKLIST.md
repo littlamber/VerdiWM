@@ -39,8 +39,11 @@ inputs cannot be reconstructed from Git.
 
 Upload `dist/verdiwm-release/repository/` as the repository content. Publish
 the wheel and source archive beside it when the target platform supports
-Python artifacts. Preserve `RELEASE_AUDIT.json` and `MANIFEST.sha256`; they are
-the integrity and public-surface receipts for the staged tree.
+Python artifacts. Keep the GitHub repository source-only: exported community
+evidence packages carry their own independently versioned manifests and should
+be published outside this checkout. Do not commit generated
+`RELEASE_AUDIT.json`, `MANIFEST.sha256`, media, or historical experiment
+bundles to the source repository.
 
 Do not add local deployment configs, state roots, model weights, datasets,
 credentials, private paths, or vendor checkouts back into the staged tree.

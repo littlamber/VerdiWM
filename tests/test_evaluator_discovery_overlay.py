@@ -18,7 +18,7 @@ def test_discovery_reports_protocol_scope_without_freezing(tmp_path: Path) -> No
         json.dumps(
             {
                 "role": "validation",
-                "collection_root": "/mnt/old/data",
+                "collection_root": "data/old",
                 "protocol": {"fps": 5, "num_video_frames": 300, "closed_loop_chunks": 8},
                 "split_contract": {"source_split": "val", "episode_disjoint": True},
                 "metrics": ["trajectory_accuracy"],

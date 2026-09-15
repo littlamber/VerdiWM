@@ -142,7 +142,7 @@ promote an open method on compilation alone.
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
 | Ctrl-World ACWM pilot adapters | `wmloop/evaluate/adapters/ctrl_world_predictive.py`, `wmloop/experiments/ctrl_world_fingerprint.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Paired predictive receipt projection, reversible action-embedding dose, frozen ACWM constitution, and fail-closed downstream-success exclusion are complete; the pilot chart is measured and settled, while paper-split transfer receipts are pending |
 | Ctrl-World ACWM two-surface scale gate | `wmloop/control/acwm_dual_evaluation.py`, `configs/experiments/ctrl_world_acwm_dual_evaluation_v1.json` | Exactly two paired-ground-truth surfaces use Pareto admission: primary long-horizon prediction must improve and action/trajectory protections may not regress. It excludes WAM/task-success inputs and remains non-authoritative until frozen verification. |
-| Public minimal-loop proof | `examples/acwm_minimal_loop_cloth_next_forcing_v2/` | Integrity checked; not independent-seed replication |
+| Public minimal-loop proof | External community evidence bundle | Integrity checked; not independent-seed replication |
 
 ## Intervention descriptor
 
@@ -171,10 +171,9 @@ coordinates, paired-seed covariance, locality residuals, support masks, and
 source hashes. Canonical per-environment assets serialize these as `J_X`,
 `G_X`, `r_X`, and `Sigma_X` through a stable symbol table.
 
-IRG is intended to support mechanism-aware routing. The immutable
-`examples/acwm_unified_irg_assets_v1` snapshot records the discovery that the
-original atlas mixed parallel and autoregressive baseline frames. The corrected
-`examples/acwm_joint_irg_assets_v2` campaign reruns all seven semantic
+IRG is intended to support mechanism-aware routing. An immutable community
+bundle records the discovery that the original atlas mixed parallel and
+autoregressive baseline frames. The corrected community campaign reruns all seven semantic
 directions in autoregressive mode, with one no-hook baseline for each
 environment and seed. All eight resulting assets contain observed cross-path
 covariance in one baseline-compatible block.
@@ -183,7 +182,7 @@ This makes the ACWM reference geometry complete, but it does not establish
 alignment across arbitrary backbones. A target-backbone chart, semantic hook
 compilation, held-out calibration, and effect confirmation remain necessary.
 
-The checked-in `examples/ctrl_world_target_local_irg_v1` bundle demonstrates
+The separately published `ctrl_world_target_local_irg_v1` community bundle demonstrates
 the target-chart step. A radius-0.1 campaign violated the locality threshold,
 so `ctrl_world_fingerprint_settlement` retained the failed chart and selected
 the widest passing recalibration, radius 0.025. This converts nonlinearity into
@@ -229,7 +228,7 @@ not sufficient for transfer: the unit-Frobenius Jacobian alignment error was
 `1.999998`, above the frozen `0.5` threshold, because the dominant response
 reversed sign. `cosmos3_directional_settlement` therefore returns
 `settled_abstained`. The public
-`examples/cosmos3_directional_probe_split_reversal_v1` bundle retains both
+The separately published `cosmos3_directional_probe_split_reversal_v1` bundle retains both
 local charts, all accept dose-response videos, and the final certificate
 counterexample.
 
@@ -238,7 +237,7 @@ energy-preserving orthogonal rotation over four frozen action-dimension pairs.
 It passes the dev4 locality gate (`0.0065`) but fails independent accept4
 locality (`0.5672`) and reverses the normalized Jacobian direction
 (`1.9998 > 0.5`). The
-`examples/cosmos3_action_dimension_interaction_split_reversal_v4` bundle
+The separately published `cosmos3_action_dimension_interaction_split_reversal_v4` bundle
 retains the complete certificate counterexample. The result demonstrates
 fail-closed probe evolution; it does not license LOBO or establish repair.
 

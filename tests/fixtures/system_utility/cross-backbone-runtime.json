@@ -1,0 +1,8 @@
+{
+  "artifact_type": "verdiwm-r31-cross-backbone-runtime-bundle",
+  "state": "ready",
+  "reuse_audit": {
+    "r31_exact_portability_ready": true,
+    "observed_confirm_count": 0
+  }
+}

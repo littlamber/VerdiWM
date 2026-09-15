@@ -83,7 +83,7 @@
       "surface_id": "public_minimal_loop_export",
       "role": "archive",
       "status": "ready",
-      "artifact_ref": "examples/acwm_minimal_loop_cloth_next_forcing_v2/minimal-loop-proof.json",
+      "artifact_ref": "community://verdiwm/acwm-minimal-loop-cloth-next-forcing-v2",
       "required_for_closed_loop": false,
       "required_for_formal_verdict": false,
       "notes": "Public integrity-checked operational evidence; not an independent-seed paper claim."

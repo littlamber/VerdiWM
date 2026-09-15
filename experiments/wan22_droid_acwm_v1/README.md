@@ -14,12 +14,12 @@ Example:
 
 ```bash
 python experiments/wan22_droid_acwm_v1/run.py prepare \
-  --data-root /share/project/zhiwei/wjy/data/droid_wrist_192x320 \
-  --output-root /share/project/zhiwei/nsq/wan22-droid-manifests
+  --data-root <DROID_DATA_ROOT> \
+  --output-root <VERDI_MANIFEST_ROOT>
 
 python experiments/wan22_droid_acwm_v1/run.py conformance \
   --train-manifest /path/train.json --validation-manifest /path/val.json \
-  --model /share/project/zhiwei/nsq/model/Wan2.2-TI2V-5B \
+  --model <WAN22_MODEL_ROOT> \
   --source /path/to/Wan2.2-source \
   --evaluator-contract configs/evaluators/wan22_droid_worldarena_v1.json \
   --adapter experiments/wan22_droid_acwm_v1/wan22_droid_adapter.py

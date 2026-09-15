@@ -66,7 +66,5 @@ uv run python -m py_compile "${python_files[@]}"
 # Run the tests shipped in this release.
 uv run pytest -q tests
 
-uv run python scripts/export/validate_public_example.py \
-  examples/acwm_minimal_loop_cloth_next_forcing_v2
-uv run python scripts/export/acwm_public_experience_bundle.py validate \
-  --output-root examples/acwm_experience_atlas_v1
+uv run python scripts/export/validate_portrait_first_public_example.py \
+  examples/portrait_first_minimal_loop_v1 >/dev/null

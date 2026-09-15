@@ -13,10 +13,24 @@ htmlcov/
 results/
 runs/
 artifacts/
-# Generated experiment media/checkpoints stay outside Git; receipts and configs
-# remain versioned so the evidence contract is reviewable.
+outputs/
+logs/
+cache/
+.verdiwm/
+.audit-state/
+# Generated experiment media/checkpoints stay outside Git.
 *.mp4
 *.pt
 *.pth
 *.ckpt
+
+# Evidence and media bundles are published outside this source repository.
+examples/*
+!examples/portrait_first_minimal_loop_v1/
+!examples/portrait_first_minimal_loop_v1/**
+examples/portrait_first_minimal_loop_v1/**/__pycache__/
+figures/
+RELEASE_AUDIT.json
+MANIFEST.sha256
+.verdiwm-public-release
 vendor/ACWM-Phys/

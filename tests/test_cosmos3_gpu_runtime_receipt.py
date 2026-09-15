@@ -6,17 +6,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+import imageio.v3 as iio
+import numpy as np
+
 from wmloop.control.cosmos3_gpu_runtime_receipt import (
     Cosmos3GpuRuntimeReceiptError,
     build_cosmos3_gpu_runtime_receipt,
 )
 
-
-ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_VIDEO = ROOT / "examples/acwm_minimal_loop_cloth_next_forcing_v2/media/showcase_video.mp4"
-
-
-@unittest.skipUnless(shutil.which("ffprobe") and FIXTURE_VIDEO.is_file(), "ffprobe/video fixture required")
+@unittest.skipUnless(shutil.which("ffprobe"), "ffprobe required")
 class Cosmos3GpuRuntimeReceiptTests(unittest.TestCase):
     def test_builds_receipt_and_rejects_missing_gpu_activity(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -44,7 +42,7 @@ def _run_fixture(root: Path) -> Path:
     inputs = run / "inputs"
     output.mkdir(parents=True)
     inputs.mkdir()
-    shutil.copy2(FIXTURE_VIDEO, output / "vision.mp4")
+    _write_video(output / "vision.mp4")
     (output / "sample_outputs.json").write_text(json.dumps({
         "status": "success", "args": {"model_mode": "forward_dynamics", "seed": 101}
     }))
@@ -53,6 +51,12 @@ def _run_fixture(root: Path) -> Path:
         "average": {"OmniInference.generate_batch": 1.25}
     }))
     return run
+
+
+def _write_video(path: Path) -> None:
+    frames = np.zeros((2, 8, 8, 3), dtype=np.uint8)
+    frames[1, :, :, 1] = 255
+    iio.imwrite(path, frames, fps=2, plugin="FFMPEG")
 
 
 if __name__ == "__main__":

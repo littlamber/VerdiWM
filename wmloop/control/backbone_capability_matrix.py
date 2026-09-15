@@ -168,15 +168,17 @@ def _bound_primitive_states(
 def _surface_row(surface: Mapping[str, Any], *, root: Path) -> dict[str, object]:
     artifact_ref = str(surface["artifact_ref"])
     path = Path(artifact_ref)
+    external_reference = "://" in artifact_ref
     resolved = path if path.is_absolute() else root / path
     status = str(surface["status"])
-    ready_for_declared_status = resolved.exists() if status in READY_STATUSES else True
+    path_exists = True if external_reference else resolved.exists()
+    ready_for_declared_status = path_exists if status in READY_STATUSES else True
     return {
         "surface_id": str(surface["surface_id"]),
         "role": str(surface["role"]),
         "status": status,
         "artifact_ref": artifact_ref,
-        "path_exists": resolved.exists(),
+        "path_exists": path_exists,
         "ready_for_declared_status": ready_for_declared_status,
         "required_for_closed_loop": bool(surface["required_for_closed_loop"]),
         "required_for_formal_verdict": bool(surface["required_for_formal_verdict"]),

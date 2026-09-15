@@ -1,0 +1,7 @@
+{
+  "artifact_type": "verdiwm-public-progressive-fidelity-efficiency",
+  "metrics": {
+    "gpu_hour_reduction": 0.062751783,
+    "positive_recall": 0.8
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "artifact_type": "verdiwm-acwm-selector-cpu-replay",
+  "selectors": [
+    {
+      "selector": "fixture",
+      "negative_selection": 0.5,
+      "benefit_sign_accuracy": 0.5,
+      "top1_positive_hit": 0.0
+    }
+  ],
+  "selector_choice_divergence_environment_count": 0
+}

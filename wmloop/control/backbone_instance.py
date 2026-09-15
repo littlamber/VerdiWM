@@ -118,9 +118,10 @@ def _load_instance_config(config_path: Path, *, root: Path) -> Mapping[str, Any]
 def _audit_surface(surface: Mapping[str, Any], *, root: Path) -> dict[str, object]:
     artifact_ref = str(surface["artifact_ref"])
     path = Path(artifact_ref)
-    resolved = path if path.is_absolute() else root / path
+    external_reference = "://" in artifact_ref
+    resolved = artifact_ref if external_reference else (path if path.is_absolute() else root / path)
     status = str(surface["status"])
-    exists = resolved.exists()
+    exists = True if external_reference else resolved.exists()
     ready_requires_path = status in READY_STATUSES
     ready_for_declared_status = exists if ready_requires_path else True
     return {

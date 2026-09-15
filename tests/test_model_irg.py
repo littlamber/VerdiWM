@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from wmloop.control.intermediate_ir import build_model_capability_ir
@@ -13,6 +14,7 @@ from wmloop.geometry.model_irg import (
     rank_method_effects_by_irg,
     validate_model_irg,
 )
+from wmloop.geometry.assets import IRGChartSource, compose_irg_asset
 from wmloop.retrieve.irg_guided_discovery import (
     build_irg_discovery_request,
     derive_irg_bottlenecks,
@@ -47,10 +49,72 @@ def _portrait() -> dict[str, object]:
 
 
 def _asset() -> dict[str, object]:
-    return json.loads(
-        (ROOT / "examples/acwm_unified_irg_assets_v1/assets/reacher.json").read_text(
-            encoding="utf-8"
+    """Construct a small measured chart without shipping a past campaign result."""
+
+    repeats = (
+        ((1.0, 0.30), (0.50, 0.10)),
+        ((1.1, 0.20), (0.55, 0.15)),
+        ((0.9, 0.40), (0.45, 0.05)),
+    )
+    jacobian = _mean(repeats)
+    coordinates = tuple(
+        tuple(
+            math.sqrt(1.0) * value
+            for outcome in matrix
+            for value in outcome
         )
+        for matrix in repeats
+    )
+    source = IRGChartSource(
+        source_id="fixture-source",
+        campaign_id="fixture-campaign",
+        path_names=("action_amplification", "history_retention"),
+        outcome_names=("psnr", "ssim"),
+        outcome_weights=(1.0, 1.0),
+        seeds=(101, 202, 303),
+        jacobian=jacobian,
+        covariance=_covariance(coordinates),
+        locality_residuals={
+            "action_amplification": 0.1,
+            "history_retention": 0.1,
+        },
+        repeat_jacobians=repeats,
+        baseline_vectors=((20.0, 0.80), (20.1, 0.81), (20.2, 0.82)),
+        checkpoint_step=1000,
+        provenance={"chart_sha256": "0" * 64},
+    )
+    return compose_irg_asset(
+        asset_id="fixture:environment:r1",
+        environment="fixture_environment",
+        backbone_family="fixture_backbone",
+        capability_class="fixture_capability",
+        backbone_instance_ref="configs/backbones/fixture.json",
+        sources=(source,),
+    )
+
+
+def _mean(matrices: tuple[tuple[tuple[float, ...], ...], ...]) -> tuple[tuple[float, ...], ...]:
+    return tuple(
+        tuple(
+            sum(matrix[row][column] for matrix in matrices) / len(matrices)
+            for column in range(len(matrices[0][0]))
+        )
+        for row in range(len(matrices[0]))
+    )
+
+
+def _covariance(vectors: tuple[tuple[float, ...], ...]) -> tuple[tuple[float, ...], ...]:
+    means = tuple(
+        sum(row[index] for row in vectors) / len(vectors)
+        for index in range(len(vectors[0]))
+    )
+    return tuple(
+        tuple(
+            sum((row[i] - means[i]) * (row[j] - means[j]) for row in vectors)
+            / (len(vectors) - 1)
+            for j in range(len(means))
+        )
+        for i in range(len(means))
     )
 
 

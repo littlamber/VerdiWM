@@ -1,62 +1,14 @@
 from __future__ import annotations
 
 import copy
-import json
 import math
-from pathlib import Path
 import unittest
-
-from jsonschema import Draft202012Validator
 
 from wmloop.geometry.assets import IRGChartSource, compose_irg_asset, validate_irg_asset
 from wmloop.geometry.types import GeometryValidationError
 
 
 class AcwmUnifiedIRGAssetTests(unittest.TestCase):
-    def test_checked_in_eight_environment_bundle_matches_static_and_dynamic_contracts(self) -> None:
-        repo_root = Path(__file__).resolve().parents[1]
-        bundle_root = repo_root / "examples" / "acwm_unified_irg_assets_v1"
-        schema = json.loads(
-            (repo_root / "configs" / "schemas" / "irg_asset.schema.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        validator = Draft202012Validator(schema)
-        index = json.loads((bundle_root / "index.json").read_text(encoding="utf-8"))
-        self.assertEqual(index["environment_count"], 8)
-        self.assertEqual(index["routing_ready_environment_count"], 8)
-        self.assertEqual(index["transfer_ready_environment_count"], 0)
-        for relative in index["asset_paths"].values():
-            asset = json.loads((bundle_root / relative).read_text(encoding="utf-8"))
-            validator.validate(asset)
-            validate_irg_asset(asset)
-            self.assertEqual(
-                asset["dimensions"],
-                {
-                    "outcome_count": 4,
-                    "probe_path_count": 7,
-                    "response_coordinate_count": 28,
-                },
-            )
-
-    def test_joint_frame_bundle_closes_covariance_gap_without_claiming_transfer_effect(self) -> None:
-        repo_root = Path(__file__).resolve().parents[1]
-        bundle_root = repo_root / "examples" / "acwm_joint_irg_assets_v2"
-        index = json.loads((bundle_root / "index.json").read_text(encoding="utf-8"))
-
-        self.assertEqual(index["condition_count"], 600)
-        self.assertEqual(index["baseline_condition_count"], 24)
-        self.assertEqual(index["single_baseline_group_environment_count"], 8)
-        self.assertEqual(index["covariance_ready_environment_count"], 8)
-        self.assertIn("do not by themselves establish", index["claim_boundary"])
-        for relative in index["asset_paths"].values():
-            asset = json.loads((bundle_root / relative).read_text(encoding="utf-8"))
-            validate_irg_asset(asset)
-            self.assertEqual(
-                asset["covariance_contract"]["joint_baseline_group_count"], 1
-            )
-            self.assertEqual(asset["transfer_state"], "ready")
-
     def test_compatible_sources_form_joint_covariance_and_transfer_ready_asset(self) -> None:
         left = self._source("left", "probe_a", baseline_shift=0.0)
         right = self._source("right", "probe_b", baseline_shift=0.0)

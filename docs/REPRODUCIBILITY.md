@@ -26,38 +26,20 @@ protocols, historical result archives, or a configured Docker host are not
 copied into the GitHub staging tree; those dependencies are unavailable in a
 fresh clone and would make an otherwise valid `pytest` invocation fail.
 
-## Validate the evidence bundle
+## Scientific evidence
+
+The source repository keeps only the CPU onboarding demo:
 
 ```bash
-uv run python scripts/export/validate_public_example.py \
-  examples/acwm_minimal_loop_cloth_next_forcing_v2
+uv run verdi doctor
+uv run python examples/portrait_first_minimal_loop_v1/run.py
 ```
 
-The validator checks:
-
-- artifact paths stay inside the example directory;
-- every declared size and SHA-256 digest matches;
-- roles and paths are unique;
-- the operational chain checks remain true;
-- paper-level replication remains false for the shared-seed bundle;
-- public JSON and Markdown contain no local host paths.
-
-The five checked-in Cosmos3 probe-evolution bundles each carry an independent
-`MANIFEST.sha256`. Validate them without model assets:
-
-```bash
-for example in \
-  cosmos3_target_local_irg_wide_v1 \
-  cosmos3_target_local_irg_narrow_v1 \
-  cosmos3_target_local_irg_temporal_mix_v1 \
-  cosmos3_action_dimension_anisotropy_counterexample_v3 \
-  cosmos3_action_dimension_interaction_split_reversal_v4; do
-  (cd "examples/${example}" && sha256sum -c MANIFEST.sha256)
-done
-```
-
-The release builder repeats this coverage check, validates each indexed video,
-and records all five verdicts in `RELEASE_AUDIT.json`.
+Scientific experiment bundles, evidence receipts, figures, videos, and their
+SHA-256 manifests are exported to an independently versioned community bundle.
+Import and verify those bundles with the commands in
+[Community Bundles](COMMUNITY_BUNDLES.md). This keeps a fresh clone runnable
+without confusing historical evidence with the source release.
 
 ## ACWM-Phys runtime
 
@@ -128,9 +110,8 @@ Use these labels consistently:
   calibration;
 - **abstain:** evidence or capabilities were insufficient.
 
-The bundled example is an operational gate pass with checkpoint confirmation,
-but its evaluations share a seed. It must not be relabeled as independent-seed
-causal replication.
+The onboarding demo is an operational gate pass only. It must not be relabeled
+as independent-seed causal replication.
 
 ## Deterministic release construction
 
@@ -142,6 +123,7 @@ python scripts/export/build_github_staging.py \
   --output-root ../VerdiWM-github-v0.1
 ```
 
-The builder uses an allowlist, performs path/secret/size/symlink audits,
-validates every Cosmos3 fingerprint bundle, and writes `MANIFEST.sha256` plus
-`RELEASE_AUDIT.json`. It refuses to overwrite an existing destination.
+The builder uses an allowlist and performs path, secret, generated-artifact,
+and symlink audits. It validates the onboarding demo and emits an audit report
+to stdout without writing generated manifests into the source tree. It refuses
+to overwrite an existing destination.

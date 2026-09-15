@@ -5,32 +5,32 @@
   "inputs": [
     {
       "id": "minimal_loop",
-      "path": "examples/acwm_minimal_loop_cloth_next_forcing_v2/minimal-loop-proof.json",
+      "path": "tests/fixtures/system_utility/minimal-loop-proof.json",
       "artifact_type": "verdiwm-minimal-loop-proof"
     },
     {
       "id": "progressive_fidelity",
-      "path": "examples/acwm_progressive_fidelity_efficiency_v1/summary.json",
+      "path": "tests/fixtures/system_utility/progressive-fidelity-summary.json",
       "artifact_type": "verdiwm-public-progressive-fidelity-efficiency"
     },
     {
       "id": "selector_replay",
-      "path": "examples/acwm_selector_ablation_v1/selector-replay.json",
+      "path": "tests/fixtures/system_utility/selector-replay.json",
       "artifact_type": "verdiwm-acwm-selector-cpu-replay"
     },
     {
       "id": "ctrl_world_local_chart",
-      "path": "examples/ctrl_world_target_local_irg_v1/settlement.json",
+      "path": "tests/fixtures/system_utility/ctrl-world-local-settlement.json",
       "artifact_type": "verdiwm-ctrl-world-fingerprint-settlement"
     },
     {
       "id": "ctrl_world_formal_chart",
-      "path": "examples/ctrl_world_paper_split_abstention_v1/settlement.json",
+      "path": "tests/fixtures/system_utility/ctrl-world-formal-settlement.json",
       "artifact_type": "verdiwm-ctrl-world-fingerprint-settlement"
     },
     {
       "id": "cross_backbone_runtime",
-      "path": "examples/r31_cross_backbone_runtime_v1/bundle.json",
+      "path": "tests/fixtures/system_utility/cross-backbone-runtime.json",
       "artifact_type": "verdiwm-r31-cross-backbone-runtime-bundle"
     },
     {

@@ -270,13 +270,13 @@ def _doctor_report(args: argparse.Namespace) -> dict[str, object]:
             {"name": name, "required": True, "state": state, "detail": detail}
         )
 
-    public_example = root / "examples" / "acwm_minimal_loop_cloth_next_forcing_v2"
+    onboarding_demo = root / "examples" / "portrait_first_minimal_loop_v1"
     checks.append(
         {
-            "name": "public_example",
+            "name": "onboarding_demo",
             "required": False,
-            "state": "available" if public_example.is_dir() else "not_installed",
-            "detail": "examples/acwm_minimal_loop_cloth_next_forcing_v2",
+            "state": "available" if onboarding_demo.is_dir() else "not_installed",
+            "detail": "examples/portrait_first_minimal_loop_v1",
         }
     )
     blocked = any(

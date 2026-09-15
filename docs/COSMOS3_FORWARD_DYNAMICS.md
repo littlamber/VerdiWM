@@ -115,10 +115,10 @@ opposite directions, because the dominant PSNR derivative changes from
 `settled_abstained`, with `dev_accept_jacobian_aligned` as the explicit failed
 term. This is a negative-transfer prevention result, not model improvement.
 
-The path-sanitized evidence is checked in at
-`examples/cosmos3_directional_probe_split_reversal_v1`. It includes dev and
-accept charts, dose-response tables, three accept videos, the alignment plot,
-and SHA manifests.
+The path-sanitized evidence is published as an independently versioned
+community bundle for `cosmos3_directional_probe_split_reversal_v1`. It includes
+dev and accept charts, dose-response tables, three accept videos, the alignment
+plot, and SHA manifests.
 
 ## Off-diagonal interaction successor
 
@@ -133,5 +133,5 @@ passes at `0.0065`, while accept4 locality fails at `0.5672` under the unchanged
 `0.5` threshold. The normalized dev/accept Jacobian distance is `1.9998`, also
 above its frozen `0.5` threshold. The final state is `settled_abstained`, so
 LOBO remains prohibited. The public evidence, tables, alignment plot, and three
-accept videos are in
-`examples/cosmos3_action_dimension_interaction_split_reversal_v4`.
+accept videos are in the independently versioned community bundle for
+`cosmos3_action_dimension_interaction_split_reversal_v4`.
