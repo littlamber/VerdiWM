@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'check_exit=$?; printf "::error file=scripts/ci/check_control_plane.sh,line=%s::Control-plane validation failed at line %s (exit %s).\n" "$LINENO" "$LINENO" "$check_exit" >&2; exit "$check_exit"' ERR
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
