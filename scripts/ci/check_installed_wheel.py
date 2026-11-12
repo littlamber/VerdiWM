@@ -126,7 +126,14 @@ def main() -> None:
         if args.dependency_mode == "locked":
             requirements = root / "requirements.txt"
             subprocess.run(["uv", "export", "--locked", "--no-default-groups", "--no-emit-project", "--output-file", str(requirements)], check=True, env=environment, stdout=subprocess.DEVNULL)
-            subprocess.run(["uv", "pip", "install", "--python", str(python), "--require-hashes", "-r", str(requirements)], check=True, cwd=root, env=environment)
+            installation = subprocess.run(["uv", "pip", "install", "--python", str(python), "--require-hashes", "-r", str(requirements)], cwd=root, env=environment, capture_output=True, text=True)
+            sys.stderr.write(installation.stderr)
+            if installation.returncode:
+                # Publish only fixed diagnostic flags; raw subprocess text can
+                # include paths and stays in the runner's normal private log.
+                detail = installation.stderr.casefold()
+                logging.error("::error::Locked dependency installation failed: offline=%s cache_miss=%s hash_error=%s", environment.get("UV_OFFLINE") == "1", "cache" in detail or "offline" in detail, "hash" in detail)
+                installation.check_returncode()
             subprocess.run(["uv", "pip", "install", "--python", str(python), "--no-deps", str(wheel)], check=True, cwd=root, env=environment)
         else:
             # Exercise the wheel's own dependency ranges without the repo lock.
