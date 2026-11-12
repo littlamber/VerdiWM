@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from wmloop.experiments.selector_replay import run_selector_replay
+from wmloop.experiments.selector_replay import SelectorReplayError, run_selector_replay
 
 
 class ACWMSelectorCPUReplayTests(unittest.TestCase):
@@ -131,6 +131,79 @@ class ACWMSelectorCPUReplayTests(unittest.TestCase):
             self.assertEqual(target_cells["environment_label"]["selected_primitive"], "amp_candidate")
             self.assertEqual(target_cells["irg"]["selected_primitive"], "z_att_candidate")
             self.assertEqual(target_cells["irg"]["top1_positive_hit"], 1.0)
+            self.assertEqual(report["routing_recommendation"]["route"], "irg_superior")
+            self.assertAlmostEqual(report["random_baseline"]["top1_positive_hit"], 0.5)
+            self.assertAlmostEqual(report["random_baseline"]["selection_regret"], 0.5)
+
+    def test_equal_irg_and_raw_response_routes_to_raw_response(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            environments = ("a", "b")
+            plan, projections = self._write_two_path_inputs(root, environments)
+            labels = root / "labels.json"
+            labels.write_text(
+                json.dumps(
+                    {
+                        "labels": [
+                            self._label(environment, primitive, positive, 1.0 if positive else -1.0)
+                            for environment in environments
+                            for primitive, positive in (("positive", True), ("negative", False))
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            run_selector_replay(
+                plan_path=plan,
+                projection_path=projections,
+                effect_label_index=labels,
+                output_root=root / "output",
+            )
+            report = json.loads((root / "output" / "selector-replay.json").read_text())
+            self.assertEqual(report["routing_recommendation"]["route"], "fallback_raw_response")
+            self.assertEqual(
+                report["routing_recommendation"]["reason"],
+                "irg_indistinguishable_from_raw_response",
+            )
+
+    def test_rejects_inconsistent_feature_schema_across_environments(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            _, projections = self._write_two_path_inputs(root, ("a", "b"))
+            rows = [json.loads(line) for line in projections.read_text().splitlines()]
+            irg_row = next(row for row in rows if row["environment"] == "b" and row["selector"] == "irg")
+            irg_row["feature_names"] = list(reversed(irg_row["feature_names"]))
+            projections.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+            with self.assertRaisesRegex(SelectorReplayError, "SELECTOR_REPLAY_FEATURE_SCHEMA_MISMATCH"):
+                from wmloop.experiments.selector_replay import _validate_projections
+
+                _validate_projections([json.loads(line) for line in projections.read_text().splitlines()])
+
+    def test_rejects_duplicate_target_selector_with_different_source_frame(self) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            plan, projections = self._write_two_path_inputs(root, ("a", "b", "target"))
+            plan_payload = json.loads(plan.read_text())
+            plan_payload["trials"].append(
+                {
+                    "trial_id": "target-irg-conflicting-frame",
+                    "fold_id": "holdout-target",
+                    "target_environment": "target",
+                    "source_environments": ["a"],
+                    "selector": "irg",
+                    "seed": 202,
+                }
+            )
+            plan.write_text(json.dumps(plan_payload), encoding="utf-8")
+            labels = root / "labels.json"
+            labels.write_text(json.dumps({"labels": []}), encoding="utf-8")
+            with self.assertRaisesRegex(SelectorReplayError, "SELECTOR_REPLAY_SOURCE_FRAME_MISMATCH"):
+                run_selector_replay(
+                    plan_path=plan,
+                    projection_path=projections,
+                    effect_label_index=labels,
+                    output_root=root / "output",
+                )
 
     def test_irg_transfer_certificate_rejects_single_source_extrapolation(self) -> None:
         with TemporaryDirectory() as temp:

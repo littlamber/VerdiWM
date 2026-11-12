@@ -2,11 +2,26 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from wmloop.experiments.effect_label_queue import build_effect_label_gate_queue
+import pytest
+
+from wmloop.experiments.effect_label_queue import EffectLabelQueueError, _resolve_under, build_effect_label_gate_queue
+
+
+def test_queue_evidence_rejects_linked_parent_and_path_escape(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / "evidence.json").write_text("{}")
+    (tmp_path / "alias").symlink_to(real, target_is_directory=True)
+    with pytest.raises(EffectLabelQueueError, match="SOURCE_SYMLINK"):
+        _resolve_under(tmp_path, "alias/evidence.json")
+    with pytest.raises(EffectLabelQueueError, match="PATH_ESCAPE"):
+        _resolve_under(real, "../outside.json")
 
 
 class AcwmEffectLabelGateQueueTests(unittest.TestCase):
@@ -19,8 +34,10 @@ class AcwmEffectLabelGateQueueTests(unittest.TestCase):
             retained = screen / "retained_training"
             retained.mkdir(parents=True)
             (repo / "vendor/ACWM-Phys").mkdir(parents=True)
-            (repo / ".venv/bin").mkdir(parents=True)
-            (repo / ".venv/bin/python3").write_text("", encoding="utf-8")
+            protocols = root / "protocols"
+            protocols.mkdir()
+            for name in ("dataset-freeze.json", "heldout-protocol.json"):
+                (protocols / name).write_text("{}")
             data = root / "data"
             checkpoints = root / "checkpoints"
             data.mkdir()
@@ -64,7 +81,9 @@ class AcwmEffectLabelGateQueueTests(unittest.TestCase):
                 reports_root=reports,
                 repo_root=repo,
                 output_root=output,
-                runtime_python=repo / ".venv/bin/python3",
+                runtime_python=Path(sys.executable),
+                dataset_freeze=protocols / "dataset-freeze.json",
+                heldout_protocol=protocols / "heldout-protocol.json",
                 data_root=data,
                 checkpoint_root=checkpoints,
                 gpus=(0, 1),
@@ -75,6 +94,12 @@ class AcwmEffectLabelGateQueueTests(unittest.TestCase):
             self.assertEqual(row["requires_positive_manifest"], "")
             self.assertEqual(row["requires_ready_manifest"], str(source_manifest))
             self.assertEqual(row["candidate_gpus"], [0, 1])
+            command = row["launch_argv_template"]
+            self.assertEqual(command[:3], [sys.executable, "-m", "wmloop.experiments.formal_visualization"])
+            self.assertEqual(command[command.index("--runtime-python") + 1], sys.executable)
+            self.assertFalse((repo / "scripts").exists())
+            self.assertFalse((repo / ".venv").exists())
+            subprocess.run(command[:3] + ["--help"], cwd=root, check=True, capture_output=True)
             self.assertIn("--steps", row["launch_argv_template"])
             self.assertEqual(row["launch_argv_template"][row["launch_argv_template"].index("--steps") + 1], "50")
 

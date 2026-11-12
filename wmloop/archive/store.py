@@ -21,6 +21,7 @@ from typing import Mapping
 
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.propose.scheduler import CellStats, InterventionCell
+from wmloop.storage import checked_path
 
 
 class ArchiveInvariantError(ValueError):
@@ -114,7 +115,7 @@ class ContentAddressedStore:
     """Regular-file-only SHA-256 content storage rooted at ``<root>/cas``."""
 
     def __init__(self, root: Path) -> None:
-        self._root = Path(root).resolve()
+        self._root = checked_path(root, code="CAS_ROOT_INVALID", error=ArchiveInvariantError)
         self._cas = self._root / "cas"
         self._cas.mkdir(mode=0o700, parents=True, exist_ok=True)
         _require_directory(self._cas, "CAS_ROOT_INVALID")
@@ -171,7 +172,7 @@ class ArchiveStore:
     """Authoritative M0 baseline records with SQLite DELETE/FULL durability."""
 
     def __init__(self, database_path: Path) -> None:
-        self._path = Path(database_path).resolve()
+        self._path = checked_path(database_path, code="ARCHIVE_DATABASE_INVALID", error=ArchiveInvariantError)
         self._path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         self._initialize()
 
@@ -229,6 +230,21 @@ class ArchiveStore:
             )
             for row in rows
         ]
+
+    def has_settled_receipt(self, trial_id: str, receipt_ref: str, receipt_hash: str) -> bool:
+        """Check the authoritative trial/receipt binding for derived indexes."""
+
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                "SELECT 1 FROM trials t JOIN receipts r ON r.trial_id = t.trial_id "
+                "WHERE t.trial_id = ? AND t.receipt_ref = ? "
+                "AND r.receipt_ref = ? AND r.receipt_hash = ?",
+                (trial_id, receipt_ref, receipt_ref, receipt_hash),
+            ).fetchone()
+            return row is not None
+        finally:
+            connection.close()
 
     def record_settled_trial(self, record: SettledTrialRecord) -> None:
         """Atomically publish a trial to all archive projections after settlement.

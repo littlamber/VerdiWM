@@ -20,10 +20,11 @@ import re
 import signal
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from wmloop.runtime_env import default_lock_root
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.onboarding import compute_source_tree_revision
 from wmloop.execute.autonomous_pipeline import AutonomousPipelineOptions
@@ -31,6 +32,7 @@ from wmloop.execute.pipeline_daemon import (
     PipelineDaemonOptions,
     run_pipeline_daemon,
 )
+from wmloop.storage import canonical_json_bytes, sha256_bytes
 
 
 class EvolutionDaemonError(RuntimeError):
@@ -66,7 +68,7 @@ class EvolutionDaemonOptions:
     conformance_timeout_seconds: float = 30.0
     archive_db: Path | None = None
     cas_root: Path | None = None
-    lock_root: Path = Path("/tmp/verdiwm-gpu-leases")
+    lock_root: Path = field(default_factory=default_lock_root)
     budget_db: Path | None = None
     total_budget_gpu_hours: float = 1.0
     budget_max_trial_gpu_hours: float = 120.0
@@ -873,19 +875,11 @@ def _write_json(path: Path, value: Mapping[str, object]) -> None:
 
 
 def _canonical_json(value: object) -> bytes:
-    return (
-        json.dumps(
-            value,
-            ensure_ascii=True,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        + "\n"
-    ).encode("utf-8")
+    return canonical_json_bytes(value)
 
 
 def _sha256(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
+    return sha256_bytes(payload)
 
 
 def _acquire_lock(root: Path) -> None:
@@ -971,7 +965,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--conformance-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--archive-db", type=Path)
     parser.add_argument("--cas-root", type=Path)
-    parser.add_argument("--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases"))
+    parser.add_argument("--lock-root", type=Path, default=default_lock_root())
     parser.add_argument("--budget-db", type=Path)
     parser.add_argument("--total-budget-gpu-hours", type=float, required=True)
     parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)

@@ -54,7 +54,7 @@ class PrimitiveMaterializationPromptTests(unittest.TestCase):
             self.assertIn("silently substitute", contract["faithful_materialization_rule"])
             self.assertEqual(
                 contract["engineering_practice_policy"]["policy_id"],
-                "verdiwm_agent_engineering_policy_v1",
+                "verdiwm_agent_engineering_policy_v2",
             )
             self.assertIn("fail closed with a blocker report", contract["compromise_blocker_policy"])
             self.assertIn(

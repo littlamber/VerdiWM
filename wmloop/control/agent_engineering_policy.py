@@ -9,7 +9,8 @@ def engineering_policy() -> dict[str, object]:
     """Return the shared Google-style engineering discipline for code-writing agents."""
 
     return {
-        "policy_id": "verdiwm_agent_engineering_policy_v1",
+        "policy_id": "verdiwm_agent_engineering_policy_v2",
+        "authority_document": "AGENTS.md",
         "basis": "Google-style software engineering discipline adapted to VerdiWM authority boundaries.",
         "principles": [
             "design_before_code",
@@ -24,6 +25,9 @@ def engineering_policy() -> dict[str, object]:
             "security_and_reproducibility",
         ],
         "required_practices": [
+            "Read AGENTS.md and docs/code_conventions.md; preserve VerdiWM naming, the wmloop package, and the locked Python 3.10 environment.",
+            "Follow docs/PROJECT_LAYOUT.md: extracted components must not import their compatibility facade or form cycles; reuse wmloop.storage while preserving historical receipt bytes and keep component files within 800 lines.",
+            "Resolve configurable resource paths at call time, keep package exports lazy, and never require a developer checkout path or sys.path/PYTHONPATH patch.",
             "State configuration intent, exact code touchpoints, input/output contract, and failure semantics before editing.",
             "Keep patches narrowly scoped to allowed mutation paths and avoid unrelated refactors.",
             "Add or update offline fixture/unit tests for every behavior that can be tested without GPU or network.",
@@ -32,6 +36,14 @@ def engineering_policy() -> dict[str, object]:
             "Preserve frozen evaluator, data split, goal, verdict probe, and registry authority boundaries.",
             "Do not substitute a weaker proxy, stub, disabled hook, or evaluator-side shortcut for the requested method.",
             "Report exact validation commands and artifacts; readiness claims require receipts, manifests, or tests.",
+        ],
+        "method_boundaries": [
+            "Characterize: use matched contexts and seeds for reversible inference-only probes; retain response uncertainty, support masks and adapter hooks without updating weights or the goal.",
+            "Retrieve: compatible IRG neighbors and cross-domain literature produce ranking-only hypotheses; preserve source provenance and abstain on insufficient support.",
+            "Validate: only paired target experiments and the frozen verifier settle effects; positive gain requires its lower confidence bound above the goal threshold and every protected check passing.",
+            "Accumulate: retain confirmed, null, harmful and jointly measured interaction outcomes with support, uncertainty, cost, operator version and implementation receipts; never overwrite source evidence.",
+            "Probe evolution: comparable nearby opposing settled effects motivate a proposal; promotion requires held-out selection improvement, calibration checks and a later version, never an isolated failure alone.",
+            "Keep operational failures, incomplete screens and diagnostic receipts distinct from confirmed operator-effect evidence.",
         ],
         "required_ci_harness_receipts": [
             "py_compile_or_import_check_for_changed_python",
@@ -62,6 +74,9 @@ def render_engineering_policy(policy: Mapping[str, object] | None = None) -> str
         "- Required practices:",
     ]
     lines.extend(f"  - {item}" for item in _strings(payload.get("required_practices")))
+    if payload.get("method_boundaries"):
+        lines.append("- VERDI method boundaries:")
+        lines.extend(f"  - {item}" for item in _strings(payload.get("method_boundaries")))
     lines.append("- Required CI/harness receipts:")
     lines.extend(f"  - {item}" for item in _strings(payload.get("required_ci_harness_receipts")))
     lines.append("- Forbidden shortcuts:")

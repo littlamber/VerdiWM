@@ -162,6 +162,17 @@ def test_model_irg_distance_and_effect_ranking_are_ranking_only() -> None:
     assert ranked[0]["claim_scope"] == "ranking_only"
 
 
+def test_model_irg_distance_uses_all_outcome_coordinates() -> None:
+    portrait = _portrait()
+    asset = _asset()
+    target = build_model_irg(portrait=portrait, asset=asset, root=ROOT)
+    modified = json.loads(json.dumps(asset))
+    probe_count = len(modified["probe_path_names"])
+    modified["response_coordinate"][probe_count] += 100.0
+    source = build_model_irg(portrait=portrait, asset=modified, root=ROOT)
+    assert model_irg_distance(target, source) > 0.0
+
+
 def test_similar_irg_with_opposite_effects_is_a_collision() -> None:
     portrait = _portrait()
     asset = _asset()

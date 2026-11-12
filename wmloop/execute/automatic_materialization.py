@@ -21,6 +21,7 @@ from wmloop.control.module_manufacturing import (
     load_module_manufacturing_work_order,
 )
 from wmloop.execute.agent_staging import AgentRepairSession, AgentStagingError, CommandReceipt
+from wmloop.storage import canonical_json_bytes, sha256_bytes
 
 
 class AutomaticMaterializationError(RuntimeError):
@@ -1033,16 +1034,7 @@ def _load(path: Path, code: str) -> dict[str, object]:
 
 def _canonical_json(payload: object) -> bytes:
     try:
-        return (
-            json.dumps(
-                payload,
-                sort_keys=True,
-                ensure_ascii=True,
-                separators=(",", ":"),
-                allow_nan=False,
-            )
-            + "\n"
-        ).encode("utf-8")
+        return canonical_json_bytes(payload)
     except (TypeError, ValueError) as exc:
         raise AutomaticMaterializationError("AUTOMATIC_MATERIALIZATION_PAYLOAD_INVALID") from exc
 
@@ -1068,7 +1060,7 @@ def _write_bytes(path: Path, payload: bytes) -> None:
 
 
 def _sha256(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
+    return sha256_bytes(payload)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.parse import parse_qs, urlparse
+
+from wmloop.control.local_http import LocalHTTPServer, LocalRequestHandler
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
 from wmloop.control.campaign_dispatcher import (
@@ -44,6 +46,8 @@ class WorkbenchError(ValueError):
 
 _ASSET_ROOT = Path(__file__).resolve().parents[1] / "web"
 _ASSETS = {
+    "/auth": ("auth.html", "text/html; charset=utf-8"),
+    "/assets/auth.js": ("auth.js", "text/javascript; charset=utf-8"),
     "/": ("workbench.html", "text/html; charset=utf-8"),
     "/assets/workbench.css": ("workbench.css", "text/css; charset=utf-8"),
     "/assets/workbench.js": ("workbench.js", "text/javascript; charset=utf-8"),
@@ -54,35 +58,9 @@ _SETUP_ASSETS = {
     "/assets/setup.js": ("setup.js", "text/javascript; charset=utf-8"),
 }
 
-# React workbench build output (workbench-ui/dist at the repository root, or the
-# packaged copy under wmloop/web/ui). When present it replaces the legacy page.
-_UI_DIST_CANDIDATES = (
-    Path(__file__).resolve().parents[2] / "workbench-ui" / "dist",
-    _ASSET_ROOT / "ui",
-)
-_UI_CONTENT_TYPES = {
-    ".html": "text/html; charset=utf-8",
-    ".js": "text/javascript; charset=utf-8",
-    ".css": "text/css; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".ico": "image/x-icon",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-}
-
-
-def _ui_dist_root() -> Path | None:
-    for candidate in _UI_DIST_CANDIDATES:
-        index = candidate / "index.html"
-        if index.is_file() and not index.is_symlink():
-            return candidate
-    return None
-
-
-class WorkbenchServer(ThreadingHTTPServer):
+class WorkbenchServer(LocalHTTPServer):
     daemon_threads = True
+    public_get_routes = frozenset((*_ASSETS, *_SETUP_ASSETS, "/favicon.ico"))
 
     def __init__(
         self,
@@ -93,23 +71,27 @@ class WorkbenchServer(ThreadingHTTPServer):
         project_root: Path | None = None,
     ):
         super().__init__(address, WorkbenchHandler)
-        self.project_root = Path(project_root or Path.cwd()).expanduser().resolve()
-        self.evidence_root_explicit = evidence_root is not None
-        self.state_root = Path(state_root).expanduser().resolve()
-        self.store = CampaignStore(self.state_root / "campaigns")
-        # Campaign requests live below ``campaigns``; evidence is produced by
-        # the wider state tree. Keep the input configurable for deployments
-        # that maintain a separate immutable evidence archive.
-        self.evidence_root = (
-            Path(evidence_root).expanduser().resolve()
-            if evidence_root is not None
-            else self.state_root
-        )
         try:
-            loaded = load_project_config(cwd=self.project_root)
-            self.project_config = loaded if loaded.source is not None else None
-        except ProjectConfigError:
-            self.project_config = None
+            self.project_root = Path(project_root or Path.cwd()).expanduser().resolve()
+            self.evidence_root_explicit = evidence_root is not None
+            self.state_root = Path(state_root).expanduser().resolve()
+            self.store = CampaignStore(self.state_root / "campaigns")
+            # Campaign requests live below ``campaigns``; evidence is produced by
+            # the wider state tree. Keep the input configurable for deployments
+            # that maintain a separate immutable evidence archive.
+            self.evidence_root = (
+                Path(evidence_root).expanduser().resolve()
+                if evidence_root is not None
+                else self.state_root
+            )
+            try:
+                loaded = load_project_config(cwd=self.project_root)
+                self.project_config = loaded if loaded.source is not None else None
+            except ProjectConfigError:
+                self.project_config = None
+        except BaseException:
+            self.server_close()
+            raise
 
     def reload_project(self) -> None:
         loaded = load_project_config(cwd=self.project_root)
@@ -124,7 +106,7 @@ class WorkbenchServer(ThreadingHTTPServer):
                 self.evidence_root = self.state_root
 
 
-class WorkbenchHandler(BaseHTTPRequestHandler):
+class WorkbenchHandler(LocalRequestHandler):
     server_version = "VerdiWMWorkbench/1"
 
     @property
@@ -150,8 +132,6 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
                 return
             if route == "/setup":
                 self._asset("setup.html", "text/html; charset=utf-8")
-                return
-            if not route.startswith("/api/") and self._serve_ui(route):
                 return
             if route in _ASSETS:
                 self._asset(*_ASSETS[route])
@@ -400,50 +380,10 @@ class WorkbenchHandler(BaseHTTPRequestHandler):
             self._json(HTTPStatus.BAD_REQUEST, explain_blocker(exc))
 
     def _body(self) -> dict[str, Any]:
-        content_type = self.headers.get("Content-Type", "").split(";", 1)[0]
-        if content_type != "application/json":
-            raise WorkbenchError("CONTENT_TYPE_JSON_REQUIRED")
         try:
-            length = int(self.headers.get("Content-Length", "0"))
+            return self.read_json_object()
         except ValueError as exc:
-            raise WorkbenchError("CONTENT_LENGTH_INVALID") from exc
-        if length < 2 or length > 1_048_576:
-            raise WorkbenchError("REQUEST_BODY_SIZE_INVALID")
-        try:
-            value = json.loads(self.rfile.read(length))
-        except json.JSONDecodeError as exc:
-            raise WorkbenchError("REQUEST_JSON_INVALID") from exc
-        if not isinstance(value, dict):
-            raise WorkbenchError("REQUEST_OBJECT_REQUIRED")
-        return value
-
-    def _serve_ui(self, route: str) -> bool:
-        dist = _ui_dist_root()
-        if dist is None:
-            return False
-        path = (
-            (dist / route.lstrip("/")).resolve()
-            if route != "/"
-            else dist / "index.html"
-        )
-        if not path.is_relative_to(dist) or path.is_symlink() or not path.is_file():
-            # SPA fallback: unknown non-file routes render the shell.
-            path = dist / "index.html"
-        content_type = _UI_CONTENT_TYPES.get(
-            path.suffix.lower(), "application/octet-stream"
-        )
-        try:
-            body = path.read_bytes()
-        except OSError:
-            return False
-        self.send_response(HTTPStatus.OK)
-        self._security_headers()
-        self.send_header("Content-Type", content_type)
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-        return True
+            raise WorkbenchError(str(exc)) from exc
 
     def _asset(self, filename: str, content_type: str) -> None:
         path = _ASSET_ROOT / filename
@@ -521,7 +461,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     server = WorkbenchServer(
         (args.host, args.port), state_root=state_root, evidence_root=args.evidence_root
     )
-    print(f"VerdiWM workbench: http://{args.host}:{server.server_port}", flush=True)
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.getLogger(__name__).info("VerdiWM workbench: http://%s:%s; access token file: %s", args.host, server.server_port, server.auth_token_path)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

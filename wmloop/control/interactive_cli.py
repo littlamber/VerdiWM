@@ -62,6 +62,8 @@ COMMANDS: tuple[InteractiveCommand, ...] = (
     InteractiveCommand("doctor", (), "检查 Verdi 本地安装", "/doctor"),
     InteractiveCommand("llm", ("api", "provider"), "配置或检查研究 LLM API", "/llm [status]"),
     InteractiveCommand("diagnose", (), "只读诊断模型项目", "/diagnose"),
+    InteractiveCommand("evaluate-irg", ("irg",), "比较 IRG 与基线 selector 的外层回放结果", "/evaluate-irg --plan ..."),
+    InteractiveCommand("evaluate-predictor", ("predictor",), "回放修复收益预测与支持度判断", "/evaluate-predictor --examples ... --plan ..."),
     InteractiveCommand("evaluator", ("eval",), "发现并查看评测候选（需确认后才能冻结）", "/evaluator discover --source-root PATH"),
     InteractiveCommand("setup", ("configure",), "首次接入模型、数据和目标", "/setup"),
     InteractiveCommand("guide", (), "生成模型接入问卷", "/guide"),
@@ -210,7 +212,10 @@ def _next_step(
         if campaign.get("status") in {"queued", "running"}:
             return "IN PROGRESS", "/progress"
     if plan_path is not None and plan_path.is_file():
-        return "PLAN READY", "/run"
+        payload, _ = _plan_summary(plan_path)
+        if payload is not None and payload.get("state") in {"ready", "ready_with_deferred_discovery"}:
+            return "PLAN READY", "/run"
+        return "PLAN BLOCKED", "/check"
     return "READY", "/start"
 
 
@@ -539,7 +544,9 @@ def _render_recent(
     if active:
         stdout.write(theme.accent(f"  Next     /progress {active.get('campaign_id')}\n"))
     elif plan_path.is_file():
-        stdout.write(theme.accent("  Next     /run\n"))
+        payload, _ = _plan_summary(plan_path)
+        command = "/run" if payload is not None and payload.get("state") in {"ready", "ready_with_deferred_discovery"} else "/check；补齐后 /plan"
+        stdout.write(theme.accent(f"  Next     {command}\n"))
     elif config and config.get("goal"):
         stdout.write(theme.accent("  Next     /plan\n"))
     else:
@@ -766,6 +773,10 @@ def _dispatch_slash(
         "check": ["check", *args],
         "status": ["status", *args],
         "diagnose": ["diagnose", *args],
+        "evaluate-irg": ["research", "evaluate-irg", *args],
+        "irg": ["research", "evaluate-irg", *args],
+        "evaluate-predictor": ["research", "evaluate-predictor", *args],
+        "predictor": ["research", "evaluate-predictor", *args],
         "setup": ["setup", *args],
         "init": ["init", *args],
         "plan": ["research", "plan", *args],
@@ -996,7 +1007,7 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
             except EOFError:
                 stdout.write("\n" + theme.muted("  已退出 Verdi。\n"))
                 return 0
-            if line == "":
+            if line == "" and not use_builtin_input:
                 stdout.write("\n" + theme.muted("  已退出 Verdi。\n"))
                 return 0
             text = line.strip()

@@ -20,12 +20,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
+from wmloop.runtime_env import default_lock_root
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.execute.autonomous_pipeline import (
     AutonomousPipelineOptions,
     run_autonomous_pipeline,
 )
 from wmloop.execute.gpu_lease import GpuLeaseError
+from wmloop.storage import canonical_json_bytes, sha256_bytes
 
 
 class PipelineDaemonError(RuntimeError):
@@ -466,20 +468,11 @@ def _write_json(path: Path, value: Mapping[str, object]) -> None:
 
 
 def _canonical_json(value: object) -> bytes:
-    return (
-        json.dumps(
-            value,
-            allow_nan=False,
-            ensure_ascii=True,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        + "\n"
-    ).encode("utf-8")
+    return canonical_json_bytes(value)
 
 
 def _sha256(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
+    return sha256_bytes(payload)
 
 
 def _paths_overlap(first: Path, second: Path) -> bool:
@@ -536,7 +529,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--archive-db", type=Path)
     parser.add_argument("--cas-root", type=Path)
     parser.add_argument(
-        "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
+        "--lock-root", type=Path, default=default_lock_root()
     )
     parser.add_argument("--budget-db", type=Path)
     parser.add_argument("--budget-total-gpu-hours", type=float)

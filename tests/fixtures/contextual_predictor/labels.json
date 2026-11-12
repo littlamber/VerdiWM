@@ -1,0 +1,9 @@
+{
+  "fixture_only": true,
+  "labels": [
+    {"environment": "target-plus", "primitive": "p", "settled": true, "positive": true, "delta_candidate_minus_baseline": 0.75},
+    {"environment": "target-plus", "primitive": "n", "settled": true, "positive": false, "delta_candidate_minus_baseline": -0.75},
+    {"environment": "target-minus", "primitive": "p", "settled": true, "positive": false, "delta_candidate_minus_baseline": -0.75},
+    {"environment": "target-minus", "primitive": "n", "settled": true, "positive": true, "delta_candidate_minus_baseline": 0.75}
+  ]
+}

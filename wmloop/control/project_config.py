@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from wmloop.runtime_env import runtime_python_path
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
@@ -56,7 +58,7 @@ def load_project_config(*, cwd: Path | None = None) -> ProjectConfig:
         return ProjectConfig(source=None, values={})
     try:
         payload = tomllib.loads(source.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError) as exc:
         raise ProjectConfigError("PROJECT_CONFIG_INVALID") from exc
     project = payload.get("project", payload)
     if not isinstance(project, Mapping):
@@ -65,13 +67,42 @@ def load_project_config(*, cwd: Path | None = None) -> ProjectConfig:
     if unknown:
         raise ProjectConfigError(f"PROJECT_CONFIG_KEY_UNKNOWN:{','.join(unknown)}")
     values = dict(project)
+    _validate_values(values)
     for key in _PATH_KEYS.intersection(values):
         value = values[key]
         if not isinstance(value, str) or not value.strip():
             raise ProjectConfigError(f"PROJECT_CONFIG_VALUE_INVALID:{key}")
         path = Path(value).expanduser()
-        values[key] = str((path if path.is_absolute() else source.parent / path).resolve())
+        candidate = path if path.is_absolute() else source.parent / path
+        # Resolving bin/python symlinks switches a virtualenv to its base Python.
+        values[key] = str(runtime_python_path(candidate) if key == "runtime_python" else candidate.resolve())
     return ProjectConfig(source=source, values=values)
+
+
+def _validate_values(values: Mapping[str, Any]) -> None:
+    """Reject mistyped user configuration before command-specific processing."""
+    for key in (_PATH_KEYS | {"goal", "adapter", "campaign_id", "mode"}).intersection(values):
+        if not isinstance(values[key], str) or not values[key].strip():
+            raise ProjectConfigError(f"PROJECT_CONFIG_VALUE_INVALID:{key}")
+    for key in {"metric", "metrics", "target_metrics"}.intersection(values):
+        value = values[key]
+        items = [value] if isinstance(value, str) else value
+        if not isinstance(items, list) or any(not isinstance(item, str) or not item.strip() for item in items):
+            raise ProjectConfigError(f"PROJECT_CONFIG_VALUE_INVALID:{key}")
+    if "mode" in values:
+        from wmloop.control.research_modes import ResearchModeError, normalize_research_mode
+
+        try:
+            normalize_research_mode(values["mode"])
+        except ResearchModeError as exc:
+            raise ProjectConfigError("PROJECT_CONFIG_VALUE_INVALID:mode") from exc
+    if "budget" in values:
+        from wmloop.control.adapter_profiles import AdapterProfileError, parse_gpu_budget
+
+        try:
+            parse_gpu_budget(values["budget"])
+        except AdapterProfileError as exc:
+            raise ProjectConfigError("PROJECT_CONFIG_VALUE_INVALID:budget") from exc
 
 
 def find_project_config(*, cwd: Path | None = None) -> Path | None:

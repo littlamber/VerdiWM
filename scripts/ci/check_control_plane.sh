@@ -1,70 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO_ROOT"
+export UV_OFFLINE="${UV_OFFLINE:-1}"
+test -f uv.lock
+test -f pyproject.toml
+uv lock --check
+
 build_dir="$(mktemp -d)"
 trap 'rm -rf "$build_dir"' EXIT
 
+# Keep the source tree predictable before spending time on wheel checks.
+uv run --offline --frozen --no-sync python scripts/ci/check_repository_layout.py
+
 # Validate the public wheel contract rather than files from the private
 # development checkout.
-uv build --wheel --out-dir "$build_dir"
+uv run --frozen --no-sync python -m scripts.export.build_github_staging --source-root . --output-root "$build_dir/source" --include-untracked --report "$build_dir/source_report.json"
+uv build --wheel --sdist --out-dir "$build_dir" "$build_dir/source"
 wheel_path="$(find "$build_dir" -maxdepth 1 -type f -name 'verdiwm-*.whl' -print -quit)"
 test -n "$wheel_path"
-python - "$wheel_path" <<'PY'
-import sys
-import zipfile
+sdist_path="$(find "$build_dir" -maxdepth 1 -type f -name 'verdiwm-*.tar.gz' -print -quit)"
+test -n "$sdist_path"
+uv run --frozen --no-sync python -m scripts.ci.check_release_archives "$wheel_path" "$sdist_path" --report "$build_dir/archive_report.json"
 
-names = set(zipfile.ZipFile(sys.argv[1]).namelist())
-required = {
-    "wmloop/__init__.py",
-    "wmloop/cli.py",
-    "wmloop/control/workbench.py",
-    "wmloop/control/research_state.py",
-    "wmloop/control/mechanism_hypothesis.py",
-    "wmloop/control/method_realization.py",
-    "wmloop/control/open_method_study.py",
-    "wmloop/control/open_method_generation.py",
-    "wmloop/execute/open_method_runtime.py",
-    "wmloop/execute/open_method_study_runner.py",
-    "wmloop/control/method_calibration.py",
-    "configs/schemas/research_state.schema.json",
-    "configs/schemas/mechanism_hypothesis.schema.json",
-    "configs/schemas/method_implementation_validation.schema.json",
-    "configs/schemas/open_method_composition.schema.json",
-    "configs/schemas/open_method_evaluation.schema.json",
-    "configs/schemas/open_method_study_execution.schema.json",
-    "configs/schemas/open_method_verifier.schema.json",
-    "wmloop/control/onboarding.py",
-    "wmloop/execute/autonomous_pipeline.py",
-    "wmloop/execute/experiment_scheduler.py",
-    "wmloop/experiments/community_bundle.py",
-    "wmloop/experiments/community_export.py",
-    "configs/schemas/goal_spec.schema.json",
-    "configs/schemas/adapter_profile.schema.json",
-    "configs/schemas/model_batch_request.schema.json",
-    "configs/schemas/model_batch_plan.schema.json",
-    "configs/schemas/model_batch_execution.schema.json",
-    "configs/schemas/model_batch_status.schema.json",
-    "configs/schemas/community_bundle.schema.json",
-    "configs/schemas/community_bundle_signature.schema.json",
-    "configs/schemas/community_export.schema.json",
-    "configs/schemas/settled_evidence.schema.json",
-    "wmloop/archive/community_projection.py",
-    "wmloop/control/campaign_repository.py",
-    "configs/retrieval/mechanism_tag_ontology_v1.json",
-}
-missing = sorted(required - names)
-if missing:
-    raise SystemExit(f"wheel is missing public files: {missing}")
-PY
-
-python scripts/ci/check_installed_wheel.py "$wheel_path"
+uv run --frozen --no-sync python scripts/ci/check_installed_wheel.py "$wheel_path" --report "$build_dir/install_locked.json"
+uv run --frozen --no-sync python scripts/ci/check_installed_wheel.py "$wheel_path" --dependency-mode resolved --report "$build_dir/install_resolved.json"
 
 # Compile every Python file that is actually present in the public tree.
 mapfile -d '' python_files < <(find wmloop experiments scripts -type f -name '*.py' -print0)
-uv run python -m py_compile "${python_files[@]}"
+uv run --frozen --no-sync python -m py_compile "${python_files[@]}"
 
 # Run the tests shipped in this release.
-uv run pytest -q tests
+(
+  cd "$build_dir/source"
+  export UV_PROJECT_ENVIRONMENT="$build_dir/test-env"
+  uv sync --frozen --group dev
+  uv run --frozen --no-sync pytest -q tests --junitxml="$build_dir/pytest.xml"
+)
 
-uv run python scripts/export/validate_portrait_first_public_example.py \
+uv run --frozen --no-sync python scripts/export/validate_portrait_first_public_example.py \
   examples/portrait_first_minimal_loop_v1 >/dev/null
+
+if [[ -n "${VERDIWM_RELEASE_OUTPUT:-}" ]]; then
+  uv run --frozen --no-sync python -m scripts.export.build_release_delivery --build-dir "$build_dir" --output-dir "$VERDIWM_RELEASE_OUTPUT"
+fi

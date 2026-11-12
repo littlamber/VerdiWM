@@ -3,18 +3,14 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
-import os
-import re
-from dataclasses import dataclass
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from wmloop.contracts import ContractValidationError, validate_document
-from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
+from wmloop.contracts import validate_document
+from wmloop.control.method_candidate_compiler import MethodCandidateCompilerError
 from wmloop.control.onboarding import (
     OnboardingError,
     OnboardingOptions,
@@ -27,14 +23,13 @@ from wmloop.control.onboarding_compiler import (
     OnboardingCompilerError,
     compile_and_plan,
 )
-from wmloop.control.method_candidate_compiler import MethodCandidateCompilerError
-from wmloop.control.research_state import ResearchJournal, build_research_state
-from wmloop.control.research_modes import ResearchModeError, normalize_research_mode
 from wmloop.control.onboarding_conformance import (
     ConformanceOptions,
     ModelConformanceError,
     run_conformance,
 )
+from wmloop.control.research_modes import ResearchModeError, normalize_research_mode
+from wmloop.control.research_state import ResearchJournal
 from wmloop.diagnose.probe_campaign import DiagnosticProbeError, run_diagnostic_probe
 from wmloop.execute.auto_experiment import AutoExperimentError
 from wmloop.execute.experiment_scheduler import (
@@ -46,21 +41,55 @@ from wmloop.execute.literature_materialization import (
     LiteratureMaterializationError,
     run_literature_method_materialization,
 )
+from wmloop.execute.pipeline.budget import (
+    _pipeline_budget_total as _pipeline_budget_total,
+)
+from wmloop.execute.pipeline.catalog import (
+    _candidate_asset_parameters as _candidate_asset_parameters,
+    _merge_method_catalogs as _merge_method_catalogs,
+)
+from wmloop.execute.pipeline.io import (
+    _canonical_json as _canonical_json,
+    _load_json as _load_json,
+    _optional_file as _optional_file,
+    _overlaps as _overlaps,
+    _resolved as _resolved,
+    _sha256 as _sha256,
+    _write_json_atomic as _write_json_atomic,
+)
+from wmloop.execute.pipeline.journal import (
+    _execution_evidence_refs as _execution_evidence_refs,
+    _initial_research_state as _initial_research_state,
+    _scheduler_template_path as _scheduler_template_path,
+)
+from wmloop.execute.pipeline.policy import (
+    _nondefault_resource_policy as _nondefault_resource_policy,
+)
+from wmloop.execute.pipeline.retrieval import (
+    _runtime_retrieval_manifest as _runtime_retrieval_manifest,
+    build_irg_context,
+    build_literature_query,
+)
+from wmloop.execute.pipeline.state import (
+    _bind_output_root as _bind_output_root,
+    _manifest as _manifest,
+    _settle_pipeline as _settle_pipeline,
+)
+from wmloop.execute.pipeline.types import (
+    AutonomousPipelineError as AutonomousPipelineError,
+    AutonomousPipelineOptions as AutonomousPipelineOptions,
+)
 from wmloop.experiments.cpbe import CPBEError, publish_cpbe_plan
 from wmloop.experiments.cpbe_materializer import (
     CPBEMaterializerError,
     publish_cpbe_materialization,
-)
-from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
-from wmloop.retrieve.irg_guided_discovery import (
-    IRGDiscoveryError,
-    build_irg_discovery_request,
 )
 from wmloop.retrieve.evidence_capsule import (
     EvidenceCapsuleError,
     build_evidence_capsule,
     write_evidence_capsule,
 )
+from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experiences
 from wmloop.retrieve.literature import (
     LiteratureRetrievalError,
     run_literature_retrieval,
@@ -70,46 +99,8 @@ from wmloop.retrieve.method_staging import (
     run_literature_method_prompt_batch,
     run_literature_method_staging,
 )
-
-
-class AutonomousPipelineError(RuntimeError):
-    """The immutable pipeline inputs or output root are invalid."""
-
-
-@dataclass(frozen=True)
-class AutonomousPipelineOptions:
-    """Inputs for one resumable external-model experiment transaction."""
-
-    repo_root: Path
-    output_root: Path
-    evaluator_contract: Path
-    runtime_python: Path | None = None
-    asset_bindings: tuple[tuple[str, Path], ...] = ()
-    adapter_asset_parameters: tuple[str, ...] = ()
-    adapter_contract_ready: bool = False
-    probe_imports: bool = True
-    max_files: int = 20_000
-    conformance_timeout_seconds: float = 30.0
-    archive_db: Path | None = None
-    cas_root: Path | None = None
-    lock_root: Path = Path("/tmp/verdiwm-gpu-leases")
-    budget_db: Path | None = None
-    budget_total_gpu_hours: float | None = None
-    budget_max_trial_gpu_hours: float = 120.0
-    budget_high_trial_limit: int = 2
-    budget_require_high_cost_approval: bool = True
-    probe_contract: Path | None = None
-    retrieval_db: Path | None = None
-    literature_query: str | None = None
-    literature_max_results: int = 8
-    literature_timeout_seconds: float = 10.0
-    candidate_catalog: Path | None = None
-    settlement_manifest: Path | None = None
-    research_mode: str | None = None
-    cpbe_request: Path | None = None
-    cpbe_history: Path | None = None
-    model_irg_path: Path | None = None
-    irg_protected_metrics: tuple[str, ...] = ()
+from wmloop.runtime_env import default_lock_root
+from wmloop.storage import checked_path, exclusive_file_lock
 
 
 def run_autonomous_pipeline(
@@ -117,7 +108,9 @@ def run_autonomous_pipeline(
 ) -> dict[str, object]:
     """Run one writer per output root, regardless of CLI or daemon entry point."""
     destination = checked_path(
-        options.output_root, code="AUTONOMOUS_PIPELINE_OUTPUT_INVALID", error=AutonomousPipelineError,
+        options.output_root,
+        code="AUTONOMOUS_PIPELINE_OUTPUT_INVALID",
+        error=AutonomousPipelineError,
     )
     repo = Path(options.repo_root).expanduser().resolve()
     if _overlaps(destination, repo):
@@ -125,12 +118,16 @@ def run_autonomous_pipeline(
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     # The lock lives beside the output so acquiring it does not create an
     # unbound output directory. Never unlink it: concurrent callers share its inode.
-    lock = destination.parent / (".verdiwm-pipeline-" + _sha256(str(destination).encode())[:24] + ".lock")
+    lock = destination.parent / (
+        ".verdiwm-pipeline-" + _sha256(str(destination).encode())[:24] + ".lock"
+    )
     with ExitStack() as stack:
         try:
             stack.enter_context(exclusive_file_lock(lock, blocking=False))
         except BlockingIOError as exc:
-            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_ALREADY_RUNNING") from exc
+            raise AutonomousPipelineError(
+                "AUTONOMOUS_PIPELINE_ALREADY_RUNNING"
+            ) from exc
         return _run_autonomous_pipeline(options)
 
 
@@ -263,20 +260,32 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
     compiled = destination / "compiled"
     cpbe_root = destination / "causal-discovery"
     journal = ResearchJournal.open_or_create(
-        destination / "research", input_hash=input_hash,
-        initial=_initial_research_state(evaluator, budget_total_gpu_hours, model_irg_path),
+        destination / "research",
+        input_hash=input_hash,
+        initial=_initial_research_state(
+            evaluator, budget_total_gpu_hours, model_irg_path
+        ),
     )
     current = journal.read()
     if current["phase"] == "settled":
-        manifest = _load_json(destination / "pipeline-manifest.json", "AUTONOMOUS_PIPELINE_MANIFEST_INVALID")
+        manifest = _load_json(
+            destination / "pipeline-manifest.json",
+            "AUTONOMOUS_PIPELINE_MANIFEST_INVALID",
+        )
         validate_document("autonomous_pipeline_manifest", manifest)
         if manifest["input_hash"] != input_hash or manifest["state"] != "settled":
-            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_RESEARCH_SETTLEMENT_MISMATCH")
+            raise AutonomousPipelineError(
+                "AUTONOMOUS_PIPELINE_RESEARCH_SETTLEMENT_MISMATCH"
+            )
         return manifest
     if current["phase"] != "observe":
         if current["phase"] != "blocked":
-            journal.advance("blocked", "Previous pipeline attempt interrupted before settlement.")
-        journal.advance("observe", "Resume bound inputs and existing experiment receipts.")
+            journal.advance(
+                "blocked", "Previous pipeline attempt interrupted before settlement."
+            )
+        journal.advance(
+            "observe", "Resume bound inputs and existing experiment receipts."
+        )
     stage = "onboarding"
     try:
         if sidecar.exists() or sidecar.is_symlink():
@@ -333,42 +342,14 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
         irg_failure_signatures: tuple[str, ...] = ()
         irg_model_family: str | None = None
         irg_guided_context: dict[str, object] | None = None
-        if model_irg_path is not None:
-            try:
-                irg_payload = _load_json(
-                    model_irg_path, "AUTONOMOUS_PIPELINE_MODEL_IRG_INVALID"
-                )
-                irg_request, irg_plan = build_irg_discovery_request(
-                    irg_payload,
-                    protected_metrics=options.irg_protected_metrics,
-                )
-            except (
-                IRGDiscoveryError,
-                OSError,
-                ValueError,
-                json.JSONDecodeError,
-            ) as exc:
-                raise AutonomousPipelineError(
-                    f"AUTONOMOUS_PIPELINE_IRG_DISCOVERY_INVALID:{exc}"
-                ) from exc
-            irg_guided_context = {
-                "state": "planned",
-                "model_irg_path": str(model_irg_path),
-                "request": {
-                    "symptom_description": irg_request.symptom_description,
-                    "failure_signatures": list(irg_request.failure_signatures),
-                    "target_metrics": list(irg_request.target_metrics),
-                    "protected_metrics": list(irg_request.protected_metrics),
-                    "available_hooks": list(irg_request.available_hooks),
-                    "model_family": irg_request.model_family,
-                    "cross_domain_lenses": list(irg_request.cross_domain_lenses),
-                },
-                "plan": irg_plan,
-                "authority": "shadow_only",
-            }
+        irg_guided_context, irg_failure_signatures, irg_model_family = (
+            build_irg_context(
+                model_irg_path,
+                options.irg_protected_metrics,
+            )
+        )
+        if irg_guided_context is not None:
             retrieval_context["irg_guided"] = irg_guided_context
-            irg_failure_signatures = tuple(irg_request.failure_signatures)
-            irg_model_family = irg_request.model_family
         literature_manifest: dict[str, object] | None = None
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
@@ -450,53 +431,17 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
         retrieval_context["capsule"] = capsule
         retrieval_context["capsule_path"] = str(capsule_path)
         journal.advance(
-            "hypothesize", "Diagnostic observations and retrieval evidence are available; causes remain hypotheses.",
+            "hypothesize",
+            "Diagnostic observations and retrieval evidence are available; causes remain hypotheses.",
             evidence_refs=[*journal.read()["evidence_refs"], str(capsule_path)],
         )
-        literature_query = options.literature_query
-        irg_guided = retrieval_context.get("irg_guided")
-        if isinstance(irg_guided, Mapping):
-            request_payload = irg_guided.get("request")
-            if isinstance(request_payload, Mapping):
-                lenses = request_payload.get("cross_domain_lenses", ())
-                failures = request_payload.get("failure_signatures", ())
-                literature_query = " ".join(
-                    str(value)
-                    for value in (
-                        literature_query,
-                        request_payload.get("model_family"),
-                        *(lenses if isinstance(lenses, (list, tuple)) else ()),
-                        *(failures if isinstance(failures, (list, tuple)) else ()),
-                    )
-                    if value
-                )
-        if (
-            literature_query is None
-            and probe_manifest is not None
-            and retrieval_context.get("state") == "cold_start"
-        ):
-            probe_signatures = " ".join(
-                str(value).replace("_", " ")
-                for value in probe_manifest.get("failure_signatures", [])
-                if isinstance(value, str)
-            )
-            irg_signatures = " ".join(
-                value.replace("_", " ") for value in irg_failure_signatures
-            )
-            literature_query = " ".join(
-                value
-                for value in (
-                    str(
-                        probe_manifest.get("model_family")
-                        or irg_model_family
-                        or "world model"
-                    ),
-                    "world model",
-                    probe_signatures,
-                    irg_signatures,
-                )
-                if value
-            )
+        literature_query = build_literature_query(
+            explicit_query=options.literature_query,
+            retrieval_context=retrieval_context,
+            probe_manifest=probe_manifest,
+            irg_failure_signatures=irg_failure_signatures,
+            irg_model_family=irg_model_family,
+        )
         if literature_query and research_mode != "causal_discovery":
             stage = "literature_retrieval"
             literature_manifest = run_literature_retrieval(
@@ -626,7 +571,10 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                     cpbe=cpbe_manifest,
                 )
 
-        journal.advance("select", "Compile implementable candidates under the bound evaluator and budget.")
+        journal.advance(
+            "select",
+            "Compile implementable candidates under the bound evaluator and budget.",
+        )
         stage = "compilation"
         compilation_manifest = compile_and_plan(
             sidecar_root=sidecar,
@@ -664,8 +612,13 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
 
         queue = _load_json(queue_path, "AUTONOMOUS_PIPELINE_QUEUE_INVALID")
         journal.advance(
-            "implement", "Execute the selected candidate plans; interface checks do not establish repair effects.",
-            candidate_actions=[dict(row) for row in queue.get("selected", []) if isinstance(row, Mapping)],
+            "implement",
+            "Execute the selected candidate plans; interface checks do not establish repair effects.",
+            candidate_actions=[
+                dict(row)
+                for row in queue.get("selected", [])
+                if isinstance(row, Mapping)
+            ],
         )
         stage = "execution"
         execution = run_selected_queue(
@@ -682,7 +635,10 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                 options.budget_require_high_cost_approval
             ),
         )
-        journal.advance("verify", "Inspect scheduler completion; scientific effects remain governed by frozen trial verdicts.")
+        journal.advance(
+            "verify",
+            "Inspect scheduler completion; scientific effects remain governed by frozen trial verdicts.",
+        )
         candidate_states = execution.get("candidate_states")
         passed = (
             isinstance(candidate_states, Mapping)
@@ -690,7 +646,8 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             and all(value == "completed" for value in candidate_states.values())
         )
         journal.advance(
-            "remember", "Retain all available execution outcomes, including blocked candidates; no positive effect is inferred.",
+            "remember",
+            "Retain all available execution outcomes, including blocked candidates; no positive effect is inferred.",
             evidence_refs=_execution_evidence_refs(journal, compiled),
         )
         return _settle_pipeline(
@@ -715,7 +672,8 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
     except Exception as exc:
         if journal.read()["phase"] not in {"blocked", "settled"}:
             journal.advance(
-                "blocked", f"Pipeline interrupted at {stage}: {type(exc).__name__}",
+                "blocked",
+                f"Pipeline interrupted at {stage}: {type(exc).__name__}",
                 evidence_refs=_execution_evidence_refs(journal, compiled),
             )
         _write_json_atomic(
@@ -730,129 +688,6 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             ),
         )
         raise
-
-
-def _execution_evidence_refs(journal: ResearchJournal, compiled: Path) -> list[str]:
-    refs = list(journal.read()["evidence_refs"])
-    path = compiled / "queue" / "execution.json"
-    if path.is_file() and not path.is_symlink():
-        # Snapshot the mutable resume projection so a retry cannot overwrite
-        # the evidence seen by an earlier decision. Individual verdict receipts
-        # remain authoritative for scientific conclusions.
-        # Preserve even an incomplete/corrupt execution file on an error path;
-        # parsing it here could mask the original executor failure.
-        payload = path.read_bytes()
-        digest = _sha256(payload)
-        snapshot = checked_path(
-            journal.root / "execution-snapshots" / f"{digest}.json",
-            code="AUTONOMOUS_PIPELINE_SNAPSHOT_PATH_INVALID", error=AutonomousPipelineError,
-        )
-        atomic_write(snapshot, payload)
-        refs.append(str(snapshot))
-    return list(dict.fromkeys(refs))
-
-
-def _scheduler_template_path(evaluator: Path) -> Path:
-    contract = _load_json(evaluator, "AUTONOMOUS_PIPELINE_EVALUATOR_INVALID")
-    raw = contract.get("scheduler_template")
-    if not isinstance(raw, str) or not raw:
-        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_TEMPLATE_INVALID")
-    path = Path(raw)
-    if not path.is_absolute():
-        path = evaluator.parent / path
-    return checked_path(path, code="AUTONOMOUS_PIPELINE_TEMPLATE_INVALID", error=AutonomousPipelineError)
-
-
-def _initial_research_state(evaluator: Path, budget: float, irg: Path | None) -> dict:
-    contract = _load_json(evaluator, "AUTONOMOUS_PIPELINE_EVALUATOR_INVALID")
-    template_path = _scheduler_template_path(evaluator)
-    template = _load_json(template_path, "AUTONOMOUS_PIPELINE_TEMPLATE_INVALID")
-    metrics = contract.get("metrics", [])
-    names = list(metrics) if isinstance(metrics, Mapping) else [
-        row if isinstance(row, str) else str(row.get("name") or row.get("metric_id") or "")
-        for row in metrics if isinstance(row, (str, Mapping))
-    ]
-    return build_research_state(
-        goal=str(template["objective"]), metrics=[name for name in names if name],
-        budget_gpu_hours=budget, irg_ref=str(irg) if irg is not None else None,
-        evidence_refs=[str(evaluator)],
-        stop_conditions=[str(template["falsification_criterion"])],
-    )
-
-
-def _pipeline_budget_total(
-    *,
-    evaluator: Path,
-    probe_contract: Path | None,
-    override: float | None,
-) -> float:
-    if override is not None:
-        if not math.isfinite(override) or override <= 0:
-            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_BUDGET_TOTAL_INVALID")
-        return float(override)
-    evaluator_payload = _load_json(
-        evaluator, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
-    )
-    template_value = evaluator_payload.get("scheduler_template")
-    if not isinstance(template_value, str) or not template_value:
-        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID")
-    template_path = Path(template_value)
-    template_path = (
-        template_path.resolve()
-        if template_path.is_absolute()
-        else (evaluator.parent / template_path).resolve()
-    )
-    template = _load_json(template_path, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID")
-    try:
-        validate_document("auto_experiment_candidate_batch", template)
-    except ContractValidationError as exc:
-        raise AutonomousPipelineError(
-            "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
-        ) from exc
-    total = float(template["total_budget_gpu_hours"])
-    if probe_contract is not None:
-        probe = _load_json(
-            probe_contract, "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
-        )
-        try:
-            validate_document("diagnostic_probe_contract", probe)
-        except ContractValidationError as exc:
-            raise AutonomousPipelineError(
-                "AUTONOMOUS_PIPELINE_BUDGET_CONTRACT_INVALID"
-            ) from exc
-        total += float(probe["estimated_gpu_hours"])
-    if not math.isfinite(total) or total <= 0:
-        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_BUDGET_TOTAL_INVALID")
-    return total
-
-
-def _runtime_retrieval_manifest(
-    retrieval: Mapping[str, object],
-) -> dict[str, object]:
-    """Expose the bounded runtime projection in the top-level manifest.
-
-    Compilation still receives the full in-memory retrieval context so exact
-    candidate provenance is retained in the compiled batch. The resumable
-    pipeline manifest carries the capsule instead of duplicating every row.
-    """
-
-    capsule = retrieval.get("capsule")
-    if not isinstance(capsule, Mapping):
-        return dict(retrieval)
-    return {
-        "state": retrieval.get("state"),
-        "query": (
-            dict(capsule.get("query", {}))
-            if isinstance(capsule.get("query"), Mapping)
-            else {}
-        ),
-        "match_count": capsule.get("match_count", 0),
-        "route": capsule.get("route"),
-        "capsule": dict(capsule),
-        "capsule_path": retrieval.get("capsule_path"),
-        "index_path": retrieval.get("index_path"),
-        "irg_guided": retrieval.get("irg_guided"),
-    }
 
 
 def _input_document(
@@ -916,7 +751,9 @@ def _input_document(
         "runtime_python": runtime,
         "evaluator_contract": str(evaluator),
         "evaluator_sha256": _sha256(evaluator.read_bytes()),
-        "scheduler_template_sha256": _sha256(_scheduler_template_path(evaluator).read_bytes()),
+        "scheduler_template_sha256": _sha256(
+            _scheduler_template_path(evaluator).read_bytes()
+        ),
         "adapter_contract_ready": options.adapter_contract_ready,
         "asset_bindings": sorted(bindings, key=lambda row: row["parameter"]),
         "adapter_asset_parameters": sorted(
@@ -975,272 +812,6 @@ def _input_document(
     }
 
 
-def _nondefault_resource_policy(
-    options: AutonomousPipelineOptions,
-) -> dict[str, object]:
-    if (
-        options.budget_max_trial_gpu_hours == 120.0
-        and options.budget_high_trial_limit == 2
-        and options.budget_require_high_cost_approval
-    ):
-        return {}
-    return {
-        "resource_policy": {
-            "max_trial_gpu_hours": options.budget_max_trial_gpu_hours,
-            "high_trial_limit": options.budget_high_trial_limit,
-            "require_high_cost_approval": (options.budget_require_high_cost_approval),
-        }
-    }
-
-
-def _bind_output_root(
-    destination: Path,
-    *,
-    input_document: Mapping[str, object],
-    input_hash: str,
-) -> None:
-    lock_path = destination / "pipeline-input.lock.json"
-    if destination.exists() or destination.is_symlink():
-        if destination.is_symlink() or not destination.is_dir():
-            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_OUTPUT_INVALID")
-        lock = _load_json(lock_path, "AUTONOMOUS_PIPELINE_INPUT_LOCK_INVALID")
-        if lock.get("input_hash") != input_hash or lock.get("input") != input_document:
-            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_INPUT_MISMATCH")
-        return
-    destination.mkdir(mode=0o700, parents=True)
-    _write_json_atomic(
-        lock_path,
-        {
-            "schema_version": 1,
-            "artifact_type": "verdiwm-autonomous-pipeline-input-lock",
-            "input_hash": input_hash,
-            "input": dict(input_document),
-        },
-    )
-
-
-def _settle_pipeline(
-    destination: Path,
-    *,
-    input_hash: str,
-    journal: ResearchJournal | None = None,
-    state: str,
-    verdict: str,
-    blocked_stage: str | None,
-    candidate_states: Mapping[str, object] | None = None,
-    diagnostic_probe: Mapping[str, object] | None = None,
-    retrieval: Mapping[str, object] | None = None,
-    literature: Mapping[str, object] | None = None,
-    literature_methods: Mapping[str, object] | None = None,
-    literature_method_prompts: Mapping[str, object] | None = None,
-    literature_method_materialization: Mapping[str, object] | None = None,
-    method_candidates: Mapping[str, object] | None = None,
-    cpbe: Mapping[str, object] | None = None,
-) -> dict[str, object]:
-    manifest = _manifest(
-        destination,
-        input_hash=input_hash,
-        state=state,
-        verdict=verdict,
-        blocked_stage=blocked_stage,
-        candidate_states=candidate_states,
-        diagnostic_probe=diagnostic_probe,
-        retrieval=retrieval,
-        literature=literature,
-        literature_methods=literature_methods,
-        literature_method_prompts=literature_method_prompts,
-        literature_method_materialization=literature_method_materialization,
-        method_candidates=method_candidates,
-        cpbe=cpbe,
-    )
-    _write_json_atomic(destination / "pipeline-manifest.json", manifest)
-    if journal is not None:
-        journal.advance("settled" if state == "settled" else "blocked", f"Pipeline {state}: {blocked_stage or 'execution receipts retained'}.")
-    return manifest
-
-
-def _manifest(
-    destination: Path,
-    *,
-    input_hash: str,
-    state: str,
-    verdict: str | None,
-    blocked_stage: str | None,
-    candidate_states: Mapping[str, object] | None = None,
-    error: Mapping[str, str] | None = None,
-    diagnostic_probe: Mapping[str, object] | None = None,
-    retrieval: Mapping[str, object] | None = None,
-    literature: Mapping[str, object] | None = None,
-    literature_methods: Mapping[str, object] | None = None,
-    literature_method_prompts: Mapping[str, object] | None = None,
-    literature_method_materialization: Mapping[str, object] | None = None,
-    method_candidates: Mapping[str, object] | None = None,
-    cpbe: Mapping[str, object] | None = None,
-) -> dict[str, object]:
-    manifest = {
-        "schema_version": 1,
-        "artifact_type": "verdiwm-autonomous-pipeline-manifest",
-        "state": state,
-        "verdict": verdict,
-        "input_hash": input_hash,
-        "blocked_stage": blocked_stage,
-        "candidate_states": dict(candidate_states or {}),
-        "diagnostic_probe": (
-            dict(diagnostic_probe) if diagnostic_probe is not None else None
-        ),
-        "retrieval": dict(retrieval) if retrieval is not None else None,
-        "literature": dict(literature) if literature is not None else None,
-        "literature_methods": (
-            dict(literature_methods) if literature_methods is not None else None
-        ),
-        "literature_method_prompts": (
-            dict(literature_method_prompts)
-            if literature_method_prompts is not None
-            else None
-        ),
-        "literature_method_materialization": (
-            dict(literature_method_materialization)
-            if literature_method_materialization is not None
-            else None
-        ),
-        "method_candidates": (
-            dict(method_candidates) if method_candidates is not None else None
-        ),
-        "cpbe": dict(cpbe) if cpbe is not None else None,
-        "paths": {
-            "research_state": str(destination / "research" / "research-state.json"),
-            "onboarding": str(destination / "onboarding" / "manifest.json"),
-            "conformance": str(destination / "conformance" / "manifest.json"),
-            "compilation": str(destination / "compiled" / "manifest.json"),
-            "queue_execution": str(
-                destination / "compiled" / "queue" / "execution.json"
-            ),
-        },
-        "error": dict(error) if error is not None else None,
-        "claim_boundary": "A PASS proves the declared evaluator completed and settled under its frozen runtime contract; model-quality promotion remains evaluator-specific.",
-    }
-    try:
-        validate_document("autonomous_pipeline_manifest", manifest)
-    except ContractValidationError as exc:
-        raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_MANIFEST_INVALID") from exc
-    return manifest
-
-
-def _resolved(value: Path | None, default: Path) -> Path:
-    return Path(value if value is not None else default).expanduser().resolve()
-
-
-def _candidate_asset_parameters(catalog_path: Path | None) -> tuple[str, ...]:
-    if catalog_path is None:
-        return ()
-    catalog = _load_json(
-        catalog_path,
-        "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID",
-    )
-    try:
-        validate_document("method_candidate_catalog", catalog)
-    except ContractValidationError as exc:
-        raise AutonomousPipelineError(
-            "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID"
-        ) from exc
-
-    parameters: set[str] = set()
-
-    def visit(value: object) -> None:
-        if isinstance(value, Mapping):
-            for child in value.values():
-                visit(child)
-        elif isinstance(value, list):
-            for child in value:
-                visit(child)
-        elif isinstance(value, str):
-            parameters.update(
-                placeholder[len("{asset:") : -1]
-                for placeholder in re.findall(r"\{asset:--[A-Za-z0-9_-]+\}", value)
-            )
-
-    visit(catalog)
-    return tuple(sorted(parameters))
-
-
-def _merge_method_catalogs(first: Path, second: Path, destination: Path) -> Path:
-    """Append generated literature candidates without rewriting user input."""
-    left = _load_json(first, "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID")
-    right = _load_json(second, "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID")
-    candidates = [
-        *[row for row in left.get("candidates", []) if isinstance(row, Mapping)],
-        *[row for row in right.get("candidates", []) if isinstance(row, Mapping)],
-    ]
-    gaps = [
-        *[row for row in left.get("capability_gaps", []) if isinstance(row, Mapping)],
-        *[row for row in right.get("capability_gaps", []) if isinstance(row, Mapping)],
-    ]
-    merged = {
-        "schema_version": 1,
-        "artifact_type": "verdiwm-method-candidate-catalog",
-        "catalog_id": f"merged-{_sha256(first.read_bytes() + second.read_bytes())[:24]}",
-        "model_family": left.get("model_family")
-        or right.get("model_family")
-        or "world_model",
-        "candidates": candidates,
-        "capability_gaps": gaps,
-        "claim_boundary": "User-bound candidates and automatically materialized literature surrogates retain independent provenance and receipts.",
-    }
-    try:
-        validate_document("method_candidate_catalog", merged)
-    except ContractValidationError as exc:
-        raise AutonomousPipelineError(
-            "AUTONOMOUS_PIPELINE_CANDIDATE_CATALOG_INVALID"
-        ) from exc
-    _write_json_atomic(destination, merged)
-    return destination.resolve()
-
-
-def _optional_file(value: Path | None, code: str) -> Path | None:
-    if value is None:
-        return None
-    path = Path(value).expanduser().resolve()
-    if not path.is_file() or path.is_symlink():
-        raise AutonomousPipelineError(code)
-    return path
-
-
-def _overlaps(first: Path, second: Path) -> bool:
-    return first == second or first in second.parents or second in first.parents
-
-
-def _load_json(path: Path, code: str) -> dict[str, object]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise AutonomousPipelineError(code) from exc
-    if not isinstance(value, dict):
-        raise AutonomousPipelineError(code)
-    return value
-
-
-def _canonical_json(value: object) -> bytes:
-    return (
-        json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
-        + "\n"
-    ).encode("utf-8")
-
-
-def _sha256(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
-
-
-def _write_json_atomic(path: Path, value: Mapping[str, object]) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        temporary.write_bytes(_canonical_json(value))
-        os.replace(temporary, path)
-    finally:
-        if temporary.exists() or temporary.is_symlink():
-            temporary.unlink()
-
-
 def _parse_asset(value: str) -> tuple[str, Path]:
     parameter, separator, path = value.partition("=")
     if not separator or not parameter.strip() or not path.strip():
@@ -1262,9 +833,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--conformance-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--archive-db", type=Path)
     parser.add_argument("--cas-root", type=Path)
-    parser.add_argument(
-        "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
-    )
+    parser.add_argument("--lock-root", type=Path, default=default_lock_root())
     parser.add_argument("--budget-db", type=Path)
     parser.add_argument("--budget-total-gpu-hours", type=float)
     parser.add_argument("--budget-max-trial-gpu-hours", type=float, default=120.0)

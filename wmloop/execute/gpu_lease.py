@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from wmloop.runtime_env import default_lock_root
+
 if os.name == "nt":
     import msvcrt
 
@@ -99,7 +101,7 @@ class GpuLeaseManager:
     def __init__(
         self,
         *,
-        lock_root: Path = Path("/tmp/verdiwm-gpu-leases"),
+        lock_root: Path | None = None,
         memory_used_threshold_mib: int = 1024,
         utilization_threshold_percent: int = 10,
         snapshot_provider: SnapshotProvider | None = None,
@@ -108,7 +110,7 @@ class GpuLeaseManager:
             raise ValueError("GPU_LEASE_MEMORY_THRESHOLD_INVALID")
         if utilization_threshold_percent < 0 or utilization_threshold_percent > 100:
             raise ValueError("GPU_LEASE_UTILIZATION_THRESHOLD_INVALID")
-        self._lock_root = Path(lock_root).resolve()
+        self._lock_root = Path(lock_root if lock_root is not None else default_lock_root()).resolve()
         self._memory_threshold = memory_used_threshold_mib
         self._utilization_threshold = utilization_threshold_percent
         self._snapshot_provider = snapshot_provider or _query_snapshot

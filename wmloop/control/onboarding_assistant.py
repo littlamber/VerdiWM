@@ -8,12 +8,11 @@ keeps the answers explicit and requires confirmation before execution.
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
-from wmloop.control.first_contact import inspect_project
+from wmloop.control.first_contact import FirstContactError, inspect_project
+from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
 
 
 def build_onboarding_questionnaire(
@@ -153,7 +152,7 @@ def build_onboarding_questionnaire(
 
 def write_onboarding_questionnaire(path: Path, questionnaire: Mapping[str, object]) -> Path:
     """Write a questionnaire atomically, keeping it outside model source by policy."""
-    destination = Path(path).expanduser().resolve()
+    destination = checked_path(path, code="ONBOARDING_QUESTIONNAIRE_OUTPUT_INVALID", error=FirstContactError)
     project = questionnaire.get("project")
     model_root = (
         Path(str(project.get("model"))).expanduser().resolve()
@@ -161,17 +160,13 @@ def write_onboarding_questionnaire(path: Path, questionnaire: Mapping[str, objec
         else None
     )
     if model_root is not None and (destination == model_root or model_root in destination.parents):
-        raise ValueError("ONBOARDING_QUESTIONNAIRE_INSIDE_MODEL")
+        raise FirstContactError("ONBOARDING_QUESTIONNAIRE_INSIDE_MODEL")
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            json.dump(dict(questionnaire), handle, ensure_ascii=False, sort_keys=True, indent=2)
-            handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, destination)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    encoded = (json.dumps(dict(questionnaire), ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    with exclusive_file_lock(destination.with_name(f".{destination.name}.lock")):
+        if destination.exists():
+            if destination.is_file() and destination.read_bytes() == encoded:
+                return destination
+            raise FirstContactError("ONBOARDING_QUESTIONNAIRE_OUTPUT_CONFLICT:choose a new output path to preserve existing answers")
+        atomic_write(destination, encoded)
     return destination

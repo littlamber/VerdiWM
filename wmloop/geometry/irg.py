@@ -78,15 +78,27 @@ def estimate_response_chart(
     intervention_names = tuple(sorted(dose_observations))
     per_path_slopes: dict[str, tuple[Vector, ...]] = {}
     locality: dict[str, float] = {}
+    baseline_count = len(baseline)
     for name in intervention_names:
         if not name:
             raise GeometryValidationError("IRG_INTERVENTION_NAME_EMPTY")
         observations = _validate_dose_observations(dose_observations[name], len(names))
+        # Every dose must preserve the same paired seed/context rows as the
+        # zero-dose baseline.  Taking ``min`` inside the finite-difference
+        # helper would otherwise drop unmatched rows and change the estimate
+        # without leaving an audit signal.
+        if any(len(repeats) != baseline_count for repeats in observations.values()):
+            raise GeometryValidationError("IRG_PAIRED_REPEAT_COUNT_MISMATCH")
         slopes = _smallest_dose_slopes(observations, baseline)
+        if len(slopes) != baseline_count:
+            raise GeometryValidationError("IRG_PAIRED_REPEAT_COUNT_MISMATCH")
         per_path_slopes[name] = slopes
         locality[name] = _locality_residual(observations, baseline, slopes)
 
-    repeat_count = min(len(values) for values in per_path_slopes.values())
+    repeat_counts = {len(values) for values in per_path_slopes.values()}
+    if len(repeat_counts) != 1:
+        raise GeometryValidationError("IRG_PAIRED_REPEAT_COUNT_MISMATCH")
+    repeat_count = next(iter(repeat_counts))
     if repeat_count < 1:
         raise GeometryValidationError("IRG_PAIRED_REPEATS_EMPTY")
     repeat_jacobians = tuple(

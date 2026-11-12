@@ -1,5 +1,7 @@
 # VerdiWM
 
+工程和研究闭环约束见 [`AGENTS.md`](AGENTS.md)，论文方法到代码的映射见 [`docs/VERDI_METHOD_ENGINEERING.md`](docs/VERDI_METHOD_ENGINEERING.md)，项目目录地图见 [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md)。
+
 VerdiWM 是一个面向世界模型的意图驱动研究工作台：用户提供模型、数据和
 目标，系统负责解析适配器与评估契约，执行有边界的实验，并为每个决策保留
 可追溯证据。
@@ -12,13 +14,13 @@ VerdiWM 是一个面向世界模型的意图驱动研究工作台：用户提供
 
 ## 快速开始
 
-环境要求：Python 3.10 和 [uv](https://docs.astral.sh/uv/)。
+环境要求：Linux（或 WSL2）、Python 3.12 和 [uv](https://docs.astral.sh/uv/)。
 
 ```bash
 git clone https://github.com/littlamber/VerdiWM.git
 cd VerdiWM
-python -m pip install uv
-uv sync --group dev
+python -m pip install uv==0.12.10
+uv sync --locked --group dev
 uv run verdiwm doctor
 ```
 
@@ -421,19 +423,16 @@ uv run verdiwm-workbench --port 8765 \
 混合模式、任务控制、任务详情和交互式证据图谱。它只在本机运行，不会上传模型
 或数据。
 
-### Windows 策略拦截
+### 支持的平台
 
-部分 Windows 环境会以“应用程序控制策略已阻止此文件”为由拦截
-`.venv\\Scripts\\*.exe` 启动器。可以改用 Python 模块入口：
+控制面支持 Linux 与 Python 3.12。Windows 用户请在 WSL2 内安装和运行；
+原生 Windows 暂不支持，因为存储层使用 POSIX 文件锁与目录同步。
+macOS 和其他 Python 版本尚未纳入 CI 验证。
 
-```powershell
-uv run python -m wmloop.cli doctor
-uv run python -m wmloop.control.workbench --port 8765
-```
-
-如果连 `uv run python --version` 也被拦截，需要由管理员或 IT 在应用程序控制
-策略中允许已安装的 Python/uv；这不是 VerdiWM 代码错误。从下载的 ZIP 解压时，
-请先在 ZIP 文件属性中勾选“解除锁定”，再重新安装依赖。
+Workbench 与 Campaign API 只允许监听本地回环地址，供可信的本机用户使用，
+所有 API 均要求访问令牌，不提供多租户授权。安全边界见 [SECURITY.md](SECURITY.md)，
+发布流程见 [开源发布规范](docs/RELEASING.md)。
+界面源码位于 `wmloop/web/`，直接编辑 HTML/CSS/JavaScript，无需 Node 构建。
 
 ## 主要能力
 
@@ -450,7 +449,7 @@ uv run python -m wmloop.control.workbench --port 8765
 
 ## 范围与版本状态
 
-当前公开版本为 `1.0.3`（稳定版）。控制面、schema、CLI、示例、workbench、
+当前工作树为尚未发布的 `1.0.4rc1` 候选版本（Beta），已有公开标签为 `v1.0.3`。控制面、schema、CLI、示例、workbench、
 机制自动组合和新模型首次接入流程均通过可复现发布门禁。部署提供可信基础
 profile 和受约束修复 provider 后，新模型族可以自动生成并验证 adapter。系统
 不会猜测科学资产或 evaluator 语义：编排成功不等于模型质量提升，任何质量结论
@@ -465,3 +464,12 @@ manifest 或历史实验归档。
 
 VerdiWM 使用 [Apache License 2.0](LICENSE)。外部数据集、模型权重和上游项目
 仍遵循各自许可证。
+
+## 候选版本说明
+
+本工作树尚未发布，变更见 [CHANGELOG](CHANGELOG.md)，软件与论文引用状态见
+[引用说明](docs/CITATION.md)，解释器迁移见 [Python 支持](docs/PYTHON_SUPPORT.md)。
+本地 HTTP API 现在要求每次启动的访问令牌；终端显示仅当前用户可读的令牌文件路径，
+读取后粘贴到工作台登录页。详见 [本地认证](docs/LOCAL_HTTP_AUTH.md)，不要把令牌放进 URL。
+推荐通过 `uv sync --locked --group dev` 复现锁定环境。wheel 独立解析依赖另有检查；
+离线结果只覆盖缓存可用版本，GitHub 在线工作流验证当时的解析结果。

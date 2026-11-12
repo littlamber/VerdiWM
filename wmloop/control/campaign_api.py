@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -17,10 +18,11 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import parse_qs, urlparse
+
+from wmloop.control.local_http import LocalHTTPServer, LocalRequestHandler
 
 from wmloop.control.adapter_profiles import (
     AdapterProfileError,
@@ -64,6 +66,14 @@ def _now() -> str:
 
 def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _dispatch_execution_hash(record: Mapping[str, Any]) -> str:
+    """Bind queued execution to the authoritative campaign, not its JSON projection."""
+    return hashlib.sha256(_canonical({
+        key: record.get(key)
+        for key in ("execution", "model_run", "revision_id", "resource_allocation")
+    }).encode()).hexdigest()
 
 
 class CampaignStore:
@@ -470,7 +480,7 @@ class CampaignStore:
             return record
 
     def claim_dispatch(self, campaign_id: str, source: Path, active: Path) -> dict[str, Any] | None:
-        """Claim a queued revision and its outbox entry in one transaction."""
+        """Claim and return a verified execution snapshot in one transaction."""
         with self.transaction():
             record = self.get(campaign_id)
             if record["status"] == "cancelled":
@@ -481,15 +491,26 @@ class CampaignStore:
                 dispatch = json.loads(source.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
                 raise CampaignAPIError("DISPATCH_MANIFEST_INVALID") from exc
+            if not isinstance(dispatch, dict):
+                raise CampaignAPIError("DISPATCH_MANIFEST_INVALID")
             if dispatch.get("revision_id") != record.get("revision_id"):
                 raise CampaignAPIError("DISPATCH_REVISION_MISMATCH")
+            if (
+                dispatch.get("artifact_type") != "verdiwm-campaign-dispatch"
+                or dispatch.get("state") != "pending"
+                or dispatch.get("campaign_id") != campaign_id
+                or dispatch.get("revision_digest") != record.get("revision_digest")
+                or any(dispatch.get(key) != record.get(key) for key in ("execution", "model_run", "resource_allocation"))
+                or dispatch.get("execution_hash") != _dispatch_execution_hash(record)
+            ):
+                raise CampaignAPIError("DISPATCH_EXECUTION_MISMATCH")
             record["status"] = "running"
             record["dispatch_ref"] = str(active)
             record["updated_at"] = _now()
             self._write(active, dispatch)
             self.repository.delete_projection(source)
             self._write(self._path(campaign_id), record)
-            return record
+            return dispatch
 
     def settle_dispatch(self, campaign_id: str, *, dispatch: dict[str, Any], status: str,
                         result: dict[str, Any] | None = None, error: dict[str, Any] | None = None) -> str:
@@ -539,16 +560,7 @@ class CampaignStore:
                 "resource_allocation": record.get("resource_allocation"),
                 "state": "pending",
                 "execution": execution,
-                "execution_hash": hashlib.sha256(
-                    _canonical(
-                        {
-                            "execution": execution,
-                            "model_run": record.get("model_run"),
-                            "revision_id": record.get("revision_id"),
-                            "resource_allocation": record.get("resource_allocation"),
-                        }
-                    ).encode()
-                ).hexdigest(),
+                "execution_hash": _dispatch_execution_hash(record),
                 "created_at": _now(),
             }
             if record.get("model_run") is not None:
@@ -958,7 +970,7 @@ def _validate_execution(value: object) -> None:
                 raise CampaignAPIError(f"EXECUTION_BUDGET_INVALID:{budget_name}")
 
 
-class _Handler(BaseHTTPRequestHandler):
+class _Handler(LocalRequestHandler):
     server_version = "VerdiWMCampaignAPI/1"
 
     @property
@@ -975,13 +987,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _body(self) -> dict[str, Any]:
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            value = json.loads(self.rfile.read(length))
-        except (ValueError, json.JSONDecodeError) as exc:
-            raise CampaignAPIError("JSON_INVALID") from exc
-        if not isinstance(value, dict):
-            raise CampaignAPIError("JSON_OBJECT_REQUIRED")
-        return value
+            return self.read_json_object()
+        except ValueError as exc:
+            raise CampaignAPIError(str(exc)) from exc
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -1067,23 +1075,25 @@ def serve(
     port: int = 8787,
     evidence_graph_path: Path | None = None,
 ) -> None:
-    server = ThreadingHTTPServer((host, port), _Handler)
-    server.store = CampaignStore(root)  # type: ignore[attr-defined]
-    server.evidence_graph_path = (  # type: ignore[attr-defined]
-        Path(evidence_graph_path).expanduser().resolve()
-        if evidence_graph_path is not None
-        else None
-    )
+    server = LocalHTTPServer((host, port), _Handler)
     try:
+        server.store = CampaignStore(root)  # type: ignore[attr-defined]
+        server.evidence_graph_path = (  # type: ignore[attr-defined]
+            Path(evidence_graph_path).expanduser().resolve()
+            if evidence_graph_path is not None
+            else None
+        )
+        logging.getLogger(__name__).info("Campaign API access token file: %s", server.auth_token_path)
         server.serve_forever()
     finally:
         server.server_close()
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(description="Serve the VerdiWM Campaign API")
     parser.add_argument("--state-root", type=Path, default=Path(".verdiwm/campaigns"))
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="127.0.0.1", choices=("127.0.0.1", "::1", "localhost"))
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--evidence-graph", type=Path)
     args = parser.parse_args()

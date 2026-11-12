@@ -1,55 +1,28 @@
-# Release checklist
+# 发布检查清单
 
-This checklist is the publication gate for GitHub, ModelScope, and Python
-artifacts. It validates packaging and public examples; it does not claim that
-VerdiWM has achieved unconstrained recursive self-improvement.
+本清单与 `AGENTS.md` 第 7 节一致，详细约束见 [RELEASING.md](RELEASING.md)。
 
-## Before the gate
-
-1. Review every untracked file and add only intended source, configuration,
-   tests, and documentation to Git.
-2. Commit the release candidate and start from a clean checkout. A local build
-   from untracked files is not reproducible.
-3. Confirm that model weights, datasets, run outputs, credentials, private
-   paths, and vendor checkouts are absent.
-
-## Run the gate
-
-Install `uv`, then run:
+1. 审查全部新增文件，只纳入公开源码、配置、测试和正式文档；运行产物、
+   凭据、模型和私有数据不得入库。
+2. 正式发布在干净、已提交的候选版本执行；开发阶段可用 `--allow-dirty`
+   生成完整审阅快照。快照有文件摘要，但不能冒充已提交的发布版本。
+3. 首次安装运行 `uv sync --locked --group dev`，再运行：
 
 ```bash
-scripts/ci/release_preflight.sh --output-dir dist/verdiwm-release
+bash scripts/ci/release_preflight.sh --output-dir artifacts/release/delivery
 ```
 
-The command checks the control-plane suite against the locked dependencies,
-builds the wheel and source distribution, installs the local wheel and its
-declared runtime dependencies in a fresh Python 3.10 environment, exercises
-the CLI and public APIs, builds an allowlisted ModelScope/GitHub repository,
-and audits it for local paths, secrets, unsafe file types, symlinks, and
-oversized files.
-It also builds the staged repository with its public packaging manifest and
-runs the CPU-only portrait-first example, so the upload candidate is usable
-without the development-only source tree.
+此入口复用控制面 CI：扫描源码，构建和扫描 wheel/sdist，从 sdist 重建并
+比对 wheel 内容，在新环境验证实际 API/资源，在导出源码的新环境运行
+完整 CPU 测试。通过后输出 `repository/`、发行包、`pytest.xml` 和
+`release_report.json`。报告包括文件摘要、测试数量与验证边界。
 
-During development only, `--allow-dirty` can validate the current worktree.
-Its output is not a publishable release because uncommitted and untracked
-inputs cannot be reconstructed from Git.
+4. `repository/` 不带旧 `.git`，仅用作源码审阅。现有 GitHub 仓库已经公开，
+   不以此快照重建或强推覆盖已有历史。按 RELEASING.md 扫描全部准备推送的
+   refs；旧仓库中的问题不能通过删除当前文件或新增 `.gitignore` 消除。
+5. 确认第三方许可、平台范围和真实 GPU 验证边界。启用 GitHub 私密漏洞
+   报告入口。自动脚本不执行任何推送或远端发布。
+6. 发布后在新目录克隆公开仓库，再执行同一预检，验证公开提交完整性。
 
-## Publish
-
-Upload `dist/verdiwm-release/repository/` as the repository content. Publish
-the wheel and source archive beside it when the target platform supports
-Python artifacts. Keep the GitHub repository source-only: exported community
-evidence packages carry their own independently versioned manifests and should
-be published outside this checkout. Do not commit generated
-`RELEASE_AUDIT.json`, `MANIFEST.sha256`, media, or historical experiment
-bundles to the source repository.
-
-Do not add local deployment configs, state roots, model weights, datasets,
-credentials, private paths, or vendor checkouts back into the staged tree.
-Public IRs and manifests remain path-independent; a deployment supplies local
-asset bindings and credentials outside the published repository.
-
-After upload, clone the public repository into a new directory and run the
-same preflight without `--allow-dirty`. This final clone test is the proof that
-the release does not depend on local state.
+GitHub 源码只来自 `repository/`；发行包和验证报告作为独立发布附件。
+不要将开发目录的 `.git`、旧 UI 备份、模型、数据或历史实验包复制进去。

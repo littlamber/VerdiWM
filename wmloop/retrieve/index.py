@@ -89,11 +89,20 @@ def index_probe_experience(
     if hashlib.sha256(receipt_bytes).hexdigest() != str(receipt["receipt_hash"]):
         raise ProbeRetrievalError("PROBE_RETRIEVAL_RECEIPT_HASH_MISMATCH")
     stored_receipt = _json_object(receipt_bytes, "PROBE_RETRIEVAL_RECEIPT_INVALID")
+    _validate_receipt_body(stored_receipt)
     if stored_receipt.get("archive_trial_id") != archive_trial_id:
         raise ProbeRetrievalError("PROBE_RETRIEVAL_RECEIPT_ID_MISMATCH")
     stored_result = _json_object(cas.read_bytes(result_ref), "PROBE_RETRIEVAL_RESULT_INVALID")
     if stored_result.get("probe_id") != result.get("probe_id"):
         raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_ID_MISMATCH")
+    if stored_result != dict(result):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_CONTENT_MISMATCH")
+    if any(stored_receipt.get(key) != receipt.get(key) for key in ("stage", "verdict", "artifact_refs")):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_RECEIPT_CONTENT_MISMATCH")
+    if _result_ref(stored_receipt, artifact_path=result_artifact_path) != result_ref:
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_REF_MISMATCH")
+    if not archive.has_settled_receipt(archive_trial_id, receipt_ref, str(receipt["receipt_hash"])):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_ARCHIVE_RECEIPT_MISMATCH")
 
     signatures = result["failure_signatures"]
     metrics = result.get("metrics")
@@ -222,7 +231,7 @@ def retrieve_probe_experiences(
     cas = ContentAddressedStore(Path(cas_root))
     verified: list[ProbeExperience] = []
     for row in records:
-        if row.archive_trial_id not in archive.visible_settled_trials():
+        if not archive.has_settled_receipt(row.archive_trial_id, row.receipt_ref, row.receipt_hash):
             continue
         try:
             receipt_bytes = cas.read_bytes(row.receipt_ref)
@@ -231,9 +240,25 @@ def retrieve_probe_experiences(
             continue
         if hashlib.sha256(receipt_bytes).hexdigest() != row.receipt_hash:
             continue
-        receipt = _json_object(receipt_bytes, "PROBE_RETRIEVAL_RECEIPT_INVALID")
-        result = _json_object(result_bytes, "PROBE_RETRIEVAL_RESULT_INVALID")
-        if receipt.get("settlement_state") != "settled" or result.get("probe_id") != row.probe_id:
+        try:
+            receipt = _json_object(receipt_bytes, "PROBE_RETRIEVAL_RECEIPT_INVALID")
+            result = _json_object(result_bytes, "PROBE_RETRIEVAL_RESULT_INVALID")
+            _validate_receipt_body(receipt)
+            _validate_result(result)
+        except ProbeRetrievalError:
+            continue
+        refs = receipt.get("artifact_refs")
+        if (
+            receipt.get("archive_trial_id") != row.archive_trial_id
+            or receipt.get("stage") != row.stage
+            or receipt["verdict"]["verdict"] != row.verdict
+            or not isinstance(refs, Mapping)
+            or row.result_ref not in refs.values()
+            or any(result.get(key) != getattr(row, key) for key in ("probe_id", "model_family", "runtime_capability"))
+            or row.failure_signature not in result["failure_signatures"]
+            or _optional_string(result.get("primitive")) != row.primitive
+            or _metric_outcome(result.get("metrics")) != row.metric_outcome
+        ):
             continue
         verified.append(row)
     return tuple(verified)
@@ -286,11 +311,20 @@ def _validate_result(result: Mapping[str, Any]) -> None:
 
 
 def _validate_receipt(receipt: Mapping[str, Any]) -> None:
-    if receipt.get("settlement_state") != "settled" or receipt.get("verdict", {}).get("verdict") not in {"PASS", "VOID"}:
-        raise ProbeRetrievalError("PROBE_RETRIEVAL_RECEIPT_NOT_SETTLED")
+    _validate_receipt_body(receipt)
     for field in ("archive_trial_id", "receipt_ref", "receipt_hash", "stage"):
         if not isinstance(receipt.get(field), str) or not str(receipt[field]):
             raise ProbeRetrievalError(f"PROBE_RETRIEVAL_RECEIPT_FIELD_INVALID:{field}")
+
+
+def _validate_receipt_body(receipt: Mapping[str, Any]) -> None:
+    verdict = receipt.get("verdict")
+    if (
+        receipt.get("settlement_state") != "settled"
+        or not isinstance(verdict, Mapping)
+        or verdict.get("verdict") not in {"PASS", "VOID"}
+    ):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_RECEIPT_NOT_SETTLED")
 
 
 def _result_ref(

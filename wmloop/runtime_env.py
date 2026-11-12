@@ -5,6 +5,27 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from pathlib import Path
+import tempfile
+
+
+def runtime_python_path(value: str | Path, *, base: Path | None = None) -> Path:
+    """Make an interpreter path absolute without losing its virtualenv launcher."""
+    path = Path(value).expanduser()
+    return Path(os.path.abspath(path if path.is_absolute() else (base or Path.cwd()) / path))
+
+
+def default_lock_root() -> Path:
+    """Return a portable process-local lock location.
+
+    Deployments can set ``VERDIWM_LOCK_ROOT``.  The fallback uses the host
+    temporary directory rather than a developer workstation path or a fixed
+    Unix-only location.
+    """
+
+    configured = os.environ.get("VERDIWM_LOCK_ROOT")
+    if configured and configured.strip():
+        return Path(configured).expanduser()
+    return Path(tempfile.gettempdir()) / "verdiwm-gpu-leases"
 
 
 def runtime_subprocess_env(

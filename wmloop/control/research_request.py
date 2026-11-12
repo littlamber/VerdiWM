@@ -15,7 +15,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import tempfile
 from typing import Any
 
 from wmloop.contracts import ContractValidationError, validate_document
@@ -31,6 +30,7 @@ from wmloop.control.research_modes import (
     compile_research_mode_plan,
     normalize_research_mode,
 )
+from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
 
 
 class ResearchRequestError(ValueError):
@@ -194,8 +194,10 @@ def _metric_list(value: object) -> list[str]:
     if isinstance(value, str):
         return [value.strip()] if value.strip() else []
     if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
-        return [str(item).strip() for item in value if str(item).strip()]
-    return [str(value).strip()] if str(value).strip() else []
+        if any(not isinstance(item, str) or not item.strip() for item in value):
+            raise ResearchRequestError("TARGET_METRICS_INVALID")
+        return [item.strip() for item in value]
+    raise ResearchRequestError("TARGET_METRICS_INVALID")
 
 
 def _adapter_blocker(error: BaseException) -> dict[str, object]:
@@ -220,29 +222,17 @@ def _dedupe_blockers(items: Sequence[Mapping[str, object]]) -> list[dict[str, ob
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> Path:
-    path = path.expanduser().resolve()
-    if path.is_symlink() or (path.exists() and not path.is_file()):
-        raise ResearchRequestError("RESEARCH_PLAN_OUTPUT_INVALID")
+    path = checked_path(path, code="RESEARCH_PLAN_OUTPUT_INVALID", error=ResearchRequestError)
     encoded = json.dumps(dict(payload), ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if path.is_file():
-        try:
+    with exclusive_file_lock(path.with_name(f".{path.name}.lock")):
+        if path.exists() and not path.is_file():
+            raise ResearchRequestError("RESEARCH_PLAN_OUTPUT_INVALID")
+        if path.is_file():
             if path.read_text(encoding="utf-8") == encoded:
                 return path
-        except OSError as exc:
-            raise ResearchRequestError("RESEARCH_PLAN_OUTPUT_INVALID") from exc
-        raise ResearchRequestError("RESEARCH_PLAN_OUTPUT_CONFLICT")
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(encoded)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        if temporary.exists() or temporary.is_symlink():
-            temporary.unlink()
+            raise ResearchRequestError("RESEARCH_PLAN_OUTPUT_CONFLICT")
+        atomic_write(path, encoded.encode("utf-8"))
     return path
 
 
@@ -360,7 +350,10 @@ def compile_research_plan(
     profile_path = _resolve(adapter_profile or configured.get("adapter_profile"), base=base)
     irg_path = _resolve(model_irg, base=base)
     normalized_goal = goal or configured.get("goal")
-    normalized_mode = normalize_research_mode(mode or configured.get("mode", "hybrid"))
+    try:
+        normalized_mode = normalize_research_mode(mode or configured.get("mode", "hybrid"))
+    except ResearchModeError as exc:
+        raise ResearchRequestError(str(exc)) from exc
     normalized_budget = budget or configured.get("budget", "1gpu-hour")
     try:
         budget_hours = parse_gpu_budget(normalized_budget)
@@ -554,7 +547,10 @@ def write_research_plan(plan: Mapping[str, object], output: str | Path) -> Path:
     except ContractValidationError as exc:
         raise ResearchRequestError(f"RESEARCH_PLAN_INVALID:{exc}") from exc
     _ensure_outside_inputs(Path(output), tuple(_resolve(payload.get(name), base=Path(payload.get("project_root", Path.cwd()))) for name in ("model", "data", "source")))
-    return _write_json(Path(output), payload)
+    try:
+        return _write_json(Path(output), payload)
+    except OSError as exc:
+        raise ResearchRequestError("RESEARCH_PLAN_OUTPUT_INVALID") from exc
 
 
 def load_research_plan(path: str | Path) -> dict[str, object]:

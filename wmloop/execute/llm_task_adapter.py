@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.storage import canonical_bytes, sha256_bytes
 
 
 class LLMTaskAdapterError(RuntimeError):
@@ -370,10 +371,8 @@ def _write_json(path: Path, payload: Mapping[str, object]) -> None:
 
 
 def _canonical_json(payload: Mapping[str, object]) -> bytes:
-    return json.dumps(
-        payload, sort_keys=True, ensure_ascii=True, separators=(",", ":")
-    ).encode("utf-8")
+    return canonical_bytes(payload)
 
 
 def _sha256(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
+    return sha256_bytes(payload)

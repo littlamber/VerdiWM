@@ -118,12 +118,14 @@ as independent-seed causal replication.
 The development checkout can rebuild a clean public tree with:
 
 ```bash
-python scripts/export/build_github_staging.py \
+uv run --offline --frozen python -m scripts.export.build_github_staging \
   --source-root . \
   --output-root ../VerdiWM-github-v0.1
 ```
 
 The builder uses an allowlist and performs path, secret, generated-artifact,
 and symlink audits. It validates the onboarding demo and emits an audit report
-to stdout without writing generated manifests into the source tree. It refuses
+through logging, with optional `--report` JSON outside the source tree. It refuses
 to overwrite an existing destination.
+
+发布与历史检查的最新约束见 [RELEASING.md](RELEASING.md)。

@@ -17,6 +17,19 @@ class FakePipe(StringIO):
         return False
 
 
+def test_builtin_input_empty_line_does_not_exit_session(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    stdin, stdout = FakeTerminal(), FakeTerminal()
+    monkeypatch.setattr(interactive_cli.sys, "stdin", stdin)
+    monkeypatch.setattr(interactive_cli.sys, "stdout", stdout)
+    monkeypatch.setattr(interactive_cli, "_configure_readline", lambda *args: (None, None, None, None))
+    entries = iter(["", "/status", "/exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(entries))
+    calls = []
+    assert interactive_cli.run_interactive_session(dispatch=lambda argv: calls.append(argv) or 0) == 0
+    assert calls == [["status"]]
+
+
 def test_palette_for_slash_lists_commands() -> None:
     output = FakeTerminal()
     interactive_cli.render_command_palette(stdout=output, color=False)
@@ -25,6 +38,7 @@ def test_palette_for_slash_lists_commands() -> None:
     assert "/status" in text
     assert "/llm" in text
     assert "/exit" in text
+    assert "/evaluate-irg" in text
 
 
 def test_palette_query_filters_commands() -> None:
@@ -68,6 +82,26 @@ def test_session_dispatches_shortcuts_and_exits() -> None:
     ) == 0
     assert calls == [["check"], ["status", "demo"]]
     assert "已退出 Verdi" in stdout.getvalue()
+
+
+def test_irg_alias_dispatches_evaluation_command() -> None:
+    stdin = FakeTerminal("/irg --plan plan.json --projections p.jsonl --labels l.json --output out\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(
+        stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0
+    )
+    assert calls == [["research", "evaluate-irg", "--plan", "plan.json", "--projections", "p.jsonl", "--labels", "l.json", "--output", "out"]]
+
+
+def test_predictor_alias_dispatches_evaluation_command() -> None:
+    stdin = FakeTerminal("/predictor --examples e.json --plan p.json --labels l.json --output out\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(
+        stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0
+    )
+    assert calls == [["research", "evaluate-predictor", "--examples", "e.json", "--plan", "p.json", "--labels", "l.json", "--output", "out"]]
 
 
 def test_slash_alone_opens_palette_inside_session() -> None:
@@ -295,6 +329,20 @@ def test_run_without_arguments_previews_default_plan_and_requires_confirmation(m
     interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0)
     assert calls == [["research", "run", "--plan", str(plan), "--confirm"]]
     assert "确认创建并执行" in stdout.getvalue()
+
+
+def test_blocked_default_plan_is_versioned_when_new_plan_is_generated(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    plan = tmp_path / ".verdiwm" / "research-plan.json"
+    plan.parent.mkdir()
+    plan.write_text(json.dumps({"state": "blocked", "goal": "old goal"}), encoding="utf-8")
+    stdin = FakeTerminal("/plan new goal\n/exit\n")
+    stdout = FakeTerminal()
+    calls: list[list[str]] = []
+    interactive_cli.run_interactive_session(stdin=stdin, stdout=stdout, dispatch=lambda argv: calls.append(argv) or 0)
+    # The command is dispatched to the normal planner; the planner owns
+    # versioning after it returns a newly compiled plan.
+    assert calls and calls[0][:3] == ["research", "plan", "--goal"]
 
 
 def test_run_rejection_does_not_dispatch_or_consume_a_campaign(monkeypatch, tmp_path: Path) -> None:

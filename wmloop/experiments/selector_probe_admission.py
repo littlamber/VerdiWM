@@ -52,6 +52,14 @@ def evaluate_selector_probe_admission(
     common_targets = sorted(set(baseline_top1) & set(candidate_top1))
     if not common_targets:
         raise SelectorProbeAdmissionError("SELECTOR_PROBE_COMPARABLE_TARGETS_MISSING")
+    if set(baseline_top1) != set(candidate_top1):
+        raise SelectorProbeAdmissionError("SELECTOR_PROBE_TARGET_COVERAGE_MISMATCH")
+    for target in common_targets:
+        before, after = baseline_top1[target], candidate_top1[target]
+        if before["seeds"] != after["seeds"]:
+            raise SelectorProbeAdmissionError(f"SELECTOR_PROBE_SEED_COVERAGE_MISMATCH:{target}")
+        if before["primitive"] == after["primitive"] and before["target_positive"] != after["target_positive"]:
+            raise SelectorProbeAdmissionError(f"SELECTOR_PROBE_TARGET_LABEL_MISMATCH:{target}")
     corrected = [
         target
         for target in common_targets
@@ -127,6 +135,7 @@ def evaluate_selector_probe_admission(
 
 def _irg_top1(path: Path) -> dict[str, dict[str, object]]:
     grouped: dict[str, set[tuple[str, str, bool]]] = {}
+    seeds: dict[str, set[int]] = {}
     try:
         with path.open(newline="", encoding="utf-8") as handle:
             for row in csv.DictReader(handle):
@@ -136,8 +145,16 @@ def _irg_top1(path: Path) -> dict[str, dict[str, object]]:
                 predicted_sign = str(row.get("predicted_sign") or "")
                 target_positive = _parse_bool(row.get("target_positive"))
                 primitive = str(row.get("primitive") or "")
-                if not target or predicted_sign not in {"positive", "negative"} or target_positive is None:
-                    continue
+                if not target or not primitive or predicted_sign not in {"positive", "negative"} or target_positive is None:
+                    raise SelectorProbeAdmissionError(f"SELECTOR_PROBE_TOP1_ROW_INVALID:{path}")
+                try:
+                    seed = int(row["seed"])
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise SelectorProbeAdmissionError(f"SELECTOR_PROBE_SEED_INVALID:{target}") from exc
+                target_seeds = seeds.setdefault(target, set())
+                if seed in target_seeds:
+                    raise SelectorProbeAdmissionError(f"SELECTOR_PROBE_SEED_DUPLICATE:{target}:{seed}")
+                target_seeds.add(seed)
                 grouped.setdefault(target, set()).add((primitive, predicted_sign, target_positive))
     except OSError as exc:
         raise SelectorProbeAdmissionError(f"SELECTOR_PROBE_CANDIDATES_INVALID:{path}") from exc
@@ -151,6 +168,7 @@ def _irg_top1(path: Path) -> dict[str, dict[str, object]]:
             "predicted_sign": predicted_sign,
             "target_positive": target_positive,
             "correct": (predicted_sign == "positive") is target_positive,
+            "seeds": sorted(seeds[target]),
         }
     return result
 

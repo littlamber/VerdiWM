@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import uuid
@@ -10,6 +9,7 @@ from pathlib import Path
 from typing import Mapping
 
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore
+from wmloop.storage import canonical_json_bytes
 
 
 class ExperimentArtifactError(RuntimeError):
@@ -17,7 +17,9 @@ class ExperimentArtifactError(RuntimeError):
 
 
 def canonical_json(payload: object) -> bytes:
-    return (json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+    """Compatibility name for experiment modules; storage owns the format."""
+
+    return canonical_json_bytes(payload)
 
 
 def write_bundle(

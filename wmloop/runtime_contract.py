@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
+
+from wmloop.storage import sha256_bytes, sha256_file
 
 
 RUNTIME_MANIFEST_NAME = "wmloop-runtime-manifest.json"
@@ -11,7 +12,7 @@ def runtime_tree_sha256(root: Path) -> str:
     """Hash executable runtime files while excluding transient metadata."""
 
     runtime_root = Path(root)
-    digest = hashlib.sha256()
+    parts: list[bytes] = []
     for item in sorted(runtime_root.rglob("*"), key=lambda value: value.relative_to(runtime_root).as_posix()):
         relative = item.relative_to(runtime_root)
         if (
@@ -24,15 +25,11 @@ def runtime_tree_sha256(root: Path) -> str:
         ):
             continue
         encoded = relative.as_posix().encode("utf-8")
-        digest.update(len(encoded).to_bytes(8, "big"))
-        digest.update(encoded)
-        digest.update(bytes.fromhex(_file_sha256(item)))
-    return digest.hexdigest()
+        parts.extend((len(encoded).to_bytes(8, "big"), encoded, bytes.fromhex(sha256_file(item))))
+    return sha256_bytes(b"".join(parts))
 
 
 def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    """Compatibility alias for older callers; new code uses storage.sha256_file."""
+
+    return sha256_file(path)

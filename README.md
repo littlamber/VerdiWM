@@ -1,9 +1,17 @@
 # VerdiWM
 
+工程约束见 [AGENTS.md](AGENTS.md)、[代码规范](docs/code_conventions.md) 和
+[VERDI 方法工程映射](docs/VERDI_METHOD_ENGINEERING.md)；项目目录地图见
+[PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md)，核心拆分与验证边界见
+[重构记录](docs/REFACTOR_ROADMAP.md)。
+
 VerdiWM is an intent-first research workbench for diagnosing and improving
 world-model systems. Describe the model, data, and objective once; VerdiWM
 resolves the adapter and evaluation contract, runs bounded experiments, and
 keeps evidence for every decision.
+
+The staged RSI objective, replaceable decision modules, acceleration mechanisms,
+and validation gates are documented in [RSI Research Workbench Plan](docs/RSI_RESEARCH_WORKBENCH_PLAN.md).
 
 The user-facing CLI is `verdi`. The existing `verdiwm` command remains as a
 backward-compatible alias, so existing scripts continue to work.
@@ -14,13 +22,13 @@ responsibility of each deployment.
 
 ## Quick start
 
-Requirements: Python 3.10 and [uv](https://docs.astral.sh/uv/).
+Requirements: Linux (or WSL2), Python 3.12, and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/littlamber/VerdiWM.git
 cd VerdiWM
-python -m pip install uv
-uv sync --group dev
+python -m pip install uv==0.12.10
+uv sync --locked --group dev
 uv run verdiwm doctor
 ```
 
@@ -425,22 +433,17 @@ quick-start/causal-discovery/hybrid modes, campaign control, task details,
 and an interactive evidence graph. It is a local UI; it does not upload
 models or data.
 
-### Windows policy errors
+### Supported platforms
 
-Some Windows installations block the generated `.venv\\Scripts\\*.exe`
-console launchers with “Application Control policy has blocked this file”.
-Run the modules through Python instead:
+The supported control plane is Linux with Python 3.12. Windows users should
+run it inside WSL2; native Windows is not supported because storage uses POSIX
+file locking and directory synchronization. macOS and other Python versions
+are not currently covered by CI.
 
-```powershell
-uv run python -m wmloop.cli doctor
-uv run python -m wmloop.control.workbench --port 8765
-```
-
-If `uv run python --version` is blocked too, the machine's application-control
-policy must allow the installed Python/uv binaries; this is an administrator
-or IT policy change, not a VerdiWM error. When the repository was extracted
-from a downloaded ZIP, use the file Properties dialog's **Unblock** option
-before reinstalling.
+The workbench and Campaign API accept loopback bindings only. They are local
+services with per-start bearer authentication; they do not provide multi-tenant authorization. See
+[security policy](SECURITY.md) and [release procedure](docs/RELEASING.md).
+The UI is editable HTML/CSS/JavaScript in `wmloop/web/`; no Node build is needed.
 
 ## What it provides
 
@@ -462,7 +465,7 @@ contains the supported research modes.
 
 ## Scope and status
 
-The public release is `1.0.3` (stable). The control plane, schemas, CLI,
+This working tree is the unpublished `1.0.4rc1` candidate (Beta), following the existing `v1.0.3` tag. The control plane, schemas, CLI,
 examples, workbench, automatic mechanism composition, and first-contact model
 bootstrap pass the reproducible release gate. A new model family can acquire a
 conformance-checked adapter automatically when a deployment supplies a trusted
@@ -481,3 +484,14 @@ does not contain generated evidence manifests or experiment archives.
 
 VerdiWM is released under the [Apache License 2.0](LICENSE). External
 datasets, model weights, and upstream projects retain their own licenses.
+
+## Release candidate notes
+
+This checkout is an unpublished release candidate. See [CHANGELOG](CHANGELOG.md),
+[software and method citation](docs/CITATION.md), and [Python support](docs/PYTHON_SUPPORT.md).
+The local HTTP APIs now require a per-start access token; the terminal displays
+its owner-only file path. Paste its contents into the workbench login page.
+See [local authentication](docs/LOCAL_HTTP_AUTH.md). Never place the token in a URL.
+The recommended reproducible installation is `uv sync --locked --group dev`.
+Independent wheel dependency resolution is checked separately; offline results
+cover cached versions, and the online GitHub workflow checks current resolution.

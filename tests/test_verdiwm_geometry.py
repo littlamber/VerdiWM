@@ -108,6 +108,38 @@ class ResponseGeometryTests(unittest.TestCase):
         self.assertAlmostEqual(irg_distance(left, right), 0.0)
         self.assertGreater(irg_distance(left, self._chart(1.5)), 0.0)
 
+    def test_rejects_unbalanced_paired_repeats(self) -> None:
+        with self.assertRaisesRegex(GeometryValidationError, "IRG_PAIRED_REPEAT_COUNT_MISMATCH"):
+            estimate_response_chart(
+                chart_id="unbalanced",
+                goal_schema="pixel-and-action-v1",
+                outcome_names=("psnr", "action_following"),
+                outcome_weights=(1.0, 1.0),
+                baseline_repeats=((10.0, 0.5), (10.2, 0.55)),
+                dose_observations={
+                    "action_scale": {
+                        -0.1: ((9.8, 0.4),),
+                        0.1: ((10.2, 0.6),),
+                    }
+                },
+            )
+
+    def test_rejects_mismatched_positive_and_negative_dose_repeats(self) -> None:
+        with self.assertRaisesRegex(GeometryValidationError, "IRG_PAIRED_REPEAT_COUNT_MISMATCH"):
+            estimate_response_chart(
+                chart_id="unbalanced-doses",
+                goal_schema="pixel-and-action-v1",
+                outcome_names=("psnr",),
+                outcome_weights=(1.0,),
+                baseline_repeats=((10.0,), (10.2,)),
+                dose_observations={
+                    "action_scale": {
+                        -0.1: ((9.8,), (10.0,)),
+                        0.1: ((10.2,), (10.4,), (10.6,)),
+                    }
+                },
+            )
+
 
 class TransferAndMemoryTests(unittest.TestCase):
     def _receipt(self):

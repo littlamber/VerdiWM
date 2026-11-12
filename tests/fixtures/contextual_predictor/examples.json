@@ -1,0 +1,11 @@
+{
+  "fixture_only": true,
+  "examples": [
+    {"environment": "a", "primitive": "p", "features": {"x": -1.0}, "effect": -1.0, "effect_class": "harmful"},
+    {"environment": "a", "primitive": "n", "features": {"x": -1.0}, "effect": 1.0, "effect_class": "positive"},
+    {"environment": "b", "primitive": "p", "features": {"x": 0.0}, "effect": 0.0, "effect_class": "null"},
+    {"environment": "b", "primitive": "n", "features": {"x": 0.0}, "effect": 0.0, "effect_class": "null"},
+    {"environment": "c", "primitive": "p", "features": {"x": 1.0}, "effect": 1.0, "effect_class": "positive"},
+    {"environment": "c", "primitive": "n", "features": {"x": 1.0}, "effect": -1.0, "effect_class": "harmful"}
+  ]
+}

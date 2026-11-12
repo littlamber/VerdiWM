@@ -320,12 +320,27 @@ def run_selector_replay(
             "ranking_kendall_tau": _kendall_tau(ranked, target_order),
             "selection_regret": float(any(row["target_positive"] for row in ranked) and not selected["target_positive"]),
             "trials_to_first_positive": min(positive_ranks) if positive_ranks else None,
+            # A random selector is represented as an expectation over this
+            # same candidate pool, so it does not consume an extra trial or
+            # introduce a different source/evaluator budget.
+            "random_top1_positive_expectation": fmean(
+                float(bool(row["target_positive"])) for row in ranked
+            ),
+            "random_negative_selection_expectation": fmean(
+                float(not bool(row["target_positive"])) for row in ranked
+            ),
+            "random_selection_regret_expectation": fmean(
+                float(any(item["target_positive"] for item in ranked) and not item["target_positive"])
+                for item in ranked
+            ),
             "gpu_hours": 0.0,
         }
         cell_rows.append(cell)
         fold_dispositions[disposition_key] = cell
 
     aggregate_rows = _aggregate_selectors(cell_rows)
+    random_baseline = _aggregate_random_baseline(cell_rows)
+    routing_recommendation = _routing_recommendation(aggregate_rows)
     environments = sorted({str(row["target_environment"]) for row in trials})
     evaluated_environments = sorted(
         {str(row["target_environment"]) for row in cell_rows if row["state"] == "evaluated"}
@@ -408,6 +423,8 @@ def run_selector_replay(
         "transfer_work_order_count": len(transfer_work_orders),
         "transfer_work_orders": list(transfer_work_orders.values()),
         "selectors": aggregate_rows,
+        "random_baseline": random_baseline,
+        "routing_recommendation": routing_recommendation,
         "cells": cell_rows,
     }
     destination = Path(output_root).resolve()
@@ -440,6 +457,7 @@ def run_selector_replay(
             "probe_evolution_work_order_count": report["probe_evolution_work_order_count"],
             "transfer_certificate_abstention_count": report["transfer_certificate_abstention_count"],
             "transfer_work_order_count": report["transfer_work_order_count"],
+            "routing_recommendation": report["routing_recommendation"]["route"],
             "multi_candidate_environment_count": len(multi_candidate_environments),
             "report_path": str(destination / "selector-replay.json"),
         },
@@ -450,6 +468,7 @@ def run_selector_replay(
 
 def _validate_projections(rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, str], dict[str, object]]:
     projections: dict[tuple[str, str], dict[str, object]] = {}
+    schema_by_selector: dict[str, tuple[str, ...]] = {}
     for row in rows:
         key = (str(row.get("environment")), str(row.get("selector")))
         values = row.get("features")
@@ -469,6 +488,9 @@ def _validate_projections(rows: Sequence[Mapping[str, Any]]) -> dict[tuple[str, 
             raise SelectorReplayError("SELECTOR_REPLAY_PROJECTION_ROW_INVALID")
         else:
             names = tuple(raw_names)
+        expected_names = schema_by_selector.setdefault(key[1], names)
+        if names != expected_names:
+            raise SelectorReplayError("SELECTOR_REPLAY_FEATURE_SCHEMA_MISMATCH")
         projections[key] = {"features": vector, "feature_names": names}
     return projections
 
@@ -816,10 +838,13 @@ def _fold_distances(
     projections: Mapping[tuple[str, str], Mapping[str, object]],
 ) -> dict[tuple[str, str, str], float]:
     distances: dict[tuple[str, str, str], float] = {}
-    frames = {
-        (str(row["target_environment"]), str(row["selector"])): tuple(str(value) for value in row["source_environments"])
-        for row in trials
-    }
+    frames: dict[tuple[str, str], tuple[str, ...]] = {}
+    for row in trials:
+        key = (str(row["target_environment"]), str(row["selector"]))
+        sources = tuple(str(value) for value in row["source_environments"])
+        previous = frames.setdefault(key, sources)
+        if previous != sources:
+            raise SelectorReplayError("SELECTOR_REPLAY_SOURCE_FRAME_MISMATCH")
     for (target, selector), sources in frames.items():
         try:
             target_vector = tuple(float(value) for value in projections[(target, selector)]["features"])
@@ -903,6 +928,59 @@ def _aggregate_selectors(cells: Sequence[Mapping[str, Any]]) -> list[dict[str, o
     return rows
 
 
+def _aggregate_random_baseline(cells: Sequence[Mapping[str, Any]]) -> dict[str, object]:
+    """Aggregate the matched candidate-pool random expectation.
+
+    This is intentionally not added to ``SELECTORS``: the experiment keeps
+    its preregistered four selector arms, while the random control is an
+    analytic expectation under each identical candidate pool and budget.
+    """
+
+    by_environment: dict[str, Mapping[str, Any]] = {}
+    for row in cells:
+        if row.get("state") == "evaluated":
+            by_environment.setdefault(str(row["target_environment"]), row)
+    fields = {
+        "top1_positive_hit": "random_top1_positive_expectation",
+        "negative_selection": "random_negative_selection_expectation",
+        "selection_regret": "random_selection_regret_expectation",
+    }
+    result: dict[str, object] = {
+        "selector": "random",
+        "definition": "uniform expectation over each evaluated fold's supported candidate pool",
+        "evaluated_fold_count": len(by_environment),
+    }
+    for output_name, source_name in fields.items():
+        values = [float(row[source_name]) for row in by_environment.values() if isinstance(row.get(source_name), (int, float))]
+        result[output_name] = fmean(values) if values else None
+        result[f"{output_name}_fold_count"] = len(values)
+        result[f"{output_name}_bootstrap_95"] = _bootstrap_interval(values, seed=20260729) if values else None
+    return result
+
+
+def _routing_recommendation(rows: Sequence[Mapping[str, Any]]) -> dict[str, object]:
+    """Choose a conservative route from outer replay aggregates only."""
+
+    by_selector = {str(row["selector"]): row for row in rows}
+    irg = by_selector.get("irg")
+    raw = by_selector.get("raw_response")
+    if irg is None or raw is None or int(irg.get("evaluated_fold_count", 0)) == 0:
+        return {"route": "insufficient_evidence", "reason": "irg_has_no_evaluated_folds"}
+    if int(irg.get("abstained_cell_count", 0)) > int(irg.get("evaluated_cell_count", 0)):
+        return {"route": "abstain_irg", "reason": "irg_abstention_dominates"}
+    irg_regret = irg.get("selection_regret")
+    raw_regret = raw.get("selection_regret")
+    irg_top1 = irg.get("top1_positive_hit")
+    raw_top1 = raw.get("top1_positive_hit")
+    if not all(isinstance(value, (int, float)) for value in (irg_regret, raw_regret, irg_top1, raw_top1)):
+        return {"route": "insufficient_evidence", "reason": "missing_comparable_metrics"}
+    if float(irg_regret) < float(raw_regret) and float(irg_top1) >= float(raw_top1):
+        return {"route": "irg_superior", "reason": "lower_regret_and_no_lower_top1"}
+    if float(irg_regret) == float(raw_regret) and float(irg_top1) == float(raw_top1):
+        return {"route": "fallback_raw_response", "reason": "irg_indistinguishable_from_raw_response"}
+    return {"route": "fallback_raw_response", "reason": "raw_response_has_better_outer_utility"}
+
+
 def _bootstrap_interval(values: Sequence[float], *, seed: int, repeats: int = 2000) -> list[float]:
     rng = random.Random(seed)
     means = sorted(fmean(rng.choice(values) for _ in values) for _ in range(repeats))
@@ -957,6 +1035,7 @@ def _markdown(report: Mapping[str, Any]) -> str:
         f"Environments with selector choice divergence: `{report['selector_choice_divergence_environment_count']}`",
         f"Formal comparison ready: `{str(report['formal_comparison_ready']).lower()}`",
         f"Selection discrimination ready: `{str(report['selection_discrimination_ready']).lower()}`",
+        f"Routing recommendation: `{report['routing_recommendation']['route']}`",
         "",
         "| Selector | Folds | Top-1 positive | Negative selection | Sign accuracy | Kendall tau | Regret |",
         "|---|---:|---:|---:|---:|---:|---:|",
@@ -970,6 +1049,21 @@ def _markdown(report: Mapping[str, Any]) -> str:
             f"| {row['selector']} | {row['evaluated_fold_count']} | {value('top1_positive_hit')} | "
             f"{value('negative_selection')} | {value('benefit_sign_accuracy')} | "
             f"{value('ranking_kendall_tau')} | {value('selection_regret')} |"
+        )
+    random = report.get("random_baseline", {})
+    if random:
+        def random_value(name: str) -> str:
+            item = random.get(name)
+            return "NA" if item is None else f"{float(item):.4f}"
+
+        lines.extend(
+            [
+                "",
+                "Random control (uniform expectation over the same candidate pools): "
+                f"top-1 `{random_value('top1_positive_hit')}`; "
+                f"negative selection `{random_value('negative_selection')}`; "
+                f"regret `{random_value('selection_regret')}`.",
+            ]
         )
     lines.append("")
     if int(report["abstained_cell_count"]) > 0:

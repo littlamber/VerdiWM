@@ -42,7 +42,7 @@ class DiagnosticProbeMaterializationPromptTests(unittest.TestCase):
             self.assertIn("verdict_evidence", report["alignment_contract"]["must_not_change"])
             self.assertEqual(
                 report["alignment_contract"]["engineering_practice_policy"]["policy_id"],
-                "verdiwm_agent_engineering_policy_v1",
+                "verdiwm_agent_engineering_policy_v2",
             )
             first_prompt = Path(report["records"][0]["prompt_path"]).read_text(encoding="utf-8")
             self.assertIn("diagnostic-only", first_prompt)

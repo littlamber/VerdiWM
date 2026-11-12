@@ -4,17 +4,48 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import tempfile
 
 
-def canonical_bytes(value: object) -> bytes:
-    return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+def canonical_bytes(value: object, *, ensure_ascii: bool = True) -> bytes:
+    return json.dumps(value, ensure_ascii=ensure_ascii, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
-def checked_path(value: Path, *, code: str, error: type[ValueError] = ValueError) -> Path:
+def canonical_json_bytes(value: object, *, ensure_ascii: bool = True) -> bytes:
+    """Serialize a JSON artifact using the repository-wide canonical form."""
+
+    return canonical_bytes(value, ensure_ascii=ensure_ascii) + b"\n"
+
+
+def sha256_bytes(value: bytes) -> str:
+    """Return the content digest used by CAS and immutable receipts."""
+
+    return hashlib.sha256(value).hexdigest()
+
+
+def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    """Hash a regular file without loading it into memory."""
+
+    if chunk_size <= 0:
+        raise ValueError("STORAGE_CHUNK_SIZE_INVALID")
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def load_json(path: Path) -> object:
+    """Load one JSON document; callers own domain-specific error translation."""
+
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def checked_path(value: Path, *, code: str, error: type[Exception] = ValueError) -> Path:
     """Reject symlinks before resolution, including linked parent directories."""
     raw = Path(os.path.abspath(Path(value).expanduser()))
     if any(part.is_symlink() for part in (raw, *raw.parents)):
@@ -26,7 +57,12 @@ def atomic_write(path: Path, payload: bytes) -> None:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
-        with os.fdopen(fd, "wb") as handle:
+        try:
+            handle = os.fdopen(fd, "wb")
+        except BaseException:
+            os.close(fd)
+            raise
+        with handle:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
@@ -46,9 +82,11 @@ def exclusive_file_lock(path: Path, *, blocking: bool = True):
     descriptor = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(descriptor, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
-        yield
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
     finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
 
 

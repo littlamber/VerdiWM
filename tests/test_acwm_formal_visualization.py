@@ -9,7 +9,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from scripts.export.acwm_formal_visualization import (
+from wmloop.experiments.formal_visualization import (
     AcwmFormalVisualizationError,
     _eval_command,
     _checkpoint_transform_provenance,
@@ -195,7 +195,7 @@ class AcwmFormalVisualizationTests(unittest.TestCase):
                 )
 
     def test_candidate_runtime_contract_checks_shared_tree_hash(self) -> None:
-        from scripts.export.acwm_formal_visualization import _candidate_runtime_contract
+        from wmloop.experiments.formal_visualization import _candidate_runtime_contract
 
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -276,7 +276,7 @@ class AcwmFormalVisualizationTests(unittest.TestCase):
             candidate_runtime.mkdir()
             dataset_freeze, heldout_protocol = _fake_protocol_files(root)
 
-            with patch("scripts.export.acwm_formal_visualization.VENDOR_ROOT", vendor_root):
+            with patch("wmloop.experiments.formal_visualization.VENDOR_ROOT", vendor_root):
                 manifest = run_export(
                     output_root=root / "visual-export",
                     training_seed=4101,
@@ -336,7 +336,7 @@ class AcwmFormalVisualizationTests(unittest.TestCase):
             candidate = root / "candidate" / "latest.pt"
             dataset_freeze, heldout_protocol = _fake_protocol_files(root)
 
-            with patch("scripts.export.acwm_formal_visualization.VENDOR_ROOT", vendor_root):
+            with patch("wmloop.experiments.formal_visualization.VENDOR_ROOT", vendor_root):
                 manifest = run_export(
                     output_root=root / "visual-export",
                     runtime_python=runtime,

@@ -5,12 +5,13 @@ from __future__ import annotations
 import os
 import json
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
 from wmloop.control.onboarding import OnboardingError, OnboardingOptions, scan_repository
 from wmloop.control.evaluator_discovery import discover_evaluator_candidates
+from wmloop.runtime_env import runtime_python_path
+from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
 
 
 class FirstContactError(ValueError):
@@ -131,7 +132,7 @@ def inspect_project(
         # A virtualenv's ``bin/python`` is commonly a symlink.  Resolving it
         # here silently switches the selected interpreter to the base Python,
         # so retain the launcher spelling while still making it absolute.
-        return candidate.absolute() if preserve_symlink else candidate.resolve()
+        return runtime_python_path(candidate) if preserve_symlink else candidate.resolve()
 
     model_path = resolve_input(model) if model else discovered_model
     source_path = resolve_input(source) if source else (infer_source_root(model_path) or model_path)
@@ -181,8 +182,8 @@ def inspect_project(
     model_assets_available = False
     scan_path = source_path
     if scan_path is not None and scan_path.is_dir() and not scan_path.is_symlink():
-        evaluator_discovery = discover_evaluator_candidates(scan_path)
         try:
+            evaluator_discovery = discover_evaluator_candidates(scan_path)
             report = scan_repository(
                 OnboardingOptions(
                     repo_root=scan_path,
@@ -339,7 +340,7 @@ def initialize_project(
         errors.append({"field": "data", "message": "找不到数据目录；请用 --data 指定数据所在目录。"})
     elif not data_path.exists() or data_path.is_symlink():
         errors.append({"field": "data", "message": f"数据路径不可用：{data_path}"})
-    explicit_runtime = resolve_input(runtime_python) if runtime_python else None
+    explicit_runtime = runtime_python_path(runtime_python, base=base) if runtime_python else None
     if explicit_runtime is not None and (not explicit_runtime.is_file() or not os.access(explicit_runtime, os.X_OK)):
         errors.append({"field": "runtime_python", "message": f"Python 运行环境不可用：{explicit_runtime}"})
     evaluator_path = resolve_input(evaluator_contract) if evaluator_contract else None
@@ -357,9 +358,7 @@ def initialize_project(
             "missing": errors,
             "next_step": "补齐上面标出的信息后再次运行 verdiwm init。",
         }
-    destination = (project_file or (base / "verdiwm.toml")).expanduser().resolve()
-    if destination.exists() and not force:
-        raise FirstContactError(f"PROJECT_FILE_EXISTS:{destination}:use --force to replace it")
+    destination = checked_path(project_file or (base / "verdiwm.toml"), code="PROJECT_FILE_INVALID", error=FirstContactError)
     def relative(path: Path) -> str:
         try:
             return os.path.relpath(path, destination.parent)
@@ -403,16 +402,10 @@ def initialize_project(
         + "".join(f"{key} = {json.dumps(value, ensure_ascii=False)}\n" for key, value in values)
     )
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=f".{destination.name}.", dir=destination.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(body)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, destination)
-    finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+    with exclusive_file_lock(destination.with_name(f".{destination.name}.lock")):
+        if destination.exists() and not force:
+            raise FirstContactError(f"PROJECT_FILE_EXISTS:{destination}:use --force to replace it")
+        atomic_write(destination, body.encode("utf-8"))
     return {
         "schema_version": 1,
         "artifact_type": "verdiwm-first-contact-project",

@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "请引用本软件的实际版本或 commit；论文引用信息见 docs/CITATION.md。"
+title: "VerdiWM: Evidence-grounded world-model research workbench"
+type: software
+authors:
+  - name: "VerdiWM contributors"
+version: 1.0.4rc1
+license: Apache-2.0
+repository-code: "https://github.com/littlamber/VerdiWM"
+url: "https://github.com/littlamber/VerdiWM"

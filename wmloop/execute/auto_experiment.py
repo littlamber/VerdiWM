@@ -21,8 +21,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from wmloop.runtime_env import default_lock_root
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore, SettledTrialRecord
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.storage import canonical_json_bytes, sha256_bytes
 from wmloop.control.onboarding_admission import (
     OnboardingAdmissionError,
     verify_onboarding_admission,
@@ -59,7 +61,7 @@ def run_auto_experiment(
     workspace_root: Path,
     archive_db: Path,
     cas_root: Path,
-    lock_root: Path = Path("/tmp/verdiwm-gpu-leases"),
+    lock_root: Path | None = None,
     budget_db: Path | None = None,
     budget_total_gpu_hours: float | None = None,
     budget_max_trial_gpu_hours: float = 120.0,
@@ -68,6 +70,7 @@ def run_auto_experiment(
 ) -> dict[str, object]:
     """Run or resume one bounded plan and return its durable manifest."""
 
+    lock_root = lock_root if lock_root is not None else default_lock_root()
     plan_source = Path(plan_path).resolve(strict=True)
     workspace = Path(workspace_root).resolve(strict=True)
     if not workspace.is_dir() or workspace.is_symlink():
@@ -1041,16 +1044,7 @@ def _write_json_atomic(path: Path, payload: object) -> None:
 
 
 def _canonical_json(payload: object) -> bytes:
-    return (
-        json.dumps(
-            payload,
-            ensure_ascii=True,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-        + b"\n"
-    )
+    return canonical_json_bytes(payload)
 
 
 def _put_json(
@@ -1072,7 +1066,7 @@ def _media_type(path: Path) -> str:
 
 
 def _sha256_bytes(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
+    return sha256_bytes(payload)
 
 
 def _git_state(workspace_root: Path) -> dict[str, object]:
@@ -1193,7 +1187,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--archive-db", type=Path)
     run_parser.add_argument("--cas-root", type=Path)
     run_parser.add_argument(
-        "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
+        "--lock-root", type=Path, default=default_lock_root()
     )
     run_parser.add_argument("--budget-db", type=Path)
     run_parser.add_argument("--budget-total-gpu-hours", type=float)

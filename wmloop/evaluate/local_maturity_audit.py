@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
-import tempfile
-import uuid
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +15,10 @@ import numpy as np
 
 from wmloop.archive.store import ContentAddressedStore
 from wmloop.geometry.community_knowledge import build_knowledge_lifecycle_record
+from wmloop.storage import atomic_write, checked_path, sha256_file
+
+
+EVALUATOR_TIMEOUT_SECONDS = 60
 
 
 class LocalMaturityAuditError(ValueError):
@@ -26,8 +29,8 @@ def run_local_maturity_audit(*, repo_root: Path, output_root: Path) -> dict[str,
     """Run an end-to-end evaluator and receipt audit without model import or GPU use."""
 
     root = Path(repo_root).expanduser().resolve(strict=True)
-    destination = Path(output_root).expanduser().resolve()
-    if destination.exists() or destination.is_symlink():
+    destination = checked_path(output_root, code="LOCAL_AUDIT_OUTPUT_SYMLINK", error=LocalMaturityAuditError)
+    if destination.exists():
         raise LocalMaturityAuditError("LOCAL_AUDIT_OUTPUT_EXISTS")
     try:
         destination.relative_to(root)
@@ -35,19 +38,26 @@ def run_local_maturity_audit(*, repo_root: Path, output_root: Path) -> dict[str,
         pass
     else:
         raise LocalMaturityAuditError("LOCAL_AUDIT_OUTPUT_MUST_BE_OUTSIDE_REPO")
-    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     script = root / "scripts" / "evaluate_psnr_ssim_smoke.py"
     contract = root / "configs" / "evaluators" / "wan22_droid_psnr_ssim_smoke_v1.json"
     if not script.is_file() or script.is_symlink() or not contract.is_file() or contract.is_symlink():
         raise LocalMaturityAuditError("LOCAL_AUDIT_ASSETS_MISSING")
 
     source_digest_before = _tree_digest(root)
-    with tempfile.TemporaryDirectory(prefix="verdi-local-audit-", dir=str(destination.parent)) as temporary:
-        workspace = Path(temporary)
-        ground_truth = workspace / "ground-truth"
-        perfect_prediction = workspace / "perfect"
-        noisy_prediction = workspace / "noisy"
-        malformed_prediction = workspace / "malformed"
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Reserve the final location because receipts bind absolute input paths.
+    # If another caller already owns it, mkdir fails outside cleanup ownership.
+    destination.mkdir(mode=0o700)
+    try:
+        workspace = destination
+        inputs_root = workspace / "inputs"
+        evidence_root = workspace / "evidence"
+        inputs_root.mkdir(mode=0o700)
+        evidence_root.mkdir(mode=0o700)
+        ground_truth = inputs_root / "ground-truth"
+        perfect_prediction = inputs_root / "perfect"
+        noisy_prediction = inputs_root / "noisy"
+        malformed_prediction = inputs_root / "malformed"
         for directory in (ground_truth, perfect_prediction, noisy_prediction, malformed_prediction):
             directory.mkdir()
         frames = [
@@ -61,18 +71,18 @@ def run_local_maturity_audit(*, repo_root: Path, output_root: Path) -> dict[str,
         np.save(malformed_prediction / "frame-000.npy", frames[0][:-1])
         np.save(malformed_prediction / "frame-001.npy", frames[1])
 
-        perfect_output = workspace / "perfect-output"
+        perfect_output = evidence_root / "perfect-output"
         perfect = _invoke(script, contract, perfect_prediction, ground_truth, perfect_output)
         perfect_receipt = perfect_output / "psnr-ssim-receipt.json"
         verified = _invoke_verify(script, contract, perfect_receipt)
-        noisy_output = workspace / "noisy-output"
+        noisy_output = evidence_root / "noisy-output"
         noisy = _invoke(script, contract, noisy_prediction, ground_truth, noisy_output, baseline=perfect_receipt)
-        malformed_output = workspace / "malformed-output"
+        malformed_output = evidence_root / "malformed-output"
         malformed = _invoke(script, contract, malformed_prediction, ground_truth, malformed_output, expect_failure=True)
-        repeated_output = workspace / "repeated-output"
+        repeated_output = evidence_root / "repeated-output"
         repeated = _invoke(script, contract, perfect_prediction, ground_truth, repeated_output)
 
-        cas_root = destination.parent / f".{destination.name}.cas"
+        cas_root = workspace / "cas"
         cas = ContentAddressedStore(cas_root)
         receipt_bytes = perfect_receipt.read_bytes()
         receipt_ref = cas.put_bytes(receipt_bytes, media_type="application/json").uri
@@ -90,7 +100,6 @@ def run_local_maturity_audit(*, repo_root: Path, output_root: Path) -> dict[str,
         knowledge_ref = cas.put_bytes(knowledge_bytes, media_type="application/json").uri
         knowledge_roundtrip = cas.read_bytes(knowledge_ref) == knowledge_bytes
         source_digest_after = _tree_digest(root)
-        shutil.rmtree(cas_root, ignore_errors=True)
 
         gates = [
             {"id": "cli_entrypoint", "state": "pass", "detail": "Evaluator executed through the Python CLI entrypoint."},
@@ -129,70 +138,80 @@ def run_local_maturity_audit(*, repo_root: Path, output_root: Path) -> dict[str,
         }
         _write_report(destination, report)
         return {**report, "manifest_path": str(destination / "manifest.json")}
+    except BaseException:
+        # Ctrl-C must also leave this owned output available for a clean retry.
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
 
 
 def _invoke(script: Path, contract: Path, prediction: Path, target: Path, output: Path, *, baseline: Path | None = None, expect_failure: bool = False) -> dict[str, Any]:
     command = [sys.executable, str(script), "--predicted-dir", str(prediction), "--ground-truth-dir", str(target), "--output-root", str(output), "--contract", str(contract)]
     if baseline is not None:
         command.extend(["--baseline-receipt", str(baseline)])
-    child_environment = dict(__import__("os").environ)
-    child_environment.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": str(output.parent / ".pycache")})
-    completed = subprocess.run(command, cwd=str(script.parents[1]), env=child_environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, check=False)
+    completed = _run_evaluator(command, script, output.parent)
     if expect_failure:
         if completed.returncode == 0:
             raise LocalMaturityAuditError("LOCAL_AUDIT_EXPECTED_FAILURE_MISSING")
-        try:
-            return json.loads(completed.stderr.strip() or completed.stdout.strip())
-        except json.JSONDecodeError as exc:
-            raise LocalMaturityAuditError("LOCAL_AUDIT_FAILURE_UNPARSEABLE") from exc
+        return _response_object(completed.stderr.strip() or completed.stdout.strip(), "LOCAL_AUDIT_FAILURE_UNPARSEABLE")
     if completed.returncode != 0:
         raise LocalMaturityAuditError(f"LOCAL_AUDIT_EVALUATOR_FAILED:{completed.stderr.strip()}")
-    try:
-        return json.loads(completed.stdout.strip())
-    except json.JSONDecodeError as exc:
-        raise LocalMaturityAuditError("LOCAL_AUDIT_OUTPUT_UNPARSEABLE") from exc
+    return _response_object(completed.stdout.strip())
 
 
 def _invoke_verify(script: Path, contract: Path, receipt: Path) -> dict[str, Any]:
-    child_environment = dict(__import__("os").environ)
-    child_environment.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": str(receipt.parent.parent / ".pycache")})
-    completed = subprocess.run([sys.executable, str(script), "--verify-receipt", str(receipt), "--contract", str(contract)], cwd=str(script.parents[1]), env=child_environment, stdin=subprocess.DEVNULL, capture_output=True, text=True, check=False)
+    completed = _run_evaluator([sys.executable, str(script), "--verify-receipt", str(receipt), "--contract", str(contract)], script, receipt.parent.parent)
     if completed.returncode != 0:
         raise LocalMaturityAuditError(f"LOCAL_AUDIT_RECEIPT_VERIFY_FAILED:{completed.stderr.strip() or completed.stdout.strip()}")
-    return json.loads(completed.stdout.strip())
+    return _response_object(completed.stdout.strip())
+
+
+def _response_object(raw: str, error_code: str = "LOCAL_AUDIT_OUTPUT_UNPARSEABLE") -> dict[str, Any]:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise LocalMaturityAuditError(error_code) from exc
+    if not isinstance(value, dict):
+        raise LocalMaturityAuditError("LOCAL_AUDIT_OUTPUT_OBJECT_REQUIRED")
+    return value
+
+
+def _run_evaluator(command: list[str], script: Path, workspace: Path) -> subprocess.CompletedProcess[str]:
+    """Bound the bundled CPU evaluator and reap it on timeout or cancellation."""
+    environment = dict(os.environ)
+    environment.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONPYCACHEPREFIX": str(workspace / ".pycache")})
+    try:
+        return subprocess.run(command, cwd=script.parents[1], env=environment, stdin=subprocess.DEVNULL,
+                              capture_output=True, text=True, check=False, timeout=EVALUATOR_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        raise LocalMaturityAuditError("LOCAL_AUDIT_EVALUATOR_TIMEOUT") from exc
 
 
 def _tree_digest(root: Path) -> str:
+    """Hash source/configuration without traversing generated runtime trees."""
     digest = hashlib.sha256()
-    for path in sorted(root.rglob("*")):
-        if path.is_file() and not path.is_symlink():
-            digest.update(path.relative_to(root).as_posix().encode() + b"\0" + _sha256(path).encode())
+    transient = {".git", ".venv", "__pycache__", ".pytest_cache", ".hypothesis", ".ruff_cache", "node_modules"}
+    generated_roots = {"artifacts", "results", "runs", "outputs", "logs", "cache", "build", "dist", "htmlcov", ".verdiwm", ".audit-state"}
+    for directory, directories, files in os.walk(root, followlinks=False):
+        parent = Path(directory)
+        directories[:] = sorted(name for name in directories if name not in transient and not (parent == root and name in generated_roots) and not (parent / name).is_symlink())
+        for name in sorted(files):
+            path = parent / name
+            if path.is_symlink() or path.suffix in {".pyc", ".pyo", ".log"} or name == ".coverage":
+                continue
+            digest.update(path.relative_to(root).as_posix().encode() + b"\0" + sha256_file(path).encode())
     return digest.hexdigest()
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return sha256_file(path)
 
 
 def _write_report(destination: Path, report: dict[str, object]) -> None:
-    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
-    temporary.mkdir(mode=0o700)
-    try:
-        (temporary / "local-maturity-audit.json").write_text(json.dumps(report, ensure_ascii=True, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-        lines = ["# VerdiWM Local Maturity Audit", "", f"- State: `{report['state']}`", f"- Operational state: `{report['operational_state']}`", f"- Evaluator state: `{report['evaluator_state']}`", f"- Receipt state: `{report['receipt_state']}`", f"- Knowledge state: `{report['knowledge_state']}`", "", "| Gate | State | Detail |", "| --- | --- | --- |"]
-        lines.extend(f"| `{gate['id']}` | `{gate['state']}` | {gate['detail']} |" for gate in report["gates"])
-        lines.extend(["", "## Claim boundary", "", str(report["claim_boundary"]), ""])
-        (temporary / "local-maturity-audit.md").write_text("\n".join(lines), encoding="utf-8")
-        manifest = {"schema_version": 1, "artifact_type": "verdiwm-local-maturity-audit-manifest", "state": report["state"], "audit_id": report["audit_id"], "report_path": str(destination / "local-maturity-audit.json")}
-        (temporary / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=True, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-        import os
-
-        os.replace(temporary, destination)
-    except Exception:
-        shutil.rmtree(temporary, ignore_errors=True)
-        raise
+    """Publish report files atomically and the completion manifest last."""
+    atomic_write(destination / "local-maturity-audit.json", (json.dumps(report, ensure_ascii=True, sort_keys=True, indent=2) + "\n").encode())
+    lines = ["# VerdiWM Local Maturity Audit", "", f"- State: `{report['state']}`", f"- Operational state: `{report['operational_state']}`", f"- Evaluator state: `{report['evaluator_state']}`", f"- Receipt state: `{report['receipt_state']}`", f"- Knowledge state: `{report['knowledge_state']}`", "", "| Gate | State | Detail |", "| --- | --- | --- |"]
+    lines.extend(f"| `{gate['id']}` | `{gate['state']}` | {gate['detail']} |" for gate in report["gates"])
+    lines.extend(["", "## Claim boundary", "", str(report["claim_boundary"]), ""])
+    atomic_write(destination / "local-maturity-audit.md", "\n".join(lines).encode())
+    manifest = {"schema_version": 1, "artifact_type": "verdiwm-local-maturity-audit-manifest", "state": report["state"], "audit_id": report["audit_id"], "report_path": str(destination / "local-maturity-audit.json")}
+    atomic_write(destination / "manifest.json", (json.dumps(manifest, ensure_ascii=True, sort_keys=True, indent=2) + "\n").encode())

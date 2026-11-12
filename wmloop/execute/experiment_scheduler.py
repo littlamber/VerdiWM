@@ -20,6 +20,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from wmloop.runtime_env import default_lock_root
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.onboarding_admission import (
     OnboardingAdmissionError,
@@ -844,7 +845,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--archive-db", type=Path, required=True)
     run_parser.add_argument("--cas-root", type=Path, required=True)
     run_parser.add_argument(
-        "--lock-root", type=Path, default=Path("/tmp/verdiwm-gpu-leases")
+        "--lock-root", type=Path, default=default_lock_root()
     )
     run_parser.add_argument("--budget-db", type=Path)
     run_parser.add_argument("--budget-total-gpu-hours", type=float)

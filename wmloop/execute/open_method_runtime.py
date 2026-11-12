@@ -6,8 +6,8 @@ filesystem/network isolation is not enforced. It never grants publication.
 """
 from __future__ import annotations
 
-import hashlib
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
@@ -19,7 +19,7 @@ import time
 
 from wmloop.control.candidate_execution import candidate_execution_digest, validate_candidate_execution_contract
 from wmloop.control.open_method_ir import validate_method_ir, validate_candidate_overlay, method_ir_digest
-from wmloop.storage import atomic_write, canonical_bytes, checked_path
+from wmloop.storage import atomic_write, canonical_bytes, checked_path, sha256_bytes
 
 
 class OpenRuntimeError(ValueError):
@@ -39,7 +39,7 @@ def resolve_runtime_python(value) -> Path:
 
 
 def digest(value):
-    return hashlib.sha256(canonical_bytes(value)).hexdigest()
+    return sha256_bytes(canonical_bytes(value))
 
 
 def read_json(path):

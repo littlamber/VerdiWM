@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from wmloop.control.evaluator_discovery import discover_evaluator_candidates
+from wmloop.control.evaluator_discovery import EvaluatorDiscoveryError, discover_evaluator_candidates
 from wmloop.control.evaluator_overlay import EvaluatorOverlayError, materialize_evaluator_overlay
 
 
@@ -36,6 +36,15 @@ def test_discovery_reports_protocol_scope_without_freezing(tmp_path: Path) -> No
     assert row["split"] == "val"
     assert row["requires_user_confirmation"] is True
     assert report["selection_hint"]["candidate_id"] == row["candidate_id"]
+
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_discovery_rejects_missing_or_non_directory_source(tmp_path: Path, missing: bool) -> None:
+    target = tmp_path / "source"
+    if not missing:
+        target.write_text("fixture")
+    with pytest.raises(EvaluatorDiscoveryError, match="EVALUATOR_SOURCE_DIRECTORY_REQUIRED"):
+        discover_evaluator_candidates(target)
 
 
 def test_overlay_rewrites_source_model_and_data_without_mutating_candidate(tmp_path: Path) -> None:

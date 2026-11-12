@@ -70,6 +70,8 @@ class ProbeCandidate:
             raise GeometryValidationError("PROBE_CANDIDATE_INVALID")
         if self.standard_error < 0.0 or self.probe_cost <= 0.0:
             raise GeometryValidationError("PROBE_CANDIDATE_INVALID")
+        if not isinstance(self.regression_pass, bool):
+            raise GeometryValidationError("PROBE_CANDIDATE_REGRESSION_INVALID")
 
 
 def detect_repair_collisions(
@@ -81,7 +83,12 @@ def detect_repair_collisions(
 ) -> tuple[RepairCollision, ...]:
     """Find nearby campaigns with confidence-separated opposing effects."""
 
-    if distance_threshold < 0.0 or minimum_effect < 0.0 or not 0.0 < fdr_alpha < 1.0:
+    if (
+        not all(math.isfinite(value) for value in (distance_threshold, minimum_effect, fdr_alpha))
+        or distance_threshold < 0.0
+        or minimum_effect < 0.0
+        or not 0.0 < fdr_alpha < 1.0
+    ):
         raise GeometryValidationError("ATLAS_COLLISION_THRESHOLD_INVALID")
     collisions: list[RepairCollision] = []
     for i, left in enumerate(points):
@@ -120,7 +127,11 @@ def rank_probe_candidates(
 ) -> tuple[dict[str, object], ...]:
     """Rank staged directions by regret-reduction LCB per unit cost."""
 
-    if confidence_z < 0.0 or maximum_calibration_regression < 0.0:
+    if (
+        not all(math.isfinite(value) for value in (confidence_z, maximum_calibration_regression))
+        or confidence_z < 0.0
+        or maximum_calibration_regression < 0.0
+    ):
         raise GeometryValidationError("PROBE_RANK_THRESHOLD_INVALID")
     rows: list[dict[str, object]] = []
     for candidate in candidates:

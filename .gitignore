@@ -16,6 +16,9 @@ artifacts/
 outputs/
 logs/
 cache/
+docs/plans/
+docs/summary/
+docs/logs/
 .verdiwm/
 .audit-state/
 # Generated experiment media/checkpoints stay outside Git.
@@ -36,3 +39,16 @@ MANIFEST.sha256
 # Local historical evidence checks depend on bundles kept outside this source repo.
 tests/test_acwm_probe_information_public_example.py
 vendor/ACWM-Phys/
+
+# Local credentials and dependency/build caches never belong in source releases.
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+node_modules/
+workbench-ui/dist/
+docs/prompts/

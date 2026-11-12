@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 import hashlib
 import json
@@ -67,8 +68,12 @@ class EffectRecord:
                 raise GeometryValidationError("EFFECT_RECORD_VALUE_INVALID")
         if self.standard_error < 0.0 or self.replication_count < 1:
             raise GeometryValidationError("EFFECT_RECORD_UNCERTAINTY_INVALID")
+        if self.lower_bound > self.mean_effect:
+            raise GeometryValidationError("EFFECT_RECORD_INTERVAL_INVALID")
         if not self.validity_gates or not self.evidence_refs:
             raise GeometryValidationError("EFFECT_RECORD_EVIDENCE_MISSING")
+        if any(not isinstance(value, bool) for value in self.validity_gates.values()):
+            raise GeometryValidationError("EFFECT_RECORD_GATE_TYPE_INVALID")
         if self.status == "confirmed":
             if self.lower_bound <= self.goal_threshold:
                 raise GeometryValidationError("CONFIRMED_EFFECT_LOWER_BOUND_NOT_POSITIVE")
@@ -100,10 +105,15 @@ class EffectMemory:
     def add(self, record: EffectRecord) -> None:
         if record.record_id in self._records:
             raise GeometryValidationError(f"EFFECT_RECORD_DUPLICATE:{record.record_id}")
-        self._records[record.record_id] = record
+        # A frozen dataclass does not freeze its nested dictionaries. Validate
+        # and retain an owned snapshot so later caller mutations cannot rewrite
+        # the evidence used by retrieval or exported views.
+        snapshot = deepcopy(record)
+        snapshot.__post_init__()
+        self._records[record.record_id] = snapshot
 
     def records(self) -> tuple[EffectRecord, ...]:
-        return tuple(self._records[key] for key in sorted(self._records))
+        return tuple(deepcopy(self._records[key]) for key in sorted(self._records))
 
     def add_relation(self, relation: object) -> None:
         """Store a validated mechanism relation alongside effect records."""

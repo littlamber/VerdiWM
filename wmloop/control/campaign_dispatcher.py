@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager, ExitStack
 from concurrent.futures import ThreadPoolExecutor
 import json
 import os
@@ -17,6 +18,7 @@ from typing import Any, Callable, Mapping
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
 from wmloop.execute.model_runner import execute_model_run
+from wmloop.storage import checked_path, exclusive_file_lock
 
 
 class CampaignDispatchError(RuntimeError):
@@ -56,7 +58,7 @@ def run_dispatcher(
         or any(not campaign_id for campaign_id in options.campaign_ids)
     ):
         raise CampaignDispatchError("DISPATCHER_OPTIONS_INVALID")
-    root = Path(options.state_root).expanduser().resolve()
+    root = checked_path(options.state_root, code="DISPATCHER_ROOT_INVALID", error=CampaignDispatchError)
     store = CampaignStore(root)
     dispatch_root = store.root / "dispatch"
     pending = dispatch_root / "pending"
@@ -68,12 +70,11 @@ def run_dispatcher(
     for path in (pending, running, completed, blocked, failed, cancelled):
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
     lock_path = dispatch_root / "dispatcher.lock"
-    _acquire_lock(lock_path)
     settled: list[str] = []
     failed_ids: list[str] = []
     blocked_ids: list[str] = []
     cancelled_ids: list[str] = []
-    try:
+    with _dispatcher_lock(lock_path):
         recovered = _recover_interrupted(
             store=store,
             running=running,
@@ -131,8 +132,6 @@ def run_dispatcher(
             "cancelled_campaign_ids": cancelled_ids,
             "pending_count": len(list(pending.glob("*.json"))),
         }
-    finally:
-        lock_path.unlink(missing_ok=True)
 
 
 def _dispatch_one(
@@ -153,9 +152,10 @@ def _dispatch_one(
         "schema_version": 1,
     }
     try:
-        if store.claim_dispatch(campaign_id, source, active) is None:
+        claimed = store.claim_dispatch(campaign_id, source, active)
+        if claimed is None:
             return "cancelled", campaign_id
-        dispatch = _load_dispatch(active)
+        dispatch = claimed
         if _cancel_requested(store, campaign_id):
             raise CampaignDispatchError("DISPATCH_CANCELLED_BEFORE_LAUNCH")
         if runner is None and dispatch.get("model_run") is not None:
@@ -212,53 +212,16 @@ def _recover_interrupted(
     return recovered
 
 
-def _acquire_lock(path: Path) -> None:
-    payload = json.dumps({"pid": os.getpid()}, sort_keys=True) + "\n"
-    try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
+@contextmanager
+def _dispatcher_lock(path: Path):
+    """Keep one inode locked; the kernel releases ownership after interruption."""
+    path = checked_path(path, code="DISPATCHER_LOCK_INVALID", error=CampaignDispatchError)
+    with ExitStack() as stack:
         try:
-            lock = json.loads(path.read_text(encoding="utf-8"))
-            pid = int(lock.get("pid", -1))
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
-            pid = -1
-        if pid > 0 and _pid_alive(pid):
-            raise CampaignDispatchError("DISPATCHER_ALREADY_RUNNING")
-        path.unlink(missing_ok=True)
-        return _acquire_lock(path)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(payload)
-        handle.flush()
-        os.fsync(handle.fileno())
-
-
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def _load_dispatch(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise CampaignDispatchError("DISPATCH_MANIFEST_INVALID") from exc
-    if not isinstance(payload, dict) or payload.get("artifact_type") != "verdiwm-campaign-dispatch":
-        raise CampaignDispatchError("DISPATCH_MANIFEST_CONTRACT_INVALID")
-    if payload.get("state") != "pending" or not isinstance(payload.get("execution"), dict):
-        raise CampaignDispatchError("DISPATCH_MANIFEST_NOT_PENDING")
-    return payload
-
-
-def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    temporary.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
+            stack.enter_context(exclusive_file_lock(path, blocking=False))
+        except BlockingIOError as exc:
+            raise CampaignDispatchError("DISPATCHER_ALREADY_RUNNING") from exc
+        yield
 
 
 def _build_command(execution: Mapping[str, Any]) -> list[str]:

@@ -15,6 +15,12 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
+from wmloop.storage import checked_path
+
+
+class EvaluatorDiscoveryError(ValueError):
+    """The source directory cannot be scanned reliably."""
+
 
 _MAX_FILES = 200
 # Build host-path prefixes without embedding machine-local paths in the public
@@ -29,11 +35,16 @@ _FRAME_KEYS = {"num_video_frames", "video_frames", "num_frames", "frames", "hori
 def discover_evaluator_candidates(source_root: Path) -> dict[str, Any]:
     """Return deterministic evaluator candidates without importing or running code."""
 
-    root = Path(source_root).expanduser().resolve()
+    root = checked_path(source_root, code="EVALUATOR_SOURCE_SYMLINK", error=EvaluatorDiscoveryError)
     candidates: list[dict[str, Any]] = []
     warnings: list[dict[str, str]] = []
-    if not root.is_dir() or root.is_symlink():
-        return {"state": "none", "candidates": [], "scanned_root": str(root)}
+    if not root.is_dir():
+        raise EvaluatorDiscoveryError("EVALUATOR_SOURCE_DIRECTORY_REQUIRED")
+    try:
+        with os.scandir(root) as entries:
+            next(entries, None)
+    except OSError as exc:
+        raise EvaluatorDiscoveryError("EVALUATOR_SOURCE_UNREADABLE") from exc
     search_roots = [root / "configs" / "evaluation", root / "configs" / "evaluators"]
     files: list[Path] = []
     for directory in search_roots:

@@ -127,7 +127,7 @@ def execute_source_effect_repair_job(
     if output_root.exists() or output_root.is_symlink():
         raise SourceEffectRepairError("SOURCE_EFFECT_REPAIR_OUTPUT_EXISTS")
     protocol = plan["protocol"]
-    from scripts.export.acwm_formal_visualization import run_export
+    from wmloop.experiments.formal_visualization import run_export
 
     return run_export(
         output_root=output_root,

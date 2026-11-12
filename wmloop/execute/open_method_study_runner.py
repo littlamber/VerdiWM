@@ -25,7 +25,8 @@ from wmloop.execute.gpu_lease import GpuLeaseManager
 from wmloop.execute.open_method_runtime import load_compilation, run_candidate_operation, run_local_command, resolve_runtime_python
 from wmloop.geometry.mechanism_relations import build_mechanism_relation, classify_interaction
 from wmloop.geometry.memory import EffectContext, EffectMemory, EffectRecord
-from wmloop.storage import atomic_write, canonical_bytes, checked_path
+from wmloop.runtime_env import default_lock_root
+from wmloop.storage import atomic_write, canonical_bytes, checked_path, sha256_bytes
 
 
 ROLES = ("baseline", "source_only", "target_only", "combined")
@@ -114,7 +115,7 @@ def execute_open_method_study(
     output_root: Path,
     runtime_python: Path = Path(sys.executable),
     gpu_indices: Sequence[int] = (),
-    lock_root: Path = Path("/tmp/verdiwm-gpu-leases"),
+    lock_root: Path | None = None,
     max_parallel: int = 1,
     calibration_timeout_seconds: float = 300.0,
     gpu_wait_seconds: float = 60.0,
@@ -122,6 +123,7 @@ def execute_open_method_study(
 ) -> dict[str, object]:
     """Run calibration, paired trials, frozen evaluation, and local settlement."""
 
+    lock_root = lock_root if lock_root is not None else default_lock_root()
     started = time.monotonic()
     study_path = checked_path(study_root, code="OPEN_EXECUTION_STUDY_PATH_INVALID", error=OpenMethodStudyExecutionError)
     destination = checked_path(output_root, code="OPEN_EXECUTION_OUTPUT_INVALID", error=OpenMethodStudyExecutionError)
@@ -655,7 +657,7 @@ def _file_digest(path: Path) -> str:
 
 
 def _digest(value: object) -> str:
-    return hashlib.sha256(canonical_bytes(value)).hexdigest()
+    return sha256_bytes(canonical_bytes(value))
 
 
 def main() -> int:
@@ -676,7 +678,7 @@ def main() -> int:
     parser.add_argument(
         "--lock-root",
         type=Path,
-        default=Path("/tmp/verdiwm-gpu-leases"),
+        default=default_lock_root(),
         help="shared GPU lease directory",
     )
     parser.add_argument(

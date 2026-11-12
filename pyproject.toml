@@ -1,40 +1,48 @@
 [build-system]
-requires = ["hatchling>=1.27,<2"]
+requires = ["hatchling==1.32.0", "packaging==26.3", "pathspec==1.1.1", "pluggy==1.6.0", "trove-classifiers==2026.6.1.19"]
 build-backend = "hatchling.build"
 
 [project]
 name = "verdiwm"
-version = "1.0.3"
+version = "1.0.4rc1"
 description = "Evidence-grounded diagnosis, repair, and transfer for world models."
 readme = "README.md"
-requires-python = ">=3.10,<3.11"
+requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 keywords = ["world-models", "automated-research", "diagnosis", "causal-transfer"]
 classifiers = [
-  "Development Status :: 5 - Production/Stable",
+  "Development Status :: 4 - Beta",
+  "Operating System :: POSIX :: Linux",
   "Intended Audience :: Science/Research",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
   "imageio[ffmpeg]>=2.34,<3",
   "jsonschema>=4.23,<5",
   "numpy>=1.26,<3",
-  "Pillow>=10,<13",
+  "packaging>=26.2,<27",
+  "Pillow>=13,<14",
   "pydantic>=2.8,<3",
   "PyYAML>=6,<7",
-  "cryptography>=41,<44",
+  "cryptography>=50.0.2,<51",
   "tenacity>=9,<10",
-  "tomli>=2,<3; python_version < '3.11'",
+  "tomli>=2,<3",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8,<9"]
+dev = ["pytest>=9.1.1,<10"]
 torch-tests = ["torch>=2.2,<3"]
 
+[project.urls]
+Repository = "https://github.com/littlamber/VerdiWM"
+Issues = "https://github.com/littlamber/VerdiWM/issues"
+Security = "https://github.com/littlamber/VerdiWM/security/policy"
+
 [project.scripts]
+verdiwm-effect-label-queue = "wmloop.experiments.effect_label_queue:main"
 verdi = "wmloop.cli:main"
 verdiwm = "wmloop.cli:main"
 verdiwm-backbone-audit = "wmloop.control.backbone_instance:main"
@@ -66,6 +74,7 @@ verdiwm-workbench = "wmloop.control.workbench:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["wmloop"]
+exclude = ["/wmloop/web/ui"]
 
 [tool.hatch.build.targets.wheel.force-include]
 configs = "configs"
@@ -85,6 +94,9 @@ include = [
   "/experiments/ctrl_world_acwm_guidance_v1",
   "/experiments/wan22_droid_acwm_v1",
   "/CONTRIBUTING.md",
+  "/AGENTS.md",
+  "/CITATION.cff",
+  "/CHANGELOG.md",
   "/docs",
   "/LICENSE",
   "/pyproject.toml",
@@ -92,13 +104,17 @@ include = [
   "/README_zh.md",
   "/scripts",
   "/SECURITY.md",
+  "/THIRD_PARTY_NOTICES.md",
   "/tests",
   "/uv.lock",
   "/wmloop",
   "/examples/portrait_first_minimal_loop_v1",
 ]
+exclude = ["/wmloop/web/ui", "/docs/plans", "/docs/summary", "/docs/prompts", "/docs/logs", "**/.env", "**/.env.*", "**/*.pem", "**/*.key"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
 addopts = "-ra"
+
+[tool.uv]
+constraint-dependencies = ["filelock>=4.2.10", "setuptools>=84.2.1"]

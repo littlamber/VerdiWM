@@ -1,0 +1,22 @@
+{
+  "fixture_only": true,
+  "baseline_feature_groups": {"raw_response": ["x"], "irg": ["x"]},
+  "folds": [
+    {
+      "fold_id": "outer-plus", "target_environment": "target-plus",
+      "source_environments": ["a", "b", "c"], "ridge": 0.01,
+      "candidates": [
+        {"primitive": "p", "features": {"x": 0.75}},
+        {"primitive": "n", "features": {"x": 0.75}}
+      ]
+    },
+    {
+      "fold_id": "outer-minus", "target_environment": "target-minus",
+      "source_environments": ["a", "b", "c"], "ridge": 0.01,
+      "candidates": [
+        {"primitive": "p", "features": {"x": -0.75}},
+        {"primitive": "n", "features": {"x": -0.75}}
+      ]
+    }
+  ]
+}

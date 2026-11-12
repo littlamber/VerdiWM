@@ -127,6 +127,22 @@ class FirstContactTests(unittest.TestCase):
             config = load_project_config(cwd=root)
         self.assertEqual(Path(config.values["evaluator_contract"]), evaluator)
 
+    def test_runtime_virtualenv_launcher_survives_project_config_roundtrip(self) -> None:
+        import subprocess
+        import sys
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "model").mkdir()
+            (root / "data").mkdir()
+            venv = root / "model-env"
+            subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True)
+            launcher = venv / "bin" / "python"
+            initialize_project(root=root, model="model", data="data", goal="检查运行环境", runtime_python="model-env/bin/python")
+            configured = Path(load_project_config(cwd=root).values["runtime_python"])
+            self.assertEqual(configured, launcher)
+            self.assertEqual(subprocess.check_output([configured, "-c", "import sys; sys.stdout.write(sys.prefix)"], text=True).strip(), str(venv))
+
     def test_relative_api_style_inputs_are_resolved_from_project_root(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)
