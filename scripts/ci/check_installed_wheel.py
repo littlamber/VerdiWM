@@ -108,22 +108,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("wheel", type=Path, nargs="?")
     parser.add_argument("--probe", action="store_true")
+    parser.add_argument("--prepare-locked-cache", action="store_true", help="Populate the hashed locked dependency cache before offline validation.")
     parser.add_argument("--dependency-mode", choices=("locked", "resolved"), default="locked")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     if args.probe:
         probe()
         return
-    if args.wheel is None:
+    if args.wheel is None and not args.prepare_locked_cache:
         parser.error("wheel is required")
-    wheel = args.wheel.resolve(strict=True)
+    wheel = args.wheel.resolve(strict=True) if args.wheel else None
     environment = dict(os.environ)
     environment.pop("PYTHONPATH", None)
     with tempfile.TemporaryDirectory(prefix="verdiwm-installed-") as temporary:
         root = Path(temporary)
         python = root / "env/bin/python"
         subprocess.run(["uv", "venv", "--python", sys.executable, str(root / "env")], check=True, cwd=root, env=environment)
-        if args.dependency_mode == "locked":
+        if args.dependency_mode == "locked" or args.prepare_locked_cache:
             requirements = root / "requirements.txt"
             subprocess.run(["uv", "export", "--locked", "--no-default-groups", "--no-emit-project", "--output-file", str(requirements)], check=True, env=environment, stdout=subprocess.DEVNULL)
             installation = subprocess.run(["uv", "pip", "install", "--python", str(python), "--require-hashes", "-r", str(requirements)], cwd=root, env=environment, capture_output=True, text=True)
@@ -134,6 +135,9 @@ def main() -> None:
                 detail = installation.stderr.casefold()
                 logging.error("::error::Locked dependency installation failed: offline=%s cache_miss=%s hash_error=%s", environment.get("UV_OFFLINE") == "1", "cache" in detail or "offline" in detail, "hash" in detail)
                 installation.check_returncode()
+            if args.prepare_locked_cache:
+                logging.info("Locked dependency cache prepared; wheel validation has not run.")
+                return
             subprocess.run(["uv", "pip", "install", "--python", str(python), "--no-deps", str(wheel)], check=True, cwd=root, env=environment)
         else:
             # Exercise the wheel's own dependency ranges without the repo lock.

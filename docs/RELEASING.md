@@ -83,6 +83,9 @@ JSON 请求大小与读取时间。所有 API 使用每次启动的访问令牌�
 - 安装验证分别记录 locked 与 resolved 两种依赖模式。离线 resolved 检查只代表
   当前缓存可解析的组合；GitHub 的 wheel-install 工作流另行联网验证当前解析结果，
   不使用仓库锁约束 wheel 的依赖选择。
+- GitHub 的控制面 CI 在联网准备阶段通过 `check_installed_wheel.py --prepare-locked-cache`
+  安装带摘要的锁定依赖，再切换离线运行发布检查。仅执行项目 `uv sync` 不代表
+  已准备完整的独立 `uv pip install --require-hashes` 缓存；准备步骤不算 wheel 验证。
 - dependency-security 每周及 main 更新后查询 OSV，查询失败不是通过。安全报告
   包含可选测试依赖；命中公告时不能用 CPU 测试通过替代修复或经过审查的适用性分析。
 - 远端设置见 `GITHUB_SETTINGS.md`。已有公开仓库不自动重写历史或强推；本地报告
