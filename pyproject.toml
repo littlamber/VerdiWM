@@ -42,6 +42,8 @@ Issues = "https://github.com/littlamber/VerdiWM/issues"
 Security = "https://github.com/littlamber/VerdiWM/security/policy"
 
 [project.scripts]
+verdiwm-auto-experiment = "wmloop.execute.auto_experiment:main"
+verdiwm-auto-scheduler = "wmloop.execute.experiment_scheduler:main"
 verdiwm-effect-label-queue = "wmloop.experiments.effect_label_queue:main"
 verdi = "wmloop.cli:main"
 verdiwm = "wmloop.cli:main"

@@ -6,6 +6,7 @@ VerdiWM 包含控制面、实验实现、模型适配器、导出脚本和历史
 VerdiWM/
 ├── wmloop/                 # 可安装的核心包，业务代码只能从这里复用能力
 │   ├── storage.py          # canonical JSON、hash、原子文件和锁的唯一事实源
+│   ├── process_lifecycle.py # CPU 子进程信号取消与进程组回收的共享实现
 │   ├── contracts.py        # JSON Schema / contract 校验
 │   ├── control/            # 意图、portrait、candidate、campaign 状态
 │   │   ├── commands/       # CLI 参数声明、命令服务、配置边界
@@ -48,6 +49,8 @@ VerdiWM/
 | `experiments/` | `<domain>_<purpose>_vN` | 领域实验代码；公共逻辑必须下沉 `wmloop` |
 
 根目录 `wmloop/*.py` 只允许兼容入口、协议和跨域基础设施。新的领域实现不能继续放在根目录。`wmloop.storage` 是文件和序列化共用层：新代码不得重新实现 canonical JSON、SHA-256、原子写和锁；领域错误码由调用层转换，底层不感知具体实验。
+
+`wmloop.process_lifecycle` 是控制面、CPU 评估和执行器共用的信号取消与进程组回收层，只依赖标准库。原 `wmloop.execute.process_lifecycle` 保留同一对象的兼容导出，不能回填第二套实现；CPU 评估和接入扫描不应为了回收子进程导入 execute 包。
 
 `scripts/ci/check_repository_layout.py` 会在 CI 中阻止新的未知根模块、未声明 domain 目录、非法脚本前缀和不符合版本命名的实验目录。上面六个组件目录还会检查反向 import 兼容入口、内部循环依赖和 800 行上限；`geometry/retrieve` 不能导入 `execute/torch`。其他历史大文件通过 `large_python_modules()` 持续报告。
 

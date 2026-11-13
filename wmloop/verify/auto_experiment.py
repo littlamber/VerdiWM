@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Mapping, Sequence
 
+from wmloop.contracts import ContractValidationError, validate_document
+
 
 class AutoExperimentVerificationError(ValueError):
     """An auto-experiment result or verification contract is malformed."""
@@ -29,8 +31,13 @@ def verify_auto_experiment_result(
     """Verify output metrics and prove that the leased GPU performed work."""
 
     blockers: list[dict[str, object]] = []
-    if result.get("schema_version") != 1 or result.get("artifact_type") != "verdiwm-auto-experiment-result":
-        blockers.append({"code": "RESULT_CONTRACT_INVALID"})
+    try:
+        validate_document("auto_experiment_result", result)
+    except ContractValidationError as exc:
+        blockers.append({"code": "RESULT_CONTRACT_INVALID", "reason": str(exc)})
+        # Keep malformed values out of the verdict JSON. The runner separately
+        # retains the original declared artifact bytes in CAS for inspection.
+        result = {}
     if result.get("state") != "ready":
         blockers.append({"code": "RESULT_NOT_READY", "observed": result.get("state")})
     device = result.get("device")

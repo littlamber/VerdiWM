@@ -9,6 +9,9 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
+from typing import Mapping
+
+from wmloop.contracts import validate_document
 
 
 def main() -> int:
@@ -143,7 +146,8 @@ def _positive_float(name: str, *, default: float) -> float:
     return value
 
 
-def _write_json_atomic(path: Path, payload: object) -> None:
+def _write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
+    validate_document("auto_experiment_result", payload)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     temporary.write_text(
         json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n",

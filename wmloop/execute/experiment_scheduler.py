@@ -12,7 +12,7 @@ the sole process/GPU/receipt boundary.
 from __future__ import annotations
 
 import argparse
-import hashlib
+from contextlib import ExitStack
 import json
 import math
 import os
@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from wmloop.runtime_env import default_lock_root
+from wmloop.storage import exclusive_file_lock, load_json_bytes, sha256_bytes as _sha256_bytes
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.onboarding_admission import (
     OnboardingAdmissionError,
@@ -36,6 +37,7 @@ from wmloop.execute.training_contract import (
     TrainingContractError,
     validate_training_binding,
 )
+from wmloop.execute.diagnostic_memory import accumulate_diagnostic_result
 
 
 class ExperimentSchedulerError(RuntimeError):
@@ -63,8 +65,8 @@ def plan_candidate_batch(
 
     batch_source = Path(batch_path).resolve(strict=True)
     workspace = Path(workspace_root).resolve(strict=True)
-    batch = _load_batch(batch_source, workspace_root=workspace)
-    batch_sha256 = _sha256_bytes(batch_source.read_bytes())
+    batch, batch_payload = _load_batch_snapshot(batch_source, workspace_root=workspace)
+    batch_sha256 = _sha256_bytes(batch_payload)
     destination = Path(output_root).resolve()
     lock_path = destination / "batch.lock.json"
     if destination.exists() or destination.is_symlink():
@@ -164,11 +166,44 @@ def run_selected_queue(
     budget_max_trial_gpu_hours: float = 120.0,
     budget_high_trial_limit: int = 2,
     budget_require_high_cost_approval: bool = True,
+    recover_only: bool = False,
+    retrieval_db: Path | None = None,
 ) -> dict[str, object]:
     """Run selected candidates sequentially and promote only on ``PASS``."""
 
     queue_source = Path(queue_path).resolve(strict=True)
-    queue = _load_json_object(queue_source, "EXPERIMENT_SCHEDULER_QUEUE_INVALID")
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(exclusive_file_lock(queue_source.parent / ".scheduler.lock", blocking=False))
+        except BlockingIOError as exc:
+            raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_ALREADY_RUNNING") from exc
+        return _run_selected_queue_locked(
+            queue_source=queue_source, workspace_root=workspace_root,
+            archive_db=archive_db, cas_root=cas_root, lock_root=lock_root,
+            budget_db=budget_db, budget_total_gpu_hours=budget_total_gpu_hours,
+            budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
+            budget_high_trial_limit=budget_high_trial_limit,
+            budget_require_high_cost_approval=budget_require_high_cost_approval,
+            recover_only=recover_only, retrieval_db=retrieval_db,
+        )
+
+
+def _run_selected_queue_locked(
+    *,
+    queue_source: Path,
+    workspace_root: Path,
+    archive_db: Path,
+    cas_root: Path,
+    lock_root: Path,
+    budget_db: Path | None,
+    budget_total_gpu_hours: float | None,
+    budget_max_trial_gpu_hours: float,
+    budget_high_trial_limit: int,
+    budget_require_high_cost_approval: bool,
+    recover_only: bool,
+    retrieval_db: Path | None,
+) -> dict[str, object]:
+    queue, queue_payload = _load_json_snapshot(queue_source, "EXPERIMENT_SCHEDULER_QUEUE_INVALID")
     if (
         queue.get("artifact_type") != "verdiwm-auto-experiment-queue"
         or queue.get("state") != "ready"
@@ -180,7 +215,7 @@ def run_selected_queue(
     shared_budget = (
         Path(budget_db).resolve() if budget_db is not None else root / "budget.db"
     )
-    queue_sha256 = _sha256_bytes(queue_source.read_bytes())
+    queue_sha256 = _sha256_bytes(queue_payload)
     if execution and (
         execution.get("campaign_id") != queue.get("campaign_id")
         or execution.get("batch_sha256") != queue.get("batch_sha256")
@@ -222,14 +257,9 @@ def run_selected_queue(
             if _sha256_bytes(plan_path.read_bytes()) != stage_record.get("plan_sha256"):
                 raise ExperimentSchedulerError("EXPERIMENT_SCHEDULER_PLAN_HASH_MISMATCH")
             previous = results.get(result_key)
-            if isinstance(previous, Mapping) and previous.get("state") in {
-                "completed",
-                "blocked",
-            }:
-                if previous.get("state") == "blocked" and stage != "screen":
-                    candidate_state = "blocked"
-                    break
-                continue
+            terminal_projection = isinstance(previous, Mapping) and previous.get("state") in {
+                "completed", "blocked",
+            }
             run_root = root / "runs" / candidate_id / stage
             try:
                 manifest = run_auto_experiment(
@@ -246,7 +276,14 @@ def run_selected_queue(
                     budget_require_high_cost_approval=(
                         budget_require_high_cost_approval
                     ),
+                    recover_only=recover_only or terminal_projection,
                 )
+                if retrieval_db is not None:
+                    plan = _load_json_object(plan_path, "EXPERIMENT_SCHEDULER_PLAN_INVALID")
+                    accumulate_diagnostic_result(
+                        plan=plan, manifest=manifest, retrieval_db=retrieval_db,
+                        archive_db=archive_db, cas_root=cas_root,
+                    )
             except Exception as exc:
                 results[result_key] = {
                     "state": "error",
@@ -311,16 +348,16 @@ def run_selected_queue(
     return document
 
 
-def _load_batch(path: Path, *, workspace_root: Path) -> dict[str, object]:
+def _load_batch_snapshot(path: Path, *, workspace_root: Path) -> tuple[dict[str, object], bytes]:
     try:
-        batch = _load_json_object(path, "EXPERIMENT_SCHEDULER_BATCH_INVALID")
+        batch, payload = _load_json_snapshot(path, "EXPERIMENT_SCHEDULER_BATCH_INVALID")
         validate_document("auto_experiment_candidate_batch", batch)
     except (ContractValidationError, AutoExperimentError) as exc:
         raise ExperimentSchedulerError(
             f"EXPERIMENT_SCHEDULER_BATCH_INVALID:{exc}"
         ) from exc
     _validate_batch_semantics(batch, workspace_root=workspace_root)
-    return batch
+    return batch, payload
 
 
 def _validate_batch_semantics(
@@ -418,6 +455,7 @@ def _rank_candidates(batch: Mapping[str, object]) -> list[dict[str, object]]:
         retrieval_prior = float(candidate.get("retrieval_prior", 0.0))
         retrieval_weight = float(scoring.get("retrieval_weight", 0.25))
         score += retrieval_weight * retrieval_prior
+        score += retrieval_weight * float(candidate.get("paired_observation_prior", 0.0))
         rows.append(
             {
                 "candidate": candidate,
@@ -530,6 +568,8 @@ def _stage_plan(
         }
     )
     plan["experiment_kind"] = str(candidate["experiment_kind"])
+    if "diagnostic_result_path" in stage:
+        plan["diagnostic_result_path"] = stage["diagnostic_result_path"]
     training_binding = candidate.get("training_binding")
     if isinstance(training_binding, Mapping):
         bound = dict(training_binding)
@@ -811,17 +851,18 @@ def _resolve_inside(root: Path, value: str, code: str) -> Path:
 
 
 def _load_json_object(path: Path, code: str) -> dict[str, object]:
+    return _load_json_snapshot(path, code)[0]
+
+
+def _load_json_snapshot(path: Path, code: str) -> tuple[dict[str, object], bytes]:
     try:
-        value = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        payload = Path(path).read_bytes()
+        value = load_json_bytes(payload)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ExperimentSchedulerError(code) from exc
     if not isinstance(value, dict):
         raise ExperimentSchedulerError(code)
-    return value
-
-
-def _sha256_bytes(payload: bytes) -> str:
-    return hashlib.sha256(payload).hexdigest()
+    return value, payload
 
 
 def _round(value: float) -> float:
@@ -844,6 +885,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_parser.add_argument("--workspace-root", type=Path, default=Path.cwd())
     run_parser.add_argument("--archive-db", type=Path, required=True)
     run_parser.add_argument("--cas-root", type=Path, required=True)
+    run_parser.add_argument("--retrieval-db", type=Path)
     run_parser.add_argument(
         "--lock-root", type=Path, default=default_lock_root()
     )
@@ -866,6 +908,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 workspace_root=args.workspace_root,
                 archive_db=args.archive_db,
                 cas_root=args.cas_root,
+                retrieval_db=args.retrieval_db,
                 lock_root=args.lock_root,
                 budget_db=args.budget_db,
                 budget_total_gpu_hours=args.budget_total_gpu_hours,

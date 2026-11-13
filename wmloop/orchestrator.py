@@ -16,6 +16,8 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 from wmloop.execute.budget import BudgetLedger, TrialAdmission
 from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.propose.generator import GeneratedProposal, ProposalContext, ProposalGenerator
+from wmloop.storage import canonical_bytes, sha256_bytes
+from wmloop.verify.acceptance_policy import VerificationPolicy, verification_policy_from_goal
 from wmloop.verify.judge import JudgeResult, VerificationEvidence, judge
 
 
@@ -66,6 +68,7 @@ class ResearchLoop:
         m4_launch_guard: Callable[[], object] | None = None,
         round_start_guard: Callable[[ProposalContext], object] | None = None,
         human_approved_high_cost: bool = False,
+        verification_policy: VerificationPolicy | None = None,
     ) -> None:
         self._proposal_generator = proposal_generator
         self._budget_ledger = budget_ledger
@@ -74,6 +77,7 @@ class ResearchLoop:
         self._m4_launch_guard = m4_launch_guard
         self._round_start_guard = round_start_guard
         self._human_approved_high_cost = human_approved_high_cost
+        self._verification_policy = verification_policy
 
     def run_round(self, context: ProposalContext) -> RoundResult:
         """Execute the only legal state ordering for a proposal round.
@@ -83,6 +87,18 @@ class ResearchLoop:
         fencing/recovery layer rather than silently treating it as a result.
         """
 
+        policy = self._verification_policy
+        protocol = context.goal_spec.get("eval_protocol")
+        if policy is None and (
+            "schema_version" in context.goal_spec
+            or isinstance(protocol, Mapping) and "acceptance_policy" in protocol
+        ):
+            policy = verification_policy_from_goal(context.goal_spec)
+            self._verification_policy = policy
+        if policy is not None and policy.goal_sha256 != sha256_bytes(canonical_bytes(context.goal_spec)):
+            raise ValueError("VERIFICATION_POLICY_GOAL_MISMATCH")
+        if policy is not None and verification_policy_from_goal(context.goal_spec) != policy:
+            raise ValueError("VERIFICATION_POLICY_GOAL_MISMATCH")
         if self._m4_launch_guard is not None:
             self._m4_launch_guard()
         round_start_verification = None
@@ -117,7 +133,7 @@ class ResearchLoop:
             receipt_ref=outcome.receipt_ref,
         )
         # The judge only consumes evidence after a terminal receipt exists.
-        verdict = judge(outcome.verification_evidence)
+        verdict = judge(outcome.verification_evidence, policy=policy)
         return RoundResult(
             vendor_revision=vendor_revision,
             round_start_verification=round_start_verification,

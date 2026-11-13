@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "source_candidate", "candidate_manifest", "blockers", "optimization_launch_allowed", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-evaluator-overlay-review"},
+    "state": {"enum": ["binding_required", "ready_for_confirmation"]},
+    "source_candidate": {"type": "string", "minLength": 1},
+    "candidate_manifest": {"type": "object", "additionalProperties": true},
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code", "field", "action"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "field": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "optimization_launch_allowed": {"const": false},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  },
+  "allOf": [
+    {"if": {"properties": {"state": {"const": "binding_required"}}}, "then": {"properties": {"blockers": {"minItems": 1}}}},
+    {"if": {"properties": {"state": {"const": "ready_for_confirmation"}}}, "then": {"properties": {"blockers": {"maxItems": 0}}}}
+  ]
+}

@@ -132,7 +132,13 @@ class CampaignRepository:
     def ids(self):
         if self.marker.exists() and not self.database.is_file():
             raise CampaignAPIError("CAMPAIGN_STORE_UNAVAILABLE")
-        ids = {p.stem for p in self.root.glob("*.json") if p.is_file() and not p.is_symlink()}
+        try:
+            entries = list(self.root.iterdir())
+        except FileNotFoundError:
+            return []
+        except OSError as exc:
+            raise CampaignAPIError("CAMPAIGN_STORE_UNAVAILABLE") from exc
+        ids = {p.stem for p in entries if p.suffix == ".json" and p.is_file() and not p.is_symlink()}
         if self.database.exists():
             with self._connect() as reader:
                 ids.update(row[0] for row in reader.execute("SELECT campaign_id FROM campaigns"))

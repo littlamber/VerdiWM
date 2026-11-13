@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Binding, process, validation and authority definitions are shared with wan_arm_slot_inference_receipt by the contract loader.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "input_binding", "process", "artifacts", "validation", "authority", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-wan-arm-slot-native-execution"},
+    "state": {"enum": ["passed", "failed"]},
+    "input_binding": {"$ref": "#/$defs/input_binding"},
+    "process": {"$ref": "#/$defs/process"},
+    "artifacts": {"$ref": "#/$defs/artifacts"},
+    "validation": {"$ref": "#/$defs/validation"},
+    "authority": {"$ref": "#/$defs/authority"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

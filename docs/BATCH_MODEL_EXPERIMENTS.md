@@ -92,9 +92,13 @@ verdiwm run
 ```
 
 `verdiwm check` combines local installation checks with model readiness and
-returns a structured report containing completed checks, blockers, an action for
-each blocker, and the next command to run. The older `init`, `check-model`, and
-`guide-model` commands remain available for advanced or scripted use.
+returns a structured report containing the authoritative readiness state,
+completed checks, blockers, an action for each blocker, and an actionable next
+step. `needs_confirmation` requires an explicit evaluator/runtime decision even
+when the blocker list is empty; `ready_for_conformance` only permits proceeding
+through the reviewed research plan and its normal conformance gate. The older
+`init`, `check-model`, and `guide-model` commands remain available for advanced
+or scripted use.
 
 The plan is an execution input, not evidence. Later dispatch must create normal
 campaign records and use the existing adapter compiler, budget ledger, GPU

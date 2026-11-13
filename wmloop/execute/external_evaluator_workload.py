@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
+from wmloop.contracts import ContractValidationError, validate_document
+
 
 class ExternalEvaluatorError(RuntimeError):
     """An external evaluator request violates the workload boundary."""
@@ -178,6 +180,10 @@ def run_external_evaluator(
             "launch_error": launch_error,
         },
     }
+    try:
+        validate_document("auto_experiment_result", result)
+    except ContractValidationError as exc:
+        raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_RESULT_INVALID") from exc
     _write_json_atomic(result_path, result)
     _relay_tail(stdout_path, stream=sys.stdout)
     _relay_tail(stderr_path, stream=sys.stderr)
@@ -248,7 +254,10 @@ def _load_external_metrics(path: Path, *, prefix: str) -> dict[str, float]:
             raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_NAME_INVALID")
         if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
             raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_VALUE_INVALID")
-        value = float(raw_value)
+        try:
+            value = float(raw_value)
+        except OverflowError as exc:
+            raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_VALUE_INVALID") from exc
         if not math.isfinite(value):
             raise ExternalEvaluatorError("EXTERNAL_EVALUATOR_METRIC_VALUE_INVALID")
         normalized[name] = value

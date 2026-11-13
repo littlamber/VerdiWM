@@ -20,10 +20,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.control.onboarding import compute_source_tree_revision
 from wmloop.primitives.registry import PrimitiveRegistry, PrimitiveValidationError
 from wmloop.propose.primitive_materialization_prompt import (
     run_primitive_materialization_prompt,
 )
+from wmloop.storage import canonical_bytes, sha256_bytes
 
 
 class LiteratureMethodStagingError(RuntimeError):
@@ -161,6 +163,7 @@ def run_literature_method_staging(
     # and its schema live in the VerdiWM control plane.
     registry = PrimitiveRegistry.from_root(control_root)
     client = synthesis_client or HeuristicMethodSynthesisClient()
+    source_revision = _source_revision(control_root)
     input_hash = _sha256(
         source.read_bytes()
         + b"\0"
@@ -170,6 +173,8 @@ def run_literature_method_staging(
                 "model_family": model_family,
                 "max_candidates": max_candidates,
                 "registry_digest": registry.digest(),
+                **({"source_revision": source_revision}
+                   if source_revision.startswith("source_tree_sha256:") else {}),
                 "synthesis_client": f"{type(client).__module__}.{type(client).__qualname__}",
             }
         )
@@ -216,7 +221,11 @@ def run_literature_method_staging(
         "input_hash": input_hash,
         "source_literature_manifest": str(source),
         "source_literature_manifest_sha256": _sha256(source.read_bytes()),
-        "source_revision": _git_revision(control_root),
+        "source_revision": source_revision,
+        "source_revision_kind": (
+            "source_tree_sha256" if source_revision.startswith("source_tree_sha256:")
+            else "git_commit"
+        ),
         "registry_digest": registry.digest(),
         "record_count": len(records),
         "ranking_candidate_count": len(ranking),
@@ -617,6 +626,7 @@ def _work_order(
     primitive = method["proposed_primitive"]
     assert isinstance(primitive, Mapping)
     primitive_name = str(primitive["name"])
+    git_revision = bool(re.fullmatch(r"[0-9a-f]{40}", source_revision))
     return {
         "schema_version": 1,
         # Use the existing guarded prompt boundary.  It can render a packet,
@@ -661,7 +671,11 @@ def _work_order(
         "agent_staging_contract": {
             "session_class": "wmloop.execute.agent_staging.AgentRepairSession",
             "candidate_id": method["candidate_id"],
-            "source_revision": source_revision,
+            # Content identity describes the installed control plane; it is
+            # never a Git ref for a writable materialization worktree.
+            "source_revision": source_revision if git_revision else None,
+            "source_identity": source_revision,
+            "requires_git_checkout_binding": not git_revision,
             "registry_digest": registry_digest,
             "required_check_labels": [
                 "static",
@@ -695,10 +709,43 @@ def _write_json(path: Path, value: object) -> None:
     path.write_bytes(_canonical_json(value))
 
 
+def _source_revision(root: Path) -> str:
+    try:
+        return _git_revision(root)
+    except LiteratureMethodStagingError as exc:
+        if str(exc) != "LITERATURE_METHOD_SOURCE_REVISION_UNAVAILABLE":
+            raise
+    # In a wheel root is site-packages. Bind only our implementation and
+    # authoritative schemas, never the environment's unrelated dependencies.
+    identities: dict[str, str] = {}
+    for relative in ("wmloop", "configs/schemas"):
+        try:
+            identity = compute_source_tree_revision(root / relative)
+        except (OSError, ValueError) as exc:
+            raise LiteratureMethodStagingError(
+                "LITERATURE_METHOD_SOURCE_REVISION_UNAVAILABLE"
+            ) from exc
+        revision = identity.get("revision")
+        if (identity.get("state") != "bound"
+            or identity.get("kind") != "source_tree_sha256"
+            or not isinstance(revision, str)
+            or re.fullmatch(r"[0-9a-f]{64}", revision) is None):
+            raise LiteratureMethodStagingError(
+                "LITERATURE_METHOD_SOURCE_REVISION_UNAVAILABLE"
+            )
+        identities[relative] = revision
+    digest = sha256_bytes(canonical_bytes({
+        "scheme": "verdiwm-control-plane-tree-v1", "roots": identities,
+    }))
+    return f"source_tree_sha256:{digest}"
+
+
 def _git_revision(root: Path) -> str:
+    if not (root / ".git").exists():
+        raise LiteratureMethodStagingError("LITERATURE_METHOD_SOURCE_REVISION_UNAVAILABLE")
     try:
         completed = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel", "HEAD"],
             check=True,
             capture_output=True,
             text=True,
@@ -706,7 +753,10 @@ def _git_revision(root: Path) -> str:
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise LiteratureMethodStagingError("LITERATURE_METHOD_SOURCE_REVISION_UNAVAILABLE") from exc
-    revision = completed.stdout.strip()
+    lines = completed.stdout.strip().splitlines()
+    if len(lines) != 2 or Path(lines[0]).resolve() != root.resolve():
+        raise LiteratureMethodStagingError("LITERATURE_METHOD_SOURCE_REVISION_UNAVAILABLE")
+    revision = lines[1]
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         raise LiteratureMethodStagingError("LITERATURE_METHOD_SOURCE_REVISION_INVALID")
     return revision

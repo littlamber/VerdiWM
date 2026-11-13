@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+from collections.abc import Mapping
 
 from wmloop.geometry.types import CompileReceipt, GeometryValidationError
+
+TRANSFER_TERMS = frozenset({
+    "compile", "overlap", "effective_sample_size", "alignment",
+    "sign_agreement", "effect_lower_bound",
+})
 
 
 @dataclass(frozen=True)
@@ -78,6 +84,13 @@ def evaluate_transfer_certificate(
         "goal_threshold": goal_threshold,
     }
     numeric = {name: _finite(value) for name, value in values.items()}
+    if not isinstance(receipt, CompileReceipt) or type(receipt.compiled) is not bool:
+        raise GeometryValidationError("TRANSFER_COMPILE_RECEIPT_INVALID")
+    if not isinstance(receipt.invariant_checks, Mapping) or any(
+        type(value) is not bool for value in receipt.invariant_checks.values()
+    ):
+        raise GeometryValidationError("TRANSFER_COMPILE_RECEIPT_INVALID")
+    receipt.__post_init__()
     if not 0.0 <= numeric["support_overlap"] <= 1.0 or not 0.0 <= numeric["minimum_overlap"] <= 1.0:
         raise GeometryValidationError("TRANSFER_OVERLAP_INVALID")
     if not 0.0 <= numeric["sign_agreement"] <= 1.0 or not 0.0 <= numeric["minimum_sign_agreement"] <= 1.0:
@@ -112,9 +125,11 @@ def evaluate_transfer_certificate(
 
 
 def _finite(value: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise GeometryValidationError("TRANSFER_VALUE_INVALID")
     try:
         number = float(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise GeometryValidationError("TRANSFER_VALUE_INVALID") from exc
     if not math.isfinite(number):
         raise GeometryValidationError("TRANSFER_VALUE_INVALID")

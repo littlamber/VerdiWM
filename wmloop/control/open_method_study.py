@@ -29,6 +29,7 @@ def compile_open_method_study(
     *, proposals: Mapping[str, Mapping[str, object]],
     base_revision: Mapping[str, object], experiment_binding: Mapping[str, str],
     target_portrait_binding: Mapping[str, str], seeds: Sequence[int],
+    confirmation_seeds: Sequence[int],
     estimated_gpu_hours_per_seed: Mapping[str, float], budget_gpu_hours: float,
     output_root: Path, project_root: Path,
 ) -> dict:
@@ -45,10 +46,13 @@ def compile_open_method_study(
         raise OpenMethodStudyError('OPEN_STUDY_DISTINCT_SPLITS_REQUIRED')
     if not seeds or any(type(seed) is not int or not 0 <= seed < 2**32 for seed in seeds) or len(set(seeds)) != len(seeds):
         raise OpenMethodStudyError('OPEN_STUDY_SEEDS_INVALID')
+    if (len(confirmation_seeds) < 2 or any(type(seed) is not int or not 0 <= seed < 2**32 for seed in confirmation_seeds)
+            or len(set(confirmation_seeds)) != len(confirmation_seeds) or set(seeds) & set(confirmation_seeds)):
+        raise OpenMethodStudyError('OPEN_STUDY_CONFIRMATION_SEEDS_INVALID')
     costs = list(estimated_gpu_hours_per_seed.values())
     if any(type(v) not in (float,int) or not math.isfinite(v) or v <= 0 for v in [*costs,budget_gpu_hours]):
         raise OpenMethodStudyError('OPEN_STUDY_BUDGET_INVALID')
-    estimate = sum(costs)*len(seeds)
+    estimate = sum(costs)*(len(seeds) + len(confirmation_seeds))
     if estimate > budget_gpu_hours:
         raise OpenMethodStudyError('OPEN_STUDY_FOUR_ARM_BUDGET_EXCEEDED')
     root = Path(project_root).resolve()
@@ -95,7 +99,7 @@ def compile_open_method_study(
             'state':'ready_for_calibration', 'arms':arms,
             'base_revision':dict(base_revision),'experiment_binding':dict(experiment_binding),
             'target_portrait_binding':dict(target_portrait_binding),
-            'paired_seeds':list(seeds),'primary_metrics':primary,'protected_metrics':protected,
+            'paired_seeds':list(seeds),'confirmation_seeds':list(confirmation_seeds),'primary_metrics':primary,'protected_metrics':protected,
             'budget_gpu_hours':budget_gpu_hours,'estimated_total_gpu_hours':estimate,
             'file_sha256':files,
             'required_contrasts':['source_only-baseline','target_only-baseline','combined-baseline',
@@ -129,6 +133,8 @@ def main():
     request=json.loads(args.request.read_text())
     if 'output_root' in request or 'project_root' in request:
         parser.error('request cannot override output or project root')
+    if 'confirmation_seeds' not in request:
+        parser.error('request must include confirmation_seeds: at least two unique seeds disjoint from seeds')
     study=compile_open_method_study(**request,output_root=args.output,project_root=Path(__file__).resolve().parents[2])
     print(json.dumps({'study_id':study['study_id'],'state':study['state'],'output':str(args.output)},indent=2))
 

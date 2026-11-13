@@ -14,14 +14,17 @@ import io
 import json
 import os
 from pathlib import Path
-import select
+import re
 import shlex
 import sys
 import threading
 import time
 from typing import Callable, Iterable, TextIO
 
+from wmloop.control.campaign_api import CampaignAPIError
 from wmloop.control.llm_setup import inspect_llm_config
+from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.terminal_ui import Dashboard, Theme as _Theme, render_commands, render_dashboard
 
 
 Dispatch = Callable[[list[str]], int]
@@ -85,32 +88,6 @@ def _supports_color(stream: TextIO) -> bool:
         return False
 
 
-class _Theme:
-    def __init__(self, enabled: bool) -> None:
-        self.enabled = enabled
-
-    def _c(self, code: str, value: str) -> str:
-        return f"\033[{code}m{value}\033[0m" if self.enabled else value
-
-    def title(self, value: str) -> str:
-        return self._c("1;96", value)
-
-    def accent(self, value: str) -> str:
-        return self._c("36", value)
-
-    def muted(self, value: str) -> str:
-        return self._c("90", value)
-
-    def good(self, value: str) -> str:
-        return self._c("32", value)
-
-    def warn(self, value: str) -> str:
-        return self._c("33", value)
-
-    def bad(self, value: str) -> str:
-        return self._c("31", value)
-
-
 def interactive_supported(stdin: TextIO, stdout: TextIO) -> bool:
     """Return whether it is safe to enter a blocking interactive session."""
 
@@ -130,12 +107,25 @@ def _version() -> str:
 
 
 def _project_snapshot(project_root: Path | None = None) -> dict[str, object] | None:
-    try:
-        from wmloop.control.project_config import load_project_config
+    return dict(load_project_config(cwd=project_root).values)
 
-        return dict(load_project_config(cwd=project_root).values)
-    except Exception:  # a status panel should never make the shell unusable
-        return None
+
+def _render_project_config_error(error: ProjectConfigError, *, stdout: TextIO, theme: _Theme) -> None:
+    """Keep an invalid project actionable without treating it as a new setup."""
+
+    stdout.write(theme.bad(f"  配置错误  {error}\n"))
+    if error.__cause__ is not None:
+        stdout.write(f"  原因      {error.__cause__}\n")
+    stdout.write(theme.accent("  Next      修复 verdiwm.toml 或 VERDIWM_PROJECT_CONFIG 指向的配置，再运行 /check。\n"))
+
+
+def _render_campaign_store_error(error: CampaignAPIError, *, stdout: TextIO, theme: _Theme) -> None:
+    """Preserve storage failures instead of presenting an empty task history."""
+
+    stdout.write(theme.bad(f"  任务库错误  {error}\n"))
+    if error.__cause__ is not None:
+        stdout.write(f"  原因        {type(error.__cause__).__name__}: {error.__cause__}\n")
+    stdout.write(theme.accent("  Next        检查 state_root 或 VERDIWM_STATE_ROOT 指向的原任务目录、权限及数据库；恢复后运行 /status 重查。\n"))
 
 
 def _discovered_inputs() -> tuple[str | None, str | None]:
@@ -152,15 +142,10 @@ def _discovered_inputs() -> tuple[str | None, str | None]:
 
 def _default_plan_path(project_root: Path | None = None) -> Path:
     root = (project_root or Path.cwd()).expanduser().resolve()
+    loaded = load_project_config(cwd=root)
+    if loaded.source is not None:
+        root = loaded.source.parent
     return root / ".verdiwm" / "research-plan.json"
-
-
-def _state_root(config: dict[str, object] | None, project_root: Path | None = None) -> Path:
-    root = (project_root or Path.cwd()).expanduser().resolve()
-    configured = config.get("state_root") if config else None
-    if configured:
-        return Path(str(configured)).expanduser().resolve()
-    return root / ".verdiwm" / "state"
 
 
 def _readiness_snapshot(config: dict[str, object] | None, project_root: Path) -> dict[str, object] | None:
@@ -179,17 +164,22 @@ def _readiness_snapshot(config: dict[str, object] | None, project_root: Path) ->
             evaluator_contract=str(config.get("evaluator_contract")) if config.get("evaluator_contract") else None,
             runtime_python=str(config.get("runtime_python")) if config.get("runtime_python") else None,
         )
-    except Exception:
-        return None
+    except Exception as exc:
+        return {
+            "state": "blocked",
+            "blockers": [{
+                "code": "READINESS_CHECK_FAILED",
+                "message": "项目接入检查未能完成。",
+                "detail": f"{type(exc).__name__}: {exc}",
+                "action": "运行 /check 查看根因；修复后重新检查接入状态。",
+            }],
+        }
 
 
 def _recent_campaigns(config: dict[str, object] | None, project_root: Path | None = None, *, limit: int = 5) -> list[dict[str, object]]:
-    try:
-        from wmloop.control.campaign_api import CampaignStore
+    from wmloop.control.commands.inputs import campaign_store
 
-        records = CampaignStore(_state_root(config, project_root), read_only=True).list(limit=1000)
-    except Exception:
-        return []
+    records = campaign_store(configured=config or {}, read_only=True).list(limit=1000)
     records.sort(key=lambda item: str(item.get("updated_at", item.get("created_at", ""))), reverse=True)
     return records[:limit]
 
@@ -208,6 +198,10 @@ def _next_step(
     blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
     if isinstance(blockers, list) and blockers:
         return "BLOCKED", "/check"
+    readiness_state = readiness.get("state") if isinstance(readiness, dict) else None
+    if readiness_state not in {"ready", "ready_for_conformance", "ready_for_execution"}:
+        label = "CONFIRMATION REQUIRED" if readiness_state == "needs_confirmation" else "CHECK REQUIRED"
+        return label, "/check"
     for campaign in campaigns:
         if campaign.get("status") in {"queued", "running"}:
             return "IN PROGRESS", "/progress"
@@ -222,43 +216,44 @@ def _next_step(
 def render_welcome(*, stdout: TextIO = sys.stdout, project_root: Path | None = None, color: bool | None = None) -> None:
     theme = _Theme(_supports_color(stdout) if color is None else color)
     root = (project_root or Path.cwd()).expanduser().resolve()
-    config = _project_snapshot(root)
-    model = config.get("model") if config else None
-    data = config.get("data", config.get("dataset")) if config else None
-    goal = config.get("goal") if config else None
+    config_error = None
+    try:
+        config = _project_snapshot(root)
+        plan_path = _default_plan_path(root)
+    except ProjectConfigError as exc:
+        config = None
+        plan_path = None
+        config_error = str(exc)
+        if exc.__cause__ is not None:
+            config_error += f" · {exc.__cause__}"
     readiness = _readiness_snapshot(config, root)
-    campaigns = _recent_campaigns(config, root)
-    llm_report = inspect_llm_config()
-    blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
-    ready = bool(config and model and data and goal and not blockers)
-    status = theme.good("READY") if ready else theme.bad("BLOCKED") if blockers else theme.warn("NEEDS SETUP")
-    plan_path = _default_plan_path(root)
-    next_label, next_command = _next_step(config, readiness=readiness, plan_path=plan_path, campaigns=campaigns)
-    stdout.write("\n")
-    stdout.write(theme.title(f"  VERDI  v{_version()}\n"))
-    stdout.write(theme.muted("  Evidence-driven world-model research\n\n"))
-    stdout.write(f"  Project  {root}\n")
-    stdout.write(f"  Status   {status}\n")
-    stdout.write(f"  Model    {model or '未绑定（输入 /setup）'}\n")
-    stdout.write(f"  Data     {data or '未绑定（输入 /setup）'}\n")
-    if goal:
-        stdout.write(f"  Goal     {goal}\n")
-    llm_state = str(llm_report.get("state", "missing"))
-    llm_label = theme.good("READY") if llm_state == "ready" else theme.warn("未配置，输入 /llm")
-    stdout.write(f"  LLM      {llm_label}\n")
-    if plan_path.is_file():
-        stdout.write(f"  Plan     {plan_path}\n")
-    if campaigns:
-        latest = campaigns[0]
-        stdout.write(f"  Latest   {latest.get('campaign_id', '?')}  {latest.get('status', '?')}\n")
-    if isinstance(blockers, list) and blockers:
-        first = blockers[0]
-        if isinstance(first, dict):
-            stdout.write(theme.warn(f"  Blocker  {first.get('code', 'BLOCKED')}: {first.get('message', '')}\n"))
-    stdout.write(f"  Next     {theme.accent(next_label)}  {next_command}\n")
-    stdout.write("\n")
-    stdout.write(theme.accent("  输入 / 查看命令，或直接描述一个研究目标。\n"))
-    stdout.write(theme.muted("  计划生成是只读的；正式实验始终需要显式确认。\n\n"))
+    campaigns = []
+    campaign_error = None
+    if not config_error:
+        try:
+            campaigns = _recent_campaigns(config, root)
+        except CampaignAPIError as exc:
+            campaign_error = str(exc)
+            if exc.__cause__ is not None:
+                campaign_error += f" · {exc.__cause__}"
+    if config_error:
+        next_label, next_command = "CONFIG BLOCKED", "/check"
+    elif campaign_error:
+        next_label, next_command = "STATE BLOCKED", "/status"
+    else:
+        next_label, next_command = _next_step(
+            config, readiness=readiness, plan_path=plan_path, campaigns=campaigns
+        )
+    render_dashboard(
+        Dashboard(
+            version=_version(), project_root=root, config=config, readiness=readiness,
+            llm=inspect_llm_config(), next_label=next_label, next_command=next_command,
+            plan_path=plan_path if plan_path is not None and plan_path.is_file() else None,
+            latest=campaigns[0] if campaigns else None, config_error=config_error,
+            campaign_error=campaign_error,
+        ),
+        stdout=stdout, theme=theme,
+    )
 
 
 def _matching_commands(query: str = "") -> Iterable[InteractiveCommand]:
@@ -274,129 +269,27 @@ def _matching_commands(query: str = "") -> Iterable[InteractiveCommand]:
     )
 
 
+def _canonical_command(name: str) -> str:
+    normalized = name.casefold()
+    return next(
+        (command.name for command in COMMANDS if normalized == command.name or normalized in command.aliases),
+        normalized,
+    )
+
+
 def render_command_palette(query: str = "", *, stdout: TextIO = sys.stdout, color: bool | None = None) -> None:
     theme = _Theme(_supports_color(stdout) if color is None else color)
-    matches = tuple(_matching_commands(query))
-    label = query.strip() or "/"
-    stdout.write(f"\n{theme.title('  Command palette')}  {theme.muted(label)}\n")
-    if not matches:
-        stdout.write(theme.warn("  没有匹配命令。输入 /help 查看全部命令。\n\n"))
-        return
-    for command in matches:
-        aliases = f" ({', '.join('/' + alias for alias in command.aliases)})" if command.aliases else ""
-        label_text = ("/" + command.name).ljust(18)
-        stdout.write(f"  {theme.accent(label_text)} {command.summary}{aliases}\n")
-        stdout.write(f"  {theme.muted(' ' * 18 + command.usage)}\n")
-    stdout.write("\n")
-
-
-def _draw_live_palette(
-    matches: list[InteractiveCommand],
-    query: str,
-    selected: int,
-    *,
-    stdout: TextIO,
-    theme: _Theme,
-    previous_lines: int,
-) -> int:
-    """Draw a small terminal-native palette used after typing ``/``.
-
-    This uses only ANSI cursor movement and the standard terminal APIs.  It is
-    deliberately enabled only for the real stdin/stdout pair, so redirected
-    streams and tests retain deterministic line output.
-    """
-
-    if previous_lines:
-        stdout.write(f"\033[{previous_lines}A")
-    visible = matches[:10]
-    lines = [
-        f"  {theme.title('Command palette')}  {theme.muted('/' + query)}",
-        theme.muted("  ↑/↓ choose   Enter run   type to filter   Esc close"),
-    ]
-    if visible:
-        for index, command in enumerate(visible):
-            marker = ">" if index == selected else " "
-            label = f"/{command.name}".ljust(18)
-            line = f"  {marker} {label} {command.summary}"
-            lines.append(theme.accent(line) if index == selected else line)
-    else:
-        lines.append(theme.warn("  没有匹配命令；Esc 关闭面板。"))
-    for line in lines:
-        stdout.write("\033[2K\r" + line + "\n")
-    stdout.flush()
-    return len(lines)
+    render_commands(tuple(_matching_commands(query)), query=query, stdout=stdout, theme=theme)
 
 
 def _live_palette_selection(*, stdin: TextIO, stdout: TextIO, theme: _Theme) -> str | None:
-    """Let a real TTY select a slash command with arrows and live filtering."""
+    """Use the terminal picker only for the real, color-capable TTY pair."""
 
     if stdin is not sys.stdin or stdout is not sys.stdout or not theme.enabled:
         return None
-    try:
-        import termios
-        import tty
+    from wmloop.control.terminal_palette import select_command
 
-        fd = stdin.fileno()
-        previous_settings = termios.tcgetattr(fd)
-    except (AttributeError, OSError, ImportError):
-        return None
-    query = ""
-    selected = 0
-    previous_lines = 0
-    try:
-        tty.setcbreak(fd)
-        while True:
-            matches = list(_matching_commands(query))
-            if matches:
-                selected = min(selected, len(matches) - 1)
-            else:
-                selected = 0
-            previous_lines = _draw_live_palette(
-                matches,
-                query,
-                selected,
-                stdout=stdout,
-                theme=theme,
-                previous_lines=previous_lines,
-            )
-            char = stdin.read(1)
-            if char == "":
-                return None
-            if char in {"\r", "\n"}:
-                return matches[selected].name if matches else None
-            if char in {"\x03", "\x1b"}:
-                if char == "\x1b":
-                    # Arrow keys send ESC [ A/B.  A bare ESC closes the panel.
-                    sequence = ""
-                    for _ in range(2):
-                        ready, _, _ = select.select([stdin], [], [], 0.05)
-                        if not ready:
-                            break
-                        sequence += stdin.read(1)
-                    if sequence == "[A":
-                        selected = (selected - 1) % max(len(matches), 1)
-                        continue
-                    if sequence == "[B":
-                        selected = (selected + 1) % max(len(matches), 1)
-                        continue
-                return None
-            if char in {"\x7f", "\b"}:
-                query = query[:-1]
-                selected = 0
-            elif char == "\t" and matches:
-                selected = (selected + 1) % len(matches)
-            elif char.isprintable():
-                query += char
-                selected = 0
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, previous_settings)
-        # Clear the live menu and leave a clean prompt line behind.
-        if previous_lines:
-            stdout.write(f"\033[{previous_lines}A")
-            for _ in range(previous_lines):
-                stdout.write("\033[2K\r\n")
-            stdout.write(f"\033[{previous_lines}A")
-        stdout.flush()
+    return select_command(lambda query: tuple(_matching_commands(query)), stdin=stdin, stdout=stdout, theme=theme)
 
 
 def _clear_screen(stdout: TextIO, theme: _Theme) -> None:
@@ -416,14 +309,15 @@ def _prompt_value(
     stdout.write(f"  {prompt}{suffix}: ")
     stdout.flush()
     try:
-        if stdin is sys.stdin and stdout is sys.stdout:
+        use_builtin_input = stdin is sys.stdin and stdout is sys.stdout
+        if use_builtin_input:
             value = input()
         else:
             value = stdin.readline()
     except (EOFError, KeyboardInterrupt):
         stdout.write("\n")
         return None
-    if value == "":
+    if value == "" and not use_builtin_input:
         return None
     value = value.strip()
     return value or default
@@ -485,8 +379,7 @@ def _guided_setup(
         theme=theme,
     )
     if result:
-        render_welcome(stdout=stdout, color=theme.enabled)
-        stdout.write(theme.accent("  接入完成后可以直接输入 /plan 生成只读研究计划。\n"))
+        stdout.write(theme.muted("  按上面的 Action / Next 继续；输入 /clear 可刷新项目首页。\n"))
     return result
 
 
@@ -533,24 +426,20 @@ def _render_recent(
         elif error:
             stdout.write(theme.warn(f"  Plan     {error}\n"))
     else:
-        stdout.write(theme.muted("  Plan     尚未生成（输入 /plan）。\n"))
+        stdout.write(theme.muted("  Plan     尚未生成。\n"))
     if campaigns:
         stdout.write("  Campaigns\n")
         for item in campaigns:
             stdout.write(f"    {item.get('campaign_id', '?')}  {item.get('status', '?')}  {item.get('goal', '')}\n")
     else:
         stdout.write(theme.muted("  Campaigns 尚无记录。\n"))
-    active = next((item for item in campaigns if item.get("status") in {"queued", "running"}), None)
-    if active:
-        stdout.write(theme.accent(f"  Next     /progress {active.get('campaign_id')}\n"))
-    elif plan_path.is_file():
-        payload, _ = _plan_summary(plan_path)
-        command = "/run" if payload is not None and payload.get("state") in {"ready", "ready_with_deferred_discovery"} else "/check；补齐后 /plan"
-        stdout.write(theme.accent(f"  Next     {command}\n"))
-    elif config and config.get("goal"):
-        stdout.write(theme.accent("  Next     /plan\n"))
-    else:
-        stdout.write(theme.accent("  Next     /setup\n"))
+    _, command = _next_step(
+        config,
+        readiness=_readiness_snapshot(config, root),
+        plan_path=plan_path,
+        campaigns=campaigns,
+    )
+    stdout.write(theme.accent(f"  Next     {command}\n"))
     stdout.write("\n")
     if state is not None and campaigns:
         state.last_campaign_id = str(campaigns[0].get("campaign_id"))
@@ -576,11 +465,11 @@ def _configure_readline(stdin: TextIO, stdout: TextIO) -> tuple[object | None, o
             tokens = shlex.split(body)
         except ValueError:
             tokens = body.split()
-        command = tokens[0].casefold() if tokens else ""
+        command = _canonical_command(tokens[0]) if tokens else ""
         if command in {"run", "resume"} and len(tokens) <= 1:
             plan = _default_plan_path()
             return [str(plan)] if plan.is_file() else []
-        if command in {"status", "progress", "p", "cancel"} and len(tokens) <= 1:
+        if command in {"status", "progress", "cancel"} and len(tokens) <= 1:
             campaigns = _recent_campaigns(_project_snapshot(), Path.cwd(), limit=20)
             return [str(item.get("campaign_id")) for item in campaigns if item.get("campaign_id")]
         if len(tokens) <= 1:
@@ -589,7 +478,12 @@ def _configure_readline(stdin: TextIO, stdout: TextIO) -> tuple[object | None, o
 
     def completer(text: str, state: int) -> str | None:
         line = readline.get_line_buffer()
-        candidates = completion_candidates(line, text)
+        try:
+            candidates = completion_candidates(line, text)
+        except (ProjectConfigError, CampaignAPIError):
+            # The command boundary presents this error. Tab completion must
+            # neither hide it as a new project nor interrupt line editing.
+            return None
         return candidates[state] if state < len(candidates) else None
 
     old_completer = readline.get_completer()
@@ -659,11 +553,37 @@ def _dispatch_slash(
     stdin: TextIO | None = None,
     session: SessionState | None = None,
 ) -> bool:
+    try:
+        return _dispatch_slash_command(
+            _canonical_command(command), args, dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session,
+        )
+    except ProjectConfigError as exc:
+        _render_project_config_error(exc, stdout=stdout, theme=theme)
+        if session is not None:
+            session.last_error = str(exc)
+        return True
+    except CampaignAPIError as exc:
+        _render_campaign_store_error(exc, stdout=stdout, theme=theme)
+        if session is not None:
+            session.last_error = str(exc)
+        return True
+
+
+def _dispatch_slash_command(
+    command: str,
+    args: list[str],
+    dispatch: Dispatch,
+    *,
+    stdout: TextIO,
+    theme: _Theme,
+    stdin: TextIO | None = None,
+    session: SessionState | None = None,
+) -> bool:
     name = command.casefold()
-    if name in {"exit", "quit", "q"}:
+    if name == "exit":
         stdout.write(theme.muted("\n  已退出 Verdi。\n"))
         return False
-    if name in {"help", "h", "?"}:
+    if name == "help":
         render_command_palette(args[0] if args else "", stdout=stdout, color=theme.enabled)
         return True
     if name == "clear":
@@ -697,7 +617,7 @@ def _dispatch_slash(
             stdout.write(theme.warn("  请明确指定 campaign ID，例如 /cancel CAMPAIGN_ID；系统不会猜测任务。\n"))
             return True
         return _dispatch_command(["cancel", campaign_id], dispatch, stdout=stdout, theme=theme, label="/cancel", session=session)
-    if name in {"start", "go", "next"}:
+    if name == "start":
         root = Path.cwd().expanduser().resolve()
         config = _project_snapshot(root)
         if not config:
@@ -709,8 +629,7 @@ def _dispatch_slash(
             stdout.write(theme.warn("  还没有研究目标；输入 /plan \"你的目标\"。\n"))
             return True
         readiness = _readiness_snapshot(config, root)
-        blockers = readiness.get("blockers") if isinstance(readiness, dict) else None
-        if isinstance(blockers, list) and blockers:
+        if _next_step(config, readiness=readiness)[1] == "/check":
             stdout.write(theme.bad("  当前接入仍有阻塞项；先运行 /check 查看可执行的修复步骤。\n"))
             return True
         plan_path = _default_plan_path(root)
@@ -729,7 +648,7 @@ def _dispatch_slash(
         )
     if name == "doctor":
         return _dispatch_command(["doctor", *args], dispatch, stdout=stdout, theme=theme, label="/doctor", session=session)
-    if name in {"llm", "api", "provider"}:
+    if name == "llm":
         action = args[0] if args and args[0].casefold() == "status" else None
         argv = ["llm"] + (["status"] if action else [])
         remaining = args[1:] if action else args
@@ -749,7 +668,7 @@ def _dispatch_slash(
     if name in {"guide", "guide-model"}:
         argv = ["guide-model", *args]
         return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label="/guide", session=session)
-    if name in {"evaluator", "eval"}:
+    if name == "evaluator":
         if not args:
             config = _project_snapshot()
             source = config.get("source") if config else None
@@ -774,9 +693,7 @@ def _dispatch_slash(
         "status": ["status", *args],
         "diagnose": ["diagnose", *args],
         "evaluate-irg": ["research", "evaluate-irg", *args],
-        "irg": ["research", "evaluate-irg", *args],
         "evaluate-predictor": ["research", "evaluate-predictor", *args],
-        "predictor": ["research", "evaluate-predictor", *args],
         "setup": ["setup", *args],
         "init": ["init", *args],
         "plan": ["research", "plan", *args],
@@ -824,60 +741,9 @@ def _dispatch_slash(
 
 
 def _render_result(raw: str, *, stdout: TextIO, theme: _Theme) -> None:
-    """Turn machine JSON into a compact human-facing result card."""
+    from wmloop.control.terminal_results import render_result
 
-    text = raw.strip()
-    if not text:
-        return
-    payload: object | None = None
-    try:
-        payload = json.loads(text.splitlines()[-1])
-    except (json.JSONDecodeError, TypeError):
-        stdout.write(text + ("\n" if not text.endswith("\n") else ""))
-        return
-    if not isinstance(payload, dict):
-        stdout.write(text + "\n")
-        return
-    state = payload.get("state")
-    if state is not None:
-        state_text = str(state)
-        painter = theme.good if state_text in {"ready", "queued", "completed", "verified"} else theme.warn if state_text in {"blocked", "needs_input", "awaiting_confirmation", "running"} else theme.bad
-        stdout.write(f"  {theme.muted('State')}  {painter(state_text)}\n")
-    for key, label in (("plan_path", "Plan"), ("project_file", "Project"), ("campaign_id", "Campaign"), ("job_id", "Job"), ("output", "Output")):
-        if payload.get(key) is not None:
-            stdout.write(f"  {label:<8} {payload[key]}\n")
-    blockers = payload.get("blockers")
-    if isinstance(blockers, list) and blockers:
-        stdout.write(theme.warn(f"  Blockers ({len(blockers)})\n"))
-        for blocker in blockers[:5]:
-            if isinstance(blocker, dict):
-                stdout.write(f"    - {blocker.get('code', 'BLOCKED')}: {blocker.get('message', blocker.get('detail', ''))}\n")
-    items = payload.get("items")
-    if isinstance(items, list):
-        stdout.write(f"  Campaigns {len(items)}\n")
-        for item in items[:8]:
-            if isinstance(item, dict):
-                stdout.write(f"    {item.get('campaign_id', '?')}  {item.get('status', item.get('state', '?'))}\n")
-    candidates = payload.get("candidates")
-    if isinstance(candidates, list):
-        stdout.write(f"  Evaluators {len(candidates)} candidates (none frozen)\n")
-        for candidate in candidates[:8]:
-            if not isinstance(candidate, dict):
-                continue
-            horizon = candidate.get("horizon_seconds")
-            horizon_text = f"{horizon}s" if horizon is not None else "horizon?"
-            marker = "minute-ready" if candidate.get("minute_level_supported") else "short/unknown"
-            stdout.write(
-                f"    {candidate.get('candidate_id', '?')}  {horizon_text}  {marker}  {candidate.get('relative_path', '')}\n"
-            )
-        hint = payload.get("selection_hint")
-        if isinstance(hint, dict) and hint.get("candidate_id"):
-            stdout.write(theme.accent(f"  Hint     review {hint['candidate_id']} first; confirmation is still required\n"))
-    stages = payload.get("stages")
-    if isinstance(stages, list):
-        stdout.write(f"  Stages    {len(stages)}\n")
-    if state is None and not any(key in payload for key in ("plan_path", "project_file", "campaign_id", "items", "blockers")):
-        stdout.write(text + "\n")
+    render_result(raw, stdout=stdout, theme=theme)
 
 
 def _dispatch_command(
@@ -996,7 +862,10 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
                 if use_builtin_input:
                     # ``input`` is what activates Python's optional readline
                     # editor, history, and completion hooks.
-                    line = input(theme.accent("verdi> "))
+                    prompt = theme.accent("verdi> ")
+                    if readline is not None:
+                        prompt = re.sub(r"\x1b\[[0-9;]*m", lambda match: "\001" + match.group() + "\002", prompt)
+                    line = input(prompt)
                 else:
                     stdout.write(theme.accent("verdi> "))
                     stdout.flush()
@@ -1016,7 +885,8 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
             if text == "/":
                 selected = _live_palette_selection(stdin=stdin, stdout=stdout, theme=theme)
                 if selected:
-                    _dispatch_slash(selected, [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
+                    if not _dispatch_slash(selected, [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session):
+                        return 0
                 elif stdin is not sys.stdin or stdout is not sys.stdout or not theme.enabled:
                     render_command_palette(stdout=stdout, color=theme.enabled)
                 continue
@@ -1029,14 +899,15 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
                 if not tokens:
                     render_command_palette(stdout=stdout, color=theme.enabled)
                     continue
-                if tokens[0].casefold() == "help" and len(tokens) == 2:
+                tokens[0] = _canonical_command(tokens[0])
+                if tokens[0] == "help" and len(tokens) == 2:
                     # ``/help plan`` is a concise contextual help view.
-                    command = next((item for item in COMMANDS if item.name == tokens[1].casefold()), None)
+                    command = next((item for item in COMMANDS if item.name == _canonical_command(tokens[1])), None)
                     if command is not None:
                         _render_command_help(command, stdout=stdout, theme=theme)
                         continue
-                if tokens[0].casefold() in {"plan", "research"} and len(tokens) == 1 and session.last_goal:
-                    tokens.extend(["--goal", session.last_goal])
+                if tokens[0] in {"plan", "research"} and len(tokens) == 1 and session.last_goal:
+                    tokens = ["plan", "--goal", session.last_goal]
                 if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session):
                     return 0
                 continue

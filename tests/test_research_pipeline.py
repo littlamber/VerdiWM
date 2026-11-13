@@ -1,5 +1,6 @@
 """CPU integration of research state with pipeline orchestration, not model effects."""
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -48,7 +49,10 @@ def test_pipeline_records_phases_and_resumes_terminal_without_rerunning(tmp_path
     assert current['budget']['gpu_hours_remaining'] is None
     phases = {json.loads(path.read_text())['phase'] for path in (options.output_root/'research'/'research-history').glob('*.json')}
     assert phases == {'observe','hypothesize','select','implement','verify','remember'}
-    monkeypatch.setattr(pipeline, 'run_selected_queue', lambda **kwargs: pytest.fail('Settled pipeline reran execution'))
+    def recover(**kwargs):
+        assert kwargs['recover_only'] is True
+        return json.loads((options.output_root/'compiled'/'queue'/'execution.json').read_bytes())
+    monkeypatch.setattr(pipeline, 'run_selected_queue', recover)
     assert pipeline.run_autonomous_pipeline(options) == result
     assert state(options) == current
 
@@ -145,6 +149,33 @@ def test_scheduler_template_change_rejected_even_when_goal_is_unchanged(tmp_path
     path.write_text(json.dumps(value))
     with pytest.raises(pipeline.AutonomousPipelineError, match='INPUT_MISMATCH'):
         pipeline.run_autonomous_pipeline(options)
+
+
+def test_runtime_timeout_reaches_onboarding_and_is_bound_on_resume(tmp_path, monkeypatch):
+    real_input_document = pipeline._input_document
+    options, _ = setup_pipeline(tmp_path, monkeypatch)
+    options = replace(options, runtime_timeout_seconds=45)
+    monkeypatch.setattr(pipeline, '_input_document', real_input_document)
+    monkeypatch.setattr(pipeline, 'compute_source_revision', lambda *args, **kwargs: 'fixed-revision')
+    monkeypatch.setattr(pipeline, 'compute_source_tree_revision', lambda *args, **kwargs: 'fixed-tree')
+    observed = []
+    monkeypatch.setattr(pipeline, 'run_onboarding', lambda value: observed.append(value.runtime_timeout_seconds) or {'state': 'ready_for_conformance_smoke'})
+    pipeline.run_autonomous_pipeline(options)
+    assert observed == [45]
+    lock = json.loads((options.output_root/'pipeline-input.lock.json').read_bytes())
+    assert lock['input']['runtime_timeout_seconds'] == 45
+    with pytest.raises(pipeline.AutonomousPipelineError, match='INPUT_MISMATCH'):
+        pipeline.run_autonomous_pipeline(replace(options, runtime_timeout_seconds=60))
+
+
+def test_pipeline_cli_exposes_runtime_timeout_in_stdout_json_contract(tmp_path, monkeypatch, capsys):
+    options = []
+    monkeypatch.setattr(pipeline, 'run_autonomous_pipeline', lambda value: options.append(value) or {'verdict': 'PASS'})
+    assert pipeline.main([str(tmp_path), '--output-root', str(tmp_path/'out'),
+                          '--evaluator-contract', str(tmp_path/'evaluator.json'),
+                          '--runtime-timeout-seconds', '60']) == 0
+    assert options[0].runtime_timeout_seconds == 60
+    assert json.loads(capsys.readouterr().out) == {'verdict': 'PASS'}
 
 
 def test_corrupt_partial_receipt_does_not_mask_executor_failure(tmp_path, monkeypatch):

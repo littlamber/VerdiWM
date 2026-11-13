@@ -13,6 +13,8 @@
     "artifact_type": {"const": "verdiwm-open-method-study-execution"},
     "execution_id": {"type": "string", "pattern": "^open-execution-[0-9a-f]{24}$"},
     "study_id": {"type": "string", "pattern": "^open-study-[0-9a-f]{24}$"},
+    "raw_evidence_manifest_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
+    "frozen_inputs_manifest_ref": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"},
     "state": {"enum": ["completed", "abstained", "failed"]},
     "input_binding": {"type": "object"},
     "split_validation": {"type": "object"},

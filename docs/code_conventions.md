@@ -91,6 +91,33 @@ archive、CAS 和 GPU lock 通过参数、配置或 `VERDIWM_*` 环境变量提�
   新目录必须先归属一个权限平面，不能用 `misc/`、`common2/`、`new/` 或日期
   目录绕过边界。
 
+## 6. 改动工作流与公共能力索引
+
+可维护性要求以 `AGENTS.md` 第 1.1 节为准。开始修改时，先沿现有公共入口追到
+行为所属服务，搜索对应的 schema、调用方和测试，确定修复点；提交说明写明
+公共接口变化与复用选择即可，不必为小改动新建一套设计文档。
+
+| 需要的能力 | 优先查看和复用 |
+| --- | --- |
+| 原始路径检查、canonical JSON、hash、原子写、文件锁 | `wmloop/storage.py` |
+| 运行时 Python 路径、子进程取消和进程组回收 | `wmloop/runtime_env.py`、`wmloop/process_lifecycle.py`（`execute/process_lifecycle.py` 仅兼容导出） |
+| GPU 准入与租约、预算预约和结算 | `wmloop/execute/gpu_lease.py`、`wmloop/execute/budget.py` |
+| 实验执行、队列调度、pipeline 状态与恢复 | `wmloop/execute/auto_experiment.py`、`wmloop/execute/experiment_scheduler.py`、`wmloop/execute/pipeline/` |
+| CAS 与终态归档、诊断积累、经验检索 | `wmloop/archive/store.py`、`wmloop/execute/diagnostic_memory.py`、`wmloop/retrieve/index.py` |
+| 正式判定、JSON 契约、命令与服务边界 | `wmloop/verify/`、`configs/schemas/`、`wmloop/control/commands/`、`wmloop/control/local_http.py` |
+
+索引说明能力归属，不授予跨层 import 权限；调用仍须遵守 `AGENTS.md` 第 2、3 节。
+缺少合适接口时，在所属模块提供最小明确的 API，再让现有调用方复用。不要
+跨模块调用私有 helper、重新拷贝实现，或用 `getattr` 猜函数签名来维持多套路径。
+
+涉及执行或持久化时，先列出输入校验、资源获取、执行、证据落盘、结算、积累和
+恢复各自的责任方。新增状态必须说明其终态、重试条件和清理范围；成本未知不能
+当作未执行。正常入口和恢复入口共用权威证据校验，不能只在首次执行时检查。
+
+评审重点是：相同规则是否只有一个实现、入口是否仍以装配为主、异常是否保留
+根因、用户能否通过公共入口完成操作，以及修改后既有契约能否继续读取。类型和
+模块拆分应让这些关系更容易理解；不以新增类、文件或抽象层数量衡量工程质量。
+
 ## 开源交付补充
 
 发布约束以 `AGENTS.md` 第 7 节为准，操作步骤见 `docs/RELEASING.md`。

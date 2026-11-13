@@ -356,7 +356,11 @@ def _apply_retrieval_context(
         if isinstance(row.get("primitive_reference"), str)
         and row.get("execution_authority") == "ranking_only"
     ]
-    if not matches and not literature_rows and not method_rows:
+    paired_queries = any(
+        candidate.get("retrieval_keys", {}).get("paired_query")
+        for candidate in batch.get("candidates", []) if isinstance(candidate, Mapping)
+    )
+    if not matches and not literature_rows and not method_rows and not paired_queries:
         return
     scoring = batch.get("scoring")
     if isinstance(scoring, dict):
@@ -413,17 +417,24 @@ def _apply_retrieval_context(
         ]
         if not candidate_matches and not candidate_papers and not candidate_methods:
             continue
-        positive = sum(str(row.get("verdict")) == "PASS" for row in candidate_matches)
         method_bonus = min(0.3, 0.1 * len(candidate_methods))
-        prior = min(
-            1.0, ((0.2 + 0.1 * positive) if candidate_matches else 0.1) + method_bonus
-        )
+        # Execution PASS is not a positive response. Diagnostic observations
+        # use the shared, signed, exact-query service below.
+        prior = min(1.0, (0.1 if candidate_papers else 0.0) + method_bonus)
         candidate["retrieval_prior"] = prior
         candidate["retrieval_matches"] = [
             *candidate_matches,
             *candidate_papers,
             *candidate_methods,
         ]
+    from wmloop.retrieve.paired_prior import apply_paired_observation_priors
+
+    ranked = apply_paired_observation_priors(
+        batch, matches,
+        archive_db=Path(retrieval["archive_db"]) if retrieval.get("archive_db") else None,
+        cas_root=Path(retrieval["cas_root"]) if retrieval.get("cas_root") else None,
+    )
+    batch.update(ranked)
 
 
 def _apply_diagnostic_routing(

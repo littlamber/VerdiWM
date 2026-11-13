@@ -152,11 +152,48 @@ def _yaml_scalar(value: str) -> Any:
 
 
 def validate_document(schema_name: str, document: Mapping[str, Any], *, root: Path | None = None) -> None:
-    schema_path = _root(root) / "configs" / "schemas" / f"{schema_name}.schema.json"
+    # These original schema files are hash-pinned by historical constitutions.
+    # New protocol semantics opt in explicitly, without mutating frozen assets.
+    if schema_name in {"goal_spec", "verdict"} and "schema_version" in document:
+        version = document["schema_version"]
+        if type(version) is not int or version != 2:
+            raise ContractValidationError(f"SCHEMA_VERSION_UNSUPPORTED:{schema_name}")
+        schema_name = f"{schema_name}_v2"
+    paired_definition = {"diagnostic_paired_query": "query", "diagnostic_paired_specification": "specification", "diagnostic_paired_protocol": "protocol"}.get(schema_name)
+    schema_file = "diagnostic_paired_observation" if paired_definition else schema_name
+    schema_path = _root(root) / "configs" / "schemas" / f"{schema_file}.schema.json"
     if not schema_path.is_file():
         raise ContractValidationError(f"SCHEMA_NOT_FOUND:{schema_name}")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    if schema_name == "wan_arm_slot_native_execution":
+        shared = json.loads((schema_path.parent / "wan_arm_slot_inference_receipt.schema.json").read_text(encoding="utf-8"))
+        schema["$defs"] = dict(shared["$defs"])
+        for field in ("input_binding", "process", "artifacts", "validation", "authority"):
+            schema["$defs"][field] = shared["properties"][field]
+        schema["allOf"] = shared["allOf"]
+    if paired_definition:
+        schema = {"$defs": schema["$defs"], "$ref": "#/$defs/" + paired_definition}
+    if schema_name in {"diagnostic_probe_result", "auto_experiment_result", "auto_experiment_candidate_batch", "diagnostic_paired_observation", "diagnostic_paired_query", "diagnostic_paired_specification", "diagnostic_paired_protocol", "wan_arm_slot_native_execution", "frozen_future_video_recipe", "future_frame_measurement"}:
+        # JSON Schema's numeric comparisons alone do not reject Python NaN.
+        # This artifact crosses execution, routing, CAS and retrieval boundaries.
+        try:
+            json.dumps(document, allow_nan=False)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ContractValidationError(f"{schema_name.upper()}_NOT_FINITE_JSON") from exc
     validate_instance(schema, document)
+    if schema_name == "diagnostic_probe_result":
+        paired_queries = set()
+        for observation in document.get("paired_observations", []):
+            validate_document("diagnostic_paired_observation", observation, root=root)
+            query_identity = json.dumps(observation["query"], sort_keys=True, separators=(",", ":"), allow_nan=False)
+            if query_identity in paired_queries:
+                raise ContractValidationError("DIAGNOSTIC_PAIRED_QUERY_DUPLICATE")
+            paired_queries.add(query_identity)
+    if schema_name == "auto_experiment_candidate_batch":
+        for candidate in document.get("candidates", []):
+            query = candidate.get("retrieval_keys", {}).get("paired_query")
+            if query is not None:
+                validate_document("diagnostic_paired_query", query, root=root)
 
 
 @lru_cache(maxsize=256)

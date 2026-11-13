@@ -49,6 +49,7 @@ _WMLOOP_ROOT_FILES = {
     "orchestrator_training_eval_smoke.py",
     "orchestrator_training_smoke.py",
     "preflight.py",
+    "process_lifecycle.py",
     "repository_layout.py",
     "runtime_contract.py",
     "runtime_env.py",

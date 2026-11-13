@@ -51,6 +51,9 @@ class TrialAdmission:
     estimated_gpu_hours: float
     fencing_token: int
     state: str
+    receipt_ref: str | None = None
+    plan_sha256: str | None = None
+    actual_gpu_hours: float | None = None
 
 
 class BudgetLedger:
@@ -67,6 +70,8 @@ class BudgetLedger:
         cost_class: str,
         estimated_gpu_hours: float,
         human_approved: bool = False,
+        plan_sha256: str | None = None,
+        reject_existing: bool = False,
     ) -> TrialAdmission:
         _validate_admission(
             trial_id,
@@ -75,11 +80,15 @@ class BudgetLedger:
             human_approved,
             policy=self._policy,
         )
+        _validate_plan_sha256(plan_sha256)
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT * FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
             if row is not None:
+                if reject_existing:
+                    raise BudgetError("TRIAL_ALREADY_EXISTS")
+                _require_plan_binding(row, plan_sha256)
                 if (
                     row["cost_class"] != cost_class
                     or row["estimated_gpu_hours"] != estimated_gpu_hours
@@ -108,10 +117,10 @@ class BudgetLedger:
                 """
                 INSERT INTO trials (
                     trial_id, cost_class, estimated_gpu_hours, human_approved,
-                    fencing_token, state, actual_gpu_hours, receipt_ref
-                ) VALUES (?, ?, ?, ?, 1, 'admitted', NULL, NULL)
+                    fencing_token, state, actual_gpu_hours, receipt_ref, plan_sha256
+                ) VALUES (?, ?, ?, ?, 1, 'admitted', NULL, NULL, ?)
                 """,
-                (trial_id, cost_class, estimated_gpu_hours, int(human_approved)),
+                (trial_id, cost_class, estimated_gpu_hours, int(human_approved), plan_sha256),
             )
             row = connection.execute("SELECT * FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
             connection.commit()
@@ -131,11 +140,15 @@ class BudgetLedger:
             connection.close()
         return _admission_from_row(row) if row is not None else None
 
-    def takeover(self, trial_id: str, *, expected_fencing_token: int) -> TrialAdmission:
+    def takeover(
+        self, trial_id: str, *, expected_fencing_token: int, plan_sha256: str | None = None
+    ) -> TrialAdmission:
+        _validate_plan_sha256(plan_sha256)
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
             row = _require_active_row(connection, trial_id, expected_fencing_token)
+            _require_plan_binding(row, plan_sha256)
             connection.execute(
                 "UPDATE trials SET fencing_token = fencing_token + 1 WHERE trial_id = ?", (trial_id,)
             )
@@ -152,12 +165,27 @@ class BudgetLedger:
         fencing_token: int,
         actual_gpu_hours: float,
         receipt_ref: str,
+        plan_sha256: str | None = None,
     ) -> TrialAdmission:
         _validate_settlement(actual_gpu_hours, receipt_ref)
+        _validate_plan_sha256(plan_sha256)
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
-            row = _require_active_row(connection, trial_id, fencing_token)
+            row = connection.execute("SELECT * FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
+            if row is None:
+                raise BudgetError("TRIAL_NOT_FOUND")
+            if row["fencing_token"] != fencing_token:
+                raise BudgetError("STALE_FENCING_TOKEN")
+            if plan_sha256 is not None:
+                _require_plan_binding(row, plan_sha256)
+            if row["state"] == "settled":
+                if row["receipt_ref"] != receipt_ref or row["actual_gpu_hours"] != actual_gpu_hours:
+                    raise BudgetError("TRIAL_SETTLEMENT_CONFLICT")
+                connection.commit()
+                return _admission_from_row(row)
+            if row["state"] != "admitted":
+                raise BudgetError("TRIAL_NOT_ACTIVE")
             connection.execute(
                 """
                 UPDATE trials SET state = 'settled', actual_gpu_hours = ?, receipt_ref = ?
@@ -212,6 +240,9 @@ class BudgetLedger:
                 )
                 """
             )
+            trial_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(trials)")}
+            if "plan_sha256" not in trial_columns:
+                connection.execute("ALTER TABLE trials ADD COLUMN plan_sha256 TEXT")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS policy (
@@ -277,6 +308,16 @@ class BudgetLedger:
         return connection
 
 
+def _validate_plan_sha256(value: str | None) -> None:
+    if value is not None and (not isinstance(value, str) or len(value) != 64 or any(c not in "0123456789abcdef" for c in value)):
+        raise BudgetError("TRIAL_PLAN_DIGEST_INVALID")
+
+
+def _require_plan_binding(row: sqlite3.Row, plan_sha256: str | None) -> None:
+    if row["plan_sha256"] != plan_sha256:
+        raise BudgetError("TRIAL_PLAN_BINDING_MISMATCH")
+
+
 def _validate_admission(
     trial_id: str,
     cost_class: str,
@@ -330,6 +371,9 @@ def _admission_from_row(row: sqlite3.Row) -> TrialAdmission:
         estimated_gpu_hours=float(row["estimated_gpu_hours"]),
         fencing_token=int(row["fencing_token"]),
         state=str(row["state"]),
+        receipt_ref=str(row["receipt_ref"]) if row["receipt_ref"] is not None else None,
+        plan_sha256=str(row["plan_sha256"]) if row["plan_sha256"] is not None else None,
+        actual_gpu_hours=float(row["actual_gpu_hours"]) if row["actual_gpu_hours"] is not None else None,
     )
 
 

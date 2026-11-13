@@ -40,14 +40,14 @@ def request():
         anti_conditions=['Correction removes genuine action-induced changes'])
     return dict(proposals=proposals,base_revision={'revision':'test','source_digest':'f'*64},
                 experiment_binding=dict(zip(['checkpoint_digest','train_split_digest','selection_split_digest','confirmation_split_digest','verifier_digest'],[c*64 for c in 'abcde'])),
-                target_portrait_binding=PORTRAIT,seeds=[11,22],
-                estimated_gpu_hours_per_seed={r:0.1 for r in proposals},budget_gpu_hours=1)
+                target_portrait_binding=PORTRAIT,seeds=[11,22], confirmation_seeds=[33,44],
+                estimated_gpu_hours_per_seed={r:0.1 for r in proposals},budget_gpu_hours=2)
 
 
 def test_four_arm_compilation_binds_components_cost_and_validation(tmp_path):
     result = compile_open_method_study(**request(),output_root=tmp_path/'study',project_root=ROOT)
     assert [a['role'] for a in result['arms']] == ['baseline','source_only','target_only','combined']
-    assert result['estimated_total_gpu_hours'] == pytest.approx(0.8)
+    assert result['estimated_total_gpu_hours'] == pytest.approx(1.6)
     assert not any(result['authority'].values())
     for arm in result['arms']:
         path=tmp_path/'study'/arm['role']/'implementation-check-plan.json'
@@ -60,7 +60,7 @@ def test_four_arm_compilation_binds_components_cost_and_validation(tmp_path):
 @pytest.mark.parametrize('change,error',[
     ('missing_arm','FOUR_ARMS'),('budget','BUDGET_EXCEEDED'),('component','COMPONENT_BINDING'),
     ('metrics','METRIC_MISMATCH'),('split','DISTINCT_SPLITS'),('seed','SEEDS_INVALID'),
-    ('blocked','ARM_NOT_READY'),
+    ('blocked','ARM_NOT_READY'), ('confirm_overlap','CONFIRMATION_SEEDS'), ('confirm_single','CONFIRMATION_SEEDS'),
     ('role','ROLE_BINDING'),
 ])
 def test_invalid_or_partial_study_is_not_published(tmp_path,change,error):
@@ -71,6 +71,8 @@ def test_invalid_or_partial_study_is_not_published(tmp_path,change,error):
     if change=='metrics': req['proposals']['baseline']['method_ir']['falsification']['primary_metrics']=['different_metric']
     if change=='split': req['experiment_binding']['confirmation_split_digest']=req['experiment_binding']['selection_split_digest']
     if change=='seed': req['seeds']=[11,11]
+    if change=='confirm_overlap': req['confirmation_seeds']=[11,33]
+    if change=='confirm_single': req['confirmation_seeds']=[33]
     if change=='blocked': req['proposals']['combined'].update(state='blocked',files=[],tests=[],execution_contract=None)
     if change=='role':
         req['proposals']['baseline']['method_ir']['study_role'] = 'source_only'
@@ -183,5 +185,5 @@ def test_study_identity_binds_files_and_seeds(tmp_path):
     assert compile_at('same')['study_id'] == original['study_id']
     req['proposals']['source_only']['files'][0]['content_utf8'] += '\n# implementation revision\n'
     assert compile_at('different_code')['study_id'] != original['study_id']
-    req['seeds'] = [33,44]
+    req['seeds'] = [55,66]
     assert compile_at('different_seeds')['study_id'] != original['study_id']

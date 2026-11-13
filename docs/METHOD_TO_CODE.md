@@ -98,6 +98,7 @@ is produced by `build_open_method_request`; the adapter uses the existing
 trusted LLM adapter configuration. The second request contains `proposals`
 with exactly the four roles above, `base_revision`, `target_portrait_binding`,
 `experiment_binding` (the five `*_digest` fields above), `seeds`,
+`confirmation_seeds` (at least two unique seeds disjoint from `seeds`),
 `estimated_gpu_hours_per_seed` (one positive value per role), and
 `budget_gpu_hours`. Module entrypoints are also available through
 `python -m wmloop.control.open_method_generation` and
@@ -106,7 +107,9 @@ with exactly the four roles above, `base_revision`, `target_portrait_binding`,
 These entrypoints connect provider output to real candidate files and complete
 study compilation. `verdiwm-run-open-method-study` then executes the declared
 checks, bounded candidate operations, frozen verifier, paired contrasts and
-local CAS evidence archive. The default literature pipeline still needs an integration
+local CAS evidence archive. Confirmation observations are currently exploratory:
+formal verify-layer settlement and a settled archive binding are not yet implemented
+for this study path, so it does not publish reusable effect memory. The default literature pipeline still needs an integration
 that selects open candidates, executes their target checks, submits the four
 arms to the scheduler and deposits settled results. Existing registered
 primitive compositions retain their separate execution and settlement path in
@@ -138,6 +141,7 @@ promote an open method on compilation alone.
 | Closed-loop orchestration | `wmloop/orchestrator.py`, `scripts/export/acwm_autoloop_daemon.py` | Operational ACWM search loop |
 | Cross-backbone LOBO protocol | `wmloop/experiments/spec.py`, `wmloop/experiments/lobo.py` | CPU planner implemented; Ctrl-World chart is settled, while Cosmos3 LOBO is blocked by three frozen locality abstentions |
 | Universal diagnostic-first onboarding | `wmloop/diagnose/probe_campaign.py`, `wmloop/retrieve/index.py`, `wmloop/execute/autonomous_pipeline.py` | Declarative GPU probe receipt precedes experience retrieval and candidate compilation; current probe is excluded from retrieval and empty indexes settle as `cold_start` |
+| 配对诊断经验的跨轮排序 | `wmloop/diagnose/paired_observation.py`, `wmloop/evaluate/future_video_metrics.py`, `wmloop/retrieve/paired_prior.py` | 对已结算的 Wan history 干预重建命令、配置、视频与冻结测量，保存正向/负向/零差异；只在完整 query 匹配时提供有界排序先验，不生成正式 EffectMemory 或迁移许可。用户流程见 [两轮指南](TWO_ROUND_DIAGNOSTIC_MEMORY.md) |
 | Online cold-start method discovery | `wmloop/retrieve/literature.py`, `wmloop/retrieve/method_staging.py`, `wmloop/propose/prior_library.py`, `configs/schemas/literature_method_candidate.schema.json` | Bounded arXiv lookup stages data-only records; strict synthesis maps registered methods to ranking-only evidence and unknown methods to prompt-compatible next-version work orders with no command or GPU authority |
 | Settled stage ledger and paper tables | `wmloop/experiments/ledger.py`, `wmloop/experiments/report.py` | Contract implemented; no cross-backbone quality claim until confirm receipts are supplied |
 | Ctrl-World ACWM pilot adapters | `wmloop/evaluate/adapters/ctrl_world_predictive.py`, `wmloop/experiments/ctrl_world_fingerprint.py`, `wmloop/primitives/adapters/ctrl_world_hooks.py` | Paired predictive receipt projection, reversible action-embedding dose, frozen ACWM constitution, and fail-closed downstream-success exclusion are complete; the pilot chart is measured and settled, while paper-split transfer receipts are pending |

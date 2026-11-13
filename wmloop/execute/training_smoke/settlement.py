@@ -11,6 +11,7 @@ from wmloop.archive.store import ArchiveStore, SettledTrialRecord
 from wmloop.execute.training_smoke.errors import OrchestratorTrainingEvalSmokeError
 from wmloop.execute.training_smoke.io import _canonical_json_bytes
 from wmloop.propose.scheduler import InterventionCell
+from wmloop.verify.acceptance_policy import has_frozen_policy_binding
 
 
 def _record_formal_settled_trial(
@@ -39,7 +40,18 @@ def _record_formal_settled_trial(
     cell = _formal_trial_cell(proposal=proposal, interventions=interventions)
     verdict_label = verdict.get("verdict")
     exploratory = not single or verdict_label == "VOID"
+    if "schema_version" in verdict:
+        exploratory = exploratory or (
+            type(verdict["schema_version"]) is not int
+            or verdict["schema_version"] != 2
+            or verdict_label == "INCONCLUSIVE"
+            or not has_frozen_policy_binding(verdict.get("replication_statistics"), receipt=receipt)
+        )
     verified_gain = None if exploratory else _primary_delta(verdict)
+    if verdict.get("schema_version") == 2 and verdict_label == "REJECT" and verified_gain is not None:
+        # Keep all measured deltas in the verdict CAS object while preventing
+        # a rejected protected regression from rewarding the scheduler cell.
+        verified_gain = min(0.0, verified_gain)
     archive.record_settled_trial(
         SettledTrialRecord(
             trial_id=str(proposal["proposal_id"]),
@@ -106,13 +118,20 @@ def _primary_delta(verdict: Mapping[str, Any]) -> float:
         raise OrchestratorTrainingEvalSmokeError(
             "M3_TRAINING_EVAL_SMOKE_FORMAL_DELTA_INVALID"
         )
-    for value in deltas.values():
-        if (
-            isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(float(value))
-        ):
-            return float(value)
+    statistics = verdict.get("replication_statistics")
+    policy = statistics.get("policy") if isinstance(statistics, Mapping) else None
+    primary = policy.get("primary_metric") if isinstance(policy, Mapping) else None
+    values = (deltas.get(primary),) if primary is not None else deltas.values()
+    for value in values:
+        try:
+            if (
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and math.isfinite(float(value))
+            ):
+                return float(value)
+        except OverflowError:
+            continue
     raise OrchestratorTrainingEvalSmokeError(
         "M3_TRAINING_EVAL_SMOKE_FORMAL_DELTA_INVALID"
     )

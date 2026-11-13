@@ -42,7 +42,13 @@ def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
 def load_json(path: Path) -> object:
     """Load one JSON document; callers own domain-specific error translation."""
 
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    return load_json_bytes(Path(path).read_bytes())
+
+
+def load_json_bytes(payload: bytes) -> object:
+    """Decode one UTF-8 JSON snapshot without rereading its source path."""
+
+    return json.loads(payload.decode("utf-8"))
 
 
 def checked_path(value: Path, *, code: str, error: type[Exception] = ValueError) -> Path:

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore
+from wmloop.verify.acceptance_policy import has_frozen_policy_binding
 
 
 class M3AcceptanceAuditError(RuntimeError):
@@ -157,15 +158,28 @@ def _model_quality_summary(training_eval: Mapping[str, Any] | None) -> dict[str,
             "claim_scope": "none",
         }
     verdict = training_eval.get("verdict")
+    # Historical reports did not carry a versioned verdict projection. New
+    # reports must establish the same policy authority required by settlement.
+    versioned_verdict = "verdict_schema_version" in training_eval or "replication_statistics" in training_eval
+    frozen_binding = has_frozen_policy_binding(
+        training_eval.get("replication_statistics"), receipt=training_eval.get("receipt"),
+    ) if versioned_verdict else None
+    authority = not versioned_verdict or (
+        type(training_eval.get("verdict_schema_version")) is int
+        and training_eval["verdict_schema_version"] == 2
+        and frozen_binding
+    )
     return {
-        "passed": verdict == "ACCEPT" and training_eval.get("state") == "ready",
-        "expected": "Formal model-quality trials require ready evidence and ACCEPT verdict; current smoke does not establish this claim.",
+        "passed": verdict == "ACCEPT" and training_eval.get("state") == "ready" and authority,
+        "expected": "Formal model-quality trials require ready evidence, ACCEPT, and a frozen policy/seed/receipt binding for versioned verdicts.",
         "observed": {
             "state": training_eval.get("state"),
             "verdict": verdict,
             "delta_m_ver": training_eval.get("delta_m_ver"),
             "gates": training_eval.get("gates"),
             "action_following_gate": training_eval.get("action_following_gate"),
+            "verdict_schema_version": training_eval.get("verdict_schema_version"),
+            "frozen_policy_binding": frozen_binding,
         },
         "claim_scope": "smoke_only" if training_eval.get("state") == "ready" else "none",
     }

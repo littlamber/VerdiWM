@@ -11,6 +11,48 @@ import pytest
 from wmloop.archive.store import ArchiveInvariantError, ArchiveStore, ContentAddressedStore
 
 
+def test_cas_streams_file_and_deduplicates(tmp_path):
+    source = tmp_path / "candidate.bin"
+    payload = b"candidate" * 300000
+    source.write_bytes(payload)
+    cas = ContentAddressedStore(tmp_path / "store")
+    first = cas.put_file(source, media_type="application/octet-stream")
+    second = cas.put_file(source, media_type="application/octet-stream")
+    assert first.uri == second.uri
+    assert first.size == len(payload)
+    assert cas.read_bytes(first.uri) == payload
+
+
+def test_cas_rejects_linked_or_changed_source(tmp_path, monkeypatch):
+    import os
+    import pytest
+
+    source = tmp_path / "candidate.bin"
+    source.write_bytes(b"candidate" * 200000)
+    link = tmp_path / "link"
+    link.symlink_to(source)
+    cas = ContentAddressedStore(tmp_path / "store")
+    with pytest.raises(ArchiveInvariantError, match="CAS_SOURCE_INVALID"):
+        cas.put_file(link, media_type="application/octet-stream")
+
+    original_read = os.read
+    changed = False
+
+    def mutate_after_read(fd, size):
+        nonlocal changed
+        result = original_read(fd, size)
+        if result and not changed:
+            changed = True
+            with source.open("ab") as handle:
+                handle.write(b"changed")
+        return result
+
+    monkeypatch.setattr(os, "read", mutate_after_read)
+    with pytest.raises(ArchiveInvariantError, match="CAS_SOURCE_CHANGED"):
+        cas.put_file(source, media_type="application/octet-stream")
+    assert not list((tmp_path / "store" / "cas").rglob("*.tmp"))
+
+
 def _write_payload(root: str, payload: bytes) -> str:
     return ContentAddressedStore(Path(root)).put_bytes(payload, media_type="application/octet-stream").uri
 

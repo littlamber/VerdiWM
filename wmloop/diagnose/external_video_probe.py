@@ -14,12 +14,20 @@ import os
 import re
 import subprocess
 import sys
-import uuid
 from pathlib import Path
 from typing import Mapping, Sequence
 
 import imageio.v2 as imageio
 import numpy as np
+
+from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.storage import atomic_write
+
+
+_CLAIM_BOUNDARY = (
+    "Video diagnostics are exploratory routing evidence; they cannot "
+    "establish model-quality gains or formal verdicts."
+)
 
 
 class ExternalVideoProbeError(RuntimeError):
@@ -138,10 +146,7 @@ def run_external_video_probe(
             "path": matches[0].relative_to(scratch).as_posix(),
             "layout": layout,
         },
-        "claim_boundary": (
-            "Video diagnostics are exploratory routing evidence; they cannot "
-            "establish model-quality gains or formal verdicts."
-        ),
+        "claim_boundary": _CLAIM_BOUNDARY,
     }
     _write_json(output, result)
     return 0
@@ -289,21 +294,16 @@ def _invalid_result(
             "video_match_count": float(video_match_count),
         },
         "error": error or "EXTERNAL_VIDEO_PROBE_WORKLOAD_OR_VIDEO_INVALID",
+        "claim_boundary": _CLAIM_BOUNDARY,
     }
 
 
 def _write_json(path: Path, payload: Mapping[str, object]) -> None:
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        temporary.write_text(
-            json.dumps(payload, ensure_ascii=True, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        os.replace(temporary, path)
-    finally:
-        if temporary.exists() or temporary.is_symlink():
-            temporary.unlink()
+        validate_document("diagnostic_probe_result", payload)
+    except ContractValidationError as exc:
+        raise ExternalVideoProbeError("EXTERNAL_VIDEO_PROBE_RESULT_INVALID") from exc
+    atomic_write(path, (json.dumps(payload, ensure_ascii=True, sort_keys=True, allow_nan=False) + "\n").encode("utf-8"))
 
 
 _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")

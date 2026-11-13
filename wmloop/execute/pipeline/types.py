@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from wmloop.control.onboarding_scan.types import DEFAULT_RUNTIME_TIMEOUT_SECONDS
 from wmloop.runtime_env import default_lock_root
 
 
@@ -46,3 +47,4 @@ class AutonomousPipelineOptions:
     cpbe_history: Path | None = None
     model_irg_path: Path | None = None
     irg_protected_metrics: tuple[str, ...] = ()
+    runtime_timeout_seconds: float = DEFAULT_RUNTIME_TIMEOUT_SECONDS

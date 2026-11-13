@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "authority", "query", "control_value", "candidate_value", "signed_delta", "outcome", "evidence", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-diagnostic-paired-observation"},
+    "authority": {"const": "ranking_only"},
+    "query": {"$ref": "#/$defs/query"},
+    "control_value": {"type": "number"},
+    "candidate_value": {"type": "number"},
+    "signed_delta": {"type": "number"},
+    "outcome": {"enum": ["positive", "negative", "null"]},
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["specification", "files"],
+      "properties": {
+        "specification": {"$ref": "#/$defs/specification"},
+        "files": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "comparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["primitive", "baseline_history_rollout_dilation", "allowed_candidate_history_rollout_dilations", "config_fields", "episode_id", "frame_now", "seed", "split", "inference_steps", "max_chunks", "identical_ground_truth_bytes_required", "other_config_semantics_must_match", "weights_fixed", "data_fixed"],
+      "properties": {
+        "primitive": {"const": "history_sparse_dilation"},
+        "baseline_history_rollout_dilation": {"type": "integer", "minimum": 1},
+        "allowed_candidate_history_rollout_dilations": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "integer", "minimum": 1}},
+        "config_fields": {"const": ["world_model.history_rollout_dilation", "wm_training.history_rollout_dilation"]},
+        "episode_id": {"type": "integer", "minimum": 0},
+        "frame_now": {"type": "integer", "minimum": 0},
+        "seed": {"type": "integer", "minimum": 0},
+        "split": {"enum": ["train", "val", "test"]},
+        "inference_steps": {"type": "integer", "minimum": 1},
+        "max_chunks": {"type": "integer", "minimum": 1},
+        "identical_ground_truth_bytes_required": {"const": true},
+        "other_config_semantics_must_match": {"const": true},
+        "weights_fixed": {"const": true}, "data_fixed": {"const": true}
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "required": ["evaluator_id", "formal_acceptance", "metric_tie_epsilon", "ranking_primary_metric", "metrics", "comparison"],
+      "properties": {
+        "evaluator_id": {"type": "string", "minLength": 1},
+        "formal_acceptance": {"const": false},
+        "metric_tie_epsilon": {"type": "number", "minimum": 0},
+        "ranking_primary_metric": {"enum": ["psnr_db", "global_ssim_rgb", "aggregate_mse"]},
+        "metrics": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "object", "required": ["direction"], "properties": {"direction": {"enum": ["higher", "lower"]}}}},
+        "comparison": {"$ref": "#/$defs/comparison"}
+      }
+    },
+    "parameters": {
+      "type": "object", "minProperties": 1,
+      "propertyNames": {"minLength": 1},
+      "additionalProperties": {"type": ["string", "number", "boolean", "null"]}
+    },
+    "query": {
+      "type": "object", "additionalProperties": false,
+      "required": ["primitive", "metric_name", "metric_direction", "protocol_sha256", "context_sha256", "seed", "control_parameters", "candidate_parameters"],
+      "properties": {
+        "primitive": {"type": "string", "minLength": 1},
+        "metric_name": {"type": "string", "minLength": 1},
+        "metric_direction": {"enum": ["higher", "lower"]},
+        "protocol_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "context_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "seed": {"type": "integer", "minimum": 0},
+        "control_parameters": {"$ref": "#/$defs/parameters"},
+        "candidate_parameters": {"$ref": "#/$defs/parameters"}
+      }
+    },
+    "side": {
+      "type": "object", "additionalProperties": false,
+      "required": ["config", "selection", "manifest", "measurement", "prediction", "ground_truth"],
+      "oneOf": [{"required": ["receipt"]}, {"required": ["execution"]}],
+      "properties": {
+        "receipt": {"type": "string", "minLength": 1},
+        "execution": {"type": "string", "minLength": 1},
+        "config": {"type": "string", "minLength": 1},
+        "selection": {"type": "string", "minLength": 1},
+        "manifest": {"type": "string", "minLength": 1},
+        "measurement": {"type": "string", "minLength": 1},
+        "prediction": {"type": "string", "minLength": 1},
+        "ground_truth": {"type": "string", "minLength": 1}
+      }
+    },
+    "specification": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "primitive", "protocol", "freeze_record", "evaluator_files", "metrics", "null_tolerance", "control", "candidate"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "primitive": {"const": "history_sparse_dilation"},
+        "protocol": {"type": "string", "minLength": 1},
+        "freeze_record": {"type": "string", "minLength": 1},
+        "evaluator_files": {"type": "object", "minProperties": 1, "additionalProperties": {"type": "string", "minLength": 1}},
+        "metrics": {"type": "object", "minProperties": 1, "propertyNames": {"minLength": 1}, "additionalProperties": {"enum": ["higher", "lower"]}},
+        "null_tolerance": {"type": "number", "minimum": 0},
+        "control": {"$ref": "#/$defs/side"},
+        "candidate": {"$ref": "#/$defs/side"}
+      }
+    }
+  }
+}

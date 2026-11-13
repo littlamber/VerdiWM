@@ -28,6 +28,10 @@ A generic `PASS` remains `exploratory=True` in the archive. It cannot update
 Intervention-Effect Memory or become a transfer prior until a frozen,
 backbone-specific verifier promotes it.
 
+通用结果的字段、有限值约束与自定义 workload 元数据边界见
+[通用实验结果契约](AUTO_EXPERIMENT_RESULT.md)。schema 校验覆盖所有结果指标，
+包括未进入本次 gate 的指标；结构损坏的结果保留原始证据并结算为 `VOID`。
+
 ## Candidate queues and progressive fidelity
 
 For an external repository, `verdiwm-run` is the preferred orchestration entry
@@ -43,6 +47,13 @@ The run root contains `onboarding/`, `conformance/`, `compiled/`, `cas/`,
 selected candidate to settle `PASS`; onboarding or conformance blockers stop
 before GPU scheduling. An interruption is durable and rerunning the identical
 command resumes from existing hashes and receipts.
+
+接入阶段每个依赖 import 与 `pip check` 默认最多运行 30 秒，可通过
+`--runtime-timeout-seconds` 设置大于 0 且不超过 300 的有限秒数。它与
+`--conformance-timeout-seconds` 独立，并纳入顶层不可变输入绑定；修改后应使用新输出
+目录。GPU admission 要求显存与利用率为有效有限数值，并成功检查 compute apps。
+查询失败不会被视为空闲；多卡请求会遍历允许的 GPU，选足完整可用子集，数量不足或
+获取锁中途失败时释放本次已经取得的所有 partial leases。
 
 For a bounded set of hypotheses, use a candidate batch rather than creating
 plans ad hoc. The batch schema is
@@ -95,9 +106,9 @@ uv run verdiwm-auto-scheduler run \
   --lock-root /tmp/verdiwm-gpu-leases
 ```
 
-This queue is an execution and resource-allocation mechanism. It does not
-create optimization-memory entries, assert model-quality gains, or authorize a
-world-model training campaign.
+This queue is an execution and resource-allocation mechanism. Explicitly
+declared diagnostic results can enter the retrieval index through the contract
+below; scientific effect memory still requires its own frozen verification.
 
 ## Admission and execution
 
@@ -140,9 +151,46 @@ receipt-first order:
 5. Publish the settled-trial row to Archive.
 6. Mark the scratch directory settled and apply only the plan's cleanup policy.
 
-If the process stops after Archive publication, rerunning the same plan
-rebuilds the local manifest and finishes the pending projection. A stale worker
-cannot settle a takeover because the budget fencing token changes.
+若进程在本地 receipt 写入后、预算提交前中断，恢复会读取 CAS 中的原 receipt，
+核对计划、输出目录预留、预算库、原 fencing token 和实际成本，再幂等补结算。
+预算已提交但 Archive 尚未发布时也按同一顺序恢复；已有相同结算不会重复计费。
+不同 token、成本或 receipt 的重放会被拒绝。
+
+若预算已经 admitted，但没有可核验的终态 receipt，运行成本仍然未知，恢复返回
+`AUTO_EXPERIMENT_INCOMPLETE_ATTEMPT_REQUIRES_RECONCILIATION`，保留原预算预留，
+需要人工核对执行情况。重复命令不会自动接管或重新启动这笔 GPU 实验。
+
+`execution.json` 和 `pipeline-manifest.json` 都是派生视图。scheduler 在恢复时通过
+runner 重建原 trial 的 verdict；把 JSON 中的 `VOID` 改成 `PASS` 不能获得晋级。
+顶层终态绑定 journal 中的 manifest/execution CAS 快照，并对前置诊断探针和所有
+已完成候选执行 `recover_only` 校验。receipt、declared artifact、support、verdict
+或 failure context 的 CAS 对象缺失或损坏都会阻断恢复，且不会启动新 GPU 工作。
+旧终态若缺少这些快照绑定，需要显式核对后迁移，不能仅凭旧 JSON 宣告恢复成功。
+
+## 候选诊断结果自动积累
+
+候选声明 `experiment_kind: "diagnostic"` 后，可在 stage 中显式指定
+`diagnostic_result_path: "diagnostic.json"`，并把该相对路径列入 `artifacts`。
+compiler/scheduler 会原样保留这一声明。通用 runner 的 `result_path` 继续指向通用
+实验结果；`diagnostic.json` 必须满足
+[诊断结果契约](DIAGNOSTIC_PROBE_RESULT.md)。所有配对观察依赖的 proof 文件也须
+声明为 artifacts，才能从同一 receipt 的 CAS 引用复核。其他 experiment kind、
+未声明 artifact 或不安全相对路径会在预算 admission 前被拒绝。
+
+顶层 `verdiwm-run` 自动使用已绑定的 retrieval 数据库；独立运行 scheduler 时通过
+`verdiwm-auto-scheduler run --retrieval-db /path/to/experience/index.db` 启用积累。
+第一轮和第二轮需要共用同一 retrieval、Archive 与 CAS，并保持这些路径通过参数
+配置。未声明 `diagnostic_result_path` 的旧计划保持原有执行行为。
+
+每个 trial 结算后，scheduler 从权威 receipt/CAS 读取显式声明的诊断结果，复用
+`index_probe_experience` 核验 schema、Archive 绑定、资产 fingerprint 和配对 proof；
+不会扫描任意 JSON 来猜测结果。索引失败会阻断这次编排；恢复先复核已有 trial，
+再重试索引。索引已提交后进程中断也可幂等重放，不会重复执行 trial 或重复计数。
+
+正向、负向和无变化观察都被保留。配对观察的方向来自冻结指标与实际 control /
+candidate 证据；执行 `PASS` 不能生成正向效果标签，`VOID` 不提供效果排序先验。
+下一轮可用这些经验调整候选排序，目标模型仍须重新验证。直接调用通用 runner
+只负责结算与归档；使用自动积累应选择顶层或 scheduler 入口。
 
 ## Artifact retention and cleanup
 

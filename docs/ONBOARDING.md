@@ -120,6 +120,13 @@ verdiwm-onboard /path/to/model \
 
 The command performs no dependency installation, model import, training, inference, rollout, or GPU allocation. Dependency imports and `pip check` run in bounded subprocesses with CUDA hidden. A `pip check` platform-metadata warning (for example, decord's unsupported-wheel notice) is recorded as `warning` only when every reported line is that known warning class; import failures and real dependency conflicts remain blocking.
 
+依赖冷启动较慢时，`verdiwm-onboard` 与顶层 `verdiwm-run` 都可显式设置
+`--runtime-timeout-seconds 60`。该参数分别限制每次依赖 import 和 `pip check`，
+默认 30 秒；只接受大于 0 且不超过 300 的有限秒数。超时仍会阻塞接入，并回收本次
+探测的进程组。报告的 `runtime.probe_timeout_seconds` 记录实际设置；顶层运行会把
+该设置绑定到不可变输入，调整设置须使用新的输出目录。此参数与后续真实 CPU
+conformance 的 `--conformance-timeout-seconds` 独立，不跳过 import 检查。
+
 ## Sidecar Contract
 
 ```text
@@ -193,6 +200,40 @@ Required evaluator assets are fingerprinted during onboarding, checked before
 and after CPU conformance, embedded in the PASS receipt, and recomputed before
 compilation and every scheduler admission. A changed checkpoint, model
 dependency, or dataset is rejected before GPU allocation.
+
+### 从已有评测配置生成待确认契约
+
+`verdi evaluator discover --source-root /path/to/model-source` 只读扫描
+`configs/evaluation/` 和 `configs/evaluators/`，报告候选、路径问题与扫描上限。
+普通 rollout 配置可以作为候选，但其中的 FPS、horizon 或指标名称不能替代实际的
+评测命令与 verifier。
+
+```bash
+verdi evaluator materialize \
+  --candidate /path/to/model-source/configs/evaluation/eval.json \
+  --source-root /path/to/model-source \
+  --model-root /path/to/checkpoint \
+  --data-root /path/to/dataset \
+  --output-root /path/to/state/evaluator-review
+```
+
+返回的 receipt 用 `state` 说明下一步：
+
+| 状态 | 含义与下一步 |
+|:--|:--|
+| `binding_required` | 按 `blockers` 中的字段与动作补齐 command、输入输出、metrics、verifier 或入口文件等实际绑定；`--confirm` 不能跳过缺失项。 |
+| `ready_for_confirmation` | 声明的契约完整且入口存在。审阅候选与路径改写，再用新输出目录加 `--confirm`。 |
+| `frozen` | 生成已明确确认的 JSON 契约，可交给 onboarding 与 conformance；仍需真实目标证据才能证明优化效果。 |
+
+前两种状态的输出是审阅文件，原始配置位于 `candidate_manifest`，不能作为可执行
+契约传给 onboarding。确认时重新指定原始候选，使用例如
+`--output-root /path/to/state/evaluator-frozen --confirm`；已有输出目录拒绝覆盖。
+YAML 候选统一生成 JSON 输出，receipt 保留原文件与输出文件的 SHA-256。
+
+路径改写只使用候选明确声明的 source/model/data 根目录并保留相对后缀。无法唯一
+映射的输入会报告 blocker；工具不会猜测 checkpoint，也不会补造 command、指标或
+verifier。所有状态的 `optimization_launch_allowed` 都为 `false`：契约确认之后
+还必须通过 CPU conformance、执行准入和目标侧验证。
 
 ## Ctrl-World Replay Example
 

@@ -4,6 +4,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
+import pytest
+
+import wmloop.control.first_contact as first_contact
 from wmloop.control.first_contact import explain_blocker, infer_source_root, initialize_project, inspect_project
 from wmloop.control.onboarding_assistant import build_onboarding_questionnaire, write_onboarding_questionnaire
 from wmloop.control.project_config import load_project_config
@@ -165,6 +168,48 @@ class FirstContactTests(unittest.TestCase):
             self.assertTrue(questionnaire["questions"])
             with self.assertRaisesRegex(ValueError, "INSIDE_MODEL"):
                 write_onboarding_questionnaire(model / "questions.json", questionnaire)
+
+
+@pytest.mark.parametrize(
+    ("readiness_state", "blockers", "next_step", "expected_action"),
+    [
+        ("needs_confirmation", [], "请确认评测方式。", "请确认评测方式。"),
+        ("ready_for_conformance", [], "", "运行 `verdiwm research plan` 生成并审阅计划"),
+        (
+            "blocked",
+            [{"code": "EVALUATOR_REQUIRED", "action": "绑定并冻结评测器。"}],
+            "解决阻塞项后再次检查。",
+            "绑定并冻结评测器。",
+        ),
+        ("needs_input", [], "请补齐必要信息。", "请补齐必要信息。"),
+        ("unexpected", [], "", "请运行 verdiwm check"),
+    ],
+)
+def test_setup_next_steps_follow_readiness_state(
+    tmp_path: Path,
+    monkeypatch,
+    readiness_state: str,
+    blockers: list[dict[str, str]],
+    next_step: str,
+    expected_action: str,
+):
+    (tmp_path / "model").mkdir()
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr(
+        first_contact,
+        "inspect_project",
+        lambda **_: {"state": readiness_state, "blockers": blockers, "next_step": next_step},
+    )
+
+    result = initialize_project(root=tmp_path, goal="提升预测稳定性")
+
+    next_steps = "\n".join(result["next_steps"])
+    assert expected_action in next_steps
+    assert "verdiwm run" not in next_steps
+    if readiness_state == "ready_for_conformance":
+        assert "--confirm" in next_steps
+    if readiness_state == "blocked":
+        assert next_step in next_steps
 
 
 if __name__ == "__main__":

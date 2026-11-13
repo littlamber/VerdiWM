@@ -350,6 +350,8 @@ def _output_isolation_check(
 def _source_integrity_check(
     before: Mapping[str, object], after: Mapping[str, object]
 ) -> dict[str, object]:
+    if before.get("state") != "bound" or after.get("state") != "bound":
+        return _fail_check("source_integrity", "CONFORMANCE_SOURCE_REVISION_UNBOUND")
     return (
         _pass_check("source_integrity", "source revision unchanged")
         if before == after
@@ -462,16 +464,37 @@ def _materialize_command(
             token = token.replace(placeholder, value)
         if "{" in token or "}" in token:
             raise ModelConformanceError("CONFORMANCE_PLACEHOLDER_INVALID")
-        if (
-            token.endswith(".py")
-            and not Path(token).is_absolute()
-            and (repo / token).is_file()
-        ):
-            token = str((repo / token).resolve())
         command.append(token)
     if Path(command[0]).resolve() != runtime.resolve():
         raise ModelConformanceError("CONFORMANCE_RUNTIME_COMMAND_MISMATCH")
+    entrypoint = _python_script_index(command)
+    if entrypoint is not None:
+        script = Path(command[entrypoint])
+        if not script.is_absolute():
+            script = repo / script
+        if not script.is_file():
+            raise ModelConformanceError(f"CONFORMANCE_ENTRYPOINT_NOT_FOUND:{script}")
+        command[entrypoint] = str(script.resolve())
     return command
+
+
+def _python_script_index(command: Sequence[str]) -> int | None:
+    """Find Python's script operand without treating module/code arguments as files."""
+    index = 1
+    while index < len(command):
+        token = command[index]
+        if token == "--":
+            return index + 1 if index + 1 < len(command) else None
+        if token == "-" or token.startswith(("-m", "-c")):
+            return None
+        if token in {"-W", "-X", "--check-hash-based-pycs"}:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        return index
+    return None
 
 
 def _run_check(

@@ -11,6 +11,8 @@ from typing import Any, Sequence
 
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore
 from wmloop.contracts import load_yaml_document
+from wmloop.storage import canonical_bytes
+from wmloop.verify.acceptance_policy import verification_policy_from_goal
 from wmloop.execute.budget import BudgetLedger, BudgetPolicy
 from wmloop.execute.gpu_exclusivity_audit import verify_gpu_exclusivity_ready
 from wmloop.execute.primitive_runtime_smoke import (
@@ -275,6 +277,12 @@ def run_environment_training_eval_smoke(
         proposal_routing_plan=proposal_routing_plan,
     )
     goal = load_yaml_document(goal_config)
+    verification_policy = verification_policy_from_goal(goal)
+    if verification_policy is not None and (
+        len(verification_policy.seeds_accept) != replication_count
+        or set(dict(verification_policy.metric_directions)) != {verification_policy.primary_metric}
+    ):
+        raise OrchestratorTrainingEvalSmokeError("M3_TRAINING_EVAL_SMOKE_POLICY_EVIDENCE_UNSUPPORTED")
     goal_id = _goal_id(goal)
     _verify_goal_environment(goal, environment_name)
     if failure.get("env") != environment_name or failure.get("goal_id") != goal_id:
@@ -335,6 +343,11 @@ def run_environment_training_eval_smoke(
             )
         )
         cas = ContentAddressedStore(cas_storage_root)
+        if verification_policy is not None:
+            for snapshot in (goal, verification_policy.to_dict()):
+                ref = cas.put_bytes(canonical_bytes(snapshot), media_type="application/json").uri
+                if archive is not None:
+                    archive.record_artifact_reference(ref)
         executor = _TrainingEvalSmokeExecutor(
             repo_root=root,
             environment=environment_name,
@@ -374,6 +387,7 @@ def run_environment_training_eval_smoke(
             proposal_params=primitive_params,
             trial_arm=trial_arm,
             trial_seed=trial_seed,
+            verification_policy=verification_policy,
         )
         budget = BudgetLedger(
             temporary / "budget.db",
@@ -403,6 +417,7 @@ def run_environment_training_eval_smoke(
             vendor_verifier=lambda: verify_vendor_checkout(root),
             m4_launch_guard=m4_guard,
             round_start_guard=invariant_guard,
+            verification_policy=verification_policy,
         )
         context = ProposalContext(
             failure_report={**failure, "round": 0},
@@ -465,11 +480,14 @@ def run_environment_training_eval_smoke(
             "llm_call_log": llm_call_log,
             "receipt_ref": result.execution.receipt_ref,
             "verdict_ref": verdict_ref,
+            "verdict_schema_version": verdict["schema_version"],
             "verdict": verdict["verdict"],
             "violation": verdict["violation"],
             "gates": verdict["gates"],
             "action_following_gate": verdict["action_following_gate"],
             "delta_m_ver": verdict["delta_m_ver"],
+            "negative_metrics": verdict["negative_metrics"],
+            "replication_statistics": verdict["replication_statistics"],
             "settlement_state": result.settlement.state,
             "actual_gpu_hours": result.execution.actual_gpu_hours,
             "round_start_verification": result.round_start_verification,

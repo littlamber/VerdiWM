@@ -8,11 +8,15 @@ does not have to carry a full evidence graph or every retrieval row.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
+import math
 import os
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+
+from wmloop.contracts import ContractValidationError, validate_document
 
 
 class EvidenceCapsuleError(ValueError):
@@ -50,7 +54,10 @@ def build_evidence_capsule(
 
     selected = [_compact_match(row) for row in matches]
     selected.sort(key=_match_sort_key)
-    selected = selected[:max_evidence]
+    if any(row.get("paired_observations") for row in selected):
+        selected = _select_paired_representatives(selected, max_evidence)
+    else:
+        selected = selected[:max_evidence]
     capsule: dict[str, object] = {
         "schema_version": 1,
         "artifact_type": "verdiwm-evidence-capsule",
@@ -102,12 +109,12 @@ def _compact_match(row: Mapping[str, Any]) -> dict[str, object]:
     if any(not isinstance(row.get(key), str) or not str(row[key]) for key in required):
         raise EvidenceCapsuleError("EVIDENCE_CAPSULE_MATCH_INVALID")
     metric = row.get("metric_outcome")
-    if metric is not None and (isinstance(metric, bool) or not isinstance(metric, (int, float))):
+    if metric is not None and (isinstance(metric, bool) or not isinstance(metric, (int, float)) or not math.isfinite(metric)):
         raise EvidenceCapsuleError("EVIDENCE_CAPSULE_METRIC_INVALID")
     primitive = row.get("primitive")
     if primitive is not None and (not isinstance(primitive, str) or not primitive):
         raise EvidenceCapsuleError("EVIDENCE_CAPSULE_PRIMITIVE_INVALID")
-    return {
+    compact = {
         "failure_signature": str(row["failure_signature"]),
         "verdict": str(row["verdict"]),
         "primitive": primitive,
@@ -119,6 +126,44 @@ def _compact_match(row: Mapping[str, Any]) -> dict[str, object]:
             "receipt_hash": str(row["receipt_hash"]),
         },
     }
+    observations = row.get("paired_observations", [])
+    try:
+        if not isinstance(observations, (list, tuple)):
+            raise EvidenceCapsuleError("EVIDENCE_CAPSULE_PAIRED_INVALID")
+        for observation in observations:
+            validate_document("diagnostic_paired_observation", observation)
+    except ContractValidationError as exc:
+        raise EvidenceCapsuleError("EVIDENCE_CAPSULE_PAIRED_INVALID") from exc
+    if observations:
+        compact["paired_observations"] = [
+            {key: deepcopy(observation[key]) for key in ("query", "control_value", "candidate_value", "signed_delta", "outcome")}
+            for observation in observations
+        ]
+    return compact
+
+
+def _select_paired_representatives(rows: list[dict], limit: int) -> list[dict]:
+    # Multiple failure signatures are routes to the same trial, not additional
+    # experimental support. Preserve a representative of each signed outcome
+    # before filling remaining slots; a PASS scalar cannot crowd out negatives.
+    unique = []
+    identities = set()
+    for row in rows:
+        evidence = row["evidence"]
+        identity = (evidence["archive_trial_id"], evidence["receipt_ref"], evidence["result_ref"])
+        if identity not in identities:
+            identities.add(identity)
+            unique.append(row)
+    selected = []
+    for outcome in ("negative", "null", "positive"):
+        if any(pair["outcome"] == outcome for row in selected for pair in row.get("paired_observations", [])):
+            continue
+        representative = next((row for row in unique if row not in selected
+                               and any(pair["outcome"] == outcome for pair in row.get("paired_observations", []))), None)
+        if representative is not None and len(selected) < limit:
+            selected.append(representative)
+    selected.extend(row for row in unique if row not in selected)
+    return selected[:limit]
 
 
 def _match_sort_key(row: Mapping[str, object]) -> tuple[int, float, str, str]:

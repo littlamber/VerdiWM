@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
+import math
 import os
 import subprocess
 import time
@@ -106,13 +107,15 @@ class GpuLeaseManager:
         utilization_threshold_percent: int = 10,
         snapshot_provider: SnapshotProvider | None = None,
     ) -> None:
-        if memory_used_threshold_mib < 0:
+        memory_threshold = _number(memory_used_threshold_mib)
+        utilization_threshold = _number(utilization_threshold_percent)
+        if memory_threshold is None or memory_threshold < 0:
             raise ValueError("GPU_LEASE_MEMORY_THRESHOLD_INVALID")
-        if utilization_threshold_percent < 0 or utilization_threshold_percent > 100:
+        if utilization_threshold is None or not 0 <= utilization_threshold <= 100:
             raise ValueError("GPU_LEASE_UTILIZATION_THRESHOLD_INVALID")
         self._lock_root = Path(lock_root if lock_root is not None else default_lock_root()).resolve()
-        self._memory_threshold = memory_used_threshold_mib
-        self._utilization_threshold = utilization_threshold_percent
+        self._memory_threshold = memory_threshold
+        self._utilization_threshold = utilization_threshold
         self._snapshot_provider = snapshot_provider or _query_snapshot
 
     def acquire(
@@ -125,8 +128,7 @@ class GpuLeaseManager:
         candidates = _normalize_indices(allowed_indices)
         if not candidates:
             raise GpuLeaseError("GPU_LEASE_CANDIDATES_EMPTY")
-        if wait_seconds < 0 or poll_seconds <= 0:
-            raise GpuLeaseError("GPU_LEASE_WAIT_POLICY_INVALID")
+        _validate_wait_policy(wait_seconds, poll_seconds)
         deadline = time.monotonic() + wait_seconds
         last_blockers: list[str] = []
         while True:
@@ -150,16 +152,15 @@ class GpuLeaseManager:
         """Atomically acquire ``count`` leases from one admitted GPU set.
 
         A distributed worker must never start with a partial world.  We therefore
-        probe and lock the complete set in one attempt and release every lock if
-        any member is unavailable.
+        try every allowed candidate in one attempt and release every partial
+        lease if fewer than ``count`` GPUs can be admitted.
         """
         if isinstance(count, bool) or not isinstance(count, int) or count < 1:
             raise GpuLeaseError("GPU_LEASE_COUNT_INVALID")
         candidates = _normalize_indices(allowed_indices)
         if count > len(candidates):
             raise GpuLeaseError("GPU_LEASE_COUNT_EXCEEDS_CANDIDATES")
-        if wait_seconds < 0 or poll_seconds <= 0:
-            raise GpuLeaseError("GPU_LEASE_WAIT_POLICY_INVALID")
+        _validate_wait_policy(wait_seconds, poll_seconds)
         deadline = time.monotonic() + wait_seconds
         last_blockers: list[str] = []
         while True:
@@ -175,117 +176,105 @@ class GpuLeaseManager:
     def _try_acquire_many(
         self, candidates: Sequence[int], count: int
     ) -> tuple[list[GpuLease] | None, list[str]]:
-        """Lock a complete set, rolling back on the first unavailable member."""
-        self._lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        """Choose a complete available subset, rolling back on any failure."""
         snapshot = self._snapshot_provider()
-        by_index = {
-            int(item["index"]): item
-            for item in _mapping_sequence(snapshot.get("gpus"))
-            if _is_int(item.get("index"))
-        }
-        apps_by_uuid: dict[str, list[Mapping[str, object]]] = {}
-        for app in _mapping_sequence(snapshot.get("compute_apps")):
-            apps_by_uuid.setdefault(str(app.get("gpu_uuid") or ""), []).append(app)
+        by_index, apps_by_uuid = _validated_snapshot(snapshot)
+        self._lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         leases: list[GpuLease] = []
         blockers: list[str] = []
-        for index in candidates:
-            lock_path = self._lock_root / f"gpu-{index}.lock"
-            handle = lock_path.open("a+", encoding="ascii")
-            os.chmod(lock_path, 0o600)
-            try:
-                _lock_exclusive_nb(handle)
-            except BlockingIOError:
-                handle.close()
-                blockers.append(f"{index}:LEASE_HELD")
-                break
-            gpu = by_index.get(index)
-            uuid = str(gpu.get("uuid") or "") if gpu else ""
-            memory = _number(gpu.get("memory_used_mib")) if gpu else None
-            utilization = _number(gpu.get("utilization_gpu_percent")) if gpu else None
-            apps = apps_by_uuid.get(uuid, [])
-            reason = None
-            if gpu is None:
-                reason = "GPU_NOT_FOUND"
-            elif memory is None or utilization is None or not uuid:
-                reason = "GPU_SNAPSHOT_INVALID"
-            elif memory > self._memory_threshold:
-                reason = f"MEMORY_BUSY:{memory}"
-            elif utilization > self._utilization_threshold:
-                reason = f"UTILIZATION_BUSY:{utilization}"
-            elif apps:
-                reason = "COMPUTE_APP_PRESENT"
-            if reason is not None:
-                blockers.append(f"{index}:{reason}")
-                _lock_unlock(handle)
-                handle.close()
-                break
-            leases.append(GpuLease(index=index, uuid=uuid, name=str(gpu.get("name") or "unknown"), lock_path=lock_path, _handle=handle))
-            if len(leases) == count:
-                return leases, blockers
-        for lease in leases:
-            lease.release()
-        return None, blockers
+        complete = False
+        try:
+            for index in candidates:
+                lock_path = self._lock_root / f"gpu-{index}.lock"
+                handle = lock_path.open("a+", encoding="ascii")
+                locked = False
+                retained = False
+                try:
+                    os.chmod(lock_path, 0o600)
+                    try:
+                        _lock_exclusive_nb(handle)
+                    except BlockingIOError:
+                        blockers.append(f"{index}:LEASE_HELD")
+                        continue
+                    locked = True
+                    gpu = by_index.get(index)
+                    reason = self._admission_blocker(gpu, apps_by_uuid)
+                    if reason is not None:
+                        blockers.append(f"{index}:{reason}")
+                        continue
+                    leases.append(GpuLease(
+                        index=index, uuid=str(gpu["uuid"]),
+                        name=str(gpu.get("name") or "unknown"),
+                        lock_path=lock_path, _handle=handle,
+                    ))
+                    retained = True
+                    if len(leases) == count:
+                        complete = True
+                        return leases, blockers
+                finally:
+                    if not retained:
+                        try:
+                            if locked:
+                                _lock_unlock(handle)
+                        finally:
+                            handle.close()
+            return None, blockers
+        finally:
+            if not complete:
+                for lease in leases:
+                    lease.release()
+
+    def _admission_blocker(
+        self, gpu: Mapping[str, object] | None,
+        apps_by_uuid: Mapping[str, list[Mapping[str, object]]],
+    ) -> str | None:
+        if gpu is None:
+            return "GPU_NOT_FOUND"
+        uuid = gpu.get("uuid")
+        memory = _number(gpu.get("memory_used_mib"))
+        utilization = _number(gpu.get("utilization_gpu_percent"))
+        if (not isinstance(uuid, str) or not uuid.strip()
+            or memory is None or memory < 0
+            or utilization is None or not 0 <= utilization <= 100):
+            return "GPU_SNAPSHOT_INVALID"
+        if memory > self._memory_threshold:
+            return f"MEMORY_BUSY:{memory}"
+        if utilization > self._utilization_threshold:
+            return f"UTILIZATION_BUSY:{utilization}"
+        if apps_by_uuid.get(uuid):
+            return "COMPUTE_APP_PRESENT"
+        return None
 
     def _try_acquire(self, candidates: Sequence[int]) -> tuple[GpuLease | None, list[str]]:
-        self._lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        snapshot = self._snapshot_provider()
-        by_index = {
-            int(item["index"]): item
-            for item in _mapping_sequence(snapshot.get("gpus"))
-            if _is_int(item.get("index"))
-        }
-        apps_by_uuid: dict[str, list[Mapping[str, object]]] = {}
-        for app in _mapping_sequence(snapshot.get("compute_apps")):
-            apps_by_uuid.setdefault(str(app.get("gpu_uuid") or ""), []).append(app)
-        blockers: list[str] = []
-        for index in candidates:
-            lock_path = self._lock_root / f"gpu-{index}.lock"
-            handle = lock_path.open("a+", encoding="ascii")
-            os.chmod(lock_path, 0o600)
-            try:
-                _lock_exclusive_nb(handle)
-            except BlockingIOError:
-                handle.close()
-                blockers.append(f"{index}:LEASE_HELD")
-                continue
-            gpu = by_index.get(index)
-            if gpu is None:
-                _lock_unlock(handle)
-                handle.close()
-                blockers.append(f"{index}:GPU_NOT_FOUND")
-                continue
-            uuid = str(gpu.get("uuid") or "")
-            memory = _number(gpu.get("memory_used_mib"))
-            utilization = _number(gpu.get("utilization_gpu_percent"))
-            apps = apps_by_uuid.get(uuid, [])
-            if memory is None or utilization is None or not uuid:
-                blockers.append(f"{index}:GPU_SNAPSHOT_INVALID")
-                _lock_unlock(handle)
-                handle.close()
-                continue
-            if memory > self._memory_threshold:
-                blockers.append(f"{index}:MEMORY_BUSY:{memory}")
-                _lock_unlock(handle)
-                handle.close()
-                continue
-            if utilization > self._utilization_threshold:
-                blockers.append(f"{index}:UTILIZATION_BUSY:{utilization}")
-                _lock_unlock(handle)
-                handle.close()
-                continue
-            if apps:
-                blockers.append(f"{index}:COMPUTE_APP_PRESENT")
-                _lock_unlock(handle)
-                handle.close()
-                continue
-            return GpuLease(
-                index=index,
-                uuid=uuid,
-                name=str(gpu.get("name") or "unknown"),
-                lock_path=lock_path,
-                _handle=handle,
-            ), blockers
-        return None, blockers
+        leases, blockers = self._try_acquire_many(candidates, 1)
+        return (leases[0] if leases is not None else None), blockers
+
+
+def _validated_snapshot(
+    snapshot: Mapping[str, object],
+) -> tuple[dict[int, Mapping[str, object]], dict[str, list[Mapping[str, object]]]]:
+    if not isinstance(snapshot, Mapping):
+        raise GpuLeaseError("GPU_LEASE_SNAPSHOT_INVALID")
+    # Explicit providers may omit query metadata; the real nvidia-smi provider
+    # always supplies it. A failed query cannot prove the absence of other jobs.
+    for key in ("gpu_query_returncode", "apps_query_returncode"):
+        if key in snapshot and (not _is_int(snapshot[key]) or snapshot[key] != 0):
+            raise GpuLeaseError(f"GPU_LEASE_QUERY_FAILED:{key}")
+    gpus = _mapping_sequence(snapshot.get("gpus"))
+    apps = _mapping_sequence(snapshot.get("compute_apps"))
+    by_index: dict[int, Mapping[str, object]] = {}
+    for gpu in gpus:
+        index = gpu.get("index")
+        if not _is_int(index) or index < 0 or index in by_index:
+            raise GpuLeaseError("GPU_LEASE_SNAPSHOT_INVALID")
+        by_index[index] = gpu
+    apps_by_uuid: dict[str, list[Mapping[str, object]]] = {}
+    for app in apps:
+        uuid = app.get("gpu_uuid")
+        if not isinstance(uuid, str) or not uuid.strip():
+            raise GpuLeaseError("GPU_LEASE_SNAPSHOT_INVALID")
+        apps_by_uuid.setdefault(uuid, []).append(app)
+    return by_index, apps_by_uuid
 
 
 def _query_snapshot() -> dict[str, object]:
@@ -306,10 +295,10 @@ def _query_snapshot() -> dict[str, object]:
         for row in csv.reader(str(gpu_result["stdout"]).splitlines()):
             fields = [field.strip() for field in row]
             if len(fields) != 6:
-                continue
+                raise GpuLeaseError("GPU_LEASE_GPU_QUERY_MALFORMED")
             index = _parse_int(fields[0])
             if index is None:
-                continue
+                raise GpuLeaseError("GPU_LEASE_GPU_QUERY_MALFORMED")
             gpus.append(
                 {
                     "index": index,
@@ -325,7 +314,7 @@ def _query_snapshot() -> dict[str, object]:
         for row in csv.reader(str(apps_result["stdout"]).splitlines()):
             fields = [field.strip() for field in row]
             if len(fields) != 4:
-                continue
+                raise GpuLeaseError("GPU_LEASE_APPS_QUERY_MALFORMED")
             apps.append(
                 {
                     "gpu_uuid": fields[0],
@@ -372,9 +361,9 @@ def _normalize_indices(values: Sequence[int]) -> tuple[int, ...]:
 
 
 def _mapping_sequence(value: object) -> tuple[Mapping[str, object], ...]:
-    if not isinstance(value, list):
-        return ()
-    return tuple(item for item in value if isinstance(item, Mapping))
+    if not isinstance(value, list) or any(not isinstance(item, Mapping) for item in value):
+        raise GpuLeaseError("GPU_LEASE_SNAPSHOT_INVALID")
+    return tuple(value)
 
 
 def _is_int(value: object) -> bool:
@@ -382,7 +371,20 @@ def _is_int(value: object) -> bool:
 
 
 def _number(value: object) -> float | None:
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _validate_wait_policy(wait_seconds: float, poll_seconds: float) -> None:
+    wait = _number(wait_seconds)
+    poll = _number(poll_seconds)
+    if wait is None or wait < 0 or poll is None or poll <= 0:
+        raise GpuLeaseError("GPU_LEASE_WAIT_POLICY_INVALID")
 
 
 def _parse_int(value: str) -> int | None:

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "claim_boundary",
+    "primary_metric",
+    "metric_directions",
+    "minimum_effect",
+    "seeds_accept",
+    "confidence_interval",
+    "goal_sha256",
+    "action_following_threshold"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "artifact_type": {
+      "const": "wmloop-verification-policy"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_metric": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metric_directions": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "enum": [
+          "maximize",
+          "minimize"
+        ]
+      }
+    },
+    "minimum_effect": {
+      "type": "number",
+      "minimum": 0
+    },
+    "seeds_accept": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 4294967295
+      },
+      "minItems": 3
+    },
+    "confidence_interval": {
+      "const": "student_t_two_sided_95"
+    },
+    "goal_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "action_following_threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  }
+}

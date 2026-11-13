@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "device", "metrics"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "artifact_type": {"const": "verdiwm-auto-experiment-result"},
+    "state": {"enum": ["ready", "invalid"]},
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "gpu_uuid"],
+      "properties": {
+        "type": {"const": "cuda"},
+        "gpu_uuid": {"type": "string", "minLength": 1},
+        "logical_index": {"type": "integer", "minimum": 0},
+        "physical_index": {"type": "integer", "minimum": 0},
+        "name": {"type": "string", "minLength": 1},
+        "total_memory_bytes": {"type": "integer", "minimum": 1},
+        "torch_cuda_version": {"type": ["string", "null"]}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"type": "string", "minLength": 1},
+      "additionalProperties": {"$ref": "#/$defs/finite_number"}
+    },
+    "workload": {
+      "type": "object",
+      "properties": {
+        "command_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "artifact_index_path": {"type": "string", "minLength": 1},
+        "stdout_path": {"type": "string", "minLength": 1},
+        "stderr_path": {"type": "string", "minLength": 1},
+        "launch_error": {"type": ["string", "null"]},
+        "matrix_size": {"type": "integer", "minimum": 1},
+        "dtype": {"type": "string", "minLength": 1},
+        "minimum_seconds": {"type": "number", "exclusiveMinimum": 0}
+      },
+      "additionalProperties": {"$ref": "#/$defs/json_value"}
+    },
+    "claim_boundary": {"type": "string", "minLength": 1}
+  },
+  "$defs": {
+    "finite_number": {
+      "type": "number",
+      "minimum": -1.7976931348623157e308,
+      "maximum": 1.7976931348623157e308
+    },
+    "json_value": {
+      "anyOf": [
+        {"type": ["string", "boolean", "null"]},
+        {"$ref": "#/$defs/finite_number"},
+        {"type": "array", "items": {"$ref": "#/$defs/json_value"}},
+        {"type": "object", "additionalProperties": {"$ref": "#/$defs/json_value"}}
+      ]
+    }
+  }
+}

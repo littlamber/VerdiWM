@@ -124,6 +124,11 @@ class BatchRecoveryTests(unittest.TestCase):
             models.append({"model_id": name, "model": str(model), "data": str(self.root / "data"), "budget": 1, "evaluator_contract": str(self.evaluator)})
         self.request.write_text(json.dumps({"schema_version": 1, "artifact_type": "verdiwm-model-batch-request", "batch_id": "test-batch", "goal": "improve score", "models": models}))
         compile_model_batch(request_path=self.request, output_root=self.batch)
+        # Recovery tests own their execution inputs; unrelated checkout edits
+        # must not create a new campaign revision between assertions.
+        source = patch("wmloop.control.automatic_campaign._source_tree_fingerprint", return_value={"revision": "batch-recovery-fixture-v1"})
+        self.source = source.start()
+        self.addCleanup(source.stop)
         adapter = patch("wmloop.control.adapter_profiles.compile_adapter_execution", side_effect=self.compile)
         adapter.start()
         self.addCleanup(adapter.stop)
@@ -146,6 +151,14 @@ class BatchRecoveryTests(unittest.TestCase):
         self.assertEqual(repeated["state"], "completed")
         self.assertEqual(self.runner.call_count, 3)
         self.assertTrue(all(not r["blockers"] for r in repeated["rows"]))
+
+    def test_changed_source_revision_reexecutes_terminal_campaigns(self):
+        initial = self.run_batch(max_parallel=2)
+        self.assertEqual(initial["state"], "completed")
+        self.source.return_value = {"revision": "batch-recovery-fixture-v2"}
+        revised = self.run_batch(max_parallel=2)
+        self.assertEqual(revised["state"], "completed")
+        self.assertEqual(self.runner.call_count, 6)
 
     def test_destination_conflict_is_rejected_before_any_campaign(self):
         self.run_batch(queue_only=True)

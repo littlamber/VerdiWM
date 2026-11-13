@@ -12,6 +12,8 @@ import argparse
 import json
 from pathlib import Path
 
+from wmloop.storage import checked_path
+
 from wmloop.control.onboarding_scan.assets import (
     _discover_assets as _discover_assets,
     _discover_source_revision as _discover_source_revision,
@@ -78,6 +80,7 @@ from wmloop.control.onboarding_scan.source import (
     _regex_packages as _regex_packages,
 )
 from wmloop.control.onboarding_scan.types import (
+    DEFAULT_RUNTIME_TIMEOUT_SECONDS as DEFAULT_RUNTIME_TIMEOUT_SECONDS,
     _ARTIFACT_DIRECTORY_PREFIXES as _ARTIFACT_DIRECTORY_PREFIXES,
     _CAPABILITY_KEYWORDS as _CAPABILITY_KEYWORDS,
     _CHECKPOINT_SUFFIXES as _CHECKPOINT_SUFFIXES,
@@ -102,6 +105,7 @@ from wmloop.control.onboarding_scan.types import (
     SCHEMA_VERSION as SCHEMA_VERSION,
     OnboardingError as OnboardingError,
     OnboardingOptions as OnboardingOptions,
+    validate_runtime_timeout as validate_runtime_timeout,
     _is_artifact_directory as _is_artifact_directory,
 )
 
@@ -151,10 +155,23 @@ def compute_source_revision(
 def compute_source_tree_revision(
     repo_root: Path, *, max_files: int = _MAX_FILES
 ) -> dict[str, object]:
-    """Return a content binding even when the repository is a Git checkout."""
+    """Bind inventoried source/config content; unbound links cannot be omitted.
 
-    repo = _validate_repo(repo_root)
-    files, truncated = _discover_files(repo, max_files=max_files)
+    Existing artifact/environment-directory exclusions and scan limits still
+    apply. This binds checkout content, not installed runtime dependencies.
+    """
+    try:
+        repo = _validate_repo(checked_path(
+            repo_root, code="SOURCE_REVISION_SYMLINK_FORBIDDEN", error=OnboardingError,
+        ))
+        files, truncated = _discover_files(repo, max_files=max_files, reject_symlinks=True)
+    except OnboardingError as exc:
+        if str(exc) != "SOURCE_REVISION_SYMLINK_FORBIDDEN":
+            raise
+        return {
+            "state": "unbound", "kind": "none", "revision": "SOURCE_REVISION_UNBOUND",
+            "detail": "SOURCE_REVISION_SYMLINK_FORBIDDEN: source inventory contains an unbound symbolic link",
+        }
     if truncated:
         return {
             "state": "unbound",
@@ -189,6 +206,7 @@ def _build_report(repo: Path, options: OnboardingOptions) -> dict[str, object]:
         dependencies,
         runtime_python=options.runtime_python,
         probe_imports=options.probe_imports,
+        runtime_timeout_seconds=options.runtime_timeout_seconds,
     )
     capabilities = _classify_capabilities(entrypoints, assets, files, repo=repo)
     evaluator_contract = _load_evaluator_contract(options.evaluator_contract)
@@ -277,6 +295,11 @@ def main(argv: list[str] | None = None) -> int:
         "--runtime-python", type=Path, help="Explicit Python interpreter to probe"
     )
     parser.add_argument(
+        "--runtime-timeout-seconds", type=float,
+        default=DEFAULT_RUNTIME_TIMEOUT_SECONDS,
+        help="Per import and pip-check timeout (finite, >0 and <=300; default: 30)",
+    )
+    parser.add_argument(
         "--evaluator-contract", type=Path, help="Frozen JSON evaluator contract"
     )
     parser.add_argument(
@@ -299,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=args.repo_root,
             output_root=args.output_root,
             runtime_python=args.runtime_python,
+            runtime_timeout_seconds=args.runtime_timeout_seconds,
             evaluator_contract=args.evaluator_contract,
             asset_bindings=asset_bindings,
             probe_imports=not args.no_import_probe,

@@ -10,11 +10,13 @@ from typing import Mapping, Sequence
 
 from wmloop.control.onboarding_scan.io import _bounded
 from wmloop.control.onboarding_scan.types import (
+    DEFAULT_RUNTIME_TIMEOUT_SECONDS,
     _MAX_DEPENDENCIES,
     _PACKAGE_IMPORT_ALIASES,
     _PIP_PLATFORM_WARNING,
-    _SUBPROCESS_TIMEOUT_SECONDS,
+    validate_runtime_timeout,
 )
+from wmloop.process_lifecycle import retire_process_group
 
 
 def _discover_runtime(
@@ -23,7 +25,9 @@ def _discover_runtime(
     *,
     runtime_python: Path | None,
     probe_imports: bool,
+    runtime_timeout_seconds: float = DEFAULT_RUNTIME_TIMEOUT_SECONDS,
 ) -> dict[str, object]:
+    timeout_seconds = validate_runtime_timeout(runtime_timeout_seconds)
     candidates = _runtime_candidates(repo, runtime_python)
     selected = (
         candidates[0]
@@ -48,12 +52,12 @@ def _discover_runtime(
         }
     required = _required_packages(dependencies)
     probes = (
-        _probe_imports(selected, required, repo=repo)
+        _probe_imports(selected, required, repo=repo, timeout_seconds=timeout_seconds)
         if probe_imports and selected["exists"]
         else []
     )
     pip_check = (
-        _probe_pip(selected, repo=repo)
+        _probe_pip(selected, repo=repo, timeout_seconds=timeout_seconds)
         if probe_imports and selected["exists"]
         else {
             "state": "not_run",
@@ -77,7 +81,7 @@ def _discover_runtime(
         "import_probes": probes,
         "pip_check": pip_check,
         "cuda_hidden": True,
-        "probe_timeout_seconds": _SUBPROCESS_TIMEOUT_SECONDS,
+        "probe_timeout_seconds": timeout_seconds,
     }
 
 
@@ -127,7 +131,8 @@ def _required_packages(dependencies: Sequence[Mapping[str, object]]) -> list[str
 
 
 def _probe_imports(
-    path_info: Mapping[str, object], packages: Sequence[str], *, repo: Path
+    path_info: Mapping[str, object], packages: Sequence[str], *, repo: Path,
+    timeout_seconds: float = DEFAULT_RUNTIME_TIMEOUT_SECONDS,
 ) -> list[dict[str, object]]:
     if not packages:
         return []
@@ -148,12 +153,9 @@ def _probe_imports(
             "TOKENIZERS_PARALLELISM": "false",
         }
         try:
-            result = subprocess.run(
+            result = _run_runtime_command(
                 [str(path), "-c", code],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+                timeout_seconds=timeout_seconds,
                 cwd=repo,
                 env=environment,
             )
@@ -193,7 +195,10 @@ def _probe_imports(
     return rows
 
 
-def _probe_pip(path_info: Mapping[str, object], *, repo: Path) -> dict[str, object]:
+def _probe_pip(
+    path_info: Mapping[str, object], *, repo: Path,
+    timeout_seconds: float = DEFAULT_RUNTIME_TIMEOUT_SECONDS,
+) -> dict[str, object]:
     path = Path(str(path_info["path"]))
     environment = {
         "PATH": os.environ.get("PATH", ""),
@@ -205,12 +210,9 @@ def _probe_pip(path_info: Mapping[str, object], *, repo: Path) -> dict[str, obje
         "WANDB_MODE": "disabled",
     }
     try:
-        result = subprocess.run(
+        result = _run_runtime_command(
             [str(path), "-m", "pip", "check"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+            timeout_seconds=timeout_seconds,
             cwd=repo,
             env=environment,
         )
@@ -233,3 +235,21 @@ def _probe_pip(path_info: Mapping[str, object], *, repo: Path) -> dict[str, obje
             else "failed"
         )
     return {"state": state, "returncode": result.returncode, "detail": detail}
+
+
+def _run_runtime_command(
+    command: Sequence[str], *, timeout_seconds: float, cwd: Path,
+    env: Mapping[str, str],
+) -> subprocess.CompletedProcess[str]:
+    """Retire the complete probe group on timeout, cancellation and success."""
+    timeout_seconds = validate_runtime_timeout(timeout_seconds)
+    process = subprocess.Popen(
+        command, cwd=cwd, env=dict(env), stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_seconds)
+        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    finally:
+        retire_process_group(process)
+        process.communicate()

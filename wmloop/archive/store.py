@@ -148,6 +148,47 @@ class ContentAddressedStore:
                 temporary.unlink()
         return ArtifactRef(digest, len(payload), media_type, _uri(digest), target)
 
+    def put_file(self, source: Path, *, media_type: str) -> ArtifactRef:
+        """Store a stable regular file without loading model artifacts into RAM."""
+        if not media_type:
+            raise ArchiveInvariantError("CAS_PAYLOAD_OR_MEDIA_TYPE_INVALID")
+        source = checked_path(source, code="CAS_SOURCE_INVALID", error=ArchiveInvariantError)
+        _require_regular_file(source, "CAS_SOURCE_INVALID")
+        temporary = self._cas / f".upload.{uuid.uuid4().hex}.tmp"
+        before = os.lstat(source)
+        descriptor = None
+        try:
+            descriptor = os.open(source, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            opened = os.fstat(descriptor)
+            identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+            if identity(before) != identity(opened) or not stat.S_ISREG(opened.st_mode):
+                raise ArchiveInvariantError("CAS_SOURCE_CHANGED")
+            digest = hashlib.sha256()
+            size = 0
+            with os.fdopen(os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as output:
+                while chunk := os.read(descriptor, 1024 * 1024):
+                    output.write(chunk)
+                    digest.update(chunk)
+                    size += len(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            if identity(before) != identity(os.fstat(descriptor)) or identity(before) != identity(os.lstat(source)) or size != before.st_size:
+                raise ArchiveInvariantError("CAS_SOURCE_CHANGED")
+            hexdigest = digest.hexdigest()
+            target = self._path_for(hexdigest)
+            target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            _require_directory(target.parent, "CAS_PREFIX_DIRECTORY_INVALID")
+            try:
+                os.link(temporary, target)
+            except FileExistsError:
+                pass
+            self._verify_existing(target, hexdigest)
+            return ArtifactRef(hexdigest, size, media_type, _uri(hexdigest), target)
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+            temporary.unlink(missing_ok=True)
+
     def read_bytes(self, uri: str) -> bytes:
         digest = _digest_from_uri(uri)
         target = self._path_for(digest)
@@ -163,8 +204,7 @@ class ContentAddressedStore:
 
     def _verify_existing(self, target: Path, digest: str) -> None:
         _require_regular_file(target, "CAS_MEMBER_INVALID")
-        payload = _read_regular_stable(target, "CAS_MEMBER_CHANGED")
-        if hashlib.sha256(payload).hexdigest() != digest:
+        if _hash_regular_stable(target, "CAS_MEMBER_CHANGED") != digest:
             raise ArchiveInvariantError("CAS_DIGEST_MISMATCH")
 
 
@@ -682,3 +722,23 @@ def _read_regular_stable(path: Path, changed_code: str) -> bytes:
     if (before.st_dev, before.st_ino, before.st_size) != (after.st_dev, after.st_ino, after.st_size):
         raise ArchiveInvariantError(changed_code)
     return b"".join(chunks)
+
+
+def _hash_regular_stable(path: Path, changed_code: str) -> str:
+    before = os.lstat(path)
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError as exc:
+        raise ArchiveInvariantError(changed_code) from exc
+    identity = lambda value: (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
+    try:
+        if identity(before) != identity(os.fstat(descriptor)):
+            raise ArchiveInvariantError(changed_code)
+        digest = hashlib.sha256()
+        while chunk := os.read(descriptor, 1024 * 1024):
+            digest.update(chunk)
+        if identity(before) != identity(os.fstat(descriptor)) or identity(before) != identity(os.lstat(path)):
+            raise ArchiveInvariantError(changed_code)
+        return digest.hexdigest()
+    finally:
+        os.close(descriptor)

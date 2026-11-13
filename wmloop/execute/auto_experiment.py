@@ -22,9 +22,10 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from wmloop.runtime_env import default_lock_root
-from wmloop.archive.store import ArchiveStore, ContentAddressedStore, SettledTrialRecord
+from wmloop.archive.receipt_evidence import ReceiptEvidenceError, verify_receipt_evidence
+from wmloop.archive.store import ArchiveInvariantError, ArchiveStore, ContentAddressedStore, SettledTrialRecord
 from wmloop.contracts import ContractValidationError, validate_document
-from wmloop.storage import canonical_json_bytes, sha256_bytes
+from wmloop.storage import canonical_json_bytes, checked_path, exclusive_file_lock, sha256_bytes
 from wmloop.control.onboarding_admission import (
     OnboardingAdmissionError,
     verify_onboarding_admission,
@@ -67,21 +68,78 @@ def run_auto_experiment(
     budget_max_trial_gpu_hours: float = 120.0,
     budget_high_trial_limit: int = 2,
     budget_require_high_cost_approval: bool = True,
+    recover_only: bool = False,
 ) -> dict[str, object]:
     """Run or resume one bounded plan and return its durable manifest."""
 
+    destination = checked_path(output_root, code="AUTO_EXPERIMENT_OUTPUT_ROOT_INVALID", error=AutoExperimentError)
+    plan_source = checked_path(plan_path, code="AUTO_EXPERIMENT_PLAN_PATH_INVALID", error=AutoExperimentError)
+    workspace = checked_path(workspace_root, code="AUTO_EXPERIMENT_WORKSPACE_INVALID", error=AutoExperimentError)
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    name = sha256_bytes(os.fsencode(str(destination)))
+    lock = exclusive_file_lock(destination.parent / f".auto-experiment-{name}.lock", blocking=False)
+    try:
+        lock.__enter__()
+    except BlockingIOError as exc:
+        raise AutoExperimentError("AUTO_EXPERIMENT_ALREADY_RUNNING") from exc
+    try:
+        return _run_auto_experiment_locked(
+            plan_path=plan_source, output_root=destination, workspace_root=workspace,
+            archive_db=archive_db, cas_root=cas_root, lock_root=lock_root,
+            budget_db=budget_db, budget_total_gpu_hours=budget_total_gpu_hours,
+            budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
+            budget_high_trial_limit=budget_high_trial_limit,
+            budget_require_high_cost_approval=budget_require_high_cost_approval,
+            recover_only=recover_only,
+        )
+    finally:
+        lock.__exit__(None, None, None)
+
+
+def _run_auto_experiment_locked(
+    *,
+    plan_path: Path,
+    output_root: Path,
+    workspace_root: Path,
+    archive_db: Path,
+    cas_root: Path,
+    lock_root: Path | None,
+    budget_db: Path | None,
+    budget_total_gpu_hours: float | None,
+    budget_max_trial_gpu_hours: float,
+    budget_high_trial_limit: int,
+    budget_require_high_cost_approval: bool,
+    recover_only: bool = False,
+) -> dict[str, object]:
+    """Execute while holding the output's process lock, including recovery."""
+
     lock_root = lock_root if lock_root is not None else default_lock_root()
-    plan_source = Path(plan_path).resolve(strict=True)
-    workspace = Path(workspace_root).resolve(strict=True)
+    plan_source = checked_path(plan_path, code="AUTO_EXPERIMENT_PLAN_PATH_INVALID", error=AutoExperimentError)
+    workspace = checked_path(workspace_root, code="AUTO_EXPERIMENT_WORKSPACE_INVALID", error=AutoExperimentError)
     if not workspace.is_dir() or workspace.is_symlink():
         raise AutoExperimentError("AUTO_EXPERIMENT_WORKSPACE_INVALID")
-    plan = _load_plan(plan_source, workspace_root=workspace)
-    destination = Path(output_root).resolve()
-    plan_sha256 = _sha256_bytes(plan_source.read_bytes())
+    plan, plan_sha256 = _load_plan(plan_source, workspace_root=workspace)
+    destination = checked_path(output_root, code="AUTO_EXPERIMENT_OUTPUT_ROOT_INVALID", error=AutoExperimentError)
+    if recover_only and not destination.is_dir():
+        raise AutoExperimentError("AUTO_EXPERIMENT_SETTLEMENT_RECOVERY_REQUIRED")
     _initialize_output(destination=destination, plan=plan, plan_sha256=plan_sha256)
 
     cas = ContentAddressedStore(Path(cas_root))
     archive = ArchiveStore(Path(archive_db))
+    conformance_ref = None
+    onboarding = plan.get("onboarding_admission")
+    if isinstance(onboarding, Mapping):
+        # Preserve the exact admission which was verified for this plan.  The
+        # reference is embedded in the terminal receipt, so later projections
+        # can check asset identity without trusting a mutable local file.
+        try:
+            conformance_bytes = Path(str(onboarding["receipt_path"])).read_bytes()
+        except OSError as exc:
+            raise AutoExperimentError("AUTO_EXPERIMENT_ONBOARDING_SNAPSHOT_INVALID") from exc
+        if _sha256_bytes(conformance_bytes) != onboarding.get("receipt_sha256"):
+            raise AutoExperimentError("AUTO_EXPERIMENT_ONBOARDING_SNAPSHOT_INVALID")
+        conformance_ref = cas.put_bytes(conformance_bytes, media_type="application/json").uri
+        archive.record_artifact_reference(conformance_ref)
     trial_signature = _trial_signature(plan=plan, workspace_root=workspace)
     archive_trial_id = f"auto-{trial_signature[:32]}"
     receipt_path = destination / "receipts" / f"{plan['trial_id']}.json"
@@ -111,24 +169,47 @@ def run_auto_experiment(
         ),
     )
 
-    if archive_trial_id in archive.visible_settled_trials():
-        return _recover_archived_run(
-            receipt_path=receipt_path,
-            manifest_path=manifest_path,
-            destination=destination,
-            plan=plan,
-            archive=archive,
-        )
+    reservation_binding = _sha256_bytes(_canonical_json({
+        "plan_sha256": plan_sha256, "output_root": str(destination),
+    }))
     existing = budget.get(archive_trial_id)
-    if existing is not None and existing.state == "settled":
-        if not receipt_path.is_file() or not verdict_path.is_file():
-            raise AutoExperimentError("AUTO_EXPERIMENT_SETTLEMENT_RECOVERY_REQUIRED")
-        receipt = _load_json_object(receipt_path, "AUTO_EXPERIMENT_RECEIPT_INVALID")
+    archived = archive_trial_id in archive.visible_settled_trials()
+    if receipt_path.exists() or receipt_path.is_symlink() or archived or (
+        existing is not None and existing.state == "settled"
+    ):
+        receipt = _verified_recovery_receipt(
+            receipt_path=receipt_path, plan=plan, cas=cas,
+            plan_sha256=plan_sha256, trial_signature=trial_signature,
+            archive_trial_id=archive_trial_id,
+        )
+        if (
+            existing is None or existing.plan_sha256 != reservation_binding
+            or existing.fencing_token != receipt.get("fencing_token")
+            or receipt.get("budget", {}).get("ledger_path") != str(budget_path)
+        ):
+            raise AutoExperimentError("AUTO_EXPERIMENT_BUDGET_RECEIPT_MISMATCH")
+        if archived and not archive.has_settled_receipt(
+            archive_trial_id, receipt["receipt_ref"], receipt["receipt_hash"]
+        ):
+            raise AutoExperimentError("AUTO_EXPERIMENT_ARCHIVE_RECEIPT_MISMATCH")
+        budget.settle(
+            archive_trial_id, fencing_token=existing.fencing_token,
+            actual_gpu_hours=float(receipt["cost"]["actual_gpu_hours"]),
+            receipt_ref=str(receipt["receipt_ref"]), plan_sha256=reservation_binding,
+        )
         _record_archive_from_receipt(archive=archive, receipt=receipt)
-        manifest = _manifest_from_receipt(receipt=receipt, destination=destination)
-        _write_json_atomic(manifest_path, manifest)
-        return manifest
+        return _recover_archived_run(
+            receipt_path=receipt_path, manifest_path=manifest_path,
+            destination=destination, plan=plan, archive=archive, cas=cas,
+            plan_sha256=plan_sha256, trial_signature=trial_signature,
+            archive_trial_id=archive_trial_id,
+        )
 
+    if recover_only:
+        raise AutoExperimentError("AUTO_EXPERIMENT_SETTLEMENT_RECOVERY_REQUIRED")
+
+    # A reservation also belongs to its output location: another checkout of
+    # the same plan cannot observe this location's running marker.
     human_approved = bool(plan.get("human_approved", False))
     cost_class = _cost_class(float(plan["estimated_gpu_hours"]))
     if existing is None:
@@ -137,15 +218,17 @@ def run_auto_experiment(
             cost_class=cost_class,
             estimated_gpu_hours=float(plan["estimated_gpu_hours"]),
             human_approved=human_approved,
+            plan_sha256=reservation_binding,
+            reject_existing=True,
         )
     else:
         running_marker = destination / "running" / f"{plan['trial_id']}.json"
         if _live_running_marker(running_marker):
             raise AutoExperimentError("AUTO_EXPERIMENT_ALREADY_RUNNING")
-        admission = budget.takeover(
-            archive_trial_id,
-            expected_fencing_token=existing.fencing_token,
-        )
+        # A dead process without a terminal receipt has unknown actual cost.
+        # Keep its reservation until explicit reconciliation; takeover would
+        # erase the previous attempt's cost and silently launch it again.
+        raise AutoExperimentError("AUTO_EXPERIMENT_INCOMPLETE_ATTEMPT_REQUIRES_RECONCILIATION")
 
     scratch = (
         destination
@@ -222,6 +305,7 @@ def run_auto_experiment(
             budget_max_trial_gpu_hours=budget_max_trial_gpu_hours,
             budget_high_trial_limit=budget_high_trial_limit,
             budget_require_high_cost_approval=budget_require_high_cost_approval,
+            conformance_ref=conformance_ref,
         )
         _write_json_atomic(receipt_path, receipt)
         _write_json_atomic(verdict_path, receipt["verdict"])
@@ -230,6 +314,7 @@ def run_auto_experiment(
             fencing_token=admission.fencing_token,
             actual_gpu_hours=float(receipt["cost"]["actual_gpu_hours"]),
             receipt_ref=str(receipt["receipt_ref"]),
+            plan_sha256=reservation_binding,
         )
         _record_archive_from_receipt(archive=archive, receipt=receipt)
         marker.update(
@@ -427,6 +512,7 @@ def _settle_trial(
     budget_max_trial_gpu_hours: float,
     budget_high_trial_limit: int,
     budget_require_high_cost_approval: bool,
+    conformance_ref: str | None,
 ) -> dict[str, object]:
     result_path = _resolve_inside(
         scratch, str(plan["result_path"]), "AUTO_EXPERIMENT_RESULT_PATH_INVALID"
@@ -472,6 +558,8 @@ def _settle_trial(
         )
 
     support_refs = {}
+    if conformance_ref is not None:
+        support_refs["onboarding_conformance"] = conformance_ref
     for name, path, media_type in (
         ("stdout", scratch / "stdout.log", "text/plain"),
         ("stderr", scratch / "stderr.log", "text/plain"),
@@ -555,6 +643,8 @@ def _record_archive_from_receipt(
 ) -> None:
     trial_id = str(receipt["archive_trial_id"])
     if trial_id in archive.visible_settled_trials():
+        if not archive.has_settled_receipt(trial_id, str(receipt["receipt_ref"]), str(receipt["receipt_hash"])):
+            raise AutoExperimentError("AUTO_EXPERIMENT_ARCHIVE_RECEIPT_MISMATCH")
         return
     archive.record_settled_trial(
         SettledTrialRecord(
@@ -586,8 +676,11 @@ def cleanup_auto_experiment_scratch(
 ) -> dict[str, object]:
     """Plan or apply deletion of marker-proven, already-archived scratch."""
 
-    root = Path(run_root).resolve(strict=True)
-    if not root.is_dir() or root.is_symlink() or older_than_hours < 0:
+    root_path = Path(run_root)
+    if root_path.is_symlink():
+        raise AutoExperimentError("AUTO_EXPERIMENT_CLEANUP_ROOT_INVALID")
+    root = root_path.resolve(strict=True)
+    if not root.is_dir() or older_than_hours < 0:
         raise AutoExperimentError("AUTO_EXPERIMENT_CLEANUP_ROOT_INVALID")
     cutoff = (
         _dt.datetime.now(tz=_dt.timezone.utc).timestamp() - older_than_hours * 3600.0
@@ -599,8 +692,9 @@ def cleanup_auto_experiment_scratch(
     for marker_path in sorted(root.rglob(".verdiwm-scratch.json")):
         if marker_path.is_symlink() or not marker_path.is_file():
             continue
-        scratch = marker_path.parent.resolve()
-        if not _is_inside(root, scratch) or scratch == root or scratch.is_symlink():
+        scratch = marker_path.parent
+        if (not _is_inside(root, scratch.resolve()) or scratch == root
+                or any(part.is_symlink() for part in (scratch, *scratch.parents) if part != root and _is_inside(root, part))):
             retained.append({"path": str(scratch), "reason": "PATH_UNSAFE"})
             continue
         marker = _load_optional_json(marker_path)
@@ -616,7 +710,7 @@ def cleanup_auto_experiment_scratch(
         if not eligible:
             retained.append({"path": str(scratch), "reason": "NOT_PROVEN_SETTLED"})
             continue
-        proof_error = _verify_cleanup_proof(marker=marker, archive=archive, cas=cas)
+        proof_error = _verify_cleanup_proof(marker=marker, scratch=scratch, archive=archive, cas=cas)
         if proof_error is not None:
             retained.append({"path": str(scratch), "reason": proof_error})
             continue
@@ -647,41 +741,43 @@ def _recover_archived_run(
     destination: Path,
     plan: Mapping[str, object],
     archive: ArchiveStore,
+    cas: ContentAddressedStore,
+    plan_sha256: str,
+    trial_signature: str,
+    archive_trial_id: str,
 ) -> dict[str, object]:
     """Rebuild local projections after a crash following Archive publication."""
 
-    if not receipt_path.is_file() or receipt_path.is_symlink():
-        raise AutoExperimentError("AUTO_EXPERIMENT_SETTLEMENT_RECOVERY_REQUIRED")
-    receipt = _load_json_object(receipt_path, "AUTO_EXPERIMENT_RECEIPT_INVALID")
-    if (
-        receipt.get("settlement_state") != "settled"
-        or receipt.get("state") != "terminal"
-    ):
-        raise AutoExperimentError("AUTO_EXPERIMENT_RECEIPT_NOT_SETTLED")
-    if str(receipt.get("archive_trial_id")) not in archive.visible_settled_trials():
+    receipt = _verified_recovery_receipt(
+        receipt_path=receipt_path, plan=plan, cas=cas, plan_sha256=plan_sha256,
+        trial_signature=trial_signature, archive_trial_id=archive_trial_id,
+    )
+    if not archive.has_settled_receipt(archive_trial_id, receipt["receipt_ref"], receipt["receipt_hash"]):
         raise AutoExperimentError("AUTO_EXPERIMENT_ARCHIVE_RECEIPT_MISMATCH")
+    _write_json_atomic(destination / "verdicts" / f"{plan['trial_id']}.json", receipt["verdict"])
     scratch_root = destination / "scratch" / str(plan["trial_id"])
-    attempts = sorted(scratch_root.glob("attempt-*")) if scratch_root.is_dir() else ()
+    token = receipt.get("fencing_token")
+    attempts = ()
+    if type(token) is int and token > 0 and not scratch_root.is_symlink() and not scratch_root.parent.is_symlink():
+        attempts = (scratch_root / f"attempt-{token:04d}",)
     for attempt in attempts:
         marker_path = attempt / ".verdiwm-scratch.json"
-        if not marker_path.is_file() or marker_path.is_symlink():
+        if attempt.is_symlink() or not marker_path.is_file() or marker_path.is_symlink():
             continue
         marker = _load_optional_json(marker_path)
-        if (
-            marker.get("state") != "settled"
-            or marker.get("archive_recorded") is not True
-        ):
-            marker.update(
-                {
-                    "state": "settled",
-                    "settled_at": _utc_now(),
-                    "receipt_ref": receipt["receipt_ref"],
-                    "archive_recorded": True,
-                    "required_artifact_count": len(plan["artifacts"]),
-                    "archived_artifact_count": len(receipt.get("artifact_refs", {})),
-                }
-            )
-            _write_json_atomic(marker_path, marker)
+        if not _scratch_identity_matches(marker, receipt, attempt):
+            continue
+        marker.update(
+            {
+                "state": "settled",
+                "settled_at": _utc_now(),
+                "receipt_ref": receipt["receipt_ref"],
+                "archive_recorded": True,
+                "required_artifact_count": len(plan["artifacts"]),
+                "archived_artifact_count": len(receipt.get("artifact_refs", {})),
+            }
+        )
+        _write_json_atomic(marker_path, marker)
         if marker.get("state") == "settled" and marker.get("archive_recorded") is True:
             cleanup = _cleanup_settled_scratch(
                 scratch=attempt,
@@ -697,9 +793,56 @@ def _recover_archived_run(
     return manifest
 
 
+def _verified_recovery_receipt(
+    *, receipt_path: Path, plan: Mapping[str, object], cas: ContentAddressedStore,
+    plan_sha256: str, trial_signature: str, archive_trial_id: str,
+) -> dict[str, Any]:
+    """Bind a mutable local projection to the plan and its immutable CAS receipt."""
+    checked_path(
+        receipt_path, code="AUTO_EXPERIMENT_RECOVERY_RECEIPT_INVALID",
+        error=AutoExperimentError,
+    )
+    if not receipt_path.is_file() or receipt_path.is_symlink():
+        raise AutoExperimentError("AUTO_EXPERIMENT_SETTLEMENT_RECOVERY_REQUIRED")
+    receipt = _load_json_object(receipt_path, "AUTO_EXPERIMENT_RECEIPT_INVALID")
+    ref, digest = receipt.get("receipt_ref"), receipt.get("receipt_hash")
+    if not isinstance(ref, str) or not isinstance(digest, str):
+        raise AutoExperimentError("AUTO_EXPERIMENT_RECOVERY_RECEIPT_INVALID")
+    try:
+        payload = cas.read_bytes(ref)
+        stored = _load_json_bytes(payload, "AUTO_EXPERIMENT_RECOVERY_RECEIPT_INVALID")
+    except (ArchiveInvariantError, OSError) as exc:
+        raise AutoExperimentError("AUTO_EXPERIMENT_RECOVERY_RECEIPT_INVALID") from exc
+    projection = {key: value for key, value in receipt.items() if key not in {"receipt_ref", "receipt_hash", "cleanup"}}
+    if (
+        _sha256_bytes(payload) != digest or stored != projection
+        or stored.get("artifact_type") != "verdiwm-auto-experiment-receipt"
+        or stored.get("state") != "terminal" or stored.get("settlement_state") != "settled"
+        or stored.get("plan_sha256") != plan_sha256
+        or stored.get("trial_signature") != trial_signature
+        or stored.get("archive_trial_id") != archive_trial_id
+        or stored.get("trial_id") != plan.get("trial_id")
+        or stored.get("campaign_id") != plan.get("campaign_id")
+    ):
+        raise AutoExperimentError("AUTO_EXPERIMENT_RECOVERY_RECEIPT_MISMATCH")
+    _verify_recovery_evidence(receipt=stored, cas=cas)
+    return receipt
+
+
+def _verify_recovery_evidence(
+    *, receipt: Mapping[str, Any], cas: ContentAddressedStore,
+) -> None:
+    """Read every declared evidence object; a receipt alone is insufficient."""
+    try:
+        verify_receipt_evidence(receipt=receipt, cas=cas)
+    except ReceiptEvidenceError as exc:
+        raise AutoExperimentError(f"AUTO_EXPERIMENT_RECOVERY_EVIDENCE_{exc.reason}") from exc
+
+
 def _verify_cleanup_proof(
     *,
     marker: Mapping[str, object],
+    scratch: Path,
     archive: ArchiveStore | None,
     cas: ContentAddressedStore | None,
 ) -> str | None:
@@ -711,17 +854,27 @@ def _verify_cleanup_proof(
     if not isinstance(receipt_ref, str):
         return "RECEIPT_REF_INVALID"
     try:
-        receipt_core = _load_json_bytes(
-            cas.read_bytes(receipt_ref), "RECEIPT_CAS_INVALID"
-        )
-    except Exception:
+        payload = cas.read_bytes(receipt_ref)
+        receipt_core = _load_json_bytes(payload, "RECEIPT_CAS_INVALID")
+    except (ArchiveInvariantError, OSError, AutoExperimentError):
         return "RECEIPT_CAS_UNREADABLE"
-    if receipt_core.get("artifact_type") != "verdiwm-auto-experiment-receipt":
+    if (receipt_core.get("artifact_type") != "verdiwm-auto-experiment-receipt"
+            or receipt_core.get("state") != "terminal"
+            or receipt_core.get("settlement_state") != "settled"):
         return "RECEIPT_CAS_INVALID"
+    if not _scratch_identity_matches(marker, receipt_core, scratch):
+        return "SCRATCH_IDENTITY_MISMATCH"
+    artifact_refs = receipt_core.get("artifact_refs")
+    if not isinstance(artifact_refs, Mapping) or marker.get("archived_artifact_count") != len(artifact_refs):
+        return "ARTIFACT_COUNT_MISMATCH"
+    verdict = receipt_core.get("verdict")
+    blockers = verdict.get("blockers", []) if isinstance(verdict, Mapping) else []
+    if isinstance(blockers, list) and any(isinstance(item, Mapping) and item.get("code") == "REQUIRED_ARTIFACTS_MISSING" for item in blockers):
+        return "REQUIRED_ARTIFACTS_MISSING"
     archive_trial_id = receipt_core.get("archive_trial_id")
     if (
         not isinstance(archive_trial_id, str)
-        or archive_trial_id not in archive.visible_settled_trials()
+        or not archive.has_settled_receipt(archive_trial_id, receipt_ref, _sha256_bytes(payload))
     ):
         return "ARCHIVE_RECORD_MISSING"
     refs: list[object] = []
@@ -745,21 +898,35 @@ def _verify_cleanup_proof(
     return None
 
 
-def _load_plan(path: Path, *, workspace_root: Path) -> dict[str, object]:
+def _scratch_identity_matches(marker: Mapping[str, object], receipt: Mapping[str, object], scratch: Path) -> bool:
+    token = receipt.get("fencing_token")
+    return (
+        type(token) is int and token > 0
+        and marker.get("artifact_type") == "verdiwm-auto-experiment-scratch"
+        and marker.get("campaign_id") == receipt.get("campaign_id")
+        and marker.get("trial_id") == receipt.get("trial_id")
+        and type(marker.get("fencing_token")) is int and marker.get("fencing_token") == token
+        and scratch.name == f"attempt-{token:04d}"
+        and scratch.parent.name == receipt.get("trial_id")
+    )
+
+
+def _load_plan(path: Path, *, workspace_root: Path) -> tuple[dict[str, object], str]:
     try:
-        plan = _load_json_object(path, "AUTO_EXPERIMENT_PLAN_INVALID")
+        payload = path.read_bytes()
+        plan = _load_json_bytes(payload, "AUTO_EXPERIMENT_PLAN_INVALID")
         validate_document("auto_experiment_plan", plan)
-    except (ContractValidationError, AutoExperimentError) as exc:
+    except (ContractValidationError, AutoExperimentError, OSError) as exc:
         raise AutoExperimentError(f"AUTO_EXPERIMENT_PLAN_INVALID:{exc}") from exc
     _validate_plan_semantics(plan, workspace_root=workspace_root)
-    return plan
+    return plan, _sha256_bytes(payload)
 
 
 def _validate_plan_semantics(
     plan: Mapping[str, object], *, workspace_root: Path
 ) -> None:
     control_root = Path(__file__).resolve().parents[2]
-    if Path(workspace_root).resolve() != control_root:
+    if Path(workspace_root).resolve() != control_root or plan.get("onboarding_admission") is not None:
         try:
             verify_onboarding_admission(
                 plan.get("onboarding_admission"),
@@ -798,6 +965,15 @@ def _validate_plan_semantics(
         )
         if value <= minimum if field != "gpu_wait_seconds" else value < minimum:
             raise AutoExperimentError(f"AUTO_EXPERIMENT_{field.upper()}_INVALID")
+    diagnostic_path = plan.get("diagnostic_result_path")
+    if diagnostic_path is not None:
+        if (
+            plan.get("experiment_kind") != "diagnostic"
+            or not isinstance(diagnostic_path, str)
+            or diagnostic_path not in plan["artifacts"]
+        ):
+            raise AutoExperimentError("AUTO_EXPERIMENT_DIAGNOSTIC_RESULT_DECLARATION_INVALID")
+        _relative_path(diagnostic_path, "AUTO_EXPERIMENT_DIAGNOSTIC_RESULT_PATH_INVALID")
     workdir = _resolve_inside(
         workspace_root,
         str(plan["working_directory"]),
@@ -911,13 +1087,15 @@ def _cleanup_settled_scratch(
     resolved = scratch.resolve()
     if scratch.is_symlink() or not _is_inside(expected_parent, resolved):
         raise AutoExperimentError("AUTO_EXPERIMENT_CLEANUP_PATH_INVALID")
+    complete = (marker.get("required_artifact_count") == marker.get("archived_artifact_count")
+                and type(marker.get("required_artifact_count")) is int)
+    apply = apply and complete
     result = {
         "state": "applied" if apply else "retained",
         "path": str(scratch),
         "reason": (
-            "ARCHIVED_TERMINAL"
-            if marker.get("archive_recorded") is True
-            else "ARCHIVE_REQUIRED"
+            "REQUIRED_ARTIFACTS_MISSING" if not complete else
+            "ARCHIVED_TERMINAL" if marker.get("archive_recorded") is True else "ARCHIVE_REQUIRED"
         ),
     }
     if apply:
@@ -942,6 +1120,7 @@ def _manifest_from_receipt(
             verdict.get("evidence_level") if isinstance(verdict, Mapping) else "void"
         ),
         "receipt_ref": receipt.get("receipt_ref"),
+        "plan_sha256": receipt.get("plan_sha256"),
         "receipt_path": str(destination / "receipts" / f"{receipt['trial_id']}.json"),
         "verdict_path": str(destination / "verdicts" / f"{receipt['trial_id']}.json"),
         "cost": receipt.get("cost", {}),

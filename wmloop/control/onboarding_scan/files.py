@@ -36,7 +36,9 @@ def _resolve_output_root(repo: Path, output_root: Path | None) -> Path:
     return destination
 
 
-def _discover_files(repo: Path, *, max_files: int) -> tuple[list[Path], bool]:
+def _discover_files(
+    repo: Path, *, max_files: int, reject_symlinks: bool = False,
+) -> tuple[list[Path], bool]:
     if max_files < 1 or max_files > _MAX_FILES:
         raise OnboardingError("ONBOARDING_MAX_FILES_INVALID")
     paths: list[Path] = []
@@ -50,6 +52,8 @@ def _discover_files(repo: Path, *, max_files: int) -> tuple[list[Path], bool]:
             continue
         for child in children:
             if child.is_symlink():
+                if reject_symlinks:
+                    raise OnboardingError("SOURCE_REVISION_SYMLINK_FORBIDDEN")
                 continue
             if child.is_dir():
                 if (

@@ -47,6 +47,7 @@ from wmloop.primitives.registry import PrimitiveRegistry
 from wmloop.primitives.render import PrimitiveRenderer
 from wmloop.runtime_contract import runtime_tree_sha256
 from wmloop.vendor import verify_vendor_checkout
+from wmloop.verify.acceptance_policy import VerificationPolicy
 
 
 class _TrainingEvalSmokeExecutor:
@@ -87,6 +88,7 @@ class _TrainingEvalSmokeExecutor:
         proposal_params: Mapping[str, object],
         trial_arm: str | None,
         trial_seed: int | None,
+        verification_policy: VerificationPolicy | None = None,
     ) -> None:
         self._repo_root = repo_root
         self._environment = environment
@@ -135,6 +137,7 @@ class _TrainingEvalSmokeExecutor:
         self._proposal_params = dict(proposal_params)
         self._trial_arm = trial_arm
         self._trial_seed = trial_seed
+        self._verification_policy = verification_policy
         self._receipts: dict[str, dict[str, object]] = {}
         self._gpu_sampler = GpuSamplingRecorder(
             gpu_index=gpu_index, sample_interval_seconds=2.0
@@ -206,6 +209,7 @@ class _TrainingEvalSmokeExecutor:
                 environment=self._environment,
                 max_accept_trajectories=self._max_accept_trajectories,
                 replication_count=self._replication_count,
+                replication_seeds=self._verification_policy.seeds_accept if self._verification_policy is not None else None,
             )
             training_run_root = self._output_root / "training-run"
             training_run_root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -536,6 +540,10 @@ class _TrainingEvalSmokeExecutor:
                 "environment": self._environment,
                 "primary_metric": self._primary_metric,
                 "fencing_token": fencing_token,
+                **({
+                    "verification_policy_ref": f"cas://sha256/{self._verification_policy.sha256}",
+                    "frozen_goal_ref": f"cas://sha256/{self._verification_policy.goal_sha256}",
+                } if self._verification_policy is not None else {}),
                 "source_revision": source_revision,
                 "registry_digest": registry.digest(),
                 "runtime_python": str(self._runtime_python),

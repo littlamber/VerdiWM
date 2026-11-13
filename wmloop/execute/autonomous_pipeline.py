@@ -28,6 +28,10 @@ from wmloop.control.onboarding_conformance import (
     ModelConformanceError,
     run_conformance,
 )
+from wmloop.control.onboarding_scan.types import (
+    DEFAULT_RUNTIME_TIMEOUT_SECONDS,
+    validate_runtime_timeout,
+)
 from wmloop.control.research_modes import ResearchModeError, normalize_research_mode
 from wmloop.control.research_state import ResearchJournal
 from wmloop.diagnose.probe_campaign import DiagnosticProbeError, run_diagnostic_probe
@@ -74,6 +78,7 @@ from wmloop.execute.pipeline.state import (
     _bind_output_root as _bind_output_root,
     _manifest as _manifest,
     _settle_pipeline as _settle_pipeline,
+    verify_pipeline_settlement,
 )
 from wmloop.execute.pipeline.types import (
     AutonomousPipelineError as AutonomousPipelineError,
@@ -107,6 +112,7 @@ def run_autonomous_pipeline(
     options: AutonomousPipelineOptions,
 ) -> dict[str, object]:
     """Run one writer per output root, regardless of CLI or daemon entry point."""
+    validate_runtime_timeout(options.runtime_timeout_seconds)
     destination = checked_path(
         options.output_root,
         code="AUTONOMOUS_PIPELINE_OUTPUT_INVALID",
@@ -259,6 +265,23 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
     )
     compiled = destination / "compiled"
     cpbe_root = destination / "causal-discovery"
+    probe_options = dict(
+        contract_path=probe_contract,
+        sidecar_root=sidecar,
+        conformance_root=conformance,
+        output_root=diagnostic_probe_root,
+        workspace_root=repo,
+        archive_db=archive_db,
+        cas_root=cas_root,
+        lock_root=lock_root,
+        budget_db=budget_db,
+        budget_total_gpu_hours=budget_total_gpu_hours,
+        budget_max_trial_gpu_hours=options.budget_max_trial_gpu_hours,
+        budget_high_trial_limit=options.budget_high_trial_limit,
+        budget_require_high_cost_approval=options.budget_require_high_cost_approval,
+        retrieval_db=retrieval_db,
+        campaign_id=destination.name,
+    )
     journal = ResearchJournal.open_or_create(
         destination / "research",
         input_hash=input_hash,
@@ -277,6 +300,25 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             raise AutonomousPipelineError(
                 "AUTONOMOUS_PIPELINE_RESEARCH_SETTLEMENT_MISMATCH"
             )
+        execution = verify_pipeline_settlement(
+            destination=destination, manifest=manifest, journal=journal, cas_root=cas_root,
+        )
+        if probe_contract is not None:
+            recovered_probe = run_diagnostic_probe(**probe_options, recover_only=True)
+            if recovered_probe != manifest.get("diagnostic_probe"):
+                raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_SETTLEMENT_PROBE_MISMATCH")
+        recovered = run_selected_queue(
+            queue_path=compiled / "queue" / "queue.json", workspace_root=repo,
+            archive_db=archive_db, cas_root=cas_root, lock_root=lock_root,
+            budget_db=budget_db, budget_total_gpu_hours=budget_total_gpu_hours,
+            budget_max_trial_gpu_hours=options.budget_max_trial_gpu_hours,
+            budget_high_trial_limit=options.budget_high_trial_limit,
+            budget_require_high_cost_approval=options.budget_require_high_cost_approval,
+            recover_only=True,
+            retrieval_db=retrieval_db,
+        )
+        if recovered != execution or recovered.get("candidate_states") != manifest.get("candidate_states"):
+            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_SETTLEMENT_EXECUTION_MISMATCH")
         return manifest
     if current["phase"] != "observe":
         if current["phase"] != "blocked":
@@ -307,6 +349,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                     adapter_contract_ready=options.adapter_contract_ready,
                     probe_imports=options.probe_imports,
                     max_files=options.max_files,
+                    runtime_timeout_seconds=options.runtime_timeout_seconds,
                 )
             )
         if onboarding_manifest.get("state") != "ready_for_conformance_smoke":
@@ -357,25 +400,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
         cpbe_manifest: dict[str, object] | None = None
         if probe_contract is not None:
             stage = "diagnostic_probe"
-            probe_manifest = run_diagnostic_probe(
-                contract_path=probe_contract,
-                sidecar_root=sidecar,
-                conformance_root=conformance,
-                output_root=diagnostic_probe_root,
-                workspace_root=repo,
-                archive_db=archive_db,
-                cas_root=cas_root,
-                lock_root=lock_root,
-                budget_db=budget_db,
-                budget_total_gpu_hours=budget_total_gpu_hours,
-                budget_max_trial_gpu_hours=options.budget_max_trial_gpu_hours,
-                budget_high_trial_limit=options.budget_high_trial_limit,
-                budget_require_high_cost_approval=(
-                    options.budget_require_high_cost_approval
-                ),
-                retrieval_db=retrieval_db,
-                campaign_id=destination.name,
-            )
+            probe_manifest = run_diagnostic_probe(**probe_options)
             if probe_manifest.get("verdict") != "PASS":
                 return _settle_pipeline(
                     destination,
@@ -411,6 +436,8 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                 },
                 "matches": [row.to_dict() for row in matches],
                 "index_path": str(retrieval_db),
+                "archive_db": str(archive_db),
+                "cas_root": str(cas_root),
             }
             # Preserve the model-conditioned IRG plan when probe retrieval is
             # also active.  It is part of the same immutable routing context,
@@ -626,6 +653,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             workspace_root=repo,
             archive_db=archive_db,
             cas_root=cas_root,
+            retrieval_db=retrieval_db,
             lock_root=lock_root,
             budget_db=budget_db,
             budget_total_gpu_hours=budget_total_gpu_hours,
@@ -655,6 +683,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             input_hash=input_hash,
             journal=journal,
             state="settled" if passed else "blocked",
+            settlement_cas_root=cas_root,
             verdict="PASS" if passed else "BLOCKED",
             blocked_stage=None if passed else "execution",
             candidate_states=(
@@ -764,6 +793,7 @@ def _input_document(
         ),
         "probe_imports": options.probe_imports,
         "max_files": options.max_files,
+        "runtime_timeout_seconds": options.runtime_timeout_seconds,
         "conformance_timeout_seconds": options.conformance_timeout_seconds,
         "archive_db": str(archive_db),
         "cas_root": str(cas_root),
@@ -830,6 +860,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--adapter-contract-ready", action="store_true")
     parser.add_argument("--no-import-probe", action="store_true")
     parser.add_argument("--max-files", type=int, default=20_000)
+    parser.add_argument(
+        "--runtime-timeout-seconds", type=float,
+        default=DEFAULT_RUNTIME_TIMEOUT_SECONDS,
+    )
     parser.add_argument("--conformance-timeout-seconds", type=float, default=30.0)
     parser.add_argument("--archive-db", type=Path)
     parser.add_argument("--cas-root", type=Path)
@@ -876,6 +910,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 adapter_contract_ready=args.adapter_contract_ready,
                 probe_imports=not args.no_import_probe,
                 max_files=args.max_files,
+                runtime_timeout_seconds=args.runtime_timeout_seconds,
                 conformance_timeout_seconds=args.conformance_timeout_seconds,
                 archive_db=args.archive_db,
                 cas_root=args.cas_root,

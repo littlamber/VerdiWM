@@ -317,17 +317,44 @@ def build_transferable_experience(
         raise GeometryValidationError("TRANSFER_EXPERIENCE_ANTI_CONDITIONS_INVALID")
     cert = _certificate_payload(transfer_certificate)
     if cert is not None:
+        from wmloop.geometry.transfer import TRANSFER_TERMS, _finite
+
         status = cert.get("status")
         terms = cert.get("terms")
         if (
             cert.get("artifact_type") != "verdiwm-transfer-certificate"
             or status not in {"licensed", "abstain"}
             or not isinstance(terms, Mapping)
-            or not terms
+            or set(terms) != TRANSFER_TERMS
+            or type(cert.get("schema_version")) is not int
+            or cert.get("schema_version") != 1
+            or cert.get("descriptor_name") != effect.primitive
         ):
             raise GeometryValidationError("TRANSFER_EXPERIENCE_CERTIFICATE_INVALID")
         if any(not isinstance(value, bool) for value in terms.values()):
             raise GeometryValidationError("TRANSFER_EXPERIENCE_CERTIFICATE_TERMS_INVALID")
+        reasons = cert.get("abstention_reasons")
+        failed = {name for name, passed in terms.items() if not passed}
+        if (cert.get("compile_pass") is not terms["compile"]
+                or (status == "licensed") != all(terms.values())
+                or not isinstance(reasons, (list, tuple))
+                or any(not isinstance(reason, str) for reason in reasons)
+                or len(reasons) != len(failed)
+                or set(reasons) != failed):
+            raise GeometryValidationError("TRANSFER_EXPERIENCE_CERTIFICATE_INVALID")
+        try:
+            overlap = _finite(cert.get("support_overlap"))
+            sample_size = _finite(cert.get("effective_sample_size"))
+            alignment = _finite(cert.get("alignment_error"))
+            agreement = _finite(cert.get("sign_agreement"))
+            lower = _finite(cert.get("calibrated_lower_bound"))
+            threshold = _finite(cert.get("goal_threshold"))
+        except GeometryValidationError as exc:
+            raise GeometryValidationError("TRANSFER_EXPERIENCE_CERTIFICATE_INVALID") from exc
+        if (not 0 <= overlap <= 1 or sample_size < 0 or alignment < 0
+                or not 0 <= agreement <= 1
+                or terms["effect_lower_bound"] != (lower > threshold)):
+            raise GeometryValidationError("TRANSFER_EXPERIENCE_CERTIFICATE_INVALID")
     licensed = (
         effect.status == "confirmed"
         and cert is not None

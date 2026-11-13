@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,7 +34,9 @@ _MAX_SOURCE_PARSE_BYTES = 1_500_000
 _MAX_SOURCE_REVISION_FILES = 5_000
 
 
-_SUBPROCESS_TIMEOUT_SECONDS = 8.0
+DEFAULT_RUNTIME_TIMEOUT_SECONDS = 30.0
+MAX_RUNTIME_TIMEOUT_SECONDS = 300.0
+_SUBPROCESS_TIMEOUT_SECONDS = DEFAULT_RUNTIME_TIMEOUT_SECONDS
 
 
 _SKIP_DIRECTORIES = frozenset(
@@ -174,6 +177,14 @@ class OnboardingError(RuntimeError):
     """An onboarding request failed before a trustworthy report was written."""
 
 
+def validate_runtime_timeout(value: object) -> float:
+    """Bound each import and pip-check subprocess without accepting coercions."""
+    if (isinstance(value, bool) or not isinstance(value, (int, float))
+        or not 0 < value <= MAX_RUNTIME_TIMEOUT_SECONDS or not math.isfinite(value)):
+        raise OnboardingError("ONBOARDING_RUNTIME_TIMEOUT_INVALID")
+    return float(value)
+
+
 @dataclass(frozen=True)
 class OnboardingOptions:
     """Explicit options for a read-only onboarding scan."""
@@ -187,3 +198,7 @@ class OnboardingOptions:
     adapter_contract_ready: bool = False
     probe_imports: bool = True
     max_files: int = _MAX_FILES
+    runtime_timeout_seconds: float = DEFAULT_RUNTIME_TIMEOUT_SECONDS
+
+    def __post_init__(self) -> None:
+        validate_runtime_timeout(self.runtime_timeout_seconds)

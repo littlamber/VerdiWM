@@ -13,9 +13,11 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
-from typing import Any
+import time
+from typing import Any, Callable
 
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.adapter_profiles import (
@@ -50,6 +52,7 @@ _SOURCE_SKIP_PREFIXES = ("checkpoint", "video_latent", "latent_cache")
 # large files use a deterministic metadata plus head/tail fingerprint.
 _LARGE_FILE_FAST_BYTES = 256 * 1024 * 1024
 _FAST_SAMPLE_BYTES = 1024 * 1024
+_PROGRESS_INTERVAL_SECONDS = 2.0
 _OPEN_METHOD_POLICY: dict[str, object] = {
     "enabled": True,
     "mode": "evidence_grounded",
@@ -58,6 +61,25 @@ _OPEN_METHOD_POLICY: dict[str, object] = {
     "require_target_side_validation": True,
     "authority": "four_arm_study_only",
 }
+
+ResearchProgressCallback = Callable[[Mapping[str, object]], None]
+
+
+def _report_progress(
+    callback: ResearchProgressCallback | None,
+    phase: str,
+    state: str,
+    **details: object,
+) -> None:
+    """Send best-effort status to a caller without affecting plan evidence."""
+
+    if callback is None:
+        return
+    try:
+        callback({"phase": phase, "state": state, **details})
+    except Exception:
+        # A broken display callback must not alter a plan or its evidence.
+        logging.getLogger(__name__).debug("Research progress callback failed", exc_info=True)
 
 
 def _canonical(value: object) -> str:
@@ -71,9 +93,33 @@ def _sha256_bytes(chunks: Sequence[bytes]) -> str:
     return digest.hexdigest()
 
 
-def _path_digest(path: Path, *, source_tree: bool = False) -> dict[str, object]:
+def _path_digest(
+    path: Path,
+    *,
+    source_tree: bool = False,
+    progress: ResearchProgressCallback | None = None,
+    input_name: str = "input",
+) -> dict[str, object]:
     """Digest a file or directory without following internal symlinks."""
 
+    started = time.monotonic()
+    last_progress = started
+    file_count = 0
+    byte_count = 0
+
+    def report(state: str, **details: object) -> None:
+        _report_progress(
+            progress,
+            "input_digest",
+            state,
+            input=input_name,
+            files_hashed=file_count,
+            input_bytes=byte_count,
+            elapsed_seconds=round(time.monotonic() - started, 1),
+            **details,
+        )
+
+    report("started")
     path = path.expanduser().resolve()
     if path.is_symlink() or not path.exists():
         raise ResearchRequestError(f"INPUT_PATH_INVALID:{path}")
@@ -85,11 +131,13 @@ def _path_digest(path: Path, *, source_tree: bool = False) -> dict[str, object]:
                 digest = _file_content_digest(handle, size=size, stat=stat)
         except OSError as exc:
             raise ResearchRequestError(f"INPUT_PATH_UNREADABLE:{path}") from exc
-        return {"path": str(path), "kind": "file", "sha256": digest, "size_bytes": size, "file_count": 1}
+        file_count = 1
+        byte_count = size
+        result = {"path": str(path), "kind": "file", "sha256": digest, "size_bytes": size, "file_count": 1}
+        report("completed")
+        return result
 
     digest = hashlib.sha256()
-    file_count = 0
-    byte_count = 0
     excluded = set(_SKIP_DIRS)
     if source_tree:
         excluded.update(_SOURCE_SKIP_DIRS)
@@ -131,15 +179,23 @@ def _path_digest(path: Path, *, source_tree: bool = False) -> dict[str, object]:
                 digest.update(bytes.fromhex(file_digest))
                 file_count += 1
                 byte_count += size
+                now = time.monotonic()
+                if progress is not None and (
+                    file_count % 1000 == 0 or now - last_progress >= _PROGRESS_INTERVAL_SECONDS
+                ):
+                    report("running")
+                    last_progress = now
     except OSError as exc:
         raise ResearchRequestError(f"INPUT_PATH_UNREADABLE:{path}") from exc
-    return {
+    result = {
         "path": str(path),
         "kind": "directory",
         "sha256": digest.hexdigest(),
         "size_bytes": byte_count,
         "file_count": file_count,
 }
+    report("completed")
+    return result
 
 
 def _file_content_digest(handle: Any, *, size: int, stat: os.stat_result) -> str:
@@ -267,6 +323,12 @@ def _find_profile(root: Path, profile_id: str) -> Path | None:
     return None
 
 
+def _is_source_binding(name: str) -> bool:
+    return name == "source" or (
+        name.startswith("asset:") and any(token in name.casefold() for token in ("source", "repo"))
+    )
+
+
 def _input_bindings(
     *,
     model: Path,
@@ -277,6 +339,7 @@ def _input_bindings(
     adapter_profile: Path | None,
     model_irg: Path | None,
     asset_bindings: Mapping[str, object] | None,
+    progress: ResearchProgressCallback | None = None,
 ) -> dict[str, dict[str, object]]:
     values: dict[str, Path] = {"model": model, "data": data}
     optional = {
@@ -293,12 +356,15 @@ def _input_bindings(
     result: dict[str, dict[str, object]] = {}
     cache: dict[tuple[str, bool], dict[str, object]] = {}
     for name, path in sorted(values.items()):
-        source_binding = name == "source" or (
-            name.startswith("asset:") and any(token in name.casefold() for token in ("source", "repo"))
-        )
+        source_binding = _is_source_binding(name)
         cache_key = (str(path), source_binding)
         if cache_key not in cache:
-            cache[cache_key] = _path_digest(path, source_tree=source_binding)
+            cache[cache_key] = _path_digest(
+                path,
+                source_tree=source_binding,
+                progress=progress,
+                input_name=name,
+            )
         result[name] = dict(cache[cache_key])
     return result
 
@@ -325,9 +391,11 @@ def compile_research_plan(
     state_root: str | Path | None = None,
     project_root: str | Path | None = None,
     evidence_context: Mapping[str, object] | None = None,
+    progress_callback: ResearchProgressCallback | None = None,
 ) -> dict[str, object]:
     """Compile a deterministic plan without importing the model or running it."""
 
+    _report_progress(progress_callback, "plan_compile", "started")
     base = Path(project_root or Path.cwd()).expanduser().resolve()
     configured = _project_values(base)
     model_path = _resolve(model or configured.get("model"), base=base)
@@ -379,6 +447,7 @@ def compile_research_plan(
     preview_execution: dict[str, object] | None = None
     selected_profile = profile_path
     preview_error: BaseException | None = None
+    _report_progress(progress_callback, "adapter_preview", "started")
     try:
         resolved = compile_adapter_execution(
             campaign_id=f"plan-{plan_seed}",
@@ -404,7 +473,13 @@ def compile_research_plan(
     except (AdapterProfileError, OSError, ValueError) as exc:
         preview_error = exc
         blockers.append(_adapter_blocker(exc))
+    _report_progress(
+        progress_callback,
+        "adapter_preview",
+        "failed" if preview_error is not None else "completed",
+    )
 
+    _report_progress(progress_callback, "onboarding_scan", "started")
     readiness = inspect_project(
         root=base,
         model=str(model_path),
@@ -413,6 +488,7 @@ def compile_research_plan(
         evaluator_contract=(str(evaluator_path) if evaluator_was_explicit and evaluator_path is not None else None),
         runtime_python=str(runtime_path) if runtime_path is not None else None,
     )
+    _report_progress(progress_callback, "onboarding_scan", "completed")
     blockers.extend(item for item in readiness.get("blockers", []) if isinstance(item, Mapping))
     discovered_candidates = readiness.get("discovered", {}).get("evaluator_discovery", {})
     has_candidates = (
@@ -463,13 +539,14 @@ def compile_research_plan(
         blockers.append(_blocker("RESEARCH_MODE_PREREQUISITES_MISSING", "因果发现模式需要先绑定可冻结的诊断输入。", "补充适配器 profile、probe contract 和 CPBE 输入。"))
 
     asset_bindings = preview_execution.get("asset_bindings") if preview_execution else None
+    _report_progress(progress_callback, "input_digest", "started")
     if isinstance(asset_bindings, Mapping):
         try:
             bindings = _input_bindings(
                 model=model_path, data=data_path, source=source_path,
                 evaluator=evaluator_path, runtime_python=runtime_path,
                 adapter_profile=selected_profile, model_irg=irg_path,
-                asset_bindings=asset_bindings,
+                asset_bindings=asset_bindings, progress=progress_callback,
             )
         except ResearchRequestError as exc:
             blockers.append(_blocker(_error_code(exc), "研究计划无法锁定所有输入文件。", "确认模型、数据、评测器和适配器资源都存在且可读取。", str(exc)))
@@ -480,11 +557,16 @@ def compile_research_plan(
                 model=model_path, data=data_path, source=source_path,
                 evaluator=evaluator_path, runtime_python=runtime_path,
                 adapter_profile=selected_profile, model_irg=irg_path,
-                asset_bindings=None,
+                asset_bindings=None, progress=progress_callback,
             )
         except ResearchRequestError as exc:
             blockers.append(_blocker(_error_code(exc), "研究计划无法锁定所有输入文件。", "确认模型、数据和评测器都存在且可读取。", str(exc)))
             bindings = {}
+    _report_progress(
+        progress_callback,
+        "input_digest",
+        "completed" if bindings else "blocked",
+    )
     input_digest = _input_digest(bindings) if bindings else None
     state = "blocked" if blockers else ("ready_with_deferred_discovery" if mode_plan and mode_plan.get("state") == "ready_with_deferred_discovery" else "ready")
     request_id = "research-request-" + hashlib.sha256(_canonical({"goal": normalized_goal.strip(), "model": str(model_path), "data": str(data_path), "input_digest": input_digest}).encode("utf-8")).hexdigest()[:24]
@@ -535,6 +617,7 @@ def compile_research_plan(
         validate_document("research_plan", plan, root=repo_root)
     except ContractValidationError as exc:
         raise ResearchRequestError(f"RESEARCH_PLAN_INVALID:{exc}") from exc
+    _report_progress(progress_callback, "plan_compile", "completed")
     return plan
 
 
@@ -576,17 +659,25 @@ def load_research_plan(path: str | Path) -> dict[str, object]:
     return payload
 
 
-def verify_research_plan_inputs(plan: Mapping[str, object]) -> dict[str, object]:
+def verify_research_plan_inputs(
+    plan: Mapping[str, object], *, progress_callback: ResearchProgressCallback | None = None
+) -> dict[str, object]:
     bindings = plan.get("input_bindings")
     if not isinstance(bindings, Mapping) or not bindings:
         raise ResearchRequestError("RESEARCH_PLAN_INPUT_BINDINGS_MISSING")
     current: dict[str, dict[str, object]] = {}
     drift: list[dict[str, object]] = []
+    _report_progress(progress_callback, "input_verification", "started")
     for name, expected in sorted(bindings.items()):
         if not isinstance(expected, Mapping) or not isinstance(expected.get("path"), str):
             raise ResearchRequestError("RESEARCH_PLAN_INPUT_BINDING_INVALID")
         try:
-            observed = _path_digest(Path(str(expected["path"])))
+            observed = _path_digest(
+                Path(str(expected["path"])),
+                source_tree=_is_source_binding(str(name)),
+                progress=progress_callback,
+                input_name=str(name),
+            )
         except ResearchRequestError as exc:
             drift.append({"name": name, "code": _error_code(exc), "detail": str(exc)})
             continue
@@ -596,13 +687,16 @@ def verify_research_plan_inputs(plan: Mapping[str, object]) -> dict[str, object]
     observed_digest = _input_digest(current)
     if observed_digest != plan.get("input_digest"):
         drift.append({"name": "input_bindings", "code": "INPUT_DIGEST_DRIFT", "expected": plan.get("input_digest"), "observed": observed_digest})
+    _report_progress(progress_callback, "input_verification", "blocked" if drift else "completed")
     return {"state": "verified" if not drift else "blocked", "input_digest": observed_digest, "drift": drift}
 
 
-def plan_to_campaign_payload(plan: Mapping[str, object]) -> dict[str, object]:
+def plan_to_campaign_payload(
+    plan: Mapping[str, object], *, progress_callback: ResearchProgressCallback | None = None
+) -> dict[str, object]:
     if plan.get("state") not in {"ready", "ready_with_deferred_discovery"}:
         raise ResearchRequestError("RESEARCH_PLAN_BLOCKED")
-    verification = verify_research_plan_inputs(plan)
+    verification = verify_research_plan_inputs(plan, progress_callback=progress_callback)
     if verification["state"] != "verified":
         raise ResearchRequestError("RESEARCH_PLAN_INPUT_DIGEST_DRIFT")
     preview = plan.get("adapter_preview")
@@ -645,12 +739,13 @@ def run_research_plan(
     confirm: bool,
     queue_only: bool = False,
     max_parallel: int = 1,
+    progress_callback: ResearchProgressCallback | None = None,
 ) -> dict[str, object]:
     """Create/confirm/dispatch a plan through CampaignStore after one confirmation."""
 
     if not confirm:
         return {"state": "awaiting_confirmation", "plan_id": plan.get("plan_id"), "plan_digest": plan.get("plan_digest"), "next_step": "再次运行 verdiwm research run --plan PLAN --confirm。"}
-    payload = plan_to_campaign_payload(plan)
+    payload = plan_to_campaign_payload(plan, progress_callback=progress_callback)
     created = store.create(payload)
     queued = store.confirm(str(created["campaign_id"]))
     if queue_only:

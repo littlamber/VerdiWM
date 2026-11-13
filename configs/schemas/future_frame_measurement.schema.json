@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "evaluator_id", "freeze_record_sha256", "input_videos_sha256", "metrics", "per_frame", "diagnostic_only", "promotion_allowed", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1}, "artifact_type": {"const": "verdiwm-future-frame-measurement"},
+    "evaluator_id": {"type": "string", "minLength": 1}, "freeze_record_sha256": {"$ref": "#/$defs/hash"},
+    "input_videos_sha256": {"type": "object", "additionalProperties": false, "required": ["prediction", "ground_truth"], "properties": {"prediction": {"$ref": "#/$defs/hash"}, "ground_truth": {"$ref": "#/$defs/hash"}}},
+    "metrics": {
+      "type": "object", "additionalProperties": false, "required": ["future_frame_count", "aggregate_mse", "psnr_db", "psnr_is_infinite", "global_ssim_rgb"],
+      "properties": {"future_frame_count": {"const": 12}, "aggregate_mse": {"type": "number", "minimum": 0}, "psnr_db": {"type": ["number", "null"]}, "psnr_is_infinite": {"type": "boolean"}, "global_ssim_rgb": {"type": "number", "minimum": -1, "maximum": 1}}
+    },
+    "per_frame": {
+      "type": "array", "minItems": 12, "maxItems": 12,
+      "items": {"type": "object", "additionalProperties": false, "required": ["video_frame_index", "mse", "global_ssim_rgb"], "properties": {"video_frame_index": {"type": "integer", "minimum": 1, "maximum": 12}, "mse": {"type": "number", "minimum": 0}, "global_ssim_rgb": {"type": "number", "minimum": -1, "maximum": 1}}}
+    },
+    "diagnostic_only": {"const": true}, "promotion_allowed": {"const": false}, "claim_boundary": {"type": "string", "minLength": 1}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+}

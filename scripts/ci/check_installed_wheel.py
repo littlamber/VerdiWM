@@ -40,6 +40,63 @@ def probe_effect_queue() -> None:
     subprocess.run(command[:3] + ["--help"], cwd=root, check=True, stdout=subprocess.DEVNULL)
 
 
+def probe_diagnostic_memory() -> None:
+    """Check the installed paired-memory services and their schema resources."""
+    from wmloop.contracts import ContractValidationError, validate_document
+    from wmloop.diagnose.paired_observation import build_wan_history_observations
+    from wmloop.evaluate.future_video_metrics import freeze_future_video_protocol
+    from wmloop.retrieve.paired_prior import apply_paired_observation_priors
+
+    comparison = {
+        "primitive": "history_sparse_dilation",
+        "baseline_history_rollout_dilation": 2,
+        "allowed_candidate_history_rollout_dilations": [1, 3],
+        "config_fields": ["world_model.history_rollout_dilation", "wm_training.history_rollout_dilation"],
+        "episode_id": 0, "frame_now": 40, "seed": 1, "split": "val",
+        "inference_steps": 25, "max_chunks": 1,
+        "identical_ground_truth_bytes_required": True,
+        "other_config_semantics_must_match": True, "weights_fixed": True, "data_fixed": True,
+    }
+    freeze_future_video_protocol(
+        protocol={"evaluator_id": "installation-fixture", "ranking_primary_metric": "psnr_db",
+                  "metric_tie_epsilon": 0.0, "comparison": comparison},
+        output_root=Path.cwd() / "diagnostic-memory-fixture" / "frozen",
+    )
+    query = {
+        "primitive": "history_sparse_dilation", "metric_name": "psnr_db", "metric_direction": "higher",
+        "protocol_sha256": "0" * 64, "context_sha256": "1" * 64, "seed": 1,
+        "control_parameters": {"history_rollout_dilation": 2},
+        "candidate_parameters": {"history_rollout_dilation": 1},
+    }
+    validate_document("diagnostic_paired_query", query)
+    try:
+        validate_document("diagnostic_paired_query", {**query, "seed": True})
+    except ContractValidationError:
+        pass
+    else:
+        raise RuntimeError("WHEEL_PAIRED_QUERY_SCHEMA_NOT_ENFORCED")
+    if not callable(build_wan_history_observations) or not callable(apply_paired_observation_priors):
+        raise RuntimeError("WHEEL_PAIRED_MEMORY_SERVICE_MISSING")
+
+
+def probe_literature_staging() -> None:
+    """Stage empty offline literature in the installed distribution."""
+    from wmloop.retrieve.method_staging import run_literature_method_staging
+
+    root = Path.cwd() / "literature-staging-fixture"
+    root.mkdir()
+    retrieval = root / "retrieval.json"
+    retrieval.write_text(json.dumps({"artifact_type": "verdiwm-literature-retrieval-manifest", "rows": []}))
+    manifest = run_literature_method_staging(
+        literature_manifest=retrieval, output_root=root / "staging", repo_root=root,
+    )
+    report = json.loads(Path(manifest["report_path"]).read_bytes())
+    if (manifest["state"] != "ready" or manifest["record_count"] != 0
+        or report.get("source_revision_kind") != "source_tree_sha256"
+        or not report["source_revision"].startswith("source_tree_sha256:")):
+        raise RuntimeError("WHEEL_LITERATURE_SOURCE_IDENTITY_INVALID")
+
+
 def probe() -> None:
     from wmloop.contracts import ContractValidationError, validate_document
     from wmloop.experiments.formal_visualization import AcwmFormalVisualizationError, run_export
@@ -100,8 +157,10 @@ def probe() -> None:
         server.shutdown()
         thread.join(timeout=2)
         server.server_close()
-    logging.info("Installed wheel: schema validation, exporter, UI assets and entrypoints passed")
     probe_effect_queue()
+    probe_diagnostic_memory()
+    probe_literature_staging()
+    logging.info("Installed wheel: schema validation, exporter, UI assets and entrypoints passed")
 
 
 def main() -> None:
@@ -154,6 +213,8 @@ def main() -> None:
             ("verdiwm-generate-method", ["--help"]),
             ("verdiwm-calibrate-method", ["--help"]),
             ("verdiwm-run-open-method-study", ["--help"]),
+            ("verdiwm-auto-experiment", ["--help"]),
+            ("verdiwm-auto-scheduler", ["--help"]),
             ("verdiwm-ctrl-world-autonomous-transfer", ["--help"]),
         ):
             subprocess.run([str(root / "env/bin" / name), *arguments], check=True, cwd=root, env=environment, stdout=subprocess.DEVNULL)

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object", "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "identity", "numeric_recipe", "diagnostic_only", "files", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1}, "artifact_type": {"const": "verdiwm-frozen-future-video-recipe"},
+    "identity": {"type": "string", "minLength": 1}, "numeric_recipe": {"const": "wan-future-rgb-v1"},
+    "diagnostic_only": {"const": true}, "claim_boundary": {"type": "string", "minLength": 12},
+    "files": {
+      "type": "object", "additionalProperties": false, "required": ["protocol.json", "future_video_recipe.py"],
+      "properties": {"protocol.json": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "future_video_recipe.py": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+    }
+  }
+}

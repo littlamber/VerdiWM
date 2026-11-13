@@ -146,7 +146,7 @@
           }
         },
         "cuda_hidden": {"type": "boolean"},
-        "probe_timeout_seconds": {"type": "number", "exclusiveMinimum": 0}
+        "probe_timeout_seconds": {"type": "number", "exclusiveMinimum": 0, "maximum": 300}
       }
     },
     "capabilities": {

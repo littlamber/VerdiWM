@@ -1,8 +1,7 @@
 """Execute a compiled four-arm open-method study with frozen verification.
 
 Generated candidate processes may produce artifacts, but only a separately
-bound verifier can produce evaluation rows. Selection is exploratory; only a
-complete paired confirmation result may enter local effect memory.
+bound verifier can produce evaluation rows. Both phases are exploratory until verify-layer settlement and archive binding are supported.
 """
 from __future__ import annotations
 
@@ -23,10 +22,9 @@ from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.method_calibration import run_method_calibration
 from wmloop.execute.gpu_lease import GpuLeaseManager
 from wmloop.execute.open_method_runtime import load_compilation, run_candidate_operation, run_local_command, resolve_runtime_python
-from wmloop.geometry.mechanism_relations import build_mechanism_relation, classify_interaction
-from wmloop.geometry.memory import EffectContext, EffectMemory, EffectRecord
+from wmloop.process_lifecycle import LocalCommandSignals
 from wmloop.runtime_env import default_lock_root
-from wmloop.storage import atomic_write, canonical_bytes, checked_path, sha256_bytes
+from wmloop.storage import atomic_write, canonical_bytes, checked_path, exclusive_file_lock, sha256_bytes
 
 
 ROLES = ("baseline", "source_only", "target_only", "combined")
@@ -75,13 +73,18 @@ def build_open_method_verifier(
 
     root = checked_path(verifier_root, code="OPEN_VERIFIER_ROOT_INVALID", error=OpenMethodStudyExecutionError)
     destination = checked_path(output_path, code="OPEN_VERIFIER_OUTPUT_INVALID", error=OpenMethodStudyExecutionError)
+    # Implementation paths are interpreted relative to the verifier document
+    # at execution time. Reject a spec that would be frozen against a different
+    # directory and then fail (or bind different files) when loaded.
+    if destination.parent != root:
+        raise OpenMethodStudyExecutionError("OPEN_VERIFIER_OUTPUT_ROOT_MISMATCH")
     if destination.exists() or destination.is_symlink():
         raise OpenMethodStudyExecutionError("OPEN_VERIFIER_OUTPUT_EXISTS")
     files: list[dict[str, str]] = []
     for relative in implementation_files:
         pure = _relative_path(relative, "OPEN_VERIFIER_IMPLEMENTATION_PATH_INVALID")
-        source = root.joinpath(*pure.parts)
-        if not source.is_file() or source.is_symlink():
+        source = checked_path(root.joinpath(*pure.parts), code="OPEN_VERIFIER_IMPLEMENTATION_PATH_INVALID", error=OpenMethodStudyExecutionError)
+        if not source.is_file():
             raise OpenMethodStudyExecutionError("OPEN_VERIFIER_IMPLEMENTATION_MISSING")
         files.append({"relative_path": str(pure), "sha256": _file_digest(source)})
     document: dict[str, object] = {
@@ -100,7 +103,11 @@ def build_open_method_verifier(
     document["verifier_id"] = "open-verifier-" + _digest(document)[:24]
     _validate_verifier(document, verifier_path=destination, check_bytes=False)
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    atomic_write(destination, canonical_bytes(document) + b"\n")
+    lock = checked_path(destination.with_name(f".{destination.name}.lock"), code="OPEN_VERIFIER_OUTPUT_INVALID", error=OpenMethodStudyExecutionError)
+    with exclusive_file_lock(lock):
+        if destination.exists() or destination.is_symlink():
+            raise OpenMethodStudyExecutionError("OPEN_VERIFIER_OUTPUT_EXISTS")
+        atomic_write(destination, canonical_bytes(document) + b"\n")
     return document
 
 
@@ -175,64 +182,67 @@ def execute_open_method_study(
     calibration_ok = all(row["state"] == "passed" for row in calibrations)
     manager = lease_manager or GpuLeaseManager(lock_root=lock_root)
     trials: list[dict[str, object]] = []
-    if calibration_ok:
-        work = [(arm, int(seed)) for arm in study["arms"] for seed in study["paired_seeds"]]
+    def run_phase(phase: str, seeds: Sequence[int]) -> list[dict[str, object]]:
+        work = [(arm, int(seed)) for arm in study["arms"] for seed in seeds]
+        phase_trials: list[dict[str, object]] = []
         workers = min(max_parallel, len(work), len(indices))
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="verdiwm-open-study") as pool:
+        with LocalCommandSignals() as signal_scope, ThreadPoolExecutor(max_workers=workers, thread_name_prefix="verdiwm-open-study") as pool:
             futures = {
                 pool.submit(
                     _run_trial,
-                    study_path=study_path,
-                    study=study,
-                    arm=arm,
-                    method=arm_methods[str(arm["role"])],
-                    seed=seed,
-                    paths=paths,
-                    verifier_spec=verifier_spec,
-                    output_root=destination / "trials" / str(arm["role"]) / f"seed-{seed}",
-                    runtime_python=runtime,
-                    gpu_indices=indices,
-                    lease_manager=manager,
-                    gpu_wait_seconds=gpu_wait_seconds,
+                    study_path=study_path, study=study, arm=arm,
+                    method=arm_methods[str(arm["role"])], seed=seed, phase=phase,
+                    paths=paths, verifier_spec=verifier_spec,
+                    output_root=destination / "trials" / phase / str(arm["role"]) / f"seed-{seed}",
+                    runtime_python=runtime, gpu_indices=indices, lease_manager=manager,
+                    gpu_wait_seconds=gpu_wait_seconds, signal_scope=signal_scope,
                 ): (str(arm["role"]), seed)
                 for arm, seed in work
             }
             for future in as_completed(futures):
                 role, seed = futures[future]
                 try:
-                    trials.append(future.result())
-                except BaseException as exc:
+                    phase_trials.append(future.result())
+                except Exception as exc:
                     failure = _failed_trial(role, seed, exc)
-                    trial_root = destination / "trials" / role / f"seed-{seed}"
+                    trial_root = destination / "trials" / phase / role / f"seed-{seed}"
                     trial_root.mkdir(mode=0o700, parents=True, exist_ok=True)
                     _write_json(trial_root / "trial.json", failure)
-                    trials.append(failure)
-    trials.sort(key=lambda row: (ROLES.index(str(row["role"])), int(row["seed"])))
+                    phase_trials.append(failure)
+        phase_trials.sort(key=lambda row: (ROLES.index(str(row["role"])), int(row["seed"])))
+        return phase_trials
 
+    if calibration_ok:
+        trials.extend(run_phase("selection", study["paired_seeds"]))
+    selection = _settle_phase(study, trials, verifier_spec, phase="selection", expected_units=set(_read_json(paths["selection_split"])["episode_ids"]))
+    selection_cost = sum(float(row.get("gpu_seconds", 0.0)) for row in trials) / 3600.0
+    if (calibration_ok and selection["state"] == "settled"
+            and all(row["state"] == "passed" for row in trials)
+            and selection_cost <= float(study["budget_gpu_hours"])):
+        trials.extend(run_phase("confirmation", study["confirmation_seeds"]))
+    confirmation = _settle_phase(study, trials, verifier_spec, phase="confirmation", expected_units=set(_read_json(paths["confirmation_split"])["episode_ids"]))
     actual_gpu_hours = sum(float(row.get("gpu_seconds", 0.0)) for row in trials) / 3600.0
     budget_ok = actual_gpu_hours <= float(study["budget_gpu_hours"])
 
-    selection = _settle_phase(study, trials, verifier_spec, phase="selection")
-    confirmation = _settle_phase(study, trials, verifier_spec, phase="confirmation")
     if not budget_ok:
         selection = {"state": "abstained", "phase": "selection", "reason": "ACTUAL_GPU_BUDGET_EXCEEDED", "actual_gpu_hours": actual_gpu_hours, "budget_gpu_hours": study["budget_gpu_hours"]}
         confirmation = {"state": "abstained", "phase": "confirmation", "reason": "ACTUAL_GPU_BUDGET_EXCEEDED", "actual_gpu_hours": actual_gpu_hours, "budget_gpu_hours": study["budget_gpu_hours"]}
     cas = ContentAddressedStore(destination / "evidence")
     evidence_index = _archive_raw_files(destination, cas)
-    knowledge = _write_knowledge(
-        output_root=destination / "knowledge",
-        study=study,
-        arm_methods=arm_methods,
-        settlement=confirmation,
-        verifier_spec=verifier_spec,
-        evidence_index=evidence_index,
-    )
+    frozen_inputs = _archive_frozen_inputs(study_path, study, paths, verifier_spec, cas)
+    frozen_inputs_ref = cas.put_bytes(canonical_bytes(frozen_inputs), media_type="application/json")
+    # Bind the raw file mapping into the execution receipt. The on-disk index
+    # remains a convenience view and must not itself be treated as authority.
+    raw_manifest_ref = cas.put_bytes(canonical_bytes(evidence_index), media_type="application/json")
+    knowledge = _write_knowledge()
     state = "failed" if not calibration_ok or not budget_ok else ("completed" if confirmation["state"] == "settled" else "abstained")
     public_trials = [{key: value for key, value in row.items() if key != "_evaluation_documents"} for row in trials]
     receipt: dict[str, object] = {
         "schema_version": 1,
         "artifact_type": "verdiwm-open-method-study-execution",
         "study_id": study["study_id"],
+        "raw_evidence_manifest_ref": raw_manifest_ref.uri,
+        "frozen_inputs_manifest_ref": frozen_inputs_ref.uri,
         "state": state,
         "input_binding": input_binding,
         "split_validation": split_validation,
@@ -259,16 +269,21 @@ def execute_open_method_study(
         validate_document("open_method_study_execution", receipt)
     except ContractValidationError as exc:
         raise OpenMethodStudyExecutionError(f"OPEN_EXECUTION_RECEIPT_INVALID:{exc}") from exc
+    # Do not publish a successful receipt until the bound inputs and study
+    # have been checked again after execution. Partial outputs may remain for
+    # diagnosis, but they must not look like a settled execution.
+    _verify_bound_inputs(study, paths, verifier_spec)
+    if _load_study(study_path) != study:
+        raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_CHANGED")
     _write_json(destination / "execution.json", receipt)
     final_ref = cas.put_bytes((destination / "execution.json").read_bytes(), media_type="application/json")
     _write_json(destination / "evidence-index.json", {"raw": evidence_index, "execution_receipt": final_ref.uri})
-    _verify_bound_inputs(study, paths, verifier_spec)
-    _load_study(study_path)
     return receipt
 
 
 def _load_study(root: Path) -> dict[str, object]:
-    study = _read_json(root / "study.json")
+    manifest = checked_path(root / "study.json", code="OPEN_EXECUTION_STUDY_PATH_INVALID", error=OpenMethodStudyExecutionError)
+    study = _read_json(manifest)
     if study.get("artifact_type") != "verdiwm-open-method-study" or study.get("state") != "ready_for_calibration":
         raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_NOT_READY")
     if study.get("study_id", "").startswith("open-study-") is False:
@@ -282,15 +297,37 @@ def _load_study(root: Path) -> dict[str, object]:
     expected = study.get("file_sha256")
     if not isinstance(expected, Mapping):
         raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_FILES_MISSING")
-    actual = {
-        path.relative_to(root).as_posix(): _file_digest(path)
-        for path in sorted(root.rglob("*"))
-        if path.is_file() and path.name != "study.json"
-    }
+    actual = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink():
+            raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_SYMLINK")
+        if path == manifest:
+            continue
+        if path.is_file():
+            actual[path.relative_to(root).as_posix()] = _file_digest(path)
+        elif not path.is_dir():
+            raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_TYPE_INVALID")
     if dict(expected) != actual:
         raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_CHANGED")
     if not study.get("paired_seeds") or len(set(study["paired_seeds"])) != len(study["paired_seeds"]):
         raise OpenMethodStudyExecutionError("OPEN_EXECUTION_SEEDS_INVALID")
+    confirmation = study.get("confirmation_seeds")
+    seeds = study["paired_seeds"]
+    if (not isinstance(confirmation, list) or len(confirmation) < 2
+            or any(type(seed) is not int or not 0 <= seed < 2**32 for seed in [*seeds, *confirmation])
+            or len(set(confirmation)) != len(confirmation) or set(seeds) & set(confirmation)):
+        raise OpenMethodStudyExecutionError("OPEN_EXECUTION_CONFIRMATION_SEEDS_INVALID")
+    try:
+        costs = [row["estimated_gpu_hours_per_seed"] for row in arms]
+        budget = study["budget_gpu_hours"]
+        estimate = study["estimated_total_gpu_hours"]
+        if (any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0
+                for value in [*costs, budget, estimate])
+                or not math.isclose(estimate, sum(costs) * (len(seeds) + len(confirmation)), rel_tol=1e-12)
+                or estimate > budget):
+            raise ValueError
+    except (KeyError, TypeError, ValueError):
+        raise OpenMethodStudyExecutionError("OPEN_EXECUTION_BUDGET_INVALID") from None
     return study
 
 
@@ -311,7 +348,7 @@ def _verify_bound_inputs(study: Mapping[str, object], paths: Mapping[str, Path],
     verifier_root = paths["verifier"].parent
     for row in files:
         pure = _relative_path(str(row["relative_path"]), "OPEN_EXECUTION_VERIFIER_PATH_INVALID")
-        candidate = verifier_root / pure
+        candidate = checked_path(verifier_root / pure, code="OPEN_EXECUTION_VERIFIER_PATH_INVALID", error=OpenMethodStudyExecutionError)
         if not candidate.is_file() or _file_digest(candidate) != row["sha256"]:
             raise OpenMethodStudyExecutionError("OPEN_EXECUTION_VERIFIER_CHANGED")
     return mapping
@@ -325,7 +362,9 @@ def _validate_disjoint_splits(paths: Mapping[str, Path]) -> dict[str, object]:
         try:
             payload = _read_json(path)
             raw = payload.get("episode_ids") if isinstance(payload, Mapping) else None
-            if isinstance(raw, list) and all(isinstance(value, str) and value for value in raw):
+            if (isinstance(raw, list) and raw
+                    and all(isinstance(value, str) and value.strip() for value in raw)
+                    and len(set(raw)) == len(raw)):
                 ids = set(raw)
         except (OSError, ValueError, OpenMethodStudyExecutionError):
             ids = None
@@ -354,12 +393,14 @@ def _run_calibrations(*, study_path: Path, study: Mapping[str, object], output_r
                 runtime_python=runtime_python,
             )
             rows.append({"role": role, "method_id": arm["method_id"], **result})
-        except BaseException as exc:
+        except Exception as exc:
             rows.append({"role": role, "method_id": arm["method_id"], "state": "failed", "error": f"{type(exc).__name__}:{exc}"})
     return rows
 
 
-def _run_trial(*, study_path: Path, study: Mapping[str, object], arm: Mapping[str, object], method: Mapping[str, object], seed: int, paths: Mapping[str, Path], verifier_spec: Mapping[str, object], output_root: Path, runtime_python: Path, gpu_indices: Sequence[int], lease_manager: GpuLeaseManager, gpu_wait_seconds: float) -> dict[str, object]:
+def _run_trial(*, study_path: Path, study: Mapping[str, object], arm: Mapping[str, object], method: Mapping[str, object], seed: int, phase: str, paths: Mapping[str, Path], verifier_spec: Mapping[str, object], output_root: Path, runtime_python: Path, gpu_indices: Sequence[int], lease_manager: GpuLeaseManager, gpu_wait_seconds: float, signal_scope: LocalCommandSignals | None = None) -> dict[str, object]:
+    if signal_scope is not None:
+        signal_scope.check()
     role = str(arm["role"])
     output_root.mkdir(mode=0o700, parents=True, exist_ok=False)
     lease = lease_manager.acquire(gpu_indices, wait_seconds=gpu_wait_seconds)
@@ -370,43 +411,54 @@ def _run_trial(*, study_path: Path, study: Mapping[str, object], arm: Mapping[st
         common = {
             "study_id": study["study_id"], "method_id": method["method_id"], "role": role, "seed": seed,
             "checkpoint": str(paths["checkpoint"]), "train_split": str(paths["train_split"]),
-            "selection_split": str(paths["selection_split"]), "confirmation_split": str(paths["confirmation_split"]),
             "verifier_id": verifier_spec["verifier_id"],
         }
         mode = str(method["training"]["mode"])
-        operation_count = 3 if mode == "training" else 2
+        operation_count = 2 if mode == "training" else 1
         operation_timeout = float(arm["estimated_gpu_hours_per_seed"]) * 3600.0 / operation_count
         if mode == "training":
             train = run_candidate_operation(
                 compilation_root=study_path / str(arm["bundle_path"]), operation="train", input_document={**common, "phase": "train"},
                 output_root=output_root / "train", timeout_seconds=operation_timeout,
-                runtime_python=runtime_python, gpu_devices=(lease.index,),
+                runtime_python=runtime_python, gpu_devices=(lease.index,), signal_scope=signal_scope,
             )
             operations.append(train)
-        for phase in PHASES:
+        if not operations or operations[-1]["state"] == "passed":
             split_key = "selection_split" if phase == "selection" else "confirmation_split"
             infer = run_candidate_operation(
                 compilation_root=study_path / str(arm["bundle_path"]), operation="infer", input_document={**common, "phase": phase, "split": str(paths[split_key]), "prior_artifacts": [str(output_root / "train" / "artifacts")] if mode == "training" else []},
                 output_root=output_root / phase, timeout_seconds=operation_timeout,
-                runtime_python=runtime_python, gpu_devices=(lease.index,),
+                runtime_python=runtime_python, gpu_devices=(lease.index,), signal_scope=signal_scope,
             )
             operations.append(infer)
-            if infer["state"] != "passed":
-                break
-            eval_doc = _run_frozen_verifier(verifier_spec=verifier_spec, verifier_root=paths["verifier"].parent, candidate_output=Path(str(infer["artifacts"])), input_document={**common, "phase": phase, "split": str(paths[split_key]), "artifacts": str(infer["artifacts"])}, output_root=output_root / f"verify-{phase}", runtime_python=runtime_python)
-            documents.append(eval_doc)
+            if infer["state"] == "passed":
+                eval_doc = _run_frozen_verifier(verifier_spec=verifier_spec, verifier_root=paths["verifier"].parent, candidate_output=Path(str(infer["artifacts"])), input_document={**common, "phase": phase, "split": str(paths[split_key]), "artifacts": str(infer["artifacts"])}, output_root=output_root / f"verify-{phase}", runtime_python=runtime_python, signal_scope=signal_scope)
+                documents.append(eval_doc)
         operation_seconds = sum(float(row.get("duration_seconds", 0.0)) for row in operations)
-        within_budget = operation_seconds <= float(arm["estimated_gpu_hours_per_seed"]) * 3600.0
+        # The device remains leased during verification and orchestration too.
+        # Charge the full lease rather than undercounting only child operations.
+        lease_seconds = time.monotonic() - started
+        charged_seconds = max(operation_seconds, lease_seconds)
+        within_budget = charged_seconds <= float(arm["estimated_gpu_hours_per_seed"]) * 3600.0
         evaluations_valid = _evaluation_gates_valid(documents, verifier_spec)
         state = (
             "passed"
-            if len(documents) == 2
+            if len(documents) == 1
             and within_budget
             and all(row.get("state") == "passed" for row in operations)
             and evaluations_valid
             else "failed"
         )
-        result = {"role": role, "method_id": method["method_id"], "seed": seed, "state": state, "gpu_lease": lease.to_document(), "gpu_seconds": operation_seconds, "lease_seconds": time.monotonic() - started, "budget_state": "within_bound" if within_budget else "exceeded", "operations": operations, "evaluations": documents, "_evaluation_documents": documents}
+        result = {"role": role, "method_id": method["method_id"], "seed": seed, "state": state, "gpu_lease": lease.to_document(), "gpu_seconds": charged_seconds, "lease_seconds": lease_seconds, "budget_state": "within_bound" if within_budget else "exceeded", "operations": operations, "evaluations": documents, "_evaluation_documents": documents}
+    except Exception as exc:
+        # Failed attempts still consume the lease and must count toward the
+        # study budget. Keep their partial operations for diagnosis.
+        lease_seconds = time.monotonic() - started
+        result = {"role": role, "method_id": method["method_id"], "seed": seed,
+                  "state": "failed", "error": f"{type(exc).__name__}:{exc}",
+                  "gpu_lease": lease.to_document(), "gpu_seconds": lease_seconds,
+                  "lease_seconds": lease_seconds, "budget_state": "exceeded" if lease_seconds > float(arm["estimated_gpu_hours_per_seed"]) * 3600.0 else "within_bound",
+                  "operations": operations, "evaluations": documents, "_evaluation_documents": documents}
     finally:
         lease.release()
     _write_json(output_root / "trial.json", {key: value for key, value in result.items() if key != "_evaluation_documents"})
@@ -425,7 +477,7 @@ def _evaluation_gates_valid(
     claim success even though the phase must abstain.
     """
 
-    if len(documents) != 2:
+    if len(documents) != 1:
         return False
     required = set(verifier_spec["required_validity_gates"]) | {
         "verifier_process",
@@ -433,17 +485,17 @@ def _evaluation_gates_valid(
         "identity_binding",
     }
     return all(
-        all(bool(document.get("validity_gates", {}).get(gate)) for gate in required)
+        all(document.get("validity_gates", {}).get(gate) is True for gate in required)
         for document in documents
     )
 
 
-def _run_frozen_verifier(*, verifier_spec: Mapping[str, object], verifier_root: Path, candidate_output: Path, input_document: Mapping[str, object], output_root: Path, runtime_python: Path) -> dict[str, object]:
+def _run_frozen_verifier(*, verifier_spec: Mapping[str, object], verifier_root: Path, candidate_output: Path, input_document: Mapping[str, object], output_root: Path, runtime_python: Path, signal_scope: LocalCommandSignals | None = None) -> dict[str, object]:
     output_root.mkdir(mode=0o700, parents=True, exist_ok=False)
     manifest = output_root / "input.json"
     _write_json(manifest, {**input_document, "candidate_output": str(candidate_output)})
     command = list(verifier_spec["command"])
-    receipt = run_local_command(command=command, cwd=verifier_root, output_root=output_root / "process", timeout_seconds=3600.0, runtime_python=runtime_python, gpu_devices=(), replacements={"candidate_root": candidate_output, "input_manifest": manifest, "output_root": output_root / "result", "world_size": 1, "rank": 0})
+    receipt = run_local_command(command=command, cwd=verifier_root, output_root=output_root / "process", timeout_seconds=3600.0, runtime_python=runtime_python, gpu_devices=(), signal_scope=signal_scope, replacements={"candidate_root": candidate_output, "input_manifest": manifest, "output_root": output_root / "result", "world_size": 1, "rank": 0})
     result_path = output_root / "result" / "evaluation.json"
     if receipt["state"] != "passed" or not result_path.is_file():
         return {"schema_version": 1, "artifact_type": "verdiwm-open-method-evaluation", "state": "failed", "validity_gates": {"verifier_process": False}, "error": receipt.get("error") or "EVALUATION_OUTPUT_MISSING"}
@@ -468,19 +520,30 @@ def _run_frozen_verifier(*, verifier_spec: Mapping[str, object], verifier_root: 
     return payload
 
 
-def _settle_phase(study: Mapping[str, object], trials: Sequence[Mapping[str, object]], verifier: Mapping[str, object], *, phase: str) -> dict[str, object]:
+def _settle_phase(study: Mapping[str, object], trials: Sequence[Mapping[str, object]], verifier: Mapping[str, object], *, phase: str, expected_units: set[str]) -> dict[str, object]:
+    seeds = [int(seed) for seed in study["paired_seeds" if phase == "selection" else "confirmation_seeds"]]
+    required = {(role, seed) for role in ROLES for seed in seeds}
     observations: dict[tuple[str, int], Mapping[str, object]] = {}
+    seen: set[tuple[str, int]] = set()
     for trial in trials:
+        key = (str(trial["role"]), int(trial["seed"]))
+        if key not in required:
+            continue
+        if key in seen:
+            return {"state": "abstained", "phase": phase, "reason": "DUPLICATE_PAIRED_TRIAL"}
+        seen.add(key)
+        if trial.get("state") != "passed":
+            return {"state": "abstained", "phase": phase, "reason": "PAIRED_TRIAL_FAILED"}
         for evaluation in trial.get("evaluations", []):
             if evaluation.get("phase") == phase:
-                observations[(str(trial["role"]), int(trial["seed"]))] = evaluation
-    seeds = [int(seed) for seed in study["paired_seeds"]]
-    required = {(role, seed) for role in ROLES for seed in seeds}
+                if key in observations:
+                    return {"state": "abstained", "phase": phase, "reason": "DUPLICATE_PAIRED_OBSERVATION"}
+                observations[key] = evaluation
     complete = required <= set(observations)
     if not complete:
         return {"state": "abstained", "phase": phase, "reason": "INCOMPLETE_PAIRED_OBSERVATIONS", "observed": len(observations), "required": len(required)}
     required_gates = set(verifier["required_validity_gates"]) | {"verifier_process", "evaluation_schema", "identity_binding"}
-    if any(not all(bool(doc.get("validity_gates", {}).get(gate)) for gate in required_gates) for doc in observations.values()):
+    if any(not all(doc.get("validity_gates", {}).get(gate) is True for gate in required_gates) for doc in observations.values()):
         return {"state": "abstained", "phase": phase, "reason": "VALIDITY_GATE_FAILED"}
     unit_maps: dict[tuple[str, int], dict[str, Mapping[str, object]]] = {}
     for key, document in observations.items():
@@ -492,6 +555,8 @@ def _settle_phase(study: Mapping[str, object], trials: Sequence[Mapping[str, obj
     common_units = set.intersection(*(set(value) for value in unit_maps.values()))
     if len(common_units) < 2 or any(set(value) != common_units for value in unit_maps.values()):
         return {"state": "abstained", "phase": phase, "reason": "PAIRED_UNIT_MISMATCH"}
+    if common_units != expected_units:
+        return {"state": "abstained", "phase": phase, "reason": "SPLIT_EPISODE_COVERAGE_MISMATCH"}
     metric_rows: dict[str, object] = {}
     for metric in [*verifier["primary_metrics"], *verifier["protected_metrics"]]:
         policy = verifier["metric_policy"][metric]
@@ -515,58 +580,68 @@ def _settle_phase(study: Mapping[str, object], trials: Sequence[Mapping[str, obj
             interactions.append(role_values["combined"] - role_values["source_only"] - role_values["target_only"] + role_values["baseline"])
         metric_rows[metric] = {"means": {role: statistics.mean(values) for role, values in per_role.items()}, "effects_vs_baseline": {role: _estimate(values) for role, values in effects.items()}, "interaction": _estimate(interactions), "unit_count": len(common_units), "direction_normalized": True}
     primary = str(verifier["primary_metrics"][0])
-    return {"state": "settled", "phase": phase, "primary_metric": primary, "metrics": metric_rows, "paired_units": len(common_units), "paired_seeds": len(seeds), "exploratory": phase == "selection"}
+    result = {"state": "settled", "phase": phase, "primary_metric": primary, "metrics": metric_rows, "paired_units": len(common_units), "paired_seeds": len(seeds), "exploratory": True}
+    if phase == "confirmation":
+        # Independent observations still require verify-layer formal settlement
+        # and settled, CAS-bound archive evidence before they can enter memory.
+        result.update(state="abstained", reason="FORMAL_VERIFICATION_REQUIRED")
+    return result
 
 
-def _write_knowledge(*, output_root: Path, study: Mapping[str, object], arm_methods: Mapping[str, Mapping[str, object]], settlement: Mapping[str, object], verifier_spec: Mapping[str, object], evidence_index: Mapping[str, str]) -> dict[str, object]:
-    output_root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if settlement.get("state") != "settled":
-        return {"state": "abstained", "effect_record_count": 0, "relation_ref": None}
-    primary = str(settlement["primary_metric"])
-    metric_rows = settlement["metrics"]
-    primary_row = metric_rows[primary]
-    means = primary_row["means"]
-    replications = int(settlement["paired_units"])
-    context_spec = verifier_spec["effect_context"]
-    context = EffectContext(campaign_id=str(study["study_id"]), horizons=tuple(context_spec["horizons"]), **{key: str(context_spec[key]) for key in ("backbone_family", "capability_class", "goal_schema", "outcome_schema", "chart_id", "data_regime")})
-    memory = EffectMemory()
-    refs = tuple(evidence_index.values()) or ("cas://unavailable",)
-    records = []
-    for role in ROLES[1:]:
-        estimate = primary_row["effects_vs_baseline"][role]
-        threshold = float(verifier_spec["metric_policy"][primary]["minimum_effect"])
-        protected_ok = all(
-            float(metric_rows[metric]["effects_vs_baseline"][role]["lower_bound"])
-            >= -float(verifier_spec["metric_policy"][metric]["maximum_regression"])
-            for metric in verifier_spec["protected_metrics"]
-        )
-        gates = {"frozen_verifier": True, "paired_confirmation": True, "split_disjoint": True, "protected_metrics": protected_ok}
-        if float(estimate["lower_bound"]) > threshold and protected_ok and replications >= 2:
-            status = "confirmed"
-        elif float(estimate["upper_bound"]) < -threshold:
-            status = "rejected"
-        else:
-            status = "null"
-        record = EffectRecord(record_id=f"{study['study_id']}-{role}", primitive=str(arm_methods[role]["method_id"]), context=context, status=status, mean_effect=float(estimate["mean"]), standard_error=float(estimate["standard_error"]), lower_bound=float(estimate["lower_bound"]), goal_threshold=threshold, validity_gates=gates, replication_count=replications, evidence_refs=refs, notes=("Generated open-method confirmation result; inspect paired unit receipts before reuse.",))
-        memory.add(record)
-        records.append(record.to_dict())
-    interaction = primary_row["interaction"]
-    relation_type = classify_interaction(baseline=float(means["baseline"]), source=float(means["source_only"]), target=float(means["target_only"]), combined=float(means["combined"]), uncertainty=1.96 * float(interaction["standard_error"]))[0]
-    if relation_type == "abstained":
-        relation_type = "conditional_compatibility"
-    relation = build_mechanism_relation(source_mechanism_id=str(arm_methods["source_only"]["method_id"]), target_mechanism_id=str(arm_methods["target_only"]["method_id"]), relation_type=relation_type, composition_operator=str(verifier_spec["composition_operator"]), baseline_effect=float(means["baseline"]), source_effect=float(means["source_only"]), target_effect=float(means["target_only"]), combined_effect=float(means["combined"]), uncertainty=1.96 * float(interaction["standard_error"]), replication_count=replications, required_ablations=["source_only", "target_only", "baseline"], evidence_refs=refs, claim_scope="target_local_confirmation", verification_state="candidate", validity_gates={"frozen_verifier": True, "paired_confirmation": True}, notes=("Relation remains candidate until policy-level scientific review.",))
-    _write_json(output_root / "effect-records.json", {"records": records})
-    _write_json(output_root / "mechanism-relation.json", relation)
-    return {"state": "settled", "effect_record_count": len(records), "effect_records": str(output_root / "effect-records.json"), "relation_ref": str(output_root / "mechanism-relation.json")}
+def _write_knowledge() -> dict[str, object]:
+    """Fail closed until independent formal settlement and archive binding exist."""
+
+    return {"state": "abstained", "effect_record_count": 0, "relation_ref": None}
 
 
 def _archive_raw_files(root: Path, cas: ContentAddressedStore) -> dict[str, str]:
     result: dict[str, str] = {}
     for path in sorted(root.rglob("*")):
-        if path.is_file() and path.name not in {"evidence-index.json"} and "/evidence/cas/" not in path.as_posix():
-            ref = cas.put_bytes(path.read_bytes(), media_type="application/json" if path.suffix == ".json" else "application/octet-stream")
+        if path.is_relative_to(root / "evidence" / "cas"):
+            continue
+        if path.is_symlink():
+            raise OpenMethodStudyExecutionError("OPEN_EXECUTION_EVIDENCE_SYMLINK")
+        if path == root / "evidence-index.json":
+            continue
+        if path.is_file():
+            ref = cas.put_file(path, media_type="application/json" if path.suffix == ".json" else "application/octet-stream")
             result[path.relative_to(root).as_posix()] = ref.uri
+        elif not path.is_dir():
+            raise OpenMethodStudyExecutionError("OPEN_EXECUTION_EVIDENCE_TYPE_INVALID")
     return result
+
+
+def _archive_frozen_inputs(study_root: Path, study: Mapping[str, object],
+                           paths: Mapping[str, Path], verifier: Mapping[str, object],
+                           cas: ContentAddressedStore) -> dict[str, object]:
+    """Persist reviewable frozen inputs without copying checkpoint weights."""
+    study_files = _archive_raw_files(study_root, cas)
+    expected_files = study["file_sha256"]
+    if set(study_files) != set(expected_files) | {"study.json"}:
+        raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_CHANGED")
+    if any(study_files[name] != f"cas://sha256/{digest}" for name, digest in expected_files.items()):
+        raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_CHANGED")
+    if json.loads(cas.read_bytes(study_files["study.json"])) != study:
+        raise OpenMethodStudyExecutionError("OPEN_EXECUTION_STUDY_CHANGED")
+
+    inputs = {}
+    binding = study["experiment_binding"]
+    for name in ("train_split", "selection_split", "confirmation_split", "verifier"):
+        ref = cas.put_file(paths[name], media_type="application/json")
+        if ref.sha256 != binding[f"{name}_digest"]:
+            raise OpenMethodStudyExecutionError("OPEN_EXECUTION_INPUT_BINDING_MISMATCH")
+        inputs[name] = ref.uri
+    implementation = {}
+    for row in verifier["implementation_files"]:
+        name = row["relative_path"]
+        path = checked_path(paths["verifier"].parent / _relative_path(name, "OPEN_VERIFIER_PATH_INVALID"),
+                            code="OPEN_VERIFIER_PATH_INVALID", error=OpenMethodStudyExecutionError)
+        ref = cas.put_file(path, media_type="application/octet-stream")
+        if ref.sha256 != row["sha256"]:
+            raise OpenMethodStudyExecutionError("OPEN_EXECUTION_VERIFIER_CHANGED")
+        implementation[name] = ref.uri
+    return {"study_files": study_files, "inputs": inputs, "verifier_implementation": implementation,
+            "checkpoint_digest": binding["checkpoint_digest"]}
 
 
 def _validate_verifier(document: Mapping[str, object], *, verifier_path: Path, check_bytes: bool = True) -> None:
@@ -589,7 +664,7 @@ def _validate_verifier(document: Mapping[str, object], *, verifier_path: Path, c
     if check_bytes:
         root = verifier_path.parent
         for row in document["implementation_files"]:
-            path = root / _relative_path(row["relative_path"], "OPEN_VERIFIER_PATH_INVALID")
+            path = checked_path(root / _relative_path(row["relative_path"], "OPEN_VERIFIER_PATH_INVALID"), code="OPEN_VERIFIER_PATH_INVALID", error=OpenMethodStudyExecutionError)
             if not path.is_file() or _file_digest(path) != row["sha256"]:
                 raise OpenMethodStudyExecutionError("OPEN_EXECUTION_VERIFIER_CHANGED")
 

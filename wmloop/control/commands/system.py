@@ -115,6 +115,15 @@ def llm(args: argparse.Namespace) -> int:
     return 0
 
 
+def _unexpected_readiness_blocker(readiness_state: object) -> dict[str, object]:
+    return {
+        "code": "PROJECT_READINESS_STATE_UNEXPECTED",
+        "message": "模型接入状态无法确认，系统已停止推进。",
+        "action": "重新运行 verdiwm check；如果问题仍存在，请检查模型接入报告。",
+        "detail": readiness_state,
+    }
+
+
 def check(args: argparse.Namespace) -> int:
     configured: dict[str, Any] = {}
     try:
@@ -173,7 +182,28 @@ def check(args: argparse.Namespace) -> int:
             if code not in seen:
                 deduped.append(dict(row))
                 seen.add(code)
-    state = "ready" if not deduped else "blocked"
+    readiness_state = readiness.get("state")
+    if deduped:
+        state = "blocked"
+    elif readiness_state in {"needs_confirmation", "ready_for_conformance"}:
+        state = str(readiness_state)
+    else:
+        state = "blocked"
+        deduped.append(_unexpected_readiness_blocker(readiness_state))
+    if state == "needs_confirmation":
+        next_step = str(
+            readiness.get("next_step")
+            or "确认评测方法和运行方式后重新运行 verdiwm check。"
+        )
+    elif state == "ready_for_conformance":
+        next_step = (
+            "运行 `verdiwm research plan` 生成并审阅计划；仅当计划状态允许时，"
+            "再用 `verdiwm research run --plan <计划路径> --confirm` 明确启动。"
+        )
+    elif deduped:
+        next_step = "按 blockers 中的 action 补齐信息，然后重新运行 verdiwm check。"
+    else:
+        next_step = str(readiness.get("next_step") or "重新运行 verdiwm check。")
     report = {
         "schema_version": 1,
         "artifact_type": "verdiwm-readiness-report",
@@ -183,12 +213,10 @@ def check(args: argparse.Namespace) -> int:
         "checks": checks,
         "project": readiness,
         "control_plane": doctor,
-        "next_step": "运行 verdiwm run 开始受边界实验。"
-        if state == "ready"
-        else "按 blockers 中的 action 补齐信息，然后重新运行 verdiwm check。",
+        "next_step": next_step,
     }
     emit_json(report)
-    return 0 if state == "ready" else 2
+    return 0 if state == "ready_for_conformance" else 2
 
 
 def diagnose(args: argparse.Namespace) -> int:
@@ -211,13 +239,22 @@ def diagnose(args: argparse.Namespace) -> int:
         else configured.get("runtime_python"),
     )
     discovered = readiness.get("discovered", {})
+    blockers = readiness.get("blockers", [])
+    readiness_state = readiness.get("state")
+    if blockers:
+        state = "blocked"
+    elif readiness_state == "needs_confirmation":
+        state = "needs_confirmation"
+    elif readiness_state == "ready_for_conformance":
+        state = "ready_for_diagnostic_campaign"
+    else:
+        state = "blocked"
+        blockers = [_unexpected_readiness_blocker(readiness_state)]
     report = {
         "schema_version": 1,
         "artifact_type": "verdiwm-model-diagnosis",
-        "state": "ready_for_diagnostic_campaign"
-        if not readiness.get("blockers")
-        else "blocked",
-        "readiness_state": readiness.get("state"),
+        "state": state,
+        "readiness_state": readiness_state,
         "model": readiness.get("model"),
         "source": readiness.get("source"),
         "data": readiness.get("data"),
@@ -233,14 +270,22 @@ def diagnose(args: argparse.Namespace) -> int:
         "source_revision": discovered.get("source_revision")
         if isinstance(discovered, Mapping)
         else None,
-        "blockers": readiness.get("blockers", []),
-        "next_step": "补齐 blockers 后运行 verdiwm check。"
-        if readiness.get("blockers")
-        else "可以运行 verdiwm run 开始诊断和 IRG 探针流程。",
+        "blockers": blockers,
+        "next_step": (
+            str(
+                readiness.get("next_step")
+                or "确认评测方法和运行方式后重新运行 verdiwm diagnose。"
+            )
+            if state == "needs_confirmation"
+            else "按 blockers 中的 action 补齐信息，然后重新运行 verdiwm check。"
+            if state == "blocked"
+            else "运行 `verdiwm research plan` 生成并审阅计划；仅当计划状态允许时，"
+            "再用 `verdiwm research run --plan <计划路径> --confirm` 明确启动。"
+        ),
         "side_effects": {
             "model_import_executed": False,
             "gpu_execution_started": False,
         },
     }
     emit_json(report)
-    return 0 if report["state"] == "ready_for_diagnostic_campaign" else 2
+    return 0 if state == "ready_for_diagnostic_campaign" else 2

@@ -15,6 +15,70 @@ from wmloop.execute.open_method_study_runner import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_raw_evidence_rejects_candidate_symlinks(tmp_path):
+    import hashlib
+    import pytest
+    from wmloop.archive.store import ContentAddressedStore
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError, _archive_raw_files
+
+    root = tmp_path / "execution"
+    root.mkdir()
+    outside = tmp_path / "private.bin"
+    outside.write_bytes(b"private")
+    (root / "candidate-link").symlink_to(outside)
+    cas = ContentAddressedStore(root / "evidence")
+    with pytest.raises(OpenMethodStudyExecutionError, match="EVIDENCE_SYMLINK"):
+        _archive_raw_files(root, cas)
+    digest = hashlib.sha256(b"private").hexdigest()
+    assert not (root / "evidence" / "cas" / digest[:2] / digest).exists()
+
+
+def test_study_loader_rejects_linked_study_files(tmp_path):
+    import pytest
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError, _load_study
+
+    fixture = _runner_fixture(tmp_path)
+    root = fixture["study"]
+    manifest = root / "study.json"
+    study = json.loads(manifest.read_text())
+    original = root / next(iter(study["file_sha256"]))
+    moved = tmp_path / "original"
+    original.rename(moved)
+    original.symlink_to(moved)
+    with pytest.raises(OpenMethodStudyExecutionError, match="STUDY_SYMLINK"):
+        _load_study(root)
+
+
+def test_study_loader_rejects_linked_manifest(tmp_path):
+    import pytest
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError, _load_study
+
+    fixture = _runner_fixture(tmp_path)
+    root = fixture["study"]
+    manifest = root / "study.json"
+    moved = tmp_path / "study-original.json"
+    manifest.rename(moved)
+    manifest.symlink_to(moved)
+    with pytest.raises(OpenMethodStudyExecutionError, match="STUDY_PATH_INVALID"):
+        _load_study(root)
+
+
+def test_frozen_input_snapshot_rejects_changed_verifier(tmp_path):
+    import pytest
+    from wmloop.archive.store import ContentAddressedStore
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError, _archive_frozen_inputs
+
+    fixture = _runner_fixture(tmp_path)
+    study = json.loads((fixture["study"] / "study.json").read_text())
+    verifier = json.loads(fixture["verifier"].read_text())
+    (fixture["verifier"].parent / "verify.py").write_text("changed", encoding="utf-8")
+    paths = {"train_split": fixture["train"], "selection_split": fixture["selection"],
+             "confirmation_split": fixture["confirmation"], "verifier": fixture["verifier"]}
+    with pytest.raises(OpenMethodStudyExecutionError, match="VERIFIER_CHANGED"):
+        _archive_frozen_inputs(fixture["study"], study, paths, verifier,
+                               ContentAddressedStore(tmp_path / "cas-root"))
+
+
 def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
@@ -50,8 +114,8 @@ Path(sys.argv[2], 'evaluation.json').write_text(json.dumps({
     'role': role, 'phase': phase, 'seed': seed, 'verifier_id': input_doc['verifier_id'],
     'validity_gates': {'data_bound': True},
     'unit_metrics': [
-        {'unit_id': 'episode-1', 'metrics': {'identity_error': values[role], 'action_fidelity': 1.0}},
-        {'unit_id': 'episode-2', 'metrics': {'identity_error': values[role], 'action_fidelity': 1.0}},
+        {'unit_id': episode_id, 'metrics': {'identity_error': values[role], 'action_fidelity': 1.0}}
+        for episode_id in json.loads(Path(input_doc['split']).read_text())['episode_ids']
     ],
     'claim_boundary': 'Paired verifier observation only; settlement is performed by the study runner.'
 }))
@@ -113,7 +177,7 @@ Path(sys.argv[2], 'evaluation.json').write_text(json.dumps({
     }
 
 
-def test_study_runner_executes_calibration_paired_verification_and_memory(tmp_path):
+def test_study_runner_retains_observations_without_claiming_independent_confirmation(tmp_path):
     fixture = _runner_fixture(tmp_path)
     result = execute_open_method_study(
         study_root=fixture["study"],
@@ -128,19 +192,46 @@ def test_study_runner_executes_calibration_paired_verification_and_memory(tmp_pa
         max_parallel=1,
         lease_manager=fixture["manager"],
     )
-    assert result["state"] == "completed"
+    assert result["state"] == "abstained"
     assert result["split_validation"]["state"] == "verified"
     assert len(result["calibrations"]) == 4
     assert all(row["state"] == "passed" for row in result["calibrations"])
-    assert len(result["trials"]) == 8
+    assert len(result["trials"]) == 16
     assert all(row["state"] == "passed" for row in result["trials"])
-    assert result["confirmation_settlement"]["state"] == "settled"
-    assert result["knowledge"]["effect_record_count"] == 3
-    assert result["authority"] == {"local_evidence": True, "community_projection": False, "promotion": False}
+    assert result["confirmation_settlement"]["state"] == "abstained"
+    assert result["confirmation_settlement"]["reason"] == "FORMAL_VERIFICATION_REQUIRED"
+    assert result["confirmation_settlement"]["metrics"]
+    selection = [row for row in result["trials"] if row["evaluations"][0]["phase"] == "selection"]
+    confirmation = [row for row in result["trials"] if row["evaluations"][0]["phase"] == "confirmation"]
+    assert {row["seed"] for row in selection} == {11, 22}
+    assert {row["seed"] for row in confirmation} == {33, 44}
+    for row in selection:
+        manifest = next((tmp_path / "execution" / "trials" / "selection" / row["role"] / f"seed-{row['seed']}" / "selection").rglob("input.json"))
+        assert str(fixture["confirmation"]) not in manifest.read_text()
+    assert result["knowledge"]["effect_record_count"] == 0
+    assert result["authority"] == {"local_evidence": False, "community_projection": False, "promotion": False}
     assert (tmp_path / "execution" / "execution.json").is_file()
     assert (tmp_path / "execution" / "evidence-index.json").is_file()
-    records = json.loads((tmp_path / "execution" / "knowledge" / "effect-records.json").read_text())
-    assert {row["status"] for row in records["records"]} == {"confirmed"}
+    from wmloop.archive.store import ContentAddressedStore
+    cas = ContentAddressedStore(tmp_path / "execution" / "evidence")
+    index = json.loads((tmp_path / "execution" / "evidence-index.json").read_text())
+    assert json.loads(cas.read_bytes(result["raw_evidence_manifest_ref"])) == index["raw"]
+    assert json.loads(cas.read_bytes(index["execution_receipt"])) == result
+    frozen = json.loads(cas.read_bytes(result["frozen_inputs_manifest_ref"]))
+    assert json.loads(cas.read_bytes(frozen["study_files"]["study.json"]))["study_id"] == fixture["study_id"]
+    assert cas.read_bytes(frozen["inputs"]["confirmation_split"]) == fixture["confirmation"].read_bytes()
+    assert cas.read_bytes(frozen["verifier_implementation"]["verify.py"]) == (fixture["verifier"].parent / "verify.py").read_bytes()
+    assert frozen["checkpoint_digest"] == artifact_digest(fixture["checkpoint"])
+    from wmloop.verify.open_method_evidence import OpenMethodEvidenceError, read_frozen_inputs
+    reconstructed = read_frozen_inputs(cas, index["execution_receipt"])
+    assert reconstructed["study"]["study_id"] == fixture["study_id"]
+    assert reconstructed["splits"]["confirmation_split"]["episode_ids"] == ["confirmation-1", "confirmation-2"]
+    import pytest
+    digest = frozen["verifier_implementation"]["verify.py"].rsplit("/", 1)[-1]
+    (tmp_path / "execution" / "evidence" / "cas" / digest[:2] / digest).write_bytes(b"corrupt")
+    with pytest.raises(OpenMethodEvidenceError, match="MEMBER_INVALID"):
+        read_frozen_inputs(cas, index["execution_receipt"])
+    assert not (tmp_path / "execution" / "knowledge" / "effect-records.json").exists()
 
 
 def test_study_runner_refuses_unproven_episode_disjointness(tmp_path):
@@ -160,6 +251,170 @@ def test_study_runner_refuses_unproven_episode_disjointness(tmp_path):
     assert not (tmp_path / "execution").exists()
 
 
+def test_verifier_rejects_linked_implementation_before_execution(tmp_path):
+    import pytest
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError
+
+    fixture = _runner_fixture(tmp_path)
+    implementation = fixture["verifier"].parent / "verify.py"
+    moved = implementation.with_name("verify-original.py")
+    implementation.rename(moved)
+    implementation.symlink_to(moved)
+    with pytest.raises(OpenMethodStudyExecutionError, match="VERIFIER_PATH_INVALID"):
+        execute_open_method_study(
+            study_root=fixture["study"], checkpoint=fixture["checkpoint"],
+            train_split=fixture["train"], selection_split=fixture["selection"],
+            confirmation_split=fixture["confirmation"], verifier=fixture["verifier"],
+            output_root=tmp_path / "execution", runtime_python=Path(sys.executable),
+            gpu_indices=[0], lease_manager=fixture["manager"],
+        )
+    assert not (tmp_path / "execution").exists()
+
+
+def test_verifier_builder_rejects_linked_implementation_parent(tmp_path):
+    import pytest
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError
+
+    fixture = _runner_fixture(tmp_path)
+    root = fixture["verifier"].parent
+    spec = json.loads(fixture["verifier"].read_text())
+    (root / "linked").symlink_to(root, target_is_directory=True)
+    with pytest.raises(OpenMethodStudyExecutionError, match="IMPLEMENTATION_PATH_INVALID"):
+        build_open_method_verifier(
+            verifier_root=root, output_path=root / "other.json", command=spec["command"],
+            implementation_files=["linked/verify.py"], primary_metrics=spec["primary_metrics"],
+            protected_metrics=spec["protected_metrics"], metric_policy=spec["metric_policy"],
+            required_validity_gates=spec["required_validity_gates"],
+            effect_context=spec["effect_context"],
+        )
+    assert not (root / "other.json").exists()
+
+
+def test_verifier_builder_rejects_output_outside_implementation_root(tmp_path):
+    import pytest
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError
+
+    fixture = _runner_fixture(tmp_path)
+    root = fixture["verifier"].parent
+    spec = json.loads(fixture["verifier"].read_text())
+    output = tmp_path / "elsewhere" / "verifier.json"
+    with pytest.raises(OpenMethodStudyExecutionError, match="OUTPUT_ROOT_MISMATCH"):
+        build_open_method_verifier(
+            verifier_root=root, output_path=output, command=spec["command"],
+            implementation_files=["verify.py"], primary_metrics=spec["primary_metrics"],
+            protected_metrics=spec["protected_metrics"], metric_policy=spec["metric_policy"],
+            required_validity_gates=spec["required_validity_gates"],
+            effect_context=spec["effect_context"],
+        )
+    assert not output.exists()
+
+
+def test_verifier_builder_concurrent_writers_do_not_replace_each_other(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from wmloop.execute.open_method_study_runner import OpenMethodStudyExecutionError
+
+    fixture = _runner_fixture(tmp_path)
+    root = fixture["verifier"].parent
+    spec = json.loads(fixture["verifier"].read_text())
+    barrier = Barrier(2)
+
+    def build():
+        barrier.wait()
+        try:
+            return build_open_method_verifier(
+                verifier_root=root, output_path=root / "concurrent.json", command=spec["command"],
+                implementation_files=["verify.py"], primary_metrics=spec["primary_metrics"],
+                protected_metrics=spec["protected_metrics"], metric_policy=spec["metric_policy"],
+                required_validity_gates=spec["required_validity_gates"],
+                effect_context=spec["effect_context"],
+            )["verifier_id"]
+        except OpenMethodStudyExecutionError as exc:
+            return str(exc)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: build(), range(2)))
+    assert results.count("OPEN_VERIFIER_OUTPUT_EXISTS") == 1
+    assert results.count(json.loads((root / "concurrent.json").read_text())["verifier_id"]) == 1
+
+
+def test_paired_observations_must_cover_the_bound_split():
+    from wmloop.execute.open_method_study_runner import _settle_phase
+
+    roles = ("baseline", "source_only", "target_only", "combined")
+    gates = {name: True for name in ("data_bound", "verifier_process", "evaluation_schema", "identity_binding")}
+    trials = [
+        {"role": role, "seed": seed, "state": "passed", "evaluations": [{
+            "phase": "selection", "validity_gates": gates,
+            "unit_metrics": [{"unit_id": unit, "metrics": {"quality": 1.0}} for unit in ("wrong-1", "wrong-2")],
+        }]}
+        for role in roles for seed in (1, 2)
+    ]
+    result = _settle_phase(
+        {"paired_seeds": [1, 2]}, trials,
+        {"required_validity_gates": ["data_bound"], "primary_metrics": ["quality"], "protected_metrics": [],
+         "metric_policy": {"quality": {"direction": "maximize"}}},
+        phase="selection", expected_units={"heldout-1", "heldout-2"},
+    )
+    assert result["state"] == "abstained"
+    assert result["reason"] == "SPLIT_EPISODE_COVERAGE_MISMATCH"
+
+
+def test_paired_settlement_rejects_failed_and_duplicate_trials():
+    from wmloop.execute.open_method_study_runner import _settle_phase
+
+    roles = ("baseline", "source_only", "target_only", "combined")
+    gates = {name: True for name in ("data_bound", "verifier_process", "evaluation_schema", "identity_binding")}
+    trials = [
+        {"role": role, "seed": seed, "state": "passed", "evaluations": [{
+            "phase": "selection", "validity_gates": gates,
+            "unit_metrics": [{"unit_id": unit, "metrics": {"quality": 1.0}} for unit in ("a", "b")],
+        }]}
+        for role in roles for seed in (1, 2)
+    ]
+    study = {"paired_seeds": [1, 2]}
+    verifier = {"required_validity_gates": ["data_bound"], "primary_metrics": ["quality"],
+                "protected_metrics": [], "metric_policy": {"quality": {"direction": "maximize"}}}
+    def settle(rows):
+        return _settle_phase(study, rows, verifier, phase="selection", expected_units={"a", "b"})
+
+    assert settle(trials)["state"] == "settled"
+    assert settle([{**trials[0], "state": "failed"}, *trials[1:]])["reason"] == "PAIRED_TRIAL_FAILED"
+    assert settle([*trials, trials[0]])["reason"] == "DUPLICATE_PAIRED_TRIAL"
+    assert settle([{**trials[0], "evaluations": trials[0]["evaluations"] * 2}, *trials[1:]])["reason"] == "DUPLICATE_PAIRED_OBSERVATION"
+
+
+def test_split_validation_rejects_empty_duplicate_and_blank_episode_ids(tmp_path):
+    import pytest
+    from wmloop.execute.open_method_study_runner import (
+        OpenMethodStudyExecutionError, _validate_disjoint_splits,
+    )
+
+    paths = {name: tmp_path / f"{name}.json" for name in
+             ("train_split", "selection_split", "confirmation_split")}
+    for name, path in paths.items():
+        _write_json(path, {"episode_ids": [name]})
+    for invalid in ([], ["duplicate", "duplicate"], [" "]):
+        _write_json(paths["selection_split"], {"episode_ids": invalid})
+        with pytest.raises(OpenMethodStudyExecutionError, match="SPLIT_DISJOINTNESS_UNPROVEN"):
+            _validate_disjoint_splits(paths)
+
+
+def test_calibration_does_not_swallow_interrupt(tmp_path, monkeypatch):
+    import pytest
+    import wmloop.execute.open_method_study_runner as runner
+
+    def interrupt(**kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "run_method_calibration", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        runner._run_calibrations(
+            study_path=tmp_path, study={"arms": [{"role": "baseline", "bundle_path": "bundle", "method_id": "method"}]},
+            output_root=tmp_path / "out", timeout_seconds=1, runtime_python=Path(sys.executable),
+        )
+
+
 def test_trial_success_requires_schema_and_identity_gates():
     verifier = {"required_validity_gates": ["data_bound"]}
     valid = [
@@ -168,5 +423,91 @@ def test_trial_success_requires_schema_and_identity_gates():
     ]
     invalid = [dict(valid[0]), {"validity_gates": {"data_bound": True, "verifier_process": True, "evaluation_schema": False, "identity_binding": True}}]
 
-    assert _evaluation_gates_valid(valid, verifier)
-    assert not _evaluation_gates_valid(invalid, verifier)
+    assert _evaluation_gates_valid(valid[:1], verifier)
+    assert not _evaluation_gates_valid(invalid[1:], verifier)
+    truthy = {"validity_gates": {**valid[0]["validity_gates"], "data_bound": "true"}}
+    assert not _evaluation_gates_valid([truthy], verifier)
+
+
+def test_failed_trial_charges_time_spent_under_gpu_lease(tmp_path, monkeypatch):
+    import wmloop.execute.open_method_study_runner as runner
+
+    class Lease:
+        index = 0
+        def to_document(self):
+            return {"index": 0}
+        def release(self):
+            self.released = True
+
+    lease = Lease()
+    class Manager:
+        def acquire(self, *args, **kwargs):
+            return lease
+
+    times = iter([10.0, 25.0])
+    monkeypatch.setattr(runner.time, "monotonic", lambda: next(times))
+    def fail(**kwargs):
+        raise RuntimeError("injected launch failure")
+    monkeypatch.setattr(runner, "run_candidate_operation", fail)
+    result = runner._run_trial(
+        study_path=tmp_path, study={"study_id": "study"},
+        arm={"role": "baseline", "bundle_path": "bundle", "estimated_gpu_hours_per_seed": 1},
+        method={"method_id": "method", "training": {"mode": "training"}}, seed=1,
+        phase="selection", paths={"checkpoint": tmp_path, "train_split": tmp_path},
+        verifier_spec={"verifier_id": "verifier"}, output_root=tmp_path / "trial",
+        runtime_python=Path(sys.executable), gpu_indices=[0], lease_manager=Manager(), gpu_wait_seconds=0,
+    )
+    assert result["state"] == "failed"
+    assert result["gpu_seconds"] == 15.0
+    assert lease.released
+
+
+def test_input_drift_does_not_publish_execution_receipt(tmp_path, monkeypatch):
+    import pytest
+    import wmloop.execute.open_method_study_runner as runner
+
+    fixture = _runner_fixture(tmp_path)
+    original = runner._write_knowledge
+
+    def drift_after_execution(**kwargs):
+        result = original(**kwargs)
+        fixture["checkpoint"].write_bytes(b"changed-checkpoint")
+        return result
+
+    monkeypatch.setattr(runner, "_write_knowledge", drift_after_execution)
+    with pytest.raises(runner.OpenMethodStudyExecutionError, match="BINDING"):
+        execute_open_method_study(
+            study_root=fixture["study"], checkpoint=fixture["checkpoint"],
+            train_split=fixture["train"], selection_split=fixture["selection"],
+            confirmation_split=fixture["confirmation"], verifier=fixture["verifier"],
+            output_root=tmp_path / "execution", runtime_python=Path(sys.executable),
+            gpu_indices=[0], lease_manager=fixture["manager"],
+        )
+    assert not (tmp_path / "execution" / "execution.json").exists()
+    assert not (tmp_path / "execution" / "evidence-index.json").exists()
+
+
+def test_failed_selection_never_runs_confirmation(tmp_path, monkeypatch):
+    import wmloop.execute.open_method_study_runner as runner
+
+    fixture = _runner_fixture(tmp_path)
+    phases = []
+    monkeypatch.setattr(runner, "_run_calibrations", lambda **kwargs: [
+        {"role": role, "state": "passed"} for role in runner.ROLES
+    ])
+
+    def fail_trial(**kwargs):
+        phases.append(kwargs["phase"])
+        return runner._failed_trial(str(kwargs["arm"]["role"]), kwargs["seed"], RuntimeError("failure"))
+
+    monkeypatch.setattr(runner, "_run_trial", fail_trial)
+    result = execute_open_method_study(
+        study_root=fixture["study"], checkpoint=fixture["checkpoint"],
+        train_split=fixture["train"], selection_split=fixture["selection"],
+        confirmation_split=fixture["confirmation"], verifier=fixture["verifier"],
+        output_root=tmp_path / "execution", runtime_python=Path(sys.executable),
+        gpu_indices=[0], lease_manager=fixture["manager"],
+    )
+    assert phases == ["selection"] * 8
+    assert result["confirmation_settlement"]["reason"] == "INCOMPLETE_PAIRED_OBSERVATIONS"
+    assert result["knowledge"]["effect_record_count"] == 0

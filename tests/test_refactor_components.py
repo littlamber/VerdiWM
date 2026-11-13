@@ -277,6 +277,37 @@ for implementation, facade in pairs.items():
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("module", [
+    "wmloop.retrieve.index",
+    "wmloop.evaluate.future_video_metrics",
+    "wmloop.control.onboarding_scan.runtime",
+    "wmloop.process_lifecycle",
+])
+def test_cpu_components_do_not_load_execution_or_torch(tmp_path, module):
+    code = f"""
+import importlib
+import sys
+importlib.import_module({module!r})
+forbidden = sorted(name for name in sys.modules
+                   if name in {{'wmloop.execute', 'torch'}}
+                   or name.startswith(('wmloop.execute.', 'torch.')))
+assert not forbidden, forbidden
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", code], cwd=tmp_path,
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_process_lifecycle_compatibility_exports_preserve_object_identity():
+    from wmloop import process_lifecycle as shared
+    from wmloop.execute import process_lifecycle as compatibility
+
+    for name in compatibility.__all__:
+        assert getattr(compatibility, name) is getattr(shared, name)
+
+
 @pytest.mark.parametrize(
     "modules",
     [

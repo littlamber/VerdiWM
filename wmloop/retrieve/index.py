@@ -2,7 +2,7 @@
 
 The index is deliberately a projection, not a second archive.  Every row is
 bound to a settled auto-experiment receipt and a CAS result reference.  A
-query returns only rows whose receipt and result still resolve through CAS;
+query returns only rows whose receipt and declared evidence still resolve through CAS;
 textual similarity or an unreceipted JSON file is never enough to influence
 candidate ordering.
 """
@@ -13,11 +13,16 @@ import hashlib
 import json
 import math
 import sqlite3
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from wmloop.archive.receipt_evidence import ReceiptEvidenceError, verify_receipt_evidence
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore
+from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.diagnose.paired_observation import PairedObservationError, verify_paired_observations
+from wmloop.storage import canonical_json_bytes
 
 
 class ProbeRetrievalError(ValueError):
@@ -41,9 +46,10 @@ class ProbeExperience:
     receipt_ref: str
     result_ref: str
     receipt_hash: str
+    paired_observations: tuple[dict[str, object], ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result = {
             "probe_id": self.probe_id,
             "model_family": self.model_family,
             "runtime_capability": self.runtime_capability,
@@ -58,6 +64,9 @@ class ProbeExperience:
             "result_ref": self.result_ref,
             "receipt_hash": self.receipt_hash,
         }
+        if self.paired_observations:
+            result["paired_observations"] = deepcopy(list(self.paired_observations))
+        return result
 
 
 def index_probe_experience(
@@ -103,6 +112,13 @@ def index_probe_experience(
         raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_REF_MISMATCH")
     if not archive.has_settled_receipt(archive_trial_id, receipt_ref, str(receipt["receipt_hash"])):
         raise ProbeRetrievalError("PROBE_RETRIEVAL_ARCHIVE_RECEIPT_MISMATCH")
+    try:
+        verify_receipt_evidence(receipt=stored_receipt, cas=cas)
+    except ReceiptEvidenceError as exc:
+        raise ProbeRetrievalError(f"PROBE_RETRIEVAL_EVIDENCE_{exc.reason}") from exc
+    if asset_fingerprint != probe_asset_fingerprint(stored_receipt, cas=cas):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_ASSET_FINGERPRINT_MISMATCH")
+    _paired_observations(stored_result, receipt=stored_receipt, cas=cas)
 
     signatures = result["failure_signatures"]
     metrics = result.get("metrics")
@@ -216,52 +232,169 @@ def retrieve_probe_experiences(
         "FROM experiences WHERE "
         + " AND ".join(clauses)
         + " ORDER BY CASE verdict WHEN 'PASS' THEN 0 ELSE 1 END, "
-        "COALESCE(metric_outcome, -1e300) DESC, id ASC LIMIT ?"
+        "COALESCE(metric_outcome, -1e300) DESC, id ASC"
     )
-    parameters.append(limit)
-    connection = sqlite3.connect(str(path))
-    connection.row_factory = sqlite3.Row
-    try:
-        records = [ProbeExperience(**dict(row)) for row in connection.execute(query, parameters).fetchall()]
-    finally:
-        connection.close()
     if archive_db is None or cas_root is None:
         raise ProbeRetrievalError("PROBE_RETRIEVAL_DURABLE_STORES_REQUIRED")
     archive = ArchiveStore(Path(archive_db))
     cas = ContentAddressedStore(Path(cas_root))
     verified: list[ProbeExperience] = []
-    for row in records:
-        if not archive.has_settled_receipt(row.archive_trial_id, row.receipt_ref, row.receipt_hash):
-            continue
-        try:
-            receipt_bytes = cas.read_bytes(row.receipt_ref)
-            result_bytes = cas.read_bytes(row.result_ref)
-        except Exception:
-            continue
-        if hashlib.sha256(receipt_bytes).hexdigest() != row.receipt_hash:
-            continue
-        try:
-            receipt = _json_object(receipt_bytes, "PROBE_RETRIEVAL_RECEIPT_INVALID")
-            result = _json_object(result_bytes, "PROBE_RETRIEVAL_RESULT_INVALID")
-            _validate_receipt_body(receipt)
-            _validate_result(result)
-        except ProbeRetrievalError:
-            continue
-        refs = receipt.get("artifact_refs")
-        if (
-            receipt.get("archive_trial_id") != row.archive_trial_id
-            or receipt.get("stage") != row.stage
-            or receipt["verdict"]["verdict"] != row.verdict
-            or not isinstance(refs, Mapping)
-            or row.result_ref not in refs.values()
-            or any(result.get(key) != getattr(row, key) for key in ("probe_id", "model_family", "runtime_capability"))
-            or row.failure_signature not in result["failure_signatures"]
-            or _optional_string(result.get("primitive")) != row.primitive
-            or _metric_outcome(result.get("metrics")) != row.metric_outcome
-        ):
-            continue
-        verified.append(row)
+    verified_trials: dict[str, ProbeExperience | None] = {}
+    connection = sqlite3.connect(str(path))
+    connection.row_factory = sqlite3.Row
+    try:
+        for record in connection.execute(query, parameters):
+            row = ProbeExperience(**dict(record))
+            cached = verified_trials.get(row.archive_trial_id)
+            # A trial can occur under multiple failure signatures. Reuse its
+            # replay only if this projection matches the verified projection.
+            if row.archive_trial_id in verified_trials:
+                current = None
+                if cached is not None and _same_trial_projection(row, cached):
+                    result = _json_object(cas.read_bytes(row.result_ref), "PROBE_RETRIEVAL_RESULT_INVALID")
+                    if row.failure_signature in result["failure_signatures"]:
+                        current = replace(row, paired_observations=cached.paired_observations)
+            else:
+                current = _load_verified_experience(row, archive=archive, cas=cas)
+                if current is not None:
+                    verified_trials[row.archive_trial_id] = current
+            if current is not None:
+                verified.append(current)
+                if len(verified) == limit:
+                    break
+    finally:
+        connection.close()
     return tuple(verified)
+
+
+def _same_trial_projection(left: ProbeExperience, right: ProbeExperience) -> bool:
+    return all(getattr(left, field) == getattr(right, field) for field in (
+        "probe_id", "model_family", "runtime_capability", "asset_fingerprint", "primitive",
+        "stage", "verdict", "metric_outcome", "archive_trial_id", "receipt_ref", "result_ref", "receipt_hash",
+    ))
+
+
+def recheck_probe_experiences(
+    matches: Sequence[Mapping[str, Any]], *, archive_db: Path, cas_root: Path,
+) -> tuple[ProbeExperience, ...]:
+    """Recheck externally supplied projections before applying any prior.
+
+    Reconstructs paired observations from authoritative stores; caller-supplied
+    observation dictionaries are never numeric authority. A trial's paired
+    proof is replayed once even when several signatures reference it.
+    """
+    archive, cas = ArchiveStore(Path(archive_db)), ContentAddressedStore(Path(cas_root))
+    verified = []
+    cached: dict[str, ProbeExperience] = {}
+    fields = tuple(field for field in ProbeExperience.__dataclass_fields__ if field != "paired_observations")
+    for match in matches:
+        try:
+            row = ProbeExperience(**{field: match[field] for field in fields})
+            previous = cached.get(row.archive_trial_id)
+            if previous is not None:
+                result = _json_object(cas.read_bytes(row.result_ref), "PROBE_RETRIEVAL_RESULT_INVALID")
+                current = (replace(row, paired_observations=previous.paired_observations)
+                           if _same_trial_projection(row, previous) and row.failure_signature in result["failure_signatures"] else None)
+            else:
+                current = _load_verified_experience(row, archive=archive, cas=cas)
+        except (KeyError, TypeError, ValueError, OSError, ContractValidationError):
+            continue
+        if current is not None:
+            cached[row.archive_trial_id] = current
+            verified.append(current)
+    return tuple(verified)
+
+
+def _load_verified_experience(
+    row: ProbeExperience, *, archive: ArchiveStore, cas: ContentAddressedStore
+) -> ProbeExperience | None:
+    """Validate an index projection against its durable evidence."""
+    if not archive.has_settled_receipt(row.archive_trial_id, row.receipt_ref, row.receipt_hash):
+        return None
+    try:
+        receipt_bytes = cas.read_bytes(row.receipt_ref)
+        result_bytes = cas.read_bytes(row.result_ref)
+    except Exception:
+        return None
+    if hashlib.sha256(receipt_bytes).hexdigest() != row.receipt_hash:
+        return None
+    try:
+        receipt = _json_object(receipt_bytes, "PROBE_RETRIEVAL_RECEIPT_INVALID")
+        result = _json_object(result_bytes, "PROBE_RETRIEVAL_RESULT_INVALID")
+        _validate_receipt_body(receipt)
+        _validate_result(result)
+        verify_receipt_evidence(receipt=receipt, cas=cas)
+        fingerprint = probe_asset_fingerprint(receipt, cas=cas)
+        observations = _paired_observations(result, receipt=receipt, cas=cas)
+    except (ProbeRetrievalError, ContractValidationError, OSError, ValueError, TypeError):
+        return None
+    refs = receipt.get("artifact_refs")
+    if (
+        receipt.get("archive_trial_id") != row.archive_trial_id
+        or receipt.get("stage") != row.stage
+        or receipt["verdict"]["verdict"] != row.verdict
+        or not isinstance(refs, Mapping)
+        or row.result_ref not in refs.values()
+        or any(result.get(key) != getattr(row, key) for key in ("probe_id", "model_family", "runtime_capability"))
+        or row.failure_signature not in result["failure_signatures"]
+        or _optional_string(result.get("primitive")) != row.primitive
+        or _metric_outcome(result.get("metrics")) != row.metric_outcome
+        or fingerprint != row.asset_fingerprint
+    ):
+        return None
+    return replace(row, paired_observations=observations)
+
+
+def _paired_observations(
+    result: Mapping[str, Any], *, receipt: Mapping[str, Any], cas: ContentAddressedStore,
+) -> tuple[dict[str, object], ...]:
+    observations = result.get("paired_observations", [])
+    refs = receipt.get("artifact_refs", {})
+
+    def read(path: str) -> bytes:
+        ref = refs.get(path)
+        if not isinstance(ref, str):
+            raise ProbeRetrievalError("PROBE_RETRIEVAL_PAIRED_ARTIFACT_MISSING")
+        return cas.read_bytes(ref)
+
+    try:
+        for observation in observations:
+            if observation["query"]["primitive"] != result.get("primitive"):
+                raise ProbeRetrievalError("PROBE_RETRIEVAL_PAIRED_PRIMITIVE_MISMATCH")
+        verify_paired_observations(observations, read_artifact=read)
+    except (PairedObservationError, ContractValidationError, OSError, ValueError, TypeError, KeyError) as exc:
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_PAIRED_EVIDENCE_INVALID") from exc
+    return tuple(deepcopy(observations))
+
+
+def probe_asset_fingerprint(receipt: Mapping[str, Any], *, cas: ContentAddressedStore) -> str | None:
+    """Derive asset identity from the conformance evidence in a settled receipt.
+
+    Older receipts lack this evidence and therefore have no usable asset
+    identity; their diagnostic observations remain eligible for general reuse.
+    """
+    refs = receipt.get("support_refs")
+    if refs is None:
+        return None
+    if not isinstance(refs, Mapping):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_CONFORMANCE_INVALID")
+    ref = refs.get("onboarding_conformance")
+    if ref is None:
+        return None
+    if not isinstance(ref, str):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_CONFORMANCE_INVALID")
+    try:
+        conformance = _json_object(cas.read_bytes(ref), "PROBE_RETRIEVAL_CONFORMANCE_INVALID")
+        validate_document("model_conformance_receipt", conformance)
+    except Exception as exc:
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_CONFORMANCE_INVALID") from exc
+    if conformance.get("verdict") != "PASS" or conformance.get("optimization_launch_allowed") is not True:
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_CONFORMANCE_INVALID")
+    bindings = conformance["asset_bindings"]
+    if any(row["state"] != "bound" or row["observed_fingerprint"] != row["onboarding_fingerprint"] for row in bindings):
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_CONFORMANCE_INVALID")
+    fingerprints = sorted(row["observed_fingerprint"] for row in bindings)
+    return hashlib.sha256(canonical_json_bytes(fingerprints)).hexdigest() if fingerprints else None
 
 
 def _connect(path: Path) -> sqlite3.Connection:
@@ -299,15 +432,12 @@ def _connect(path: Path) -> sqlite3.Connection:
 
 
 def _validate_result(result: Mapping[str, Any]) -> None:
-    required = ("schema_version", "artifact_type", "probe_id", "model_family", "runtime_capability", "failure_signatures")
-    if result.get("schema_version") != 1 or result.get("artifact_type") != "verdiwm-diagnostic-probe-result":
-        raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_CONTRACT_INVALID")
-    for field in required[2:5]:
-        if not isinstance(result.get(field), str) or not str(result[field]):
-            raise ProbeRetrievalError(f"PROBE_RETRIEVAL_RESULT_FIELD_INVALID:{field}")
-    signatures = result.get("failure_signatures")
-    if not isinstance(signatures, list) or not signatures or any(not isinstance(item, str) or not item for item in signatures):
-        raise ProbeRetrievalError("PROBE_RETRIEVAL_FAILURE_SIGNATURES_INVALID")
+    try:
+        validate_document("diagnostic_probe_result", result)
+    except ContractValidationError as exc:
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_CONTRACT_INVALID") from exc
+    if result["state"] != "ready":
+        raise ProbeRetrievalError("PROBE_RETRIEVAL_RESULT_NOT_READY")
 
 
 def _validate_receipt(receipt: Mapping[str, Any]) -> None:

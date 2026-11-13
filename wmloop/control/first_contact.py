@@ -298,7 +298,10 @@ def inspect_project(
             if blockers
             else "运行 CPU 安全接入检查；通过后才可以创建正式实验。"
             if state == "ready_for_conformance"
-            else "请确认评测方法和运行方式，系统不会自行猜测。"
+            else (
+                "检查发现的评测候选，确认切分、指标和 verifier；同时确认模型运行入口或适配器，"
+                "然后再次运行 verdiwm check。"
+            )
         ),
         "side_effects": {"model_import_executed": False, "gpu_execution_started": False, "source_modified": False},
     }
@@ -406,6 +409,14 @@ def initialize_project(
         if destination.exists() and not force:
             raise FirstContactError(f"PROJECT_FILE_EXISTS:{destination}:use --force to replace it")
         atomic_write(destination, body.encode("utf-8"))
+    readiness = inspect_project(
+        root=base,
+        model=str(model_path),
+        source=str(source_path) if source_path else None,
+        data=str(data_path),
+        evaluator_contract=evaluator_contract,
+        runtime_python=runtime_python or (str(runtime) if runtime else None),
+    )
     return {
         "schema_version": 1,
         "artifact_type": "verdiwm-first-contact-project",
@@ -416,17 +427,48 @@ def initialize_project(
         "goal": goal.strip(),
         "runtime_python": str(runtime) if runtime is not None else None,
         "target_metrics": metrics,
-        "readiness": inspect_project(
-            root=base,
-            model=str(model_path),
-            source=str(source_path) if source_path else None,
-            data=str(data_path),
-            evaluator_contract=evaluator_contract,
-            runtime_python=runtime_python or (str(runtime) if runtime else None),
-        ),
-        "next_steps": [
-            "运行 verdiwm doctor 检查本地控制面。",
-            "运行 verdiwm run 或打开 verdiwm-workbench 开始受边界实验。",
-            "如果系统缺少模型运行入口，会明确列出需要补充的信息，不会擅自修改模型。",
-        ],
+        "readiness": readiness,
+        "next_steps": _setup_next_steps(readiness),
     }
+
+
+def _setup_next_steps(readiness: Mapping[str, Any]) -> list[str]:
+    """Suggest only actions allowed by the authoritative project readiness."""
+    steps = ["运行 verdiwm doctor 检查本地控制面。"]
+    state = readiness.get("state")
+    if state == "needs_confirmation":
+        steps.append(
+            str(
+                readiness.get("next_step")
+                or "确认评测方法和模型运行方式，然后再次运行 verdiwm check。"
+            )
+        )
+    elif state == "ready_for_conformance":
+        steps.append(
+            "运行 `verdiwm research plan` 生成并审阅计划；仅当计划状态允许时，"
+            "再用 `verdiwm research run --plan <计划路径> --confirm` 明确启动。"
+        )
+    elif state in {"blocked", "needs_input"}:
+        blockers = readiness.get("blockers", [])
+        actions = (
+            [
+                str(item["action"])
+                for item in blockers
+                if isinstance(item, Mapping) and item.get("action")
+            ]
+            if isinstance(blockers, list)
+            else []
+        )
+        steps.extend(actions)
+        steps.append(
+            str(
+                readiness.get("next_step")
+                or "解决上面的接入阻塞项后，再次运行 verdiwm check。"
+            )
+        )
+    else:
+        steps.append(
+            "接入状态未能确认；请运行 verdiwm check 并按报告中的 action 处理。"
+        )
+    steps.append("模型源码和权重不会因首次设置而被修改。")
+    return steps

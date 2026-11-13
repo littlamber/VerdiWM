@@ -88,6 +88,9 @@ def _verification_evidence_from_probe_replications(
         bool(item.get("required_horizons_complete")) for item in replications
     )
     complete = extended and all(math.isfinite(value) for value in deltas)
+    seeds = [item.get("seed") for item in replications]
+    if any(seed is not None for seed in seeds) and any(type(seed) is not int for seed in seeds):
+        raise OrchestratorTrainingEvalSmokeError("M3_TRAINING_EVAL_SMOKE_REPLICATION_SEEDS_INVALID")
     action_enabled = action_following_threshold is not None
     action_observed = (
         _action_following_observed(action_following) if action_enabled else None
@@ -104,6 +107,7 @@ def _verification_evidence_from_probe_replications(
         action_following_observed=action_observed,
         action_following_threshold=action_following_threshold,
         action_following_gate_enabled=action_enabled,
+        replication_seeds=seeds if all(type(seed) is int for seed in seeds) else None,
     )
 
 
@@ -156,7 +160,14 @@ def _write_accept_replicate_inputs(
     environment: str = "push_cube",
     max_accept_trajectories: int,
     replication_count: int,
+    replication_seeds: Sequence[int] | None = None,
 ) -> tuple[dict[str, object], ...]:
+    if replication_seeds is not None and (
+        len(replication_seeds) != replication_count
+        or any(type(seed) is not int or not 0 <= seed < 2**32 for seed in replication_seeds)
+        or len(set(replication_seeds)) != len(replication_seeds)
+    ):
+        raise OrchestratorTrainingEvalSmokeError("M3_TRAINING_EVAL_SMOKE_REPLICATION_SEEDS_INVALID")
     _environment_spec(environment)
     plan = build_baseline_evaluation_plan(
         dataset_freeze, heldout_protocol, gpus=(0, 1, 2)
@@ -193,7 +204,7 @@ def _write_accept_replicate_inputs(
             {
                 "index": index + 1,
                 "label": label,
-                "seed": 101 + index,
+                "seed": replication_seeds[index] if replication_seeds is not None else 101 + index,
                 "trajectory_ids": selected,
                 "trajectory_ids_path": ids_path,
                 "trajectory_count": len(selected),

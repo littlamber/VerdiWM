@@ -24,10 +24,16 @@ uv sync --locked --group dev
 uv run verdiwm doctor
 ```
 
-直接运行 `verdi` 会进入一个轻量的交互会话。输入 `/` 并回车打开命令面板；在
+运行 `uv run verdi` 会进入终端工作台。首页以青色面板显示模型、数据、研究目标、
+LLM 配置状态、接入阻塞项和一个推荐操作；未完成检查时不会显示已就绪。长路径
+和中文会随终端宽度换行。配置损坏时显示具体错误，并保留会话供用户修复。
+
+输入 `/` 并回车打开命令面板；在
 支持 raw TTY 的真实终端中，面板会实时响应字符筛选、上下方向键、Tab、Enter
-和 Esc。输入 `/res`、`/sta` 等前缀可以筛选命令；还会启用 Python 标准库的
-历史记录和 Tab 补全（可用 `NO_COLOR=1` 关闭颜色）：
+和 Esc，超出屏幕的命令会随选中项滚动。打开面板后输入 `res`、`sta` 或中文
+关键词可以筛选；也可以直接输入完整命令，例如 `/status`。`/help` 按用途列出
+全部命令，`/help plan` 展示单项说明。会话还提供 Python 标准库的历史记录和
+Tab 补全。设置 `NO_COLOR=1` 或 `TERM=dumb` 时使用静态、无颜色的命令面板：
 
 ```text
 verdi> /
@@ -52,7 +58,11 @@ verdi> /exit
 `/plan --goal "目标"`，`/run PLAN` 会补全为 `--plan PLAN`。
 
 命令执行时会先显示“执行 …”，随后将状态、计划路径、campaign 和 blocker 等
-关键字段整理成可读结果卡，不要求用户阅读原始 JSON。交互会话中的自然语言只会
+关键字段整理成可读结果卡，并显示每个阻塞项的解决步骤、问卷内容和下一步，
+不要求用户阅读原始 JSON。`/guide` 展示接入问卷；需要保存并填写时使用
+`/guide --output .verdiwm/onboarding-questions.json`，结果会给出保存位置与后续命令。
+默认路径可直接按 Enter 接受；Ctrl-D 或 Ctrl-C 可取消接入向导。
+交互会话中的自然语言只会
 生成下一步计划提示，不会静默导入模型或启动 GPU。`/run` 仍要求显式 `--confirm`，
 并继续执行研究计划、评测器和证据门禁。脚本、
 CI 和管道环境不会进入会话，继续使用普通命令帮助；`verdiwm` 兼容入口也保持
@@ -62,6 +72,17 @@ CI 和管道环境不会进入会话，继续使用普通命令帮助；`verdiwm
 排队或运行的任务，否则展示默认计划并要求确认；`/progress` 可复用当前会话最近的
 campaign ID；`/cancel ID` 只取消明确指定的任务。长命令会显示存活状态，按
 `Ctrl-C` 只停止当前命令或进度查看，不会删除研究记录。
+普通 CLI 和终端界面共用项目配置或 `VERDIWM_STATE_ROOT` 指定的任务库，切换工作
+目录后仍能查询同一库中的任务。任务库损坏或不可读取时会显示错误及恢复建议，
+不会把读取失败显示成没有任务。`/s`、`/p`、`/r` 分别是 `/status`、`/progress`、
+`/research` 的别名，`/configure` 等价于 `/setup`。
+
+终端视图、键盘面板和结果呈现分别维护在 `wmloop/control/terminal_ui.py`、
+`terminal_palette.py`、`terminal_results.py`；交互入口复用原有 CLI 服务。
+界面布局参考了 DeepSeek Harness 生态中的
+[dsh-tui](https://github.com/rbelem/dsh-tui) 与
+[eDEX 风格界面](https://github.com/ph4310822/dsh-edex-ui)，实现使用 Python 标准库，
+无额外终端框架或 Harness 运行时依赖。
 
 `doctor` 会检查已安装的包、schema、适配器配置和轻量运行时契约。仓库内的
 控制面示例不需要 GPU 或模型权重：
@@ -163,7 +184,9 @@ auth_required = false
 当四组候选、冻结 verifier、checkpoint 和三份 episode manifest 已经准备好后，
 可以用 `verdiwm-run-open-method-study` 自动执行本地校准、配对 seed 的训练/推理、
 冻结评测、interaction 计算和本地 evidence CAS 归档。该命令需要显式提供 GPU
-编号和一次确认过的输出目录；如果模型依赖独立的 Python 环境，可用
+编号和一次确认过的输出目录；研究请求须预先声明至少两个与选择阶段不重叠的确认种子。
+该路径的确认观察目前仍是探索性证据：正式验证结算、可信归档和跨轮效果记忆
+尚未接通。如果模型依赖独立的 Python 环境，可用
 `--runtime-python /path/to/model/.venv/bin/python` 指定，避免候选进程误用控制面环境。
 没有 GPU、split 重叠、文件 digest 漂移或校准失败
 时会安全阻断并保留回执。它不会直接发布到社区或提升模型版本。
@@ -262,7 +285,10 @@ budget = "1gpu-hour"
 state_root = "./.verdiwm/state"
 ```
 
-确认检查结果中没有阻断项后，再启动任务。模型权重作为 asset 传入；例如：
+继续前请同时查看 `state` 和 `next_step`，不能只看 `blockers`：即使阻断列表为空，
+`needs_confirmation` 仍表示评测方法或运行入口尚待确认；只有到达
+`ready_for_conformance` 后，才继续生成并审阅研究计划，再显式确认运行。模型权重作为
+asset 传入；例如：
 
 ```bash
 uv run verdiwm check
@@ -391,6 +417,15 @@ uv run verdi audit local-smoke \
 ```
 
 审计会生成合成的成对帧，使用冻结契约 `configs/evaluators/wan22_droid_psnr_ssim_smoke_v1.json` 计算 PSNR、SSIM，并验证完美预测、退化预测、输入错误、receipt digest、输入漂移、CAS 往返和源树不可变性。输出 `state: ready` 只表示 CPU 控制面和证据闭环通过；它不代表 Wan/DROID 真实训练成功、分钟级一致性提升、IRG 迁移预测有效或产生了科学结论。真实实验仍需用户确认 research plan，并在目标模型的冻结 evaluator 上运行。
+
+已有 Wan2.2 两 slot × 10D arm-slot checkpoint 可以使用
+[有界原生推理入口](docs/WAN_ARM_SLOT_INFERENCE.md)，由项目管理 GPU、共享预算、
+超时和 CAS 证据。它保留模型原生 rollout 接口，与 7D action/14D proprio
+训练适配器分别绑定；推理 receipt 只提供诊断证据，正式优化仍需完整 target 验证。
+
+要检查第一轮结果能否被第二轮真正取回并用于候选选择，见
+[两轮诊断与经验复用](docs/TWO_ROUND_DIAGNOSTIC_MEMORY.md)。流程保留正向、负向和
+零差异观察，按匹配的动作与冻结协议提供排序先验，并要求第二轮重新执行验证。
 
 评测器也可以单独使用。预测帧和 ground truth 帧放在两个目录中，文件名（不含扩展名）必须一一对应，支持 `.npy` 和常见图像格式：
 

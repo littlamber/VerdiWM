@@ -128,12 +128,19 @@ def _source_tree_revision(repo: Path, files: Sequence[Path]) -> dict[str, object
 
 
 def _is_source_revision_file(path: Path, repo: Path) -> bool:
+    # Dataset loaders and trajectory transforms are executable dependencies,
+    # even when their module names match data-asset directory markers.
+    if path.suffix.lower() in {".py", ".pyi", ".sh"}:
+        return True
     relative = _relative(path, repo).lower()
+    if path.name.lower() in _DEPENDENCY_FILENAMES:
+        return True
+    if (set(Path(relative).parts) & {"config", "configs"}
+        and path.suffix.lower() in {".toml", ".yaml", ".yml", ".json", ".cfg", ".ini"}):
+        return True
     parts = set(re.split(r"[^a-z0-9]+", relative))
     if parts & {"dataset", "annotation", "trajectory", "videos", "latent_videos"}:
         return False
-    if path.name.lower() in _DEPENDENCY_FILENAMES:
-        return True
     return path.suffix.lower() in {
         ".py",
         ".pyi",

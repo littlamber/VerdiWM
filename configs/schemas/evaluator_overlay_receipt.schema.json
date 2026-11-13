@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "source_candidate", "overlay_path", "source_sha256", "overlay_sha256", "rewrites", "blockers", "confirmation", "optimization_launch_allowed", "claim_boundary", "receipt_path"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-evaluator-overlay"},
+    "state": {"enum": ["binding_required", "ready_for_confirmation", "frozen"]},
+    "source_candidate": {"type": "string", "minLength": 1},
+    "overlay_path": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "overlay_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rewrites": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["field", "from", "to"],
+        "properties": {
+          "field": {"type": "string", "minLength": 1},
+          "from": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["code", "field", "action"],
+        "properties": {
+          "code": {"type": "string", "minLength": 1},
+          "field": {"type": "string", "minLength": 1},
+          "action": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["required", "confirmed"],
+      "properties": {"required": {"type": "boolean"}, "confirmed": {"type": "boolean"}}
+    },
+    "optimization_launch_allowed": {"const": false},
+    "claim_boundary": {"type": "string", "minLength": 12},
+    "receipt_path": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"const": "frozen"}}},
+      "then": {"properties": {"blockers": {"maxItems": 0}, "confirmation": {"properties": {"required": {"const": false}, "confirmed": {"const": true}}}}},
+      "else": {"properties": {"confirmation": {"properties": {"required": {"const": true}, "confirmed": {"const": false}}}}}
+    },
+    {"if": {"properties": {"state": {"const": "binding_required"}}}, "then": {"properties": {"blockers": {"minItems": 1}}}},
+    {"if": {"properties": {"state": {"const": "ready_for_confirmation"}}}, "then": {"properties": {"blockers": {"maxItems": 0}}}}
+  ]
+}

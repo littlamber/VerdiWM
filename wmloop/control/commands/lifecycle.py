@@ -8,6 +8,7 @@ from pathlib import Path
 
 from wmloop.control.campaign_api import CampaignStore
 from wmloop.control.campaign_dispatcher import DispatcherOptions, run_dispatcher
+from wmloop.control.commands.inputs import campaign_store
 from wmloop.control.commands.io import emit_json, emit_text
 from wmloop.execute.job_supervisor import (
     cancel_job,
@@ -20,9 +21,7 @@ from wmloop.experiments.job_spec import JobSpec
 
 
 def _store(state_root: Path | None) -> CampaignStore:
-    from wmloop.control.commands.inputs import resolve_state_root
-
-    return CampaignStore(resolve_state_root(state_root).expanduser().resolve() / "campaigns")
+    return campaign_store(state_root)
 
 
 def _dispatch(

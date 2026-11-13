@@ -12,13 +12,14 @@ import math
 import os
 from pathlib import Path
 import shutil
-import signal
 import subprocess
 import sys
 import time
 
 from wmloop.control.candidate_execution import candidate_execution_digest, validate_candidate_execution_contract
 from wmloop.control.open_method_ir import validate_method_ir, validate_candidate_overlay, method_ir_digest
+from wmloop.process_lifecycle import LocalCommandSignals, retire_process_group
+from wmloop.runtime_env import runtime_python_path, runtime_subprocess_env
 from wmloop.storage import atomic_write, canonical_bytes, checked_path, sha256_bytes
 
 
@@ -27,15 +28,15 @@ class OpenRuntimeError(ValueError):
 
 
 def resolve_runtime_python(value) -> Path:
-    """Resolve the interpreter itself; virtualenv launchers are often symlinks."""
-    path = Path(value).expanduser()
+    """Validate an interpreter while preserving its virtualenv launcher path."""
+    path = runtime_python_path(value)
     try:
         resolved = path.resolve(strict=True)
     except OSError as exc:
         raise OpenRuntimeError("OPEN_RUNTIME_RUNTIME_INVALID") from exc
     if not resolved.is_file() or not os.access(resolved, os.X_OK):
         raise OpenRuntimeError("OPEN_RUNTIME_RUNTIME_INVALID")
-    return resolved
+    return path
 
 
 def digest(value):
@@ -97,8 +98,20 @@ def load_compilation(root):
 
 
 def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_python=None,
-                      gpu_devices=(), replacements=None):
-    """Execute once, with durable logs and cleanup of descendants on timeout."""
+                      gpu_devices=(), replacements=None, signal_scope=None):
+    """Execute once, retiring descendants before timeout or cancellation exits.
+
+    Parallel callers must pass a LocalCommandSignals scope entered by their
+    main thread and keep it open until all workers have finished cleanup.
+    """
+    if signal_scope is None:
+        with LocalCommandSignals() as scope:
+            return run_local_command(
+                command=command, cwd=cwd, output_root=output_root,
+                timeout_seconds=timeout_seconds, runtime_python=runtime_python,
+                gpu_devices=gpu_devices, replacements=replacements, signal_scope=scope,
+            )
+    signal_scope.check()
     if type(timeout_seconds) not in (float,int) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
         raise OpenRuntimeError('OPEN_RUNTIME_TIMEOUT_INVALID')
     if not isinstance(command, list) or not command or any(not isinstance(t,str) or not t or '\0' in t for t in command):
@@ -112,10 +125,11 @@ def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_pyt
         argv[0] = str(runtime_python or sys.executable)
     for name in ('home', 'tmp'):
         (output/name).mkdir(mode=0o700)
-    environment = {'HOME':str(output/'home'), 'TMPDIR':str(output/'tmp'),
+    environment = runtime_subprocess_env(Path(runtime_python or sys.executable), base={}, extra={
+                   'HOME':str(output/'home'), 'TMPDIR':str(output/'tmp'),
                    'PATH':str(Path(runtime_python or sys.executable).parent)+':/usr/local/bin:/usr/bin:/bin',
                    'PYTHONDONTWRITEBYTECODE':'1', 'PYTHONNOUSERSITE':'1',
-                   'CUDA_VISIBLE_DEVICES':','.join(str(v) for v in gpu_devices)}
+                   'CUDA_VISIBLE_DEVICES':','.join(str(v) for v in gpu_devices)})
     write_json(output/'started.json', {'command':argv, 'timeout_seconds':timeout_seconds})
     started = time.monotonic()
     process = None
@@ -123,21 +137,27 @@ def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_pyt
     error = None
     try:
         with (output/'stdout.log').open('wb') as stdout, (output/'stderr.log').open('wb') as stderr:
+            signal_scope.check()
             process = subprocess.Popen(argv, cwd=cwd, env=environment, stdout=stdout, stderr=stderr, start_new_session=True)
-            try:
-                code = process.wait(timeout=timeout_seconds)
-            except subprocess.TimeoutExpired:
-                error = 'TIMEOUT'
+            deadline = started + timeout_seconds
+            while True:
+                signal_scope.check()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    error = 'TIMEOUT'
+                    break
+                try:
+                    code = process.wait(timeout=min(0.1, remaining))
+                    signal_scope.check()
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
     except OSError:
         error = 'PROCESS_START_FAILED'
     finally:
         if process is not None:
-            # Also retire descendants after a parent exits successfully.
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
+            retire_process_group(process)
+    signal_scope.check()
     # A successful process must not be allowed to mutate the copied candidate
     # after exit through a detached child. The process group is always retired;
     # the receipt records the observed parent result.
@@ -154,7 +174,8 @@ def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_pyt
 
 
 def run_candidate_operation(*, compilation_root, operation, input_document, output_root,
-                            timeout_seconds, runtime_python=None, gpu_devices=(), command=None):
+                            timeout_seconds, runtime_python=None, gpu_devices=(), command=None,
+                            signal_scope=None):
     if operation not in {'calibrate', 'train', 'infer'}:
         raise OpenRuntimeError('OPEN_RUNTIME_OPERATION_INVALID')
     _, execution, _ = load_compilation(compilation_root)
@@ -173,6 +194,7 @@ def run_candidate_operation(*, compilation_root, operation, input_document, outp
         raise OpenRuntimeError('OPEN_RUNTIME_OPERATION_UNBOUND')
     receipt = run_local_command(command=argv, cwd=workspace, output_root=output/'process',
         timeout_seconds=timeout_seconds, runtime_python=runtime_python, gpu_devices=gpu_devices,
+        signal_scope=signal_scope,
         replacements={'candidate_root':workspace, 'output_root':artifacts,
                       'input_manifest':output/'input.json','world_size':max(1,len(gpu_devices)),'rank':0})
     # Re-check the source compilation after execution. A candidate that changes

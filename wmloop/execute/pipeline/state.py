@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping
 
+from wmloop.archive.store import ArchiveInvariantError, ContentAddressedStore
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.research_state import ResearchJournal
 from wmloop.execute.pipeline.io import _load_json, _write_json_atomic
 from wmloop.execute.pipeline.types import AutonomousPipelineError
+from wmloop.storage import canonical_json_bytes, checked_path, sha256_bytes
 
 
 def _bind_output_root(
@@ -54,6 +56,7 @@ def _settle_pipeline(
     literature_method_materialization: Mapping[str, object] | None = None,
     method_candidates: Mapping[str, object] | None = None,
     cpbe: Mapping[str, object] | None = None,
+    settlement_cas_root: Path | None = None,
 ) -> dict[str, object]:
     manifest = _manifest(
         destination,
@@ -73,11 +76,54 @@ def _settle_pipeline(
     )
     _write_json_atomic(destination / "pipeline-manifest.json", manifest)
     if journal is not None:
+        refs = list(journal.read()["evidence_refs"])
+        if state == "settled":
+            if settlement_cas_root is None:
+                raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_SETTLEMENT_STORE_REQUIRED")
+            cas = ContentAddressedStore(settlement_cas_root)
+            execution = _load_json(
+                destination / "compiled" / "queue" / "execution.json",
+                "AUTONOMOUS_PIPELINE_EXECUTION_INVALID",
+            )
+            for projection in (manifest, execution):
+                ref = cas.put_bytes(canonical_json_bytes(projection), media_type="application/json")
+                refs.append(ref.uri)
         journal.advance(
             "settled" if state == "settled" else "blocked",
             f"Pipeline {state}: {blocked_stage or 'execution receipts retained'}.",
+            evidence_refs=list(dict.fromkeys(refs)),
         )
     return manifest
+
+
+def verify_pipeline_settlement(
+    *, destination: Path, manifest: Mapping[str, object],
+    journal: ResearchJournal, cas_root: Path,
+) -> dict[str, object]:
+    """Bind both terminal projections to the journal's immutable CAS snapshots.
+
+    The caller must additionally recover every trial through the authoritative
+    runner. Snapshot equality is an integrity check, never verdict authority.
+    Older unbound settlements require explicit reconciliation.
+    """
+    execution_path = checked_path(
+        destination / "compiled" / "queue" / "execution.json",
+        code="AUTONOMOUS_PIPELINE_SETTLEMENT_EVIDENCE_INVALID", error=AutonomousPipelineError,
+    )
+    execution = _load_json(execution_path, "AUTONOMOUS_PIPELINE_SETTLEMENT_EVIDENCE_INVALID")
+    refs = journal.read()["evidence_refs"]
+    cas = ContentAddressedStore(cas_root)
+    for projection in (manifest, execution):
+        payload = canonical_json_bytes(projection)
+        ref = "cas://sha256/" + sha256_bytes(payload)
+        if ref not in refs:
+            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_SETTLEMENT_PROJECTION_MISMATCH")
+        try:
+            if cas.read_bytes(ref) != payload:
+                raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_SETTLEMENT_EVIDENCE_INVALID")
+        except (ArchiveInvariantError, OSError) as exc:
+            raise AutonomousPipelineError("AUTONOMOUS_PIPELINE_SETTLEMENT_EVIDENCE_INVALID") from exc
+    return execution
 
 
 def _manifest(

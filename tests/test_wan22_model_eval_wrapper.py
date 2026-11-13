@@ -77,3 +77,19 @@ def test_wrapper_blocks_unsupported_worldarena_contract_before_launch() -> None:
             with pytest.raises(Wan22EvalError, match="WAN22_EVAL_CONTRACT_UNSUPPORTED"):
                 run(manifest)
             launched.assert_not_called()
+        assert not (root / "run").exists()
+
+
+def test_wrapper_rejects_smoke_contract_with_formal_metrics_before_launch(tmp_path: Path) -> None:
+    smoke = json.loads(Path("configs/evaluators/wan22_droid_psnr_ssim_smoke_v1.json").read_text())
+    formal = json.loads(Path("configs/evaluators/wan22_droid_verdi_contract_v1.json").read_text())
+    contract = tmp_path / "mismatched-contract.json"
+    contract.write_text(json.dumps(smoke | {"metrics": formal["metrics"]}))
+    manifest = _manifest(tmp_path, contract)
+    with patch.dict("os.environ", {"VERDIWM_EXECUTE_WAN22": "1"}, clear=False), patch(
+        "scripts.run_wan22_droid_model_eval.subprocess.run"
+    ) as launched:
+        with pytest.raises(Wan22EvalError, match="WAN22_EVAL_CONTRACT_UNSUPPORTED"):
+            run(manifest)
+        launched.assert_not_called()
+    assert not (tmp_path / "run").exists()

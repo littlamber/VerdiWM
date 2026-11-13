@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from wmloop.control.campaign_api import CampaignAPIError
+from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
 from wmloop.control.first_contact import infer_source_root
 from wmloop.control.project_config import ProjectConfigError, load_project_config
 
@@ -32,6 +32,17 @@ def resolve_state_root(explicit: Path | None, configured: dict[str, Any] | None 
         return explicit
     values = _load_project_intent() if configured is None else configured
     return Path(str(values["state_root"])) if values.get("state_root") else _default_state_root()
+
+
+def campaign_store(
+    explicit: Path | None = None,
+    configured: dict[str, Any] | None = None,
+    *,
+    read_only: bool = False,
+) -> CampaignStore:
+    """Open the shared campaign namespace without creating a second path rule."""
+
+    return CampaignStore(resolve_state_root(explicit, configured) / "campaigns", read_only=read_only)
 
 
 def _resolve_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
