@@ -936,6 +936,8 @@ def test_protocol_v3_freezes_explicit_native_config_bytes_and_domain_capacity(
     assert config_path == output / "config" / "agibot-training.yaml"
     assert output / "checkpoints" != tmp_path / "model"
 
+    assert config_path.stat().st_mode & 0o222 == 0
+    config_path.chmod(0o600)
     config_path.write_text(
         "world_model:\n  action_num_domains: 9\n"
         "wm_training:\n  action_num_domains: 10\n",
