@@ -12,10 +12,15 @@ from typing import Any, Mapping
 
 from wmloop.constitution import ConstitutionalFreezeError, verify_constitutional_freeze
 from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.storage import checked_path
 
 
 class AdapterProfileError(ValueError):
     """A profile or one of its local bindings is invalid."""
+
+    def __init__(self, message: str, *, execution_support: Mapping[str, str] | None = None):
+        super().__init__(message)
+        self.execution_support = dict(execution_support) if execution_support is not None else None
 
     # Interface-discovery failures can be handed to the adapter repair
     # provider.  Scientific/evaluator/configuration failures stay terminal.
@@ -46,6 +51,9 @@ _BUDGET_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _ENV_CANDIDATE = re.compile(r"^\{env:(?P<name>[A-Z][A-Z0-9_]*)\}$")
+_ASSET_CANDIDATE = re.compile(
+    r"^\{asset:(?P<parameter>--[A-Za-z0-9_-]+)\}(?P<suffix>/.*)?$"
+)
 
 
 @dataclass(frozen=True)
@@ -76,6 +84,81 @@ def parse_gpu_budget(value: object) -> float:
     if not math.isfinite(hours) or hours <= 0:
         raise AdapterProfileError("BUDGET_INVALID")
     return hours
+
+
+def resolve_adapter_asset_bindings(
+    *,
+    model: Path,
+    data: Path,
+    source_root: Path | None = None,
+    adapter: str | None = None,
+    adapter_profile_path: Path | None = None,
+    goal: str = "",
+    project_root: Path | None = None,
+) -> dict[str, str]:
+    """Resolve profile-owned assets for read-only onboarding, without a run.
+
+    Profile selection and candidate validation are shared with execution;
+    resolving assets does not freeze an evaluator or establish readiness.
+    """
+    root = (project_root or Path(__file__).resolve().parents[2]).resolve()
+    model_path = _existing_path(model, directory=True, code="MODEL_PATH_INVALID")
+    source_path = (
+        _existing_path(source_root, directory=True, code="MODEL_SOURCE_PATH_INVALID")
+        if source_root is not None else model_path
+    )
+    data_path = _existing_path(data, directory=False, code="DATA_PATH_INVALID")
+    profile = _select_profile(
+        root=root, model=model_path, marker_root=source_path, goal=goal,
+        adapter=adapter, profile_path=adapter_profile_path,
+    )
+    return _resolve_asset_bindings(
+        profile, values=_binding_values(model_path, source_path, data_path, root),
+    )
+
+
+def _binding_values(model: Path, source: Path, data: Path, root: Path) -> dict[str, str]:
+    return {
+        "model": str(model), "model_parent": str(model.parent),
+        "source": str(source), "source_parent": str(source.parent),
+        "data": str(data), "data_parent": str(data.parent),
+        "verdiwm_root": str(root),
+    }
+
+
+def _resolve_asset_bindings(
+    profile: Mapping[str, Any],
+    *,
+    values: Mapping[str, str],
+    asset_overrides: Mapping[str, object] | None = None,
+) -> dict[str, str]:
+    raw_overrides = {
+        _normalize_parameter(str(parameter)): path
+        for parameter, path in (asset_overrides or {}).items()
+    }
+    assets: dict[str, str] = {}
+    for raw_binding in profile["asset_bindings"]:
+        binding = dict(raw_binding)
+        parameter = _normalize_parameter(str(binding["parameter"]))
+        kind = str(binding.get("kind", "file"))
+        if kind not in {"file", "directory"}:
+            raise AdapterProfileError("ADAPTER_PROFILE_ASSET_KIND_INVALID")
+        if parameter in raw_overrides:
+            raw_path = raw_overrides.pop(parameter)
+            path = _existing_asset(
+                Path(str(raw_path)), kind=kind, code=f"ASSET_INVALID:{parameter}"
+            )
+        else:
+            path = _resolve_candidates(
+                binding["candidates"], values=values, assets=assets,
+                kind=kind, code=f"ASSET_NOT_FOUND:{parameter}",
+            )
+        assets[parameter] = str(path)
+    if raw_overrides:
+        raise AdapterProfileError(
+            f"ASSET_OVERRIDE_UNKNOWN:{','.join(sorted(raw_overrides))}"
+        )
+    return assets
 
 
 def compile_adapter_execution(
@@ -114,24 +197,26 @@ def compile_adapter_execution(
         adapter=adapter,
         profile_path=adapter_profile_path,
     )
-    constitution_path = _project_file(
-        root, str(profile["constitution_freeze"]), "ADAPTER_CONSTITUTION_INVALID"
+    support = profile.get("execution_support")
+    if support is not None:
+        raise AdapterProfileError(
+            "ADAPTER_EXECUTION_REQUIRES_INTERFACE_EXTENSION:"
+            f"{support['reason']} {support['action']} See {support['documentation']}",
+            execution_support=support,
+        )
+    profile_path = Path(str(profile["_source_path"]))
+    resource_root = root if profile_path.is_relative_to(root) else profile_path.parent
+    resource_roots = (resource_root,) if resource_root == root else (resource_root, root)
+    constitution_path, constitution_root = _project_file(
+        resource_roots, str(profile["constitution_freeze"]), "ADAPTER_CONSTITUTION_INVALID"
     )
     try:
         freeze = json.loads(constitution_path.read_text(encoding="utf-8"))
-        verify_constitutional_freeze(freeze, root=root)
+        verify_constitutional_freeze(freeze, root=constitution_root, schema_root=root)
     except (OSError, json.JSONDecodeError, ConstitutionalFreezeError) as exc:
         raise AdapterProfileError("ADAPTER_CONSTITUTION_INVALID") from exc
 
-    values = {
-        "model": str(model_path),
-        "model_parent": str(model_path.parent),
-        "source": str(source_path),
-        "source_parent": str(source_path.parent),
-        "data": str(data_path),
-        "data_parent": str(data_path.parent),
-        "verdiwm_root": str(root),
-    }
+    values = _binding_values(model_path, source_path, data_path, root)
     runtime = (
         _existing_executable(runtime_python, "RUNTIME_PYTHON_INVALID")
         if runtime_python is not None
@@ -142,29 +227,11 @@ def compile_adapter_execution(
             executable=True,
         )
     )
-    overrides = {
-        _normalize_parameter(str(parameter)): _existing_path(
-            Path(str(path)), directory=False, code=f"ASSET_INVALID:{parameter}"
-        )
-        for parameter, path in (asset_overrides or {}).items()
-    }
-    assets: dict[str, str] = {}
-    for raw_binding in profile["asset_bindings"]:
-        binding = dict(raw_binding)
-        parameter = _normalize_parameter(str(binding["parameter"]))
-        path = overrides.pop(parameter, None)
-        if path is None:
-            path = _resolve_candidates(
-                binding["candidates"],
-                values=values,
-                code=f"ASSET_NOT_FOUND:{parameter}",
-            )
-        assets[parameter] = str(path)
-    if overrides:
-        raise AdapterProfileError(
-            f"ASSET_OVERRIDE_UNKNOWN:{','.join(sorted(overrides))}"
-        )
+    assets = _resolve_asset_bindings(profile, values=values, asset_overrides=asset_overrides)
 
+    evaluator_path, _ = _project_file(
+        resource_roots, str(profile["evaluator_contract"]), "ADAPTER_EVALUATOR_INVALID"
+    )
     state_root = Path(campaign_root).expanduser().resolve().parent
     execution: dict[str, Any] = {
         "kind": "pipeline",
@@ -174,13 +241,7 @@ def compile_adapter_execution(
         "model_root": str(model_path),
         "source_root": str(source_path),
         "output_root": str(state_root / "runs" / campaign_id),
-        "evaluator_contract": str(
-            _project_file(
-                root,
-                str(profile["evaluator_contract"]),
-                "ADAPTER_EVALUATOR_INVALID",
-            )
-        ),
+        "evaluator_contract": str(evaluator_path),
         "runtime_python": str(runtime),
         "asset_bindings": assets,
         # Adapter-owned inputs are declared by the versioned profile and are
@@ -201,6 +262,25 @@ def compile_adapter_execution(
             "runner": json.loads(json.dumps(profile["runner"])),
         },
     }
+    diagnostic = profile.get("agibot_engineering_diagnostic")
+    if diagnostic is not None:
+        # Keep the profile portable while carrying its frozen Agibot loader
+        # and bounded stage policy into the protocol-v3 manifest compiler.
+        # These values must be the same as the native training YAML's loader
+        # settings; the quickstart documents the expected mapping.
+        execution.update(
+            {
+                "agibot_support_loader": json.loads(
+                    json.dumps(diagnostic["support_loader"])
+                ),
+                "agibot_validation_sample_count": int(
+                    diagnostic["validation_sample_count"]
+                ),
+                "stage_timeouts_seconds": json.loads(
+                    json.dumps(diagnostic["stage_timeouts_seconds"])
+                ),
+            }
+        )
     if any(
         "{adapter_root}" in str(token)
         for field in ("train", "evaluate")
@@ -211,18 +291,16 @@ def compile_adapter_execution(
         )
     probe_contract = profile.get("probe_contract")
     if probe_contract is not None:
-        execution["probe_contract"] = str(
-            _project_file(root, str(probe_contract), "ADAPTER_PROBE_INVALID")
+        probe_path, _ = _project_file(
+            resource_roots, str(probe_contract), "ADAPTER_PROBE_INVALID"
         )
+        execution["probe_contract"] = str(probe_path)
     candidate_catalog = profile.get("candidate_catalog")
     if candidate_catalog is not None:
-        execution["candidate_catalog"] = str(
-            _project_file(
-                root,
-                str(candidate_catalog),
-                "ADAPTER_CANDIDATE_CATALOG_INVALID",
-            )
+        catalog_path, _ = _project_file(
+            resource_roots, str(candidate_catalog), "ADAPTER_CANDIDATE_CATALOG_INVALID"
         )
+        execution["candidate_catalog"] = str(catalog_path)
     settlement_candidates = profile.get("settlement_manifest_candidates")
     if settlement_candidates is not None:
         execution["settlement_manifest"] = str(
@@ -254,7 +332,7 @@ def _select_profile(
     # public adapter selector is ``auto`` after an isolated repair.  Automatic
     # discovery only applies when no profile path was supplied.
     if profile_path is not None:
-        profile = _load_profile(Path(profile_path).expanduser().resolve(), root=root)
+        profile = _load_profile(Path(profile_path), root=root)
         if adapter and adapter != "auto":
             if adapter not in {profile["profile_id"], *profile["aliases"]}:
                 raise AdapterProfileError("ADAPTER_PROFILE_NOT_FOUND")
@@ -341,6 +419,7 @@ def select_repair_base_profile(
 
 
 def _load_profile(path: Path, *, root: Path) -> dict[str, Any]:
+    path = checked_path(path, code=f"ADAPTER_PROFILE_INVALID:{path}", error=AdapterProfileError)
     try:
         profile = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -354,7 +433,7 @@ def _load_profile(path: Path, *, root: Path) -> dict[str, Any]:
     parameters = [str(row["parameter"]) for row in profile["asset_bindings"]]
     if len(parameters) != len(set(parameters)):
         raise AdapterProfileError(f"ADAPTER_PROFILE_DUPLICATE_ASSET:{path}")
-    profile["_source_path"] = str(path.expanduser().resolve())
+    profile["_source_path"] = str(path)
     return profile
 
 
@@ -374,6 +453,8 @@ def _resolve_candidates(
     values: Mapping[str, str],
     code: str,
     executable: bool = False,
+    assets: Mapping[str, str] | None = None,
+    kind: str | None = None,
 ) -> Path:
     if not isinstance(candidates, list):
         raise AdapterProfileError(code)
@@ -385,16 +466,32 @@ def _resolve_candidates(
             if not candidate:
                 continue
         else:
-            try:
-                candidate = candidate.format_map(values)
-            except (KeyError, ValueError) as exc:
-                raise AdapterProfileError("ADAPTER_PROFILE_TEMPLATE_INVALID") from exc
+            asset_match = _ASSET_CANDIDATE.fullmatch(candidate)
+            if asset_match is not None:
+                parameter = asset_match.group("parameter")
+                asset_root = (assets or {}).get(parameter)
+                if asset_root is None:
+                    raise AdapterProfileError(
+                        f"ADAPTER_PROFILE_ASSET_REFERENCE_UNBOUND:{parameter}"
+                    )
+                suffix = (asset_match.group("suffix") or "").lstrip("/")
+                candidate = str(Path(asset_root) / suffix)
+            else:
+                try:
+                    candidate = candidate.format_map(values)
+                except (KeyError, ValueError) as exc:
+                    raise AdapterProfileError("ADAPTER_PROFILE_TEMPLATE_INVALID") from exc
         path = Path(candidate).expanduser()
         if not path.exists() or (path.is_symlink() and not executable):
             continue
         resolved = path.resolve()
         if executable and (not resolved.is_file() or not os.access(resolved, os.X_OK)):
             continue
+        if kind is not None:
+            try:
+                resolved = _existing_asset(path, kind=kind, code=code)
+            except AdapterProfileError:
+                continue
         # Preserve virtualenv launcher spelling for executable candidates;
         # resolving it can silently switch to the base interpreter and lose
         # the model checkout's installed dependencies.
@@ -402,11 +499,39 @@ def _resolve_candidates(
     raise AdapterProfileError(code)
 
 
-def _project_file(root: Path, relative: str, code: str) -> Path:
-    path = (root / relative).resolve()
-    if root not in path.parents or not path.is_file() or path.is_symlink():
+def _existing_asset(path: Path, *, kind: str, code: str) -> Path:
+    candidate = Path(path).expanduser()
+    if not candidate.exists() or candidate.is_symlink():
         raise AdapterProfileError(code)
-    return path
+    resolved = checked_path(candidate, code=code, error=AdapterProfileError)
+    if kind == "directory" and not resolved.is_dir():
+        raise AdapterProfileError(code)
+    if kind == "file" and not resolved.is_file():
+        raise AdapterProfileError(code)
+    return resolved
+
+
+def _project_file(roots: tuple[Path, ...], reference: str, code: str) -> tuple[Path, Path]:
+    """Resolve profile resources locally, retaining installed overlay bindings."""
+
+    relative = Path(reference).expanduser()
+    if ".." in relative.parts:
+        raise AdapterProfileError(code)
+    # For absolute references, the most specific root owns freeze entries.
+    search_roots = (
+        sorted(roots, key=lambda value: len(value.parts), reverse=True)
+        if relative.is_absolute()
+        else roots
+    )
+    for root in search_roots:
+        path = checked_path(root / relative, code=code, error=AdapterProfileError)
+        if not path.is_relative_to(root):
+            continue
+        if path.is_file():
+            return path, root
+        if path.exists():
+            raise AdapterProfileError(code)
+    raise AdapterProfileError(code)
 
 
 def _existing_path(path: Path, *, directory: bool, code: str) -> Path:

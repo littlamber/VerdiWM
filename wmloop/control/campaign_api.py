@@ -36,6 +36,7 @@ from wmloop.control.research_modes import (
     apply_research_mode_to_execution,
     compile_research_mode_plan,
 )
+from wmloop.control.research_execution_policy import ResearchExecutionPolicyError, apply_execution_policy
 from wmloop.control.automatic_campaign import (
     AutomaticCampaignError,
     automatic_campaign_id,
@@ -45,6 +46,7 @@ from wmloop.control.automatic_campaign import (
 )
 from wmloop.experiments.evidence_graph import query_evidence_graph
 from wmloop.control.campaign_repository import CampaignAPIError, CampaignRepository
+from wmloop.storage import checked_path
 
 
 SCHEMA_VERSION = 4
@@ -100,6 +102,42 @@ class CampaignStore:
 
     def _write(self, path: Path, value: dict[str, Any]) -> None:
         self.repository.write(path, value)
+
+    def _preserve_terminal_revision(self, record: dict[str, Any]) -> dict[str, str]:
+        """Snapshot terminal evidence in the caller's campaign transaction."""
+
+        revision_path = self._revision_path(str(record["campaign_id"]), str(record["revision_id"]))
+        snapshots = {
+            "terminal_record_ref": (
+                revision_path.with_suffix(".terminal.json"),
+                {key: value for key, value in record.items() if key != "revision_history"},
+            ),
+        }
+        dispatch_ref = record.get("dispatch_ref")
+        if isinstance(dispatch_ref, str):
+            dispatch_path = checked_path(Path(dispatch_ref), code="CAMPAIGN_PROJECTION_INVALID", error=CampaignAPIError)
+            if dispatch_path.is_file():
+                try:
+                    dispatch = json.loads(dispatch_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError) as exc:
+                    raise CampaignAPIError("DISPATCH_MANIFEST_INVALID") from exc
+                if not isinstance(dispatch, dict) or any(
+                    dispatch.get(key) != record.get(key) for key in ("campaign_id", "revision_id")
+                ):
+                    raise CampaignAPIError("DISPATCH_REVISION_MISMATCH")
+                snapshots["dispatch_ref"] = (revision_path.with_suffix(".dispatch.json"), dispatch)
+        for path, value in snapshots.values():
+            path = checked_path(path, code="CAMPAIGN_PROJECTION_INVALID", error=CampaignAPIError)
+            if path.exists():
+                try:
+                    previous = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError) as exc:
+                    raise CampaignAPIError("CAMPAIGN_REVISION_CONFLICT") from exc
+                if previous != value:
+                    raise CampaignAPIError("CAMPAIGN_REVISION_CONFLICT")
+            else:
+                self._write(path, value)
+        return {key: str(path) for key, (path, _) in snapshots.items()}
 
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         goal = _required_text(payload, "goal", "GOAL_REQUIRED")
@@ -237,7 +275,7 @@ class CampaignStore:
         # remaining inside the immutable execution contract.  This keeps the
         # high-level research plan honest when a model uses a local evaluator or
         # Python environment rather than the profile's conventional location.
-        for field in ("evaluator_contract", "runtime_python"):
+        for field in ("evaluator_contract", "runtime_python", "agibot_native_config"):
             override = payload.get(field)
             if override is not None:
                 if not isinstance(override, str) or not Path(override).is_absolute():
@@ -305,6 +343,13 @@ class CampaignStore:
                 execution,
                 plan=research_mode_plan,
             )
+        if payload.get("execution_policy") is not None:
+            try:
+                execution = apply_execution_policy(
+                    execution, policy=payload["execution_policy"], total_gpu_hours=budget_hours
+                )
+            except ResearchExecutionPolicyError as exc:
+                raise CampaignAPIError(str(exc)) from exc
         _validate_execution(execution)
         assert isinstance(execution, dict)
         target_metrics = _bind_target_metrics(target_metrics, execution, goal=goal)
@@ -397,19 +442,23 @@ class CampaignStore:
                     raise CampaignAPIError("CAMPAIGN_ID_CONFLICT")
                 if existing.get("revision_id") == record["revision_id"]:
                     return existing
-                # A draft has no dispatcher claim or GPU side effect yet, so a changed
-                # source/policy snapshot may safely supersede it automatically.
-                if (self.root / "dispatch" / "running" / f"{campaign_id}.json").exists() or str(existing.get("status")) not in {"created", "completed", "failed", "cancelled"}:
+                # Drafts and settled terminal attempts have no active claim;
+                # a changed source/policy snapshot may own a new revision.
+                if (self.root / "dispatch" / "running" / f"{campaign_id}.json").exists() or str(existing.get("status")) not in {"created", "completed", "blocked", "failed", "cancelled"}:
                     raise CampaignAPIError("CAMPAIGN_REVISION_ACTIVE")
                 history = list(existing.get("revision_history", []))
-                history.append(
-                    {
-                        "revision_id": existing.get("revision_id"),
-                        "revision_digest": existing.get("revision_digest"),
-                        "status": existing.get("status"),
-                        "revision_ref": existing.get("revision_ref"),
-                    }
-                )
+                prior = {
+                    "revision_id": existing.get("revision_id"),
+                    "revision_digest": existing.get("revision_digest"),
+                    "status": existing.get("status"),
+                    "revision_ref": existing.get("revision_ref"),
+                }
+                if existing.get("status") != "created":
+                    # Dispatch projections are reused by later revisions. Keep
+                    # the authoritative terminal result and its old projection
+                    # under the immutable revision before admitting new work.
+                    prior.update(self._preserve_terminal_revision(existing))
+                history.append(prior)
                 record["revision_history"] = history
                 record["prior_revision_id"] = existing.get("revision_id")
             revision_path = self._revision_path(campaign_id, str(record["revision_id"]))
@@ -521,8 +570,7 @@ class CampaignStore:
                 raise CampaignAPIError("DISPATCH_REVISION_MISMATCH")
             if record["status"] == "cancelled":
                 status = "cancelled"
-            else:
-                record = self.record_dispatch_result(campaign_id, status=status, result=result, error=error)
+            record = self.record_dispatch_result(campaign_id, status=status, result=result, error=error)
             destination = self.root / "dispatch" / status / f"{campaign_id}.json"
             terminal = {**dispatch, "state": status}
             if result is not None:
@@ -617,14 +665,17 @@ class CampaignStore:
         result: dict[str, Any] | None = None,
         error: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if status not in {"running", "completed", "blocked", "failed"}:
+        if status not in {"running", "completed", "blocked", "failed", "cancelled"}:
             raise CampaignAPIError("DISPATCH_STATUS_INVALID")
         with self.transaction():
             record = self.get(campaign_id)
             current = str(record.get("status"))
             if current == "cancelled":
-                return record
-            if status != current and status not in _TRANSITIONS.get(current, set()):
+                status = "cancelled"
+            elif status == "cancelled":
+                # cancel() owns cancellation intent and queue withdrawal.
+                raise CampaignAPIError("DISPATCH_STATUS_INVALID")
+            elif status != current and status not in _TRANSITIONS.get(current, set()):
                 raise CampaignAPIError("STATUS_TRANSITION_INVALID")
             record["status"] = status
             record["updated_at"] = _now()

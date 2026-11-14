@@ -49,6 +49,10 @@ class GpuLeaseError(RuntimeError):
     """A GPU lease could not be acquired or used safely."""
 
 
+class GpuLeaseCancelled(GpuLeaseError):
+    """Admission was cancelled before any acquired leases were handed over."""
+
+
 SnapshotProvider = Callable[[], Mapping[str, object]]
 
 
@@ -124,22 +128,19 @@ class GpuLeaseManager:
         *,
         wait_seconds: float = 0.0,
         poll_seconds: float = 2.0,
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> GpuLease:
         candidates = _normalize_indices(allowed_indices)
         if not candidates:
             raise GpuLeaseError("GPU_LEASE_CANDIDATES_EMPTY")
-        _validate_wait_policy(wait_seconds, poll_seconds)
-        deadline = time.monotonic() + wait_seconds
-        last_blockers: list[str] = []
-        while True:
-            lease, blockers = self._try_acquire(candidates)
-            if lease is not None:
-                return lease
-            last_blockers = blockers
-            if time.monotonic() >= deadline:
-                suffix = ":" + ",".join(last_blockers[:8]) if last_blockers else ""
-                raise GpuLeaseError(f"GPU_LEASE_UNAVAILABLE{suffix}")
-            time.sleep(min(poll_seconds, max(deadline - time.monotonic(), 0.0)))
+        if cancel_requested is None:
+            return self.acquire_many(
+                candidates, 1, wait_seconds=wait_seconds, poll_seconds=poll_seconds,
+            )[0]
+        return self.acquire_many(
+            candidates, 1, wait_seconds=wait_seconds, poll_seconds=poll_seconds,
+            cancel_requested=cancel_requested,
+        )[0]
 
     def acquire_many(
         self,
@@ -148,12 +149,16 @@ class GpuLeaseManager:
         *,
         wait_seconds: float = 0.0,
         poll_seconds: float = 2.0,
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> list[GpuLease]:
         """Atomically acquire ``count`` leases from one admitted GPU set.
 
         A distributed worker must never start with a partial world.  We therefore
         try every allowed candidate in one attempt and release every partial
         lease if fewer than ``count`` GPUs can be admitted.
+        Cancellation is checked between admission attempts and at most every
+        100ms during a polling wait. An in-flight snapshot provider must return
+        before cancellation can be observed.
         """
         if isinstance(count, bool) or not isinstance(count, int) or count < 1:
             raise GpuLeaseError("GPU_LEASE_COUNT_INVALID")
@@ -164,14 +169,28 @@ class GpuLeaseManager:
         deadline = time.monotonic() + wait_seconds
         last_blockers: list[str] = []
         while True:
+            _check_cancelled(cancel_requested)
             leases, blockers = self._try_acquire_many(candidates, count)
             if leases is not None:
-                return leases
+                accepted = False
+                try:
+                    _check_cancelled(cancel_requested)
+                    accepted = True
+                    return leases
+                finally:
+                    if not accepted:
+                        for lease in leases:
+                            lease.release()
+            _check_cancelled(cancel_requested)
             last_blockers = blockers
             if time.monotonic() >= deadline:
                 suffix = ":" + ",".join(last_blockers[:8]) if last_blockers else ""
                 raise GpuLeaseError(f"GPU_LEASE_UNAVAILABLE{suffix}")
-            time.sleep(min(poll_seconds, max(deadline - time.monotonic(), 0.0)))
+            next_poll = min(deadline, time.monotonic() + poll_seconds)
+            while time.monotonic() < next_poll:
+                _check_cancelled(cancel_requested)
+                interval = 0.1 if cancel_requested is not None else poll_seconds
+                time.sleep(min(interval, max(next_poll - time.monotonic(), 0.0)))
 
     def _try_acquire_many(
         self, candidates: Sequence[int], count: int
@@ -245,9 +264,9 @@ class GpuLeaseManager:
             return "COMPUTE_APP_PRESENT"
         return None
 
-    def _try_acquire(self, candidates: Sequence[int]) -> tuple[GpuLease | None, list[str]]:
-        leases, blockers = self._try_acquire_many(candidates, 1)
-        return (leases[0] if leases is not None else None), blockers
+def _check_cancelled(cancel_requested: Callable[[], bool] | None) -> None:
+    if cancel_requested is not None and cancel_requested():
+        raise GpuLeaseCancelled("GPU_LEASE_CANCELLED")
 
 
 def _validated_snapshot(

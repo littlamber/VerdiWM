@@ -141,6 +141,9 @@ def check(args: argparse.Namespace) -> int:
         runtime_python=str(args.runtime_python)
         if args.runtime_python
         else configured.get("runtime_python"),
+        adapter_profile=configured.get("adapter_profile"),
+        adapter=configured.get("adapter"),
+        goal=configured.get("goal"),
     )
     doctor = doctor_report(args)
     checks = list(readiness.get("checks", []))
@@ -237,6 +240,9 @@ def diagnose(args: argparse.Namespace) -> int:
         runtime_python=str(args.runtime_python)
         if args.runtime_python
         else configured.get("runtime_python"),
+        adapter_profile=configured.get("adapter_profile"),
+        adapter=configured.get("adapter"),
+        goal=configured.get("goal"),
     )
     discovered = readiness.get("discovered", {})
     blockers = readiness.get("blockers", [])

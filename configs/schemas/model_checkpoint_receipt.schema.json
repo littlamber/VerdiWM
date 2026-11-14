@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "model_run_id", "scale_plan_digest", "checkpoint_path", "checkpoint_sha256", "planned_steps", "seed", "support_record_ids", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-model-checkpoint-receipt"},
+    "state": {"const": "complete"},
+    "model_run_id": {"type": "string", "pattern": "^model-run-[0-9a-f]{24}$"},
+    "scale_plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checkpoint_path": {"type": "string", "minLength": 1},
+    "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "planned_steps": {"type": "integer", "minimum": 1},
+    "seed": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+    "support_record_ids": {
+      "oneOf": [
+        {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^train-record-[0-9]{8}-[0-9a-f]{64}$"}},
+        {"$ref": "#/$defs/compactIdentityBinding"}
+      ]
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  },
+  "$defs": {
+    "compactIdentityBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "sha256"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

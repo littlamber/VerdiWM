@@ -166,6 +166,13 @@ The scanner fails closed with stable blocker codes such as `RUNTIME_UNREADY`, `S
 
 An evaluator contract is an external frozen JSON file. Keeping it outside the imported repository prevents onboarding from rewriting upstream model code or silently changing verdict semantics.
 
+使用 `research plan --adapter-profile /path/to/contracts/profile.json` 时，外部
+profile 的 `evaluator_contract`、`probe_contract`、`candidate_catalog` 和
+`constitution_freeze` 相对该 profile 所在目录解析；冻结清单的 `entries.path`
+相对同一资源根目录。内置 profile 保留安装根目录下的相对路径，外部生成的旧
+overlay 在本地资源缺失时也兼容这些内置绑定。schema 始终来自安装包，用户无需
+向 `site-packages` 写入配置；符号链接、越界路径或无效的本地冻结证据会明确报错。
+
 ```json
 {
   "evaluator_id": "task_success_v1",
@@ -267,6 +274,7 @@ capacity. It invokes the same resumable pipeline transaction as `verdiwm-run`;
 it does not introduce a second evaluator or experiment path.
 
 ```bash
+mkdir -p /path/to/verdiwm-state/ctrl-world-predictive-v1
 nohup uv run verdiwm-run-daemon /path/to/Ctrl-World \
   --output-root /path/to/verdiwm-runs/ctrl-world-predictive-v1 \
   --daemon-state-root /path/to/verdiwm-state/ctrl-world-predictive-v1/daemon \
@@ -289,31 +297,75 @@ nohup uv run verdiwm-run-daemon /path/to/Ctrl-World \
 The daemon's `status.json` separates `deferral_count` from `error_count`.
 `GPU_LEASE_UNAVAILABLE` waits do not consume `--max-attempts`, create receipts,
 or charge budget. Other failures use the finite attempt bound. `SIGTERM` and
-`SIGINT` stop after the current pipeline call, and the identical command resumes
-from the pipeline's persisted stage, Archive, CAS, and budget ledger. If the
+`SIGINT` prevent another cycle and persist the stop after the current pipeline
+call returns. Local subprocesses can respond to cancellation inside that call;
+the current work is not guaranteed to finish. The identical command resumes
+from the pipeline's persisted stage, Archive, CAS, and budget ledger. An admitted
+trial without a settled receipt can still require cost reconciliation. If the
 cycle limit is reached while capacity remains unavailable, the state is
 `exhausted`; increasing only `--max-cycles` resumes the same immutable run.
 Changing the model, evaluator, probe, assets, or retry policy requires a new
 daemon state root.
 
-When no explicit `--literature-query` is supplied, a successful probe with no
-compatible receipt-bound experience automatically derives a network literature
-query from its model family and failure signatures. A matched experience index
-skips that cold-start query.
+普通研究任务每轮都会在诊断和经验检索之后准备联网查询。查询保留用户目标，
+使用任务领域、当前轮失败征象与可用机制线索；不会把内部轮换执行策略当成
+论文关键词。`retrieval/literature-query-plan.json` 保存本轮查询及诊断、经验
+来源，`literature/` 下的 manifest、请求记录和论文记录用于复核真实联网结果。
+查询和文献只提供候选线索，模型收益仍须由冻结验证器确认。
+
+直接使用单轮 pipeline、未提供 `--literature-query` 时，可以使用当前诊断与
+模型领域中的明确检索词准备查询；已有匹配经验时也会纳入查询上下文。
+普通多轮研究入口会传入研究目标，因而每轮都准备文献检索。
+相同输入恢复已有产物不等于新联网，具体网络、缓存和恢复状态以本轮请求记录为准。
+中文目标保留原文；缺少可检索任务语义时会记录跳过原因，用户可在研究目标中
+补充实际的英文领域关键词。查询放宽和无域跳过的边界见
+[每轮联网检索与经验反馈](RUN_LIFECYCLE.md#每轮联网检索与经验反馈)。
 
 ## Continuous immutable evolution
 
-For unattended iteration, use `verdiwm-evolution-daemon`. It materializes a new
+普通用户可直接在现有终端设置多轮，无需另找后台控制器：
+
+```text
+verdi> /plan "提升长程一致性" --rounds 2 --budget 2gpu-hours --stop-on-success
+verdi> /run
+```
+
+`/run --rounds 2` 也会先持久化并预览派生计划，确认一次后执行；无参数时回车
+沿用原轮数。自然语言“跑两轮”只准备计划，不启动 GPU。多轮任务统一通过
+campaign 的 `/status` 和 `/cancel ID` 管理，所有轮次共用总预算。
+`--stop-on-success` 依赖 evaluator 的 `frozen_goal`（相对路径 goal v2）与本轮
+confirm 的正式 CAS 判定证据；无此契约或证据时继续受轮数、预算等条件约束，
+pipeline 通过或诊断重复都不算目标达成。
+详见[研究运行与停止说明](RUN_LIFECYCLE.md)。
+
+Both this public path and the compatible standalone `verdiwm-evolution-daemon`
+reuse the same evolution controller. It materializes a new
 `iteration-XXXXXX/inputs/` directory before every pipeline call. The generated
 probe, evaluator, campaign, candidate, and trial identities are never reused;
 the shared Archive/CAS/retrieval index and one global budget ledger remain the
 authoritative memory and resource boundary.
 
+For existing advanced scripts that launch the standalone command directly,
+set `--max-iterations 2` for at most two research iterations;
+`--max-iterations 0` explicitly removes its round limit. The normal
+`research plan/run --rounds N` path always requires a positive finite limit and
+disables stopping solely because diagnostic signatures repeat.
+
+The command below is a resource-binding template, not a ready-to-run model
+example. Supply a confirmed evaluator whose `scheduler_template` points to a
+valid `auto_experiment_candidate_batch`, with `screen`, `gate`, and `confirm`
+stages in each candidate. The bundled
+`ctrl_world_predictive_probe_evaluator_v2.json` is a diagnostic evaluator and
+does not provide this scheduler contract; using it directly here fails with
+`EVOLUTION_EVALUATOR_TEMPLATE_INVALID`. Do not change a frozen evaluator just
+to bypass that check. Prepare and review a new campaign contract instead.
+
 ```bash
+mkdir -p /path/to/verdiwm-state/ctrl-world-evolution
 nohup uv run verdiwm-evolution-daemon /path/to/Ctrl-World \
   --output-root /path/to/verdiwm-runs/ctrl-world-evolution \
   --state-root /path/to/verdiwm-state/ctrl-world-evolution \
-  --evaluator-contract /path/to/VerdiWM/configs/evaluators/ctrl_world_predictive_probe_evaluator_v2.json \
+  --evaluator-contract /path/to/confirmed-evaluator-with-scheduler.json \
   --probe-contract /path/to/VerdiWM/configs/probes/ctrl_world_predictive_diagnostic_v1.json \
   --retrieval-db /path/to/verdiwm-state/ctrl-world-evolution/retrieval.db \
   --archive-db /path/to/verdiwm-state/ctrl-world-evolution/archive.db \
@@ -328,16 +380,20 @@ nohup uv run verdiwm-evolution-daemon /path/to/Ctrl-World \
   --asset=--ckpt_path=/path/to/Ctrl-World/checkpoint-10000.pt \
   --asset=--dataset_root_path=/path/to/Ctrl-World/dataset_example \
   --asset=--dataset_meta_info_path=/path/to/Ctrl-World/dataset_meta_info \
-  --no-import-probe --poll-seconds 60 --max-iterations 0 \
+  --no-import-probe --poll-seconds 60 --max-iterations 2 \
   --max-failures 3 --max-no-information 3 \
   > /path/to/verdiwm-state/ctrl-world-evolution/daemon.log 2>&1 &
 ```
 
 `--max-iterations 0` means long-running, not unbounded resource usage: the
 global GPU-hour ledger, consecutive-failure limit, and no-new-information limit
-are hard stop conditions. A stopped or exhausted controller resumes the current
-immutable iteration with the same command and state root. Use a new state root
-when changing contracts, assets, retry policy, or the global budget.
+are hard stop conditions. With the same command and state root, a stopped or
+recoverable exhausted controller resumes an unfinished immutable iteration; if
+the last iteration completed before stopping, it starts the next one. Use a new
+state root when changing contracts, assets, retry policy, the iteration limit,
+or the global budget.
+Stop signals propagate through the inner daemon, so a signal received during
+the current pipeline call cannot silently start another research iteration.
 
 The resource flags are admission controls, not scientific quality gates. A
 method estimated at 80 GPU-hours is classified as `high` and can run when the

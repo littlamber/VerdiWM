@@ -56,6 +56,14 @@ checkpoint，因此进程退出成功不能视为训练评估闭环完成。
 `WAN22_TRAIN_BUDGET_OUTPUT_BINDING_UNSUPPORTED`。接通上述绑定并完成负向测试
 与实际有界训练验证后，才能恢复此入口。
 
+内置 `coachworld-wan22-droid-v1` profile 通过可选的 `execution_support`
+元数据显式声明 `requires_interface_extension`，包含原因、修复动作和本文引用。
+共享 adapter compiler 会在运行时和资源编译前返回
+`ADAPTER_EXECUTION_REQUIRES_INTERFACE_EXTENSION`，因此公共研究计划保持
+`blocked`，不能确认排队。这个检查也适用于带同类声明的外部 profile；没有该
+声明的 profile 仍需通过既有接入、资源和冻结评测检查，不能仅凭字段缺省认定
+模型已具备执行能力。只读资产扫描可以继续，用于准备接入，不授予执行权限。
+
 独立 PSNR/SSIM smoke 仍可用于配对 rollout 的测量。其冻结契约
 `wan22-droid-psnr-ssim-smoke-v1` 只接受 `psnr`、`ssim` 两个指标。
 六指标正式契约 `wan22-droid-verdi-contract-v1` 需要完整实现对应评测器；传给
@@ -68,3 +76,7 @@ checkpoint，因此进程退出成功不能视为训练评估闭环完成。
 缓存和运行产物目录排除规则继续适用；源码摘要不包含已安装 Python 环境中的
 全部依赖，也不构成文件系统隔离。receipt 的 `passed` 仅表示有界进程、输入绑定
 及原生 manifest/视频文件契约通过，视频非空检查不证明视频质量或正式指标提升。
+
+该 arm-slot 入口目前是独立的诊断推理路径；完整 arm-slot campaign 的训练、
+配对候选和正式确认接入尚未实现。CPU 接入扫描、help/import conformance 或
+独立 GPU 推理成功都不能解除上述 profile 阻塞，也不能视为完整训练优化闭环。

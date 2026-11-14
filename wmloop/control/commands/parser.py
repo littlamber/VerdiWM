@@ -7,6 +7,22 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from wmloop.control.commands.io import repository_root
+from wmloop.control.commands.run_parser import add_run_command
+from wmloop.control.commands.training_parser import (
+    add_diagnose_training_gain_command,
+    add_training_plan_commands,
+    add_training_recipes_command,
+)
+
+
+def _positive_rounds(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("轮数必须是正整数，例如 --rounds 2") from exc
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("轮数必须是正整数，例如 --rounds 2")
+    return parsed
 
 
 def build_parser(
@@ -59,72 +75,12 @@ def build_parser(
     )
     llm.set_defaults(handler=handlers["_llm"])
 
-    run = commands.add_parser(
-        "run", help="compile and run a model optimization campaign"
+    add_run_command(
+        commands,
+        handlers=handlers,
+        asset_argument=asset_argument,
+        positive_rounds=_positive_rounds,
     )
-    run.add_argument("intent", nargs="?", help="plain-language research goal")
-    run.add_argument("--model")
-    run.add_argument(
-        "--source", help="模型源码目录；省略时从 checkpoint 父目录自动推断"
-    )
-    run.add_argument("--data")
-    run.add_argument("--goal")
-    run.add_argument(
-        "--target-metrics",
-        "--metrics",
-        dest="target_metrics",
-        nargs="+",
-        help="metrics to improve; validated against the frozen evaluator catalog",
-    )
-    run.add_argument("--budget", default=None)
-    run.add_argument("--adapter", default="auto")
-    run.add_argument(
-        "--mode",
-        choices=("quick-start", "causal-discovery", "hybrid"),
-        help="research routing policy; omitted preserves the legacy pipeline",
-    )
-    run.add_argument("--literature-query")
-    run.add_argument(
-        "--model-irg", type=Path, help="已有实测 IRG；诊断查询与用户目标联合用于检索"
-    )
-    run.add_argument(
-        "--irg-protected-metric",
-        action="append",
-        default=[],
-        help="IRG 方法生成时保护的指标，可重复指定",
-    )
-    run.add_argument("--cpbe-request", type=Path)
-    run.add_argument("--cpbe-history", type=Path)
-    run.add_argument("--adapter-profile", type=Path)
-    run.add_argument("--runtime-python", type=Path)
-    run.add_argument("--engineering-manifest", type=Path)
-    run.add_argument("--compiled-manifest", type=Path)
-    run.add_argument("--engineering-repo-root", type=Path)
-    run.add_argument("--schema-root", type=Path)
-    run.add_argument("--asset", action="append", type=asset_argument, default=[])
-    run.add_argument("--training-scale-plan", type=Path)
-    repair_group = run.add_mutually_exclusive_group()
-    repair_group.add_argument(
-        "--auto-repair-adapter",
-        dest="auto_repair_adapter",
-        action="store_true",
-        help=argparse.SUPPRESS,
-    )
-    repair_group.add_argument(
-        "--no-auto-repair-adapter",
-        dest="auto_repair_adapter",
-        action="store_false",
-        help="disable automatic adapter completion",
-    )
-    run.set_defaults(auto_repair_adapter=True)
-    run.add_argument("--repair-base-profile", type=Path, help=argparse.SUPPRESS)
-    run.add_argument("--repair-attempts", type=int, default=3)
-    run.add_argument("--llm-config", type=Path)
-    run.add_argument("--campaign-id")
-    run.add_argument("--state-root", type=Path, default=None)
-    run.add_argument("--queue-only", action="store_true")
-    run.add_argument("--max-parallel", type=int, default=1)
-    run.set_defaults(handler=handlers["_run"])
 
     research = commands.add_parser(
         "research", help="从一句研究目标生成计划，并在一次确认后进入完整闭环"
@@ -135,12 +91,22 @@ def build_parser(
     )
     research_plan.add_argument("--model", help="模型目录；默认读取 verdiwm.toml")
     research_plan.add_argument("--source", help="模型源码目录；可与权重目录分离")
-    research_plan.add_argument("--data", help="数据目录；默认读取 verdiwm.toml")
+    research_plan.add_argument(
+        "--data", "--dataset-root", dest="data",
+        help="数据集根目录；默认读取 verdiwm.toml",
+    )
     research_plan.add_argument("--goal", help="想改善的能力，用一句话描述")
     research_plan.add_argument(
         "--target-metrics", "--metrics", dest="target_metrics", nargs="+"
     )
+    research_plan.add_argument(
+        "--protected-metrics",
+        nargs="+",
+        help="核对 evaluator 的 frozen_goal v2 中声明的完整正式保护指标集合",
+    )
     research_plan.add_argument("--budget", default=None, help="例如 4gpu-hours")
+    research_plan.add_argument("--rounds", type=_positive_rounds, default=1, help="最多研究轮数，默认 1；所有轮共享 --budget 总预算")
+    research_plan.add_argument("--stop-on-success", action=argparse.BooleanOptionalAction, default=False, help="正式冻结 verifier 确认收益并 settled 后提前停止")
     research_plan.add_argument("--adapter", default=None, help="适配器 profile 或 auto")
     research_plan.add_argument(
         "--mode", choices=("quick-start", "causal-discovery", "hybrid")
@@ -172,6 +138,8 @@ def build_parser(
     )
     research_run.add_argument("--state-root", type=Path)
     research_run.add_argument("--max-parallel", type=int, default=1)
+    research_run.add_argument("--rounds", type=_positive_rounds, help="派生新计划的最多轮数；保留旧计划和跨轮总预算")
+    research_run.add_argument("--stop-on-success", action=argparse.BooleanOptionalAction, default=None, help="派生计划启用/关闭正式确认成功后提前停止")
     research_run.set_defaults(handler=handlers["_research_run"])
 
     research_evaluate_irg = research_commands.add_parser(
@@ -249,11 +217,23 @@ def build_parser(
     status.add_argument("campaign_id", nargs="?")
     status.add_argument("--status")
     status.add_argument("--limit", type=int, default=100)
+    status.add_argument(
+        "--format",
+        choices=("json", "text"),
+        default="json",
+        help="输出机器兼容 JSON（默认）或精简的人类可读摘要",
+    )
     status.add_argument("--state-root", type=Path, default=None)
     status.set_defaults(handler=handlers["_status"])
 
     cancel = commands.add_parser("cancel", help="cancel a queued or running campaign")
     cancel.add_argument("campaign_id")
+    cancel.add_argument(
+        "--format",
+        choices=("json", "text"),
+        default=None,
+        help="输出精简的人类可读摘要，或完整机器兼容 JSON",
+    )
     cancel.add_argument("--state-root", type=Path, default=None)
     cancel.set_defaults(handler=handlers["_cancel"])
 
@@ -303,62 +283,11 @@ def build_parser(
     )
     audit.set_defaults(handler=handlers["_audit"])
 
-    plan_training = commands.add_parser(
-        "plan-training",
-        help="derive a bounded world-model training scale from sample manifests",
+    add_training_plan_commands(
+        commands,
+        handlers=handlers,
+        repository_root=repository_root,
     )
-    plan_training.add_argument("--train-manifest", type=Path, required=True)
-    plan_training.add_argument("--val-manifest", type=Path, required=True)
-    plan_training.add_argument(
-        "--stage",
-        choices=("probe", "smoke", "screen", "pilot", "confirm"),
-        default="screen",
-    )
-    plan_training.add_argument("--batch-size", type=int, default=1)
-    plan_training.add_argument("--gradient-accumulation", type=int, default=1)
-    plan_training.add_argument("--world-size", type=int, default=1)
-    plan_training.add_argument("--sequence-length", type=int)
-    plan_training.add_argument("--seed-count", type=int)
-    plan_training.add_argument(
-        "--training-recipe",
-        help="admitted local recipe id; shadow-only literature is rejected",
-    )
-    plan_training.add_argument(
-        "--training-recipe-registry",
-        type=Path,
-        default=repository_root()
-        / "configs"
-        / "retrieval"
-        / "world_model_training_recipes_v1.json",
-    )
-    plan_training.add_argument("--schema-root", type=Path)
-    plan_training.add_argument("--repo-root", type=Path)
-    plan_training.add_argument("--output", type=Path)
-    plan_training.set_defaults(handler=handlers["_plan_training"])
-
-    plan_training_ladder = commands.add_parser(
-        "plan-training-ladder",
-        help="plan automatic probe-to-formal training upgrades without launching a model",
-    )
-    plan_training_ladder.add_argument("--train-manifest", type=Path, required=True)
-    plan_training_ladder.add_argument("--val-manifest", type=Path, required=True)
-    plan_training_ladder.add_argument(
-        "--current-stage",
-        choices=("probe", "smoke", "screen", "pilot"),
-        default="probe",
-    )
-    plan_training_ladder.add_argument(
-        "--target-stage", choices=("screen", "pilot", "confirm"), default="confirm"
-    )
-    plan_training_ladder.add_argument("--batch-size", type=int, default=1)
-    plan_training_ladder.add_argument("--gradient-accumulation", type=int, default=1)
-    plan_training_ladder.add_argument("--world-size", type=int, default=1)
-    plan_training_ladder.add_argument("--sequence-length", type=int)
-    plan_training_ladder.add_argument("--seed-count", type=int)
-    plan_training_ladder.add_argument("--schema-root", type=Path)
-    plan_training_ladder.add_argument("--repo-root", type=Path)
-    plan_training_ladder.add_argument("--output", type=Path)
-    plan_training_ladder.set_defaults(handler=handlers["_plan_training_ladder"])
 
     lint_experiment = commands.add_parser(
         "lint-experiment",
@@ -383,14 +312,7 @@ def build_parser(
     compile_proposal.add_argument("--output", type=Path)
     compile_proposal.set_defaults(handler=handlers["_compile_proposal"])
 
-    training_recipes = commands.add_parser(
-        "training-recipes",
-        help="list auditable world-model training recipes and their evidence tiers",
-    )
-    training_recipes.add_argument("--registry", type=Path)
-    training_recipes.add_argument("--recipe-id")
-    training_recipes.add_argument("--repo-root", type=Path)
-    training_recipes.set_defaults(handler=handlers["_training_recipes"])
+    add_training_recipes_command(commands, handlers=handlers)
 
     repair_adapter = commands.add_parser(
         "repair-adapter",
@@ -562,16 +484,7 @@ def build_parser(
     guide_model.add_argument("--output", type=Path, help="将问卷写到模型目录之外的文件")
     guide_model.set_defaults(handler=handlers["_guide_model"])
 
-    diagnose_gain = commands.add_parser(
-        "diagnose-training-gain",
-        help="plan experiments that distinguish optimization, data, capacity, and mechanism limits",
-    )
-    diagnose_gain.add_argument("--training-receipt", type=Path, required=True)
-    diagnose_gain.add_argument("--screen-settlement", type=Path, required=True)
-    diagnose_gain.add_argument("--confirm-settlement", type=Path, required=True)
-    diagnose_gain.add_argument("--verifier-manifest", type=Path, required=True)
-    diagnose_gain.add_argument("--output", type=Path)
-    diagnose_gain.set_defaults(handler=handlers["_diagnose_training_gain"])
+    add_diagnose_training_gain_command(commands, handlers=handlers)
 
     batch_plan = commands.add_parser(
         "batch-plan",

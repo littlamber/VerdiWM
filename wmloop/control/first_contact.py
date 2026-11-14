@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
+from wmloop.control.adapter_profiles import resolve_adapter_asset_bindings
 from wmloop.control.onboarding import OnboardingError, OnboardingOptions, scan_repository
 from wmloop.control.evaluator_discovery import discover_evaluator_candidates
 from wmloop.runtime_env import runtime_python_path
@@ -58,8 +59,34 @@ def explain_blocker(error: BaseException | str) -> dict[str, str]:
         "RESEARCH_PLAN_OUTPUT_CONFLICT": "研究计划输出文件已经存在且内容不同，请换一个路径或先检查已有计划。",
         "RESEARCH_PLAN_OUTPUT_INSIDE_INPUT": "研究计划不能写入模型、源码或数据目录内部。",
         "RESEARCH_PLAN_ADAPTER_PREVIEW_MISSING": "研究计划没有保存可复现的适配器预览，请重新生成计划。",
+        "TRAINING_SCALE_AGIBOT_DATASET_ROOT_INVALID": "Agibot 数据目录无效。请提供同时包含 `train.index.jsonl` 和 `val.index.jsonl` 的数据集根目录。",
+        "TRAINING_SCALE_TRAIN_MANIFEST_INVALID": "Agibot 训练索引无法读取。请检查数据目录中的 `train.index.jsonl` 是否存在且每行都是有效 JSON。",
+        "TRAINING_SCALE_VAL_MANIFEST_INVALID": "Agibot 验证索引无法读取。请将与训练集分离的 `val.index.jsonl` 放在数据集根目录中，再重试。",
+        "TRAINING_SCALE_VAL_MANIFEST_REQUIRED": "还没有验证数据索引。Agibot 工程诊断需要独立的 `val.index.jsonl`，不能从训练集临时切分。",
+        "TRAINING_SCALE_AGIBOT_NATIVE_INDEX_ENGINEERING_DIAGNOSTIC_ONLY": "原生 Agibot 索引当前只支持工程诊断阶段。请使用 `--stage engineering_diagnostic`；它验证训练链路，不判定模型效果。",
+        "MODEL_RUN_AGIBOT_NATIVE_CONFIG_INVALID": "原生训练 YAML 无法解析。请确认文件包含 `world_model.action_num_domains` 和 `wm_training.action_num_domains` 两个正整数。",
+        "MODEL_RUN_AGIBOT_NATIVE_CONFIG_DOMAIN_CAPACITY_TOO_SMALL": "训练配置的动作域容量小于 Agibot 数据中的最大 domain ID。请同时提高 YAML 中的 `world_model.action_num_domains` 和 `wm_training.action_num_domains`，使它们至少为最大 domain ID 加 1。",
+        "MODEL_RUN_PROTOCOL_V3_NATIVE_AGIBOT_PLAN_REQUIRED": "这条训练入口需要 Agibot 原生 `train.index.jsonl`/`val.index.jsonl` 数据，以及工程诊断训练计划。",
+        "MODEL_RUN_PROTOCOL_V3_ENGINEERING_DIAGNOSTIC_POLICY_INVALID": "原生 Agibot 训练目前只接受有界的工程诊断计划（最多 8 步、单 seed、全量索引支持）。请重新生成 `engineering_diagnostic` 计划。",
+        "MODEL_RUN_AGIBOT_SUPPORT_INVALID": "Agibot 原生数据无法绑定。请检查 `manifest.json`、两个索引文件、统计文件和视频 shard 引用是否完整。",
+        "MODEL_RUN_AGIBOT_SUPPORT_REQUIRED": "Agibot 原生训练缺少数据支持绑定。请通过 `verdi run --training-config` 创建诊断任务，或补齐适配器的 support loader。",
+        "MODEL_RUN_BUDGET_ESTIMATE_EXCEEDS_TOTAL": "按训练和验证阶段的最长运行时间、以及计划使用的 GPU 数量估算，这次诊断需要的预算高于你声明的上限。请提高 `--budget`，或在自定义 Agibot profile 中合理调整阶段超时；系统已在入队前停止。",
     }
     message = exact.get(code)
+    lower_detail = detail.casefold()
+    if code == "MODEL_RUN_AGIBOT_SUPPORT_INVALID" and "agibot_support_val_index_invalid" in lower_detail:
+        message = "Agibot 验证索引无法读取。请检查数据目录中的 `val.index.jsonl` 是否存在且与训练集分离。"
+    if message is None:
+        if "agibot_support_val_index_invalid" in lower_detail:
+            message = "Agibot 验证索引无法读取。请检查数据目录中的 `val.index.jsonl` 是否存在且与训练集分离。"
+        elif "agibot_support_data_root_invalid" in lower_detail:
+            message = "Agibot 数据目录无效。请提供包含 `manifest.json`、`train.index.jsonl`、`val.index.jsonl` 和 `stats/` 的数据集根目录。"
+        elif "agibot_support_shard" in lower_detail:
+            message = "Agibot 索引引用的视频 shard 缺失或路径无效。请检查索引中的 shard 路径，并确认对应文件都已下载。"
+        elif "agibot_support_native_source_invalid" in lower_detail:
+            message = "模型源码缺少 Agibot 原生训练接口。请把 `--source` 指向包含 `sa_wm/data/` 与 `sa_wm/world_model/` 的源码目录。"
+        elif "domain_capacity_too_small" in lower_detail:
+            message = "训练配置中的动作域容量不足。请提高 `world_model.action_num_domains` 和 `wm_training.action_num_domains`，至少覆盖数据中最大的 domain ID 加 1。"
     if message is None and any(token in detail for token in ("TARGET_METRIC", "METRIC_")):
         message = "填写的成功指标不在当前评测清单中。请使用模型原有评测指标，或先补充评测方法。"
     if message is None and any(token in detail for token in ("ADAPTER", "PROFILE")):
@@ -118,6 +145,10 @@ def inspect_project(
     data: str | None = None,
     evaluator_contract: str | None = None,
     runtime_python: str | None = None,
+    asset_bindings: Mapping[str, object] | None = None,
+    adapter_profile: str | None = None,
+    adapter: str | None = None,
+    goal: str | None = None,
 ) -> dict[str, Any]:
     """Run a bounded, read-only readiness check for a first-contact project.
 
@@ -183,6 +214,18 @@ def inspect_project(
     scan_path = source_path
     if scan_path is not None and scan_path.is_dir() and not scan_path.is_symlink():
         try:
+            if (
+                asset_bindings is None and (adapter_profile is not None or adapter is not None)
+                and model_path is not None and data_path is not None
+            ):
+                asset_bindings = resolve_adapter_asset_bindings(
+                    model=model_path,
+                    source_root=source_path,
+                    data=data_path,
+                    adapter_profile_path=base / Path(adapter_profile).expanduser() if adapter_profile else None,
+                    adapter=adapter,
+                    goal=goal or "",
+                )
             evaluator_discovery = discover_evaluator_candidates(scan_path)
             report = scan_repository(
                 OnboardingOptions(
@@ -190,6 +233,11 @@ def inspect_project(
                     runtime_python=resolve_input(runtime_python, preserve_symlink=True) if runtime_python else None,
                     evaluator_contract=resolve_input(evaluator_contract) if evaluator_contract else None,
                     probe_imports=False,
+                    asset_bindings=tuple(
+                        (parameter, checked_path(base / Path(str(path)).expanduser(), code="ASSET_BINDING_PATH_INVALID", error=OnboardingError))
+                        for parameter, path in (asset_bindings or {}).items()
+                    ),
+                    additional_asset_parameters=tuple(asset_bindings or ()),
                 )
             )
         except (OnboardingError, OSError, ValueError) as exc:
@@ -272,7 +320,14 @@ def inspect_project(
     blockers = unique
     if blockers:
         state = "needs_input"
-    elif report is not None and report.get("state") == "ready_for_conformance_smoke":
+    elif (
+        report is not None
+        and report.get("runtime", {}).get("state") == "ready"
+        and report.get("evaluator_contract", {}).get("state") == "ready"
+    ):
+        # The source-only scan may have been blocked by a checkpoint that
+        # the separate model directory or explicit profile has now supplied.
+        # Reconcile readiness from the combined evidence and remaining gates.
         state = "ready_for_conformance"
     else:
         state = "needs_confirmation"
@@ -288,6 +343,7 @@ def inspect_project(
         "discovered": {
             "entrypoints": report.get("entrypoints", []) if report else [],
             "assets": report.get("assets", []) if report else [],
+            "asset_bindings": report.get("connector", {}).get("asset_bindings", []) if report else [],
             "runtime": report.get("runtime", {}) if report else {},
             "source_revision": report.get("source_revision") if report else None,
             "evaluator": report.get("evaluator_contract", {}) if report else {},

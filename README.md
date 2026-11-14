@@ -32,6 +32,10 @@ uv sync --locked --group dev
 uv run verdiwm doctor
 ```
 
+For the Wan 2.2 5B and Agibot training-path diagnostic, follow the
+[English quickstart](docs/AGIBOT_ENGINEERING_DIAGNOSTIC_QUICKSTART.en.md) or
+[中文快速开始](docs/AGIBOT_ENGINEERING_DIAGNOSTIC_QUICKSTART.md).
+
 Run `verdi` with no subcommand in a terminal to open the lightweight interactive
 session. Type `/` and press Enter to open the command palette. On a real raw TTY,
 the palette also supports live filtering, Up/Down selection, Tab, Enter, and
@@ -42,11 +46,12 @@ history and Tab completion when available. Set `NO_COLOR=1` for plain output:
 verdi> /
 verdi> /start
 Model directory [/path/to/model]:
+Source directory [/path/to/source]:
 Data directory [/path/to/data]:
 Research goal (for example: improve long-horizon consistency):
-verdi> /plan "improve minute-scale consistency"
+verdi> /plan "improve minute-scale consistency" --rounds 2 --stop-on-success
 verdi> /run
-  Review the plan summary, then confirm with y when prompted.
+  Review the plan, press Enter to retain its round limit, then confirm with y.
 verdi> /status
 verdi> /recent
 verdi> /progress
@@ -62,20 +67,39 @@ shortcuts are accepted: `/plan "goal"` expands to `/plan --goal "goal"`, and
 
 Command execution displays a short progress line and then a readable result card
 with state, paths, campaign identifiers, and blockers instead of requiring users
-to parse raw JSON. Natural-language lines in the session only produce a safe
-next-step plan hint; they never import a model or start a GPU campaign silently. `/run` still
-requires an explicit `--confirm` and keeps the research-plan, evaluator, and
+to parse raw JSON. Explicit round requests such as `run two rounds` prepare a
+reviewable plan while retaining the existing research goal; add `stop on success`
+to enable stopping on formal confirmation. Other natural-language
+lines produce a next-step plan hint. Neither grants GPU execution. `/run` asks
+for confirmation and keeps the research-plan, evaluator, and
 evidence gates. Non-TTY, CI, and pipeline invocations continue to print normal
 help, and the `verdiwm` compatibility alias keeps its existing behavior. Use
 `verdi chat` (or `verdi shell`) to force the session explicitly.
+
+The setup wizard accepts separate model weights and source directories. If
+they are stored separately, enter the source checkout at the source prompt.
 
 `/recent` shows the default plan, recent campaigns, and the recommended next
 step. `/resume` follows an active queued/running campaign when one exists;
 otherwise it previews the default plan and asks for confirmation. `/progress`
 reuses the most recent campaign ID in the current session, while `/cancel ID`
 requires an explicit ID. Long commands emit a small heartbeat so the terminal
-does not look stalled; `Ctrl-C` interrupts the current view without deleting
-campaign history.
+does not look stalled. During foreground campaign dispatch, `Ctrl-C` requests
+cancellation and retires the active child processes before returning; when
+viewing status, it only interrupts that view. Campaign history is retained.
+
+Use `/plan "goal" --rounds 2` or `/run --rounds 2` to bound research to at most
+two rounds in one campaign. `/run` also offers a round prompt and retains the
+planned value when you press Enter. Policy changes produce a separately saved
+plan for review before confirmation. `--budget` is shared across all rounds;
+`/status` and `/cancel ID` cover the entire task. `--stop-on-success` stops early
+only when the frozen verifier confirms the declared goal from formal evidence.
+A repeated diagnostic signature or a passing pipeline is insufficient. Without a
+frozen goal contract or valid confirmation evidence, the round and budget bounds
+still apply. The existing standalone evolution command remains compatible.
+See [round limits, stopping, and recovery](docs/RUN_LIFECYCLE.md) for resource
+requirements and examples. A completed campaign records an execution outcome;
+model improvement still requires the frozen verifier's confirmation.
 
 `doctor` validates the installed package, schemas, adapter profiles, and
 lightweight runtime contracts. A CPU-only installation is enough for the

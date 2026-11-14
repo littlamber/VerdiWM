@@ -16,7 +16,9 @@ from typing import Any
 from wmloop.control.adapter_profiles import AdapterProfileError
 from wmloop.control.adapter_repair import run_adapter_repair
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
-from wmloop.control.commands.io import emit_json, repository_root
+from wmloop.control.commands.io import emit_json, emit_text, repository_root
+from wmloop.control.commands.lifecycle import campaign_result_text
+from wmloop.control.research_execution_policy import research_execution_policy
 from wmloop.control.research_proposal import (
     ResearchProposalError,
     load_compiled_experiment_manifest,
@@ -25,6 +27,7 @@ from wmloop.experiments.engineering import (
     ExperimentEngineeringError,
     lint_experiment_manifest,
 )
+from wmloop.experiments.training_scale import build_training_scale_plan
 from wmloop.storage import sha256_bytes, sha256_file
 
 
@@ -39,6 +42,15 @@ def run(
     is_repairable_error: Callable[[BaseException], bool],
 ) -> int:
     inputs = resolve_inputs(args)
+    world_size = getattr(args, "world_size", None)
+    training_config = getattr(args, "training_config", None)
+    if world_size is not None:
+        if training_config is None:
+            raise CampaignAPIError("RUN_WORLD_SIZE_REQUIRES_TRAINING_CONFIG")
+        if args.training_scale_plan is not None:
+            raise CampaignAPIError(
+                "RUN_WORLD_SIZE_CONFLICTS_WITH_EXPLICIT_TRAINING_SCALE_PLAN"
+            )
     args.state_root = inputs["state_root"]
     store = store_factory(args.state_root)
     engineering_lint = None
@@ -76,6 +88,11 @@ def run(
         "budget": inputs["budget"],
         "adapter": inputs["adapter"],
     }
+    if getattr(args, "rounds", None) is not None or getattr(args, "stop_on_success", None) is not None:
+        payload["execution_policy"] = research_execution_policy(
+            rounds=args.rounds if args.rounds is not None else 1,
+            stop_on_success=args.stop_on_success if args.stop_on_success is not None else False,
+        )
     if inputs.get("source"):
         payload["source"] = inputs["source"]
     if inputs.get("target_metrics") is not None:
@@ -116,6 +133,45 @@ def run(
             args.training_scale_plan,
             root=(args.schema_root or repository_root()),
         )
+    if training_config is not None:
+        config_path = Path(training_config).expanduser().resolve()
+        if not config_path.is_file():
+            raise CampaignAPIError("AGIBOT_NATIVE_CONFIG_INVALID")
+        payload["agibot_native_config"] = str(config_path)
+        if "adapter_profile_path" not in payload:
+            profile_root = (
+                args.schema_root.expanduser().resolve()
+                if args.schema_root is not None
+                else repository_root()
+            )
+            profile_path = (
+                profile_root
+                / "configs"
+                / "adapters"
+                / "wan22_agibot_engineering_diagnostic_v1.json"
+            )
+            if not profile_path.is_file():
+                raise CampaignAPIError("AGIBOT_ENGINEERING_DIAGNOSTIC_PROFILE_MISSING")
+            payload["adapter_profile_path"] = str(profile_path)
+            # `run --training-config` means the caller is asking for the
+            # Agibot protocol-v3 flow. A project-level legacy `adapter` value
+            # must not route this request into an unrelated v1 training bridge.
+            # An explicit CLI adapter remains an explicit user choice.
+            if getattr(args, "adapter", "auto") == "auto":
+                payload["adapter"] = "auto"
+        if "training_scale_plan" not in payload:
+            try:
+                payload["training_scale_plan"] = build_training_scale_plan(
+                    dataset_root=Path(inputs["data"]),
+                    stage="engineering_diagnostic",
+                    requested_seed_count=1,
+                    world_size=world_size if world_size is not None else 1,
+                    root=(args.schema_root or repository_root()).expanduser().resolve(),
+                )
+            except ValueError as exc:
+                # The planner's reason codes are suitable for direct user
+                # feedback and no campaign has been persisted at this point.
+                raise CampaignAPIError(str(exc)) from exc
     try:
         created = store.create(payload)
     except CampaignAPIError as exc:
@@ -182,7 +238,10 @@ def run(
         created = store.create(payload)
     queued = store.confirm(str(created["campaign_id"]))
     if args.queue_only:
-        emit_json(queued)
+        if getattr(args, "format", None) == "text":
+            emit_text(campaign_result_text(queued))
+        else:
+            emit_json(queued)
         return 0
     dispatcher = dispatch(
         store,
@@ -190,5 +249,9 @@ def run(
         max_parallel=args.max_parallel,
     )
     campaign = store.get(str(created["campaign_id"]))
-    emit_json({"campaign": campaign, "dispatcher": dispatcher})
+    result = {"campaign": campaign, "dispatcher": dispatcher}
+    if getattr(args, "format", None) == "text":
+        emit_text(campaign_result_text(result))
+    else:
+        emit_json(result)
     return 0 if campaign.get("status") in {"completed", "cancelled"} else 2

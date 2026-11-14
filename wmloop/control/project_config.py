@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from wmloop.runtime_env import runtime_python_path
+from wmloop.storage import checked_path
 
 try:
     import tomllib
@@ -108,8 +109,15 @@ def _validate_values(values: Mapping[str, Any]) -> None:
 def find_project_config(*, cwd: Path | None = None) -> Path | None:
     configured = os.environ.get("VERDIWM_PROJECT_CONFIG")
     if configured:
-        path = Path(configured).expanduser().resolve()
-        if not path.is_file() or path.is_symlink():
+        # Validate the user supplied path before resolving it.  Resolving
+        # first would turn a symlink into its target and silently bypass the
+        # repository-wide path trust boundary.
+        path = checked_path(
+            Path(configured).expanduser(),
+            code="PROJECT_CONFIG_NOT_FOUND",
+            error=ProjectConfigError,
+        )
+        if not path.is_file():
             raise ProjectConfigError("PROJECT_CONFIG_NOT_FOUND")
         return path
     current = (cwd or Path.cwd()).expanduser().resolve()

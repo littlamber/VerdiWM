@@ -23,6 +23,7 @@ from wmloop.retrieve.discovery.extraction import (
     EvidenceOnlyMechanismExtractor,
     extractor_identity,
 )
+from wmloop.retrieve.query_planning import build_literature_query_plan
 from wmloop.storage import canonical_json_bytes
 
 
@@ -211,22 +212,36 @@ def test_builtin_extractor_keeps_historical_artifact_identity():
 
 
 def test_pipeline_retrieval_retains_cross_domain_lenses_and_explicit_intent():
+    context = {
+        "irg_guided": {
+            "request": {
+                "model_family": "video",
+                "cross_domain_lenses": ["belief filtering"],
+                "failure_signatures": ["history_drift"],
+            }
+        }
+    }
+    plan = build_literature_query_plan(
+        explicit_query="trajectory consistency",
+        retrieval_context=context,
+        probe_manifest=None,
+    )
     query = build_literature_query(
         explicit_query="trajectory consistency",
-        retrieval_context={
-            "irg_guided": {
-                "request": {
-                    "model_family": "video",
-                    "cross_domain_lenses": ["belief filtering"],
-                    "failure_signatures": ["history_drift"],
-                }
-            }
-        },
+        retrieval_context=context,
         probe_manifest=None,
         irg_failure_signatures=(),
         irg_model_family=None,
     )
-    assert query == "trajectory consistency video belief filtering history_drift"
+
+    # Search the user's goal and cross-domain lens first. The current
+    # observation remains available as a follow-up query if that search is
+    # empty, rather than narrowing the primary search to a diagnosis.
+    assert query == plan["queries"][0]["query"]
+    assert 'all:"trajectory" AND all:"consistency"' in query
+    assert 'all:"belief" OR all:"filtering"' in query
+    assert plan["queries"][1]["view"] == "current_diagnostic"
+    assert 'all:"history" AND all:"drift"' in plan["queries"][1]["query"]
 
 
 def test_pipeline_retrieval_without_observation_does_not_invent_query():

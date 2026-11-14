@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -99,6 +100,24 @@ class FirstContactTests(unittest.TestCase):
         result = explain_blocker("COMMUNITY_EXPORT_SOURCE_ROOT_INVALID:missing")
         self.assertIn("社区语义导出", result["error"])
 
+    def test_agibot_execution_errors_include_repair_steps(self) -> None:
+        missing_validation = explain_blocker(
+            "TRAINING_SCALE_VAL_MANIFEST_INVALID:missing val index"
+        )
+        self.assertIn("val.index.jsonl", missing_validation["error"])
+        capacity = explain_blocker(
+            "MODEL_RUN_AGIBOT_NATIVE_CONFIG_DOMAIN_CAPACITY_TOO_SMALL"
+        )
+        self.assertIn("world_model.action_num_domains", capacity["error"])
+        nested_support = explain_blocker(
+            "MODEL_RUN_AGIBOT_SUPPORT_INVALID:AGIBOT_SUPPORT_VAL_INDEX_INVALID"
+        )
+        self.assertIn("val.index.jsonl", nested_support["error"])
+        budget = explain_blocker(
+            "MODEL_RUN_BUDGET_ESTIMATE_EXCEEDS_TOTAL:estimated=2:budget=1"
+        )
+        self.assertIn("入队前停止", budget["error"])
+
     def test_readiness_requires_an_explicit_evaluator(self) -> None:
         with TemporaryDirectory() as temp:
             root = Path(temp)
@@ -168,6 +187,46 @@ class FirstContactTests(unittest.TestCase):
             self.assertTrue(questionnaire["questions"])
             with self.assertRaisesRegex(ValueError, "INSIDE_MODEL"):
                 write_onboarding_questionnaire(model / "questions.json", questionnaire)
+
+
+def test_external_adapter_asset_is_used_by_the_source_readiness_scan(tmp_path):
+    source, model, data = (tmp_path / name for name in ("source", "model", "data"))
+    for directory in (source, model, data):
+        directory.mkdir()
+    checkpoint = model / "checkpoint.pt"
+    checkpoint.write_bytes(b"synthetic CPU fixture")
+    (source / "evaluate.py").write_text(
+        "import argparse\n"
+        "def evaluate():\n"
+        "    parser = argparse.ArgumentParser()\n"
+        "    parser.add_argument('--checkpoint')\n"
+        "if __name__ == '__main__':\n"
+        "    evaluate()\n"
+    )
+    evaluator = tmp_path / "evaluator.json"
+    evaluator.write_text(json.dumps({
+        "evaluator_id": "external-asset-test",
+        "command": ["{python}", "evaluate.py", "--checkpoint", "{asset:--checkpoint}"],
+        "input_artifacts": ["checkpoint"], "output_artifacts": ["result.json"],
+        "metrics": ["quality"], "verifier": "frozen-test",
+    }))
+    inputs = dict(root=tmp_path, source="source", model="model", data="data",
+                  evaluator_contract="evaluator.json")
+    unbound = inspect_project(**inputs)
+    assert "MODEL_ASSET_BINDING_REQUIRED" in {row["code"] for row in unbound["blockers"]}
+    bound = inspect_project(**inputs, asset_bindings={"--checkpoint": "model/checkpoint.pt"})
+    assert "MODEL_ASSET_BINDING_REQUIRED" not in {row["code"] for row in bound["blockers"]}
+    binding = next(row for row in bound["discovered"]["asset_bindings"] if row["parameter"] == "--checkpoint")
+    assert binding["resolved_path"] == str(checkpoint)
+    assert binding["state"] == "discovered"
+    assert binding["binding_source"] == "explicit"
+    assert bound["side_effects"]["gpu_execution_started"] is False
+    missing = inspect_project(**inputs, asset_bindings={"--checkpoint": "model/missing.pt"})
+    assert "MODEL_SCAN_FAILED" in {row["code"] for row in missing["blockers"]}
+    alias = tmp_path / "asset-link"
+    alias.symlink_to(model, target_is_directory=True)
+    linked = inspect_project(**inputs, asset_bindings={"--checkpoint": "asset-link/checkpoint.pt"})
+    assert "MODEL_SCAN_FAILED" in {row["code"] for row in linked["blockers"]}
 
 
 @pytest.mark.parametrize(

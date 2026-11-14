@@ -9,7 +9,7 @@ import sys
 import threading
 from typing import Any, Mapping
 
-from wmloop.control.commands.inputs import campaign_store
+from wmloop.control.commands.inputs import campaign_store, configured_dataset_root
 from wmloop.control.commands.io import emit_json
 from wmloop.control.project_config import ProjectConfigError, load_project_config
 from wmloop.control.research_plan_history import write_default_research_plan
@@ -69,10 +69,12 @@ def plan(args: argparse.Namespace) -> int:
     with _ResearchProgress() as progress:
         result = compile_research_plan(
             model=args.model or configured.get("model"),
-            data=args.data or configured.get("data", configured.get("dataset")),
+            data=args.data or configured_dataset_root(configured),
             source=args.source or configured.get("source"),
             goal=args.goal or configured.get("goal"),
             budget=args.budget or configured.get("budget", "1gpu-hour"),
+            rounds=args.rounds,
+            stop_on_success=args.stop_on_success,
             mode=args.mode or configured.get("mode", "hybrid"),
             adapter=args.adapter or configured.get("adapter", "auto"),
             evaluator_contract=args.evaluator_contract
@@ -83,6 +85,7 @@ def plan(args: argparse.Namespace) -> int:
             or configured.get(
                 "target_metrics", configured.get("metrics", configured.get("metric"))
             ),
+            protected_metrics=args.protected_metrics,
             model_irg=args.model_irg,
             irg_protected_metrics=args.irg_protected_metric,
             state_root=args.state_root or configured.get("state_root"),
@@ -117,8 +120,11 @@ def run(args: argparse.Namespace) -> int:
             confirm=args.confirm,
             queue_only=args.queue_only,
             max_parallel=args.max_parallel,
+            rounds=args.rounds,
+            stop_on_success=args.stop_on_success,
             progress_callback=progress,
         )
+    result.setdefault("plan_path", str(args.plan))
     emit_json(result)
     return (
         0

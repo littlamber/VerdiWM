@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "model_run_id",
+    "checkpoint_identity",
+    "checkpoint_meta_sha256",
+    "checkpoint_reload_verified",
+    "checkpoint_state_key_count",
+    "native_config_sha256",
+    "support_bindings",
+    "consumption_trace",
+    "native_validation_loss"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-checkpoint-evaluation-trace"},
+    "state": {"const": "complete"},
+    "model_run_id": {"type": "string", "pattern": "^model-run-[0-9a-f]{24}$"},
+    "checkpoint_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "checkpoint_meta_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checkpoint_reload_verified": {"const": true},
+    "checkpoint_state_key_count": {"type": "integer", "minimum": 1},
+    "native_config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "support_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agibot_support_digest",
+        "shard_catalog_sha256",
+        "train_episode_uids_sha256",
+        "train_window_set_sha256",
+        "validation_sample_window_ids_sha256"
+      ],
+      "properties": {
+        "agibot_support_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "shard_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "train_episode_uids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "train_window_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "validation_sample_window_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "consumption_trace": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["window_id", "loss"],
+        "properties": {
+          "window_id": {"type": "string", "minLength": 1},
+          "loss": {"type": "number"}
+        }
+      }
+    },
+    "native_validation_loss": {"type": "number"}
+  }
+}

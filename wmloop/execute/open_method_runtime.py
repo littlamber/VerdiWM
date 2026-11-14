@@ -18,7 +18,7 @@ import time
 
 from wmloop.control.candidate_execution import candidate_execution_digest, validate_candidate_execution_contract
 from wmloop.control.open_method_ir import validate_method_ir, validate_candidate_overlay, method_ir_digest
-from wmloop.process_lifecycle import LocalCommandSignals, retire_process_group
+from wmloop.process_lifecycle import LocalCommandSignals, LocalProcessTree, retire_process_group
 from wmloop.runtime_env import runtime_python_path, runtime_subprocess_env
 from wmloop.storage import atomic_write, canonical_bytes, checked_path, sha256_bytes
 
@@ -133,12 +133,14 @@ def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_pyt
     write_json(output/'started.json', {'command':argv, 'timeout_seconds':timeout_seconds})
     started = time.monotonic()
     process = None
+    tree = None
     code = None
     error = None
     try:
         with (output/'stdout.log').open('wb') as stdout, (output/'stderr.log').open('wb') as stderr:
             signal_scope.check()
             process = subprocess.Popen(argv, cwd=cwd, env=environment, stdout=stdout, stderr=stderr, start_new_session=True)
+            tree = LocalProcessTree(process)
             deadline = started + timeout_seconds
             while True:
                 signal_scope.check()
@@ -147,7 +149,7 @@ def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_pyt
                     error = 'TIMEOUT'
                     break
                 try:
-                    code = process.wait(timeout=min(0.1, remaining))
+                    code = tree.wait(timeout=min(0.1, remaining))
                     signal_scope.check()
                     break
                 except subprocess.TimeoutExpired:
@@ -156,7 +158,7 @@ def run_local_command(*, command, cwd, output_root, timeout_seconds, runtime_pyt
         error = 'PROCESS_START_FAILED'
     finally:
         if process is not None:
-            retire_process_group(process)
+            retire_process_group(process, tree=tree)
     signal_scope.check()
     # A successful process must not be allowed to mutate the copied candidate
     # after exit through a detached child. The process group is always retired;

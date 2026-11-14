@@ -86,6 +86,32 @@ class BudgetLedger:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute("SELECT * FROM trials WHERE trial_id = ?", (trial_id,)).fetchone()
             if row is not None:
+                if row["state"] == "released":
+                    _require_plan_binding(row, plan_sha256)
+                    if (
+                        row["cost_class"] != cost_class
+                        or row["estimated_gpu_hours"] != estimated_gpu_hours
+                        or bool(row["human_approved"]) != human_approved
+                    ):
+                        connection.rollback()
+                        raise BudgetError("TRIAL_IDENTITY_CONFLICT")
+                    _ensure_admission_capacity(
+                        connection,
+                        cost_class=cost_class,
+                        estimated_gpu_hours=estimated_gpu_hours,
+                        policy=self._policy,
+                    )
+                    connection.execute(
+                        "UPDATE trials SET state = 'admitted', fencing_token = fencing_token + 1, "
+                        "actual_gpu_hours = NULL, receipt_ref = NULL "
+                        "WHERE trial_id = ? AND state = 'released'",
+                        (trial_id,),
+                    )
+                    row = connection.execute(
+                        "SELECT * FROM trials WHERE trial_id = ?", (trial_id,)
+                    ).fetchone()
+                    connection.commit()
+                    return _admission_from_row(row)
                 if reject_existing:
                     raise BudgetError("TRIAL_ALREADY_EXISTS")
                 _require_plan_binding(row, plan_sha256)
@@ -98,21 +124,12 @@ class BudgetLedger:
                     raise BudgetError("TRIAL_IDENTITY_CONFLICT")
                 connection.commit()
                 return _admission_from_row(row)
-            if cost_class == "high":
-                high_count = connection.execute("SELECT COUNT(*) FROM trials WHERE cost_class = 'high'").fetchone()[0]
-                if high_count >= self._policy.high_trial_limit:
-                    connection.rollback()
-                    raise BudgetError("HIGH_COST_TRIAL_LIMIT_EXCEEDED")
-            reserved = connection.execute(
-                """
-                SELECT COALESCE(SUM(
-                    CASE WHEN state = 'settled' THEN actual_gpu_hours ELSE estimated_gpu_hours END
-                ), 0) FROM trials WHERE state IN ('admitted', 'settled')
-                """
-            ).fetchone()[0]
-            if float(reserved) + estimated_gpu_hours > self._policy.total_gpu_hours:
-                connection.rollback()
-                raise BudgetError("GLOBAL_BUDGET_EXHAUSTED")
+            _ensure_admission_capacity(
+                connection,
+                cost_class=cost_class,
+                estimated_gpu_hours=estimated_gpu_hours,
+                policy=self._policy,
+            )
             connection.execute(
                 """
                 INSERT INTO trials (
@@ -207,7 +224,8 @@ class BudgetLedger:
             connection.execute("BEGIN IMMEDIATE")
             _require_active_row(connection, trial_id, fencing_token)
             connection.execute(
-                "DELETE FROM trials WHERE trial_id = ? AND fencing_token = ?",
+                "UPDATE trials SET state = 'released', actual_gpu_hours = NULL, receipt_ref = NULL "
+                "WHERE trial_id = ? AND fencing_token = ?",
                 (trial_id, fencing_token),
             )
             connection.commit()
@@ -234,7 +252,7 @@ class BudgetLedger:
                     estimated_gpu_hours REAL NOT NULL,
                     human_approved INTEGER NOT NULL,
                     fencing_token INTEGER NOT NULL,
-                    state TEXT NOT NULL CHECK (state IN ('admitted', 'settled')),
+                    state TEXT NOT NULL CHECK (state IN ('admitted', 'settled', 'released')),
                     actual_gpu_hours REAL,
                     receipt_ref TEXT
                 )
@@ -243,6 +261,41 @@ class BudgetLedger:
             trial_columns = {str(row["name"]) for row in connection.execute("PRAGMA table_info(trials)")}
             if "plan_sha256" not in trial_columns:
                 connection.execute("ALTER TABLE trials ADD COLUMN plan_sha256 TEXT")
+            trial_sql_row = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'trials'"
+            ).fetchone()
+            trial_sql = str(trial_sql_row["sql"] or "").casefold() if trial_sql_row else ""
+            if "released" not in trial_sql:
+                # SQLite cannot widen an existing CHECK constraint in place.
+                # Rebuild transactionally while preserving every trial row.
+                connection.execute("ALTER TABLE trials RENAME TO trials_before_release_state")
+                connection.execute(
+                    """
+                    CREATE TABLE trials (
+                        trial_id TEXT PRIMARY KEY NOT NULL,
+                        cost_class TEXT NOT NULL,
+                        estimated_gpu_hours REAL NOT NULL,
+                        human_approved INTEGER NOT NULL,
+                        fencing_token INTEGER NOT NULL,
+                        state TEXT NOT NULL CHECK (state IN ('admitted', 'settled', 'released')),
+                        actual_gpu_hours REAL,
+                        receipt_ref TEXT,
+                        plan_sha256 TEXT
+                    )
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO trials (
+                        trial_id, cost_class, estimated_gpu_hours, human_approved,
+                        fencing_token, state, actual_gpu_hours, receipt_ref, plan_sha256
+                    )
+                    SELECT trial_id, cost_class, estimated_gpu_hours, human_approved,
+                           fencing_token, state, actual_gpu_hours, receipt_ref, plan_sha256
+                    FROM trials_before_release_state
+                    """
+                )
+                connection.execute("DROP TABLE trials_before_release_state")
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS policy (
@@ -341,6 +394,31 @@ def _validate_admission(
         and not human_approved
     ):
         raise BudgetError("HIGH_COST_HUMAN_APPROVAL_REQUIRED")
+
+
+def _ensure_admission_capacity(
+    connection: sqlite3.Connection,
+    *,
+    cost_class: str,
+    estimated_gpu_hours: float,
+    policy: BudgetPolicy,
+) -> None:
+    if cost_class == "high":
+        high_count = connection.execute(
+            "SELECT COUNT(*) FROM trials WHERE cost_class = 'high' "
+            "AND state IN ('admitted', 'settled')"
+        ).fetchone()[0]
+        if high_count >= policy.high_trial_limit:
+            raise BudgetError("HIGH_COST_TRIAL_LIMIT_EXCEEDED")
+    reserved = connection.execute(
+        """
+        SELECT COALESCE(SUM(
+            CASE WHEN state = 'settled' THEN actual_gpu_hours ELSE estimated_gpu_hours END
+        ), 0) FROM trials WHERE state IN ('admitted', 'settled')
+        """
+    ).fetchone()[0]
+    if float(reserved) + estimated_gpu_hours > policy.total_gpu_hours:
+        raise BudgetError("GLOBAL_BUDGET_EXHAUSTED")
 
 
 def _validate_settlement(actual_gpu_hours: float, receipt_ref: str) -> None:

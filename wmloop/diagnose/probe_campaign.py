@@ -19,7 +19,7 @@ from typing import Any, Mapping
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.onboarding_admission import admission_from_manifest
-from wmloop.execute.auto_experiment import run_auto_experiment
+from wmloop.execute.auto_experiment import auto_experiment_lock_path, run_auto_experiment
 from wmloop.retrieve.index import index_probe_experience, probe_asset_fingerprint
 from wmloop.storage import atomic_write, checked_path
 
@@ -77,6 +77,7 @@ def run_diagnostic_probe(
         )
     )
     manifest_path = destination / "manifest.json"
+    run_root = checked_path(destination / "run", code="DIAGNOSTIC_PROBE_OUTPUT_INVALID", error=DiagnosticProbeError)
     existing_manifest = False
     if destination.exists() or destination.is_symlink():
         if destination.is_symlink() or not destination.is_dir():
@@ -88,8 +89,17 @@ def run_diagnostic_probe(
             if existing.get("input_hash") != input_hash:
                 raise DiagnosticProbeError("DIAGNOSTIC_PROBE_INPUT_MISMATCH")
             existing_manifest = True
-        elif {path.name for path in destination.iterdir()} - {"probe-plan.json", "run"}:
-            raise DiagnosticProbeError("DIAGNOSTIC_PROBE_OUTPUT_UNBOUND")
+        else:
+            # The runner retains its kernel lock after failures and crashes.
+            # Accept only this output's lock, never arbitrary lock files.
+            lock_path = checked_path(
+                auto_experiment_lock_path(run_root),
+                code="DIAGNOSTIC_PROBE_OUTPUT_UNBOUND", error=DiagnosticProbeError,
+            )
+            if ((lock_path.exists() and not lock_path.is_file())
+                    or {path.name for path in destination.iterdir()}
+                    - {"probe-plan.json", "run", lock_path.name}):
+                raise DiagnosticProbeError("DIAGNOSTIC_PROBE_OUTPUT_UNBOUND")
 
     plan = _build_plan(
         contract,
@@ -97,7 +107,6 @@ def run_diagnostic_probe(
         admission=admission,
         campaign_id=campaign_id,
     )
-    run_root = destination / "run"
     if existing_manifest or recover_only:
         # A manifest is only a derived view. Never rerun a previously finished
         # probe merely because its archive or CAS has disappeared, and never

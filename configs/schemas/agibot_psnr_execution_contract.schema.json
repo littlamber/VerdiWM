@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "state", "reason",
+    "quality_eligible", "claim_boundary", "required_artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-psnr-execution-contract"},
+    "state": {"enum": ["unavailable", "ready", "running", "completed", "failed"]},
+    "reason": {"type": "string", "minLength": 1},
+    "quality_eligible": {"const": false},
+    "claim_boundary": {"type": "string", "minLength": 48},
+    "required_artifacts": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}

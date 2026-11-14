@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Protocol, Sequence
 
-from wmloop.process_lifecycle import LocalCommandSignals, retire_process_group
+from wmloop.process_lifecycle import LocalCommandSignals, LocalProcessTree, retire_process_group
 
 
 @dataclass(frozen=True)
@@ -51,34 +52,38 @@ class LocalSubprocessBackend:
         signal_scope.check()
         started = time.monotonic()
         timed_out = False
-        process = None
-        try:
-            signal_scope.check()
-            process = subprocess.Popen(
-                tuple(command),
-                cwd=worktree,
-                env=dict(environment),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                start_new_session=True,
-            )
-            deadline = started + timeout_seconds
-            while True:
+        with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+            process = None
+            tree = None
+            try:
                 signal_scope.check()
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    timed_out = True
-                    break
-                try:
-                    stdout, stderr = process.communicate(timeout=min(0.1, remaining))
-                    break
-                except subprocess.TimeoutExpired:
-                    continue
-        finally:
-            if process is not None:
-                retire_process_group(process)
-                # Close pipe descriptors on cancellation as well as success.
-                stdout, stderr = process.communicate()
+                process = subprocess.Popen(
+                    tuple(command),
+                    cwd=worktree,
+                    env=dict(environment),
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    start_new_session=True,
+                )
+                tree = LocalProcessTree(process)
+                deadline = started + timeout_seconds
+                while True:
+                    signal_scope.check()
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        timed_out = True
+                        break
+                    try:
+                        tree.wait(timeout=min(0.1, remaining))
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+            finally:
+                if process is not None:
+                    retire_process_group(process, tree=tree)
+            stdout_file.seek(0)
+            stderr_file.seek(0)
+            stdout, stderr = stdout_file.read(), stderr_file.read()
         signal_scope.check()
         return CommandExecutionResult(
             stdout=stdout,

@@ -14,6 +14,7 @@ from typing import Any
 
 from wmloop.contracts import ContractValidationError, load_yaml_document, validate_document
 from wmloop.diagnose.probe_registry import ProbeRegistryError, load_probe_registry
+from wmloop.storage import checked_path
 
 
 class ConstitutionalFreezeError(ValueError):
@@ -71,10 +72,18 @@ def build_constitutional_freeze(config_path: Path, *, root: Path | None = None) 
     return manifest
 
 
-def verify_constitutional_freeze(manifest: Mapping[str, Any], *, root: Path | None = None) -> None:
-    base = (root or Path(__file__).resolve().parents[1]).resolve()
+def verify_constitutional_freeze(
+    manifest: Mapping[str, Any], *, root: Path | None = None, schema_root: Path | None = None
+) -> None:
+    """Verify frozen resources, optionally loading schemas from an installation."""
+
+    base = checked_path(
+        root or Path(__file__).resolve().parents[1],
+        code="CONSTITUTION_PATH_UNSAFE",
+        error=ConstitutionalFreezeError,
+    )
     try:
-        validate_document("constitutional_manifest", manifest, root=base)
+        validate_document("constitutional_manifest", manifest, root=schema_root or base)
     except ContractValidationError as exc:
         raise ConstitutionalFreezeError(f"CONSTITUTION_MANIFEST_INVALID:{exc}") from exc
     expected_identity = str(manifest["constitution_sha256"])
@@ -88,6 +97,11 @@ def verify_constitutional_freeze(manifest: Mapping[str, Any], *, root: Path | No
         if path in seen:
             raise ConstitutionalFreezeError("CONSTITUTION_ENTRY_DUPLICATE")
         seen.add(path)
+        checked_path(
+            base / path,
+            code=f"CONSTITUTION_ENTRY_UNSAFE:{path}",
+            error=ConstitutionalFreezeError,
+        )
         actual = _freeze_entry(base, str(entry["component"]), Path(path))
         if actual != entry:
             raise ConstitutionalFreezeError(f"CONSTITUTION_ENTRY_MISMATCH:{path}")

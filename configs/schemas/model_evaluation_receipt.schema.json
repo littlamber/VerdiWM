@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "state", "model_run_id", "checkpoint_path", "checkpoint_sha256", "claim_boundary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-heldout-evidence-receipt"},
+    "state": {"const": "complete"},
+    "model_run_id": {"type": "string", "pattern": "^model-run-[0-9a-f]{24}$"},
+    "checkpoint_path": {"type": "string", "minLength": 1},
+    "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  }
+}

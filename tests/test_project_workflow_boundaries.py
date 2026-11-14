@@ -13,6 +13,7 @@ from wmloop.cli import main
 from wmloop.control.commands.inputs import resolve_state_root
 from wmloop.control.first_contact import FirstContactError, initialize_project
 from wmloop.control.onboarding_assistant import write_onboarding_questionnaire
+from wmloop.control.project_config import ProjectConfigError, load_project_config
 from wmloop.control.research_request import ResearchRequestError, compile_research_plan, load_research_plan, write_research_plan
 from wmloop.control.research_plan_history import write_default_research_plan
 
@@ -54,6 +55,19 @@ def test_state_root_uses_nearest_project_but_respects_explicit_default(tmp_path,
     explicit = tmp_path / "global-state"
     monkeypatch.setenv("VERDIWM_STATE_ROOT", str(explicit))
     assert resolve_state_root(explicit) == explicit
+
+
+def test_project_config_environment_path_rejects_symlink_before_resolution(
+    tmp_path, monkeypatch
+):
+    target = tmp_path / "project.toml"
+    target.write_text('[project]\ngoal = "fixture"\n', encoding="utf-8")
+    linked = tmp_path / "linked-project.toml"
+    linked.symlink_to(target)
+    monkeypatch.setenv("VERDIWM_PROJECT_CONFIG", str(linked))
+
+    with pytest.raises(ProjectConfigError, match="PROJECT_CONFIG_NOT_FOUND"):
+        load_project_config(cwd=tmp_path)
 
 
 def test_repeated_questionnaire_preserves_user_answers(tmp_path):

@@ -347,6 +347,12 @@ def _apply_retrieval_context(
         # staged method can be traced back to the model-conditioned bottleneck
         # that motivated retrieval.  The plan remains ranking/shadow-only.
         batch["irg_guided_retrieval"] = dict(irg_guided)
+    agibot_psnr_memory = retrieval.get("agibot_psnr_memory")
+    if isinstance(agibot_psnr_memory, Mapping):
+        # Preserve the verified PSNR settlement lens in the immutable batch.
+        # It is provenance/ranking context only; the frozen paired evaluator
+        # still owns every current-round effect verdict.
+        batch["agibot_psnr_memory"] = dict(agibot_psnr_memory)
     _apply_diagnostic_routing(batch, probe=probe, retrieval=retrieval)
     if method_rows:
         batch["literature_method_sources"] = method_rows

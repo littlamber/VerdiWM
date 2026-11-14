@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "claim_boundary", "state", "settlement_state",
+    "trial_id", "proposal_id", "goal_id", "goal_ref", "goal_sha256", "verdict_ref",
+    "verdict_sha256", "measurement_ref", "measurement_sha256", "context_ref",
+    "context_sha256", "evaluator_digest", "dataset_sha256", "support_sha256",
+    "validation_sample_ids", "seed_cohort", "checkpoint_sha256", "effect_verified"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-psnr-settlement-receipt"},
+    "claim_boundary": {"type": "string", "minLength": 48},
+    "state": {"const": "terminal"},
+    "settlement_state": {"const": "settled"},
+    "trial_id": {"type": "string", "minLength": 1},
+    "proposal_id": {"type": "string", "minLength": 1},
+    "goal_id": {"type": "string", "pattern": "^agibot-psnr-[a-f0-9]{24}$"},
+    "goal_ref": {"$ref": "#/$defs/cas_ref"},
+    "goal_sha256": {"$ref": "#/$defs/hash"},
+    "verdict_ref": {"$ref": "#/$defs/cas_ref"},
+    "verdict_sha256": {"$ref": "#/$defs/hash"},
+    "measurement_ref": {"$ref": "#/$defs/cas_ref"},
+    "measurement_sha256": {"$ref": "#/$defs/hash"},
+    "context_ref": {"$ref": "#/$defs/cas_ref"},
+    "context_sha256": {"$ref": "#/$defs/hash"},
+    "evaluator_digest": {"$ref": "#/$defs/hash"},
+    "dataset_sha256": {"$ref": "#/$defs/hash"},
+    "support_sha256": {"$ref": "#/$defs/hash"},
+    "validation_sample_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "seed_cohort": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "integer", "minimum": 0}},
+    "checkpoint_sha256": {
+      "type": "object", "additionalProperties": false,
+      "required": ["baseline", "candidate"],
+      "properties": {"baseline": {"$ref": "#/$defs/hash"}, "candidate": {"$ref": "#/$defs/hash"}}
+    },
+    "effect_verified": {"type": "boolean"}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "cas_ref": {"type": "string", "pattern": "^cas://sha256/[a-f0-9]{64}$"}
+  }
+}

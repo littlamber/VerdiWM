@@ -19,6 +19,7 @@ from wmloop.contracts import (
     validate_document,
 )
 from wmloop.primitives.registry import PrimitiveRegistry
+from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
 
 
 class PriorLibraryError(ValueError):
@@ -92,7 +93,7 @@ class FrozenPriorLibrary:
 
 
 def stage_literature_candidate(
-    candidate: Mapping[str, Any], *, staging_root: Path
+    candidate: Mapping[str, Any], *, staging_root: Path, reuse_identical: bool = False
 ) -> Path:
     """Persist a data-only candidate after rejecting instruction-like content."""
 
@@ -112,21 +113,16 @@ def stage_literature_candidate(
     candidate_id = str(candidate["candidate_id"])
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", candidate_id):
         raise PriorLibraryError("PRIOR_STAGING_ID_INVALID")
-    candidate = {
-        **dict(candidate),
-        "artifact_type": "verdiwm-literature-candidate",
-        "schema_version": 1,
-        "state": "staged",
-        "claim_boundary": (
-            "This is an untrusted, data-only literature candidate. It does not "
-            "grant execution or promotion authority."
-        ),
-    }
-    destination = Path(staging_root).resolve() / f"{candidate_id}.json"
+    destination = checked_path(Path(staging_root) / f"{candidate_id}.json",
+                               code="PRIOR_STAGING_OUTPUT_INVALID", error=PriorLibraryError)
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    if destination.exists():
-        raise PriorLibraryError("PRIOR_STAGING_ALREADY_EXISTS")
-    destination.write_text(serialized + "\n", encoding="utf-8")
+    payload = (serialized + "\n").encode("utf-8")
+    with exclusive_file_lock(destination.parent / f".{candidate_id}.lock"):
+        if destination.exists():
+            if reuse_identical and destination.is_file() and destination.read_bytes() == payload:
+                return destination
+            raise PriorLibraryError("PRIOR_STAGING_ALREADY_EXISTS")
+        atomic_write(destination, payload)
     return destination
 
 

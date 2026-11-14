@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "state", "dataset_root", "native_source_root",
+    "inputs", "production_contract", "loader", "train_support", "validation_support",
+    "native_source", "shard_catalog", "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-training-support"},
+    "state": {"const": "bound"},
+    "dataset_root": {"type": "string", "minLength": 1},
+    "native_source_root": {"type": "string", "minLength": 1},
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest", "train_index", "validation_index", "arm_condition_stats", "body_condition_stats"],
+      "properties": {
+        "manifest": {"$ref": "#/$defs/sha256"},
+        "train_index": {"$ref": "#/$defs/sha256"},
+        "validation_index": {"$ref": "#/$defs/sha256"},
+        "arm_condition_stats": {"$ref": "#/$defs/sha256"},
+        "body_condition_stats": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "production_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset_key", "family", "condition_view", "body_conditioning", "body_stats_source"],
+      "properties": {
+        "dataset_key": {"type": "string", "minLength": 1},
+        "family": {"const": "agibot"},
+        "condition_view": {"const": "arm_slot_eef_pose"},
+        "body_conditioning": {"const": true},
+        "body_stats_source": {"const": "train_only"}
+      }
+    },
+    "loader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["num_history", "num_frames", "sample_stride_video_frames", "history_selector", "history_offsets", "history_dilations", "history_collapse_prob", "history_eval_dilation", "generated_history_enabled", "condition_view", "body_conditioning"],
+      "properties": {
+        "num_history": {"type": "integer", "minimum": 1},
+        "num_frames": {"type": "integer", "minimum": 1},
+        "sample_stride_video_frames": {"type": "integer", "minimum": 1},
+        "history_selector": {"enum": ["recent", "sparse", "first_recent", "first_offset_recent"]},
+        "history_offsets": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+        "history_dilations": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+        "history_collapse_prob": {"type": "number", "minimum": 0, "maximum": 1},
+        "history_eval_dilation": {"type": "integer", "minimum": 1},
+        "generated_history_enabled": {"const": false},
+        "condition_view": {"const": "arm_slot_eef_pose"},
+        "body_conditioning": {"const": true}
+      }
+    },
+    "train_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["split", "episode_count", "episode_uids_sha256", "window_count", "window_set_sha256", "window_rule"],
+      "properties": {
+        "split": {"const": "train"},
+        "episode_count": {"type": "integer", "minimum": 1},
+        "episode_uids_sha256": {"$ref": "#/$defs/sha256"},
+        "window_count": {"type": "integer", "minimum": 1},
+        "window_set_sha256": {"$ref": "#/$defs/sha256"},
+        "window_rule": {"const": "native_video_latent_training_dataset_v1_all_windows_sorted_episode_uid_then_first_future_video_frame"}
+      }
+    },
+    "validation_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["split", "episode_count", "episode_uids_sha256", "window_count", "sample_rule", "sample_count", "sample_window_ids", "sample_window_ids_sha256", "episode_uids_disjoint_from_train"],
+      "properties": {
+        "split": {"const": "val"},
+        "episode_count": {"type": "integer", "minimum": 1},
+        "episode_uids_sha256": {"$ref": "#/$defs/sha256"},
+        "window_count": {"type": "integer", "minimum": 1},
+        "sample_rule": {"const": "evenly_spaced_over_native_sorted_windows_including_first_and_last_v1"},
+        "sample_count": {"type": "integer", "minimum": 1},
+        "sample_window_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "sample_window_ids_sha256": {"$ref": "#/$defs/sha256"},
+        "episode_uids_disjoint_from_train": {"const": true}
+      }
+    },
+    "native_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "sha256"],
+      "properties": {
+        "files": {
+          "type": "object",
+          "minProperties": 6,
+          "propertyNames": {"pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+\\.py$"},
+          "additionalProperties": {"$ref": "#/$defs/sha256"}
+        },
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "shard_catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_count", "reference_count", "files", "sha256", "claim_boundary"],
+      "properties": {
+        "file_count": {"type": "integer", "minimum": 1},
+        "reference_count": {"type": "integer", "minimum": 1},
+        "files": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"},
+          "additionalProperties": {"$ref": "#/$defs/shard"}
+        },
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "claim_boundary": {"const": "Catalog binds shard paths and sizes, per-shard reference counts and canonical reference metadata digests; the train/validation index digests bind source rows. It does not hash the full shard contents."}
+      }
+    },
+    "claim_boundary": {"const": "Engineering diagnostic support only. Native validation loss may be recorded, but this contract grants no model-improvement, promotion, or generalization claim."}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["size_bytes", "reference_count", "references_sha256"],
+      "properties": {
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "reference_count": {"type": "integer", "minimum": 1},
+        "references_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

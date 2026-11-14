@@ -24,6 +24,9 @@ uv sync --locked --group dev
 uv run verdiwm doctor
 ```
 
+Wan 2.2 5B + Agibot 训练链路诊断请看[中文快速开始](docs/AGIBOT_ENGINEERING_DIAGNOSTIC_QUICKSTART.md)，
+也提供[English version](docs/AGIBOT_ENGINEERING_DIAGNOSTIC_QUICKSTART.en.md)。
+
 运行 `uv run verdi` 会进入终端工作台。首页以青色面板显示模型、数据、研究目标、
 LLM 配置状态、接入阻塞项和一个推荐操作；未完成检查时不会显示已就绪。长路径
 和中文会随终端宽度换行。配置损坏时显示具体错误，并保留会话供用户修复。
@@ -39,11 +42,13 @@ Tab 补全。设置 `NO_COLOR=1` 或 `TERM=dumb` 时使用静态、无颜色的�
 verdi> /
 verdi> /start
 模型目录 [/path/to/model]:
+源码目录 [/path/to/source]:
 数据目录 [/path/to/data]:
 研究目标（例如：提升分钟级长程一致性）:
-verdi> /plan "提升分钟级长程一致性"
+verdi> /plan "提升分钟级长程一致性" --rounds 2 --stop-on-success
 verdi> /run
   研究计划 …
+  最多运行轮数 … [2]:
   确认创建并执行这个 campaign？ [y/N]: y
 verdi> /status
 verdi> /recent
@@ -62,20 +67,32 @@ verdi> /exit
 不要求用户阅读原始 JSON。`/guide` 展示接入问卷；需要保存并填写时使用
 `/guide --output .verdiwm/onboarding-questions.json`，结果会给出保存位置与后续命令。
 默认路径可直接按 Enter 接受；Ctrl-D 或 Ctrl-C 可取消接入向导。
-交互会话中的自然语言只会
-生成下一步计划提示，不会静默导入模型或启动 GPU。`/run` 仍要求显式 `--confirm`，
-并继续执行研究计划、评测器和证据门禁。脚本、
+模型权重与源码分开存放时，可在“模型源码目录”一问直接指定源码，无需退出向导。
+明确的轮数指令（例如“提升长程一致性，跑两轮”或“最多跑3轮，达到目标就停”）会准备可审阅
+计划；只说轮数时保留已有研究目标。其他自然语言继续生成下一步计划提示。
+这些输入不会启动 GPU；`/run` 会先让用户审阅并确认，
+继续执行研究计划、评测器和证据门禁。脚本、
 CI 和管道环境不会进入会话，继续使用普通命令帮助；`verdiwm` 兼容入口也保持
 原有行为。需要强制进入会话时可运行 `verdi chat`（或 `verdi shell`）。
 
-`/recent` 会显示默认计划、最近 campaign 和推荐下一步；`/resume` 会优先恢复正在
-排队或运行的任务，否则展示默认计划并要求确认；`/progress` 可复用当前会话最近的
-campaign ID；`/cancel ID` 只取消明确指定的任务。长命令会显示存活状态，按
-`Ctrl-C` 只停止当前命令或进度查看，不会删除研究记录。
+`/recent` 会显示默认计划、最近 campaign 和推荐下一步；`/resume` 会优先显示正在
+排队或运行的任务进度，否则展示默认计划并要求确认；`/progress` 可复用当前会话最近的
+campaign ID；`/cancel ID` 只取消明确指定的任务。长命令会显示存活状态。
+前台调度 campaign 时，`Ctrl-C` 会请求取消，并在回收活动子进程后返回；查看状态时，
+它只中断当前视图。研究记录会保留。
 普通 CLI 和终端界面共用项目配置或 `VERDIWM_STATE_ROOT` 指定的任务库，切换工作
 目录后仍能查询同一库中的任务。任务库损坏或不可读取时会显示错误及恢复建议，
 不会把读取失败显示成没有任务。`/s`、`/p`、`/r` 分别是 `/status`、`/progress`、
 `/research` 的别名，`/configure` 等价于 `/setup`。
+
+直接使用 `/plan "目标" --rounds 2` 或 `/run --rounds 2` 即可设置最多研究两轮，
+无需切换到独立 daemon。`/run` 无参数时也会提示选择轮数，回车保留计划值；修改
+策略时先保存并预览派生计划，再确认一次。所有轮次共享 `--budget` 总预算，
+统一通过 `/status` 和 `/cancel ID` 管理。`--stop-on-success` 可在冻结验证器
+正式确认目标收益后提前停，不能用诊断重复或 pipeline 通过代替。未绑定正式目标
+契约或未产出有效确认时，仍按轮数、预算等边界停止。旧的独立控制器继续兼容。
+资源要求、轮数、自动停止和恢复见[研究运行与停止说明](docs/RUN_LIFECYCLE.md)。
+流程完成不等于模型已经提升，效果仍由冻结验证器确认。
 
 终端视图、键盘面板和结果呈现分别维护在 `wmloop/control/terminal_ui.py`、
 `terminal_palette.py`、`terminal_results.py`；交互入口复用原有 CLI 服务。
@@ -251,10 +268,17 @@ uv run verdiwm research plan \
   --model /path/to/model \
   --data /path/to/data \
   --goal "提升分钟级长程交互一致性" \
+  --protected-metrics action_fidelity \
   --budget 4gpu-hours \
   --mode hybrid \
   --output ./.verdiwm/research-plan.json
 ```
+
+`--protected-metrics` 是可选核对项：正式保护指标始终从 evaluator 绑定的
+`frozen_goal` v2 验收策略派生，并显示在计划的 `protected_metrics` 中。显式传入时，
+必须与冻结目标声明的完整非主指标集合一致；缺少冻结目标或集合不一致都会阻塞计划，
+不会自动创建或修改 goal。它与 IRG 的 `--irg-protected-metric` 分开，后者只用于
+IRG 检索约束，不决定 verifier 的正式判定。
 
 检查计划中的 `state`、`blockers`、`evaluator_contract`、`input_digest` 和阶段
 顺序。只有计划处于 `ready` 或 `ready_with_deferred_discovery` 时才可以确认：

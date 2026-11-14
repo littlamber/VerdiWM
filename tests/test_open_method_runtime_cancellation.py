@@ -286,3 +286,96 @@ def test_backend_restores_signal_handlers_when_process_cannot_start(tmp_path):
         LocalSubprocessBackend().run(command=[str(tmp_path / "missing")],
             worktree=tmp_path, environment={}, timeout_seconds=5)
     assert all(signal.getsignal(sig) == handler for sig, handler in original.items())
+
+
+_STUDY_WAIT_CONTROLLER = """
+import json, pathlib, signal, sys
+from wmloop.execute import open_method_study_runner as runner
+from wmloop.execute.gpu_lease import GpuLeaseManager
+
+root = pathlib.Path(sys.argv[1])
+inputs = json.loads((root / 'study-inputs.json').read_text())
+previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+snapshot = {'gpus': [{'index': 0, 'uuid': 'cpu-study-test', 'name': 'CPU fixture',
+    'memory_used_mib': 2048, 'utilization_gpu_percent': 100}], 'compute_apps': []}
+def busy_snapshot():
+    (root / 'waiting-for-gpu').touch()
+    return snapshot
+
+manager = GpuLeaseManager(lock_root=root / 'locks', snapshot_provider=busy_snapshot)
+# Validation and the real threaded study phase run unchanged. Calibration is
+# already covered independently; no candidate or GPU command may start here.
+runner._run_calibrations = lambda **kwargs: [
+    {'role': role, 'state': 'passed'} for role in runner.ROLES]
+def unexpected_operation(**kwargs):
+    (root / 'unexpected-candidate').touch()
+    raise AssertionError('candidate launched while GPU admission was blocked')
+runner.run_candidate_operation = unexpected_operation
+original_trial = runner._run_trial
+trial_exceptions = []
+def observed_trial(**kwargs):
+    try:
+        return original_trial(**kwargs)
+    except BaseException as exc:
+        trial_exceptions.append(type(exc).__name__)
+        raise
+runner._run_trial = observed_trial
+outcome = {}
+try:
+    runner.execute_open_method_study(**{key: pathlib.Path(value) for key, value in inputs.items()},
+        output_root=root / 'execution', runtime_python=pathlib.Path(sys.executable),
+        gpu_indices=[0], max_parallel=1, gpu_wait_seconds=30, lease_manager=manager)
+except BaseException as exc:
+    outcome = {'exception_type': type(exc).__name__,
+        'exit_code': exc.code if isinstance(exc, SystemExit) else 130}
+    raise
+finally:
+    snapshot['gpus'][0]['memory_used_mib'] = 0
+    snapshot['gpus'][0]['utilization_gpu_percent'] = 0
+    with GpuLeaseManager(lock_root=root / 'locks', snapshot_provider=lambda: snapshot).acquire([0]):
+        outcome['lease_reacquired'] = True
+    outcome['trial_exceptions'] = trial_exceptions
+    outcome['handlers_restored'] = all(signal.getsignal(sig) == handler for sig, handler in previous.items())
+    (root / 'study-outcome.json').write_text(json.dumps(outcome))
+"""
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+def test_open_study_signal_cancels_gpu_wait_without_trial_or_settlement(tmp_path, signum):
+    from test_open_method_study_runner import _runner_fixture
+
+    fixture = _runner_fixture(tmp_path)
+    inputs = {
+        "study_root": fixture["study"], "checkpoint": fixture["checkpoint"],
+        "train_split": fixture["train"], "selection_split": fixture["selection"],
+        "confirmation_split": fixture["confirmation"], "verifier": fixture["verifier"],
+    }
+    (tmp_path / "study-inputs.json").write_text(json.dumps({key: str(value) for key, value in inputs.items()}))
+    script = tmp_path / "study-controller.py"
+    script.write_text(textwrap.dedent(_STUDY_WAIT_CONTROLLER))
+    controller = subprocess.Popen(
+        [sys.executable, str(script), str(tmp_path)],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True,
+    )
+    try:
+        _wait_for(tmp_path / "waiting-for-gpu", controller)
+        started = time.monotonic()
+        os.kill(controller.pid, signum)
+        _, stderr = controller.communicate(timeout=5)
+        assert time.monotonic() - started < 2, "cancellation waited for the 30-second lease deadline"
+        assert controller.returncode == (143 if signum == signal.SIGTERM else -signal.SIGINT), stderr.decode()
+        result = json.loads((tmp_path / "study-outcome.json").read_text())
+        assert result["exception_type"] == ("SystemExit" if signum == signal.SIGTERM else "KeyboardInterrupt")
+        assert result["exit_code"] == (143 if signum == signal.SIGTERM else 130)
+        assert result["lease_reacquired"] is True
+        assert result["handlers_restored"] is True
+        assert result["trial_exceptions"]
+        assert set(result["trial_exceptions"]) == {"LocalProcessCancelled"}
+        assert not (tmp_path / "unexpected-candidate").exists()
+        assert not list((tmp_path / "execution").rglob("trial.json"))
+        assert not (tmp_path / "execution" / "execution.json").exists()
+        assert not (tmp_path / "execution" / "evidence").exists()
+    finally:
+        if controller.poll() is None:
+            controller.kill()
+            controller.communicate(timeout=5)

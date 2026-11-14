@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "model_run_id",
+    "scale_plan_digest",
+    "training_trace_path",
+    "training_trace_sha256",
+    "checkpoint_identity",
+    "checkpoint_training_progress",
+    "support_bindings",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-engineering-diagnostic-checkpoint-receipt"},
+    "state": {"const": "complete"},
+    "model_run_id": {"type": "string", "pattern": "^model-run-[0-9a-f]{24}$"},
+    "scale_plan_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "training_trace_path": {"type": "string", "minLength": 1},
+    "training_trace_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checkpoint_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "optimizer_updates", "microsteps", "seed", "metadata_path", "metadata_sha256", "step", "world_size"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "optimizer_updates": {"type": "integer", "minimum": 1},
+        "microsteps": {"type": "integer", "minimum": 1},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "metadata_path": {"type": "string", "minLength": 1},
+        "metadata_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "step": {"type": "integer", "minimum": 1},
+        "world_size": {"type": "integer", "minimum": 1}
+      }
+    },
+    "checkpoint_training_progress": {"$ref": "#/$defs/checkpointTrainingProgress"},
+    "support_bindings": {"$ref": "#/$defs/supportBindings"},
+    "claim_boundary": {"type": "string", "minLength": 12}
+  },
+  "$defs": {
+    "checkpointTrainingProgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "planned_optimizer_updates",
+        "completed_optimizer_updates",
+        "planned_microsteps",
+        "completed_microsteps",
+        "training_loss_rows"
+      ],
+      "properties": {
+        "seed": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "planned_optimizer_updates": {"type": "integer", "minimum": 1},
+        "completed_optimizer_updates": {"type": "integer", "minimum": 1},
+        "planned_microsteps": {"type": "integer", "minimum": 1},
+        "completed_microsteps": {"type": "integer", "minimum": 1},
+        "training_loss_rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/trainingLossRow"}
+        }
+      }
+    },
+    "trainingLossRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optimizer_update", "microstep", "loss", "sample_count", "train_window_ids_sha256"],
+      "properties": {
+        "optimizer_update": {"type": "integer", "minimum": 1},
+        "microstep": {"type": "integer", "minimum": 1},
+        "loss": {"type": "number"},
+        "sample_count": {"type": "integer", "minimum": 1},
+        "train_window_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "supportBindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agibot_support_digest",
+        "shard_catalog_sha256",
+        "train_episode_uids_sha256",
+        "train_window_set_sha256",
+        "validation_sample_window_ids_sha256"
+      ],
+      "properties": {
+        "agibot_support_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "shard_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "train_episode_uids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "train_window_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "validation_sample_window_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

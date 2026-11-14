@@ -4,32 +4,47 @@
   "additionalProperties": false,
   "required": ["schema_version", "artifact_type", "state", "stage", "training_mode", "evidence_class", "quality_eligible", "dataset", "parallelism", "updates", "replication", "stopping_policy", "blockers", "rationale"],
   "properties": {
-    "schema_version": {"type": "integer", "minimum": 1},
+    "schema_version": {"enum": [1, 2, 3]},
     "artifact_type": {"enum": ["verdiwm-training-scale-plan"]},
     "state": {"enum": ["ready", "blocked"]},
-    "stage": {"enum": ["probe", "smoke", "screen", "pilot", "confirm"]},
+    "stage": {"enum": ["engineering_diagnostic", "probe", "smoke", "screen", "pilot", "confirm"]},
     "training_mode": {"enum": ["probe", "long"]},
     "evidence_class": {"enum": ["runtime_only", "diagnostic", "formal"]},
     "quality_eligible": {"type": "boolean"},
     "dataset": {
       "type": "object", "additionalProperties": false,
-      "required": ["manifest_paths", "train_examples", "validation_examples", "train_episode_count", "validation_episode_count", "selected_train_examples", "selected_train_episode_count", "selected_train_episode_ids", "train_validation_episode_overlap", "validation_episode_disjoint", "selection_policy", "selection_fraction", "sequence_length", "train_manifest_sha256", "validation_manifest_sha256"],
+      "required": ["manifest_paths", "train_examples", "validation_examples", "train_episode_count", "validation_episode_count", "selected_train_examples", "selected_train_episode_count", "train_validation_episode_overlap", "validation_episode_disjoint", "selection_policy", "selection_fraction", "sequence_length", "train_manifest_sha256", "validation_manifest_sha256"],
       "properties": {
+        "input_format": {"enum": ["sample_manifest_json", "agibot_native_index_jsonl"]},
+        "count_unit": {"enum": ["sample_manifest_record", "agibot_episode_index_record"]},
         "manifest_paths": {"type": "object", "additionalProperties": false, "required": ["train", "validation"], "properties": {"train": {"type": "string", "minLength": 1}, "validation": {"type": ["string", "null"]}}},
         "train_examples": {"type": "integer", "minimum": 1},
         "validation_examples": {"type": "integer", "minimum": 0},
         "train_episode_count": {"type": "integer", "minimum": 0},
         "validation_episode_count": {"type": "integer", "minimum": 0},
         "selected_train_examples": {"type": "integer", "minimum": 1},
+        "selected_train_record_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^train-record-[0-9]{8}-[0-9a-f]{64}$"}},
+        "selected_train_record_ids_binding": {"$ref": "#/$defs/compact_identity_binding"},
         "selected_train_episode_count": {"type": "integer", "minimum": 0},
         "selected_train_episode_ids": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "selected_train_episode_ids_binding": {"$ref": "#/$defs/compact_identity_binding"},
         "train_validation_episode_overlap": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "validation_episode_disjoint": {"type": "boolean"},
         "selection_policy": {"type": "string", "minLength": 1},
         "selection_fraction": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
         "sequence_length": {"type": ["integer", "null"], "minimum": 1},
         "train_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "validation_manifest_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+        "validation_manifest_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "domain_support": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "domain_ids", "required_action_num_domains"],
+          "properties": {
+            "source": {"const": "agibot_native_index_v1"},
+            "domain_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 0}},
+            "required_action_num_domains": {"type": "integer", "minimum": 1}
+          }
+        }
       }
     },
     "parallelism": {
@@ -46,21 +61,178 @@
       "type": "object", "additionalProperties": false,
       "required": ["steps_per_epoch", "target_epochs", "planned_steps", "realized_epochs", "checkpoint_eval_steps"],
       "properties": {
-        "steps_per_epoch": {"type": "integer", "minimum": 1},
-        "target_epochs": {"type": "number", "exclusiveMinimum": 0},
+        "steps_per_epoch": {"type": ["integer", "null"], "minimum": 1},
+        "target_epochs": {"type": ["number", "null"], "exclusiveMinimum": 0},
         "planned_steps": {"type": "integer", "minimum": 1},
-        "realized_epochs": {"type": "number", "exclusiveMinimum": 0},
+        "realized_epochs": {"type": ["number", "null"], "exclusiveMinimum": 0},
         "checkpoint_eval_steps": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}}
       }
     },
     "replication": {
       "type": "object", "additionalProperties": false,
       "required": ["requested_seed_count", "seed_policy"],
-      "properties": {"requested_seed_count": {"type": "integer", "minimum": 1}, "seed_policy": {"type": "string", "minLength": 1}}
+      "properties": {"requested_seed_count": {"type": "integer", "minimum": 1}, "seeds": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807}}, "seed_policy": {"type": "string", "minLength": 1}}
     },
     "stopping_policy": {"type": "object", "additionalProperties": false, "required": ["evaluate_each_checkpoint_on_heldout", "max_consecutive_heldout_regressions", "select_final_checkpoint_by", "never_extend_budget_without_new_manifest", "early_stop"], "properties": {"evaluate_each_checkpoint_on_heldout": {"type": "boolean"}, "max_consecutive_heldout_regressions": {"type": "integer", "minimum": 1}, "select_final_checkpoint_by": {"type": "string", "minLength": 1}, "never_extend_budget_without_new_manifest": {"type": "boolean"}, "early_stop": {"type": "string", "minLength": 1}}},
     "training_profile": {"type": "object", "additionalProperties": false, "required": ["recipe_id", "status", "evidence_tier", "planner_policy"], "properties": {"recipe_id": {"type": ["string", "null"]}, "status": {"type": ["string", "null"]}, "evidence_tier": {"type": ["string", "null"]}, "planner_policy": {"type": ["string", "null"]}}},
     "blockers": {"type": "array", "items": {"type": "string"}},
     "rationale": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"schema_version": {"const": 1}}, "required": ["schema_version"]},
+      "then": {"properties": {"dataset": {"required": ["selected_train_episode_ids"]}}}
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": 2}}, "required": ["schema_version"]},
+      "then": {"properties": {"dataset": {"required": ["selected_train_record_ids", "selected_train_episode_ids"]}}}
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": 3}}, "required": ["schema_version"]},
+      "then": {
+        "properties": {
+          "dataset": {"required": ["input_format"]},
+          "replication": {"required": ["seeds"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {"const": 3},
+          "dataset": {
+            "properties": {"input_format": {"const": "agibot_native_index_jsonl"}},
+            "required": ["input_format"]
+          }
+        },
+        "required": ["schema_version", "dataset"]
+      },
+      "then": {
+        "properties": {
+          "dataset": {
+            "required": ["selected_train_record_ids_binding", "selected_train_episode_ids_binding"],
+            "not": {"anyOf": [{"required": ["selected_train_record_ids"]}, {"required": ["selected_train_episode_ids"]}]}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {"const": 3},
+          "dataset": {
+            "properties": {"input_format": {"const": "sample_manifest_json"}},
+            "required": ["input_format"]
+          }
+        },
+        "required": ["schema_version", "dataset"]
+      },
+      "then": {"properties": {"dataset": {"required": ["selected_train_record_ids", "selected_train_episode_ids"]}}}
+    },
+    {
+      "if": {"properties": {"stage": {"const": "engineering_diagnostic"}}, "required": ["stage"]},
+      "then": {
+        "properties": {
+          "schema_version": {"const": 3},
+          "training_mode": {"const": "probe"},
+          "evidence_class": {"const": "runtime_only"},
+          "quality_eligible": {"const": false},
+          "dataset": {
+            "properties": {"selection_fraction": {"const": 1}}
+          },
+          "updates": {
+            "properties": {"planned_steps": {"type": "integer", "minimum": 1, "maximum": 8}}
+          },
+          "replication": {
+            "properties": {
+              "requested_seed_count": {"const": 1},
+              "seeds": {"type": "array", "minItems": 1, "maxItems": 1, "uniqueItems": true}
+            }
+          }
+        },
+        "required": ["schema_version", "training_mode", "evidence_class", "quality_eligible"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "properties": {"input_format": {"const": "agibot_native_index_jsonl"}},
+            "required": ["input_format"]
+          }
+        },
+        "required": ["dataset"]
+      },
+      "then": {
+        "properties": {
+          "stage": {"const": "engineering_diagnostic"},
+          "dataset": {
+            "required": ["domain_support", "train_manifest_sha256", "validation_manifest_sha256"],
+            "properties": {
+              "manifest_paths": {
+                "properties": {
+                  "train": {"type": "string", "pattern": "train\\.index\\.jsonl$"},
+                  "validation": {"type": "string", "pattern": "val\\.index\\.jsonl$"}
+                }
+              },
+              "validation_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        },
+        "required": ["stage"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "required": ["domain_support"]
+          }
+        },
+        "required": ["dataset"]
+      },
+      "then": {
+        "properties": {
+          "dataset": {
+            "required": ["input_format"],
+            "properties": {"input_format": {"const": "agibot_native_index_jsonl"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dataset": {
+            "properties": {"input_format": {"const": "agibot_native_index_jsonl"}},
+            "required": ["input_format"]
+          }
+        },
+        "required": ["dataset"]
+      },
+      "then": {
+        "properties": {
+          "dataset": {"properties": {"count_unit": {"const": "agibot_episode_index_record"}}},
+          "updates": {
+            "properties": {
+              "steps_per_epoch": {"type": "null"},
+              "target_epochs": {"type": "null"},
+              "realized_epochs": {"type": "null"}
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "compact_identity_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "sha256"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
   }
 }

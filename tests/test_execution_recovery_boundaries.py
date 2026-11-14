@@ -212,7 +212,9 @@ def prepare_pipeline(root: Path, monkeypatch) -> pipeline.AutonomousPipelineOpti
     monkeypatch.setattr(pipeline, "run_conformance", lambda _: {"verdict": "PASS"})
     # Probe signatures can start external literature discovery; it is outside
     # these receipt/CAS recovery scenarios and must not access the network.
-    monkeypatch.setattr(pipeline, "build_literature_query", lambda **kwargs: None)
+    original_query_plan = pipeline.build_literature_query_plan
+    monkeypatch.setattr(pipeline, "build_literature_query_plan", lambda **kwargs: original_query_plan(
+        explicit_query=None, retrieval_context={}, probe_manifest=None))
     monkeypatch.setattr(pipeline, "compile_and_plan", lambda **kwargs: {"queue_path": str(prepare_queue(output / "compiled/queue"))})
     return pipeline.AutonomousPipelineOptions(repo_root=SOURCE, output_root=output,
         evaluator_contract=evaluator, lock_root=root / "locks", budget_total_gpu_hours=1.0)

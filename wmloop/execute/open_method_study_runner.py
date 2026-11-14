@@ -20,7 +20,8 @@ import time
 from wmloop.archive.store import ContentAddressedStore
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.method_calibration import run_method_calibration
-from wmloop.execute.gpu_lease import GpuLeaseManager
+from wmloop.execute import gpu_lease
+from wmloop.execute.gpu_lease import GpuLeaseCancelled, GpuLeaseManager
 from wmloop.execute.open_method_runtime import load_compilation, run_candidate_operation, run_local_command, resolve_runtime_python
 from wmloop.process_lifecycle import LocalCommandSignals
 from wmloop.runtime_env import default_lock_root
@@ -403,11 +404,28 @@ def _run_trial(*, study_path: Path, study: Mapping[str, object], arm: Mapping[st
         signal_scope.check()
     role = str(arm["role"])
     output_root.mkdir(mode=0o700, parents=True, exist_ok=False)
-    lease = lease_manager.acquire(gpu_indices, wait_seconds=gpu_wait_seconds)
+    try:
+        if signal_scope is not None and type(lease_manager) is gpu_lease.GpuLeaseManager:
+            lease = lease_manager.acquire(
+                gpu_indices, wait_seconds=gpu_wait_seconds,
+                cancel_requested=lambda: signal_scope.stop_requested,
+            )
+        else:
+            # Custom managers keep their existing acquisition signature. Their
+            # own blocking waits must cooperate; check again on handover below.
+            lease = lease_manager.acquire(gpu_indices, wait_seconds=gpu_wait_seconds)
+    except GpuLeaseCancelled:
+        output_root.rmdir()
+        if signal_scope is not None:
+            # Propagate past ordinary failed-trial handling and stop the phase.
+            signal_scope.check()
+        raise
     started = time.monotonic()
     operations: list[dict[str, object]] = []
     documents: list[dict[str, object]] = []
     try:
+        if signal_scope is not None:
+            signal_scope.check()
         common = {
             "study_id": study["study_id"], "method_id": method["method_id"], "role": role, "seed": seed,
             "checkpoint": str(paths["checkpoint"]), "train_split": str(paths["train_split"]),

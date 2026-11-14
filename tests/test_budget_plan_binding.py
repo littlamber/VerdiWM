@@ -35,6 +35,63 @@ def test_legacy_unbound_active_fails_closed_but_settlement_remains_readable(tmp_
     assert budget.get("legacy").receipt_ref == "cas://sha256/" + "b" * 64
 
 
+def test_released_attempt_can_retry_only_with_same_identity_and_new_fence(tmp_path):
+    budget = ledger(tmp_path)
+    digest = "a" * 64
+    first = budget.admit(
+        "retryable",
+        cost_class="low",
+        estimated_gpu_hours=1,
+        plan_sha256=digest,
+        reject_existing=True,
+    )
+    budget.release("retryable", fencing_token=first.fencing_token)
+
+    with pytest.raises(BudgetError, match="TRIAL_PLAN_BINDING_MISMATCH"):
+        budget.admit(
+            "retryable",
+            cost_class="low",
+            estimated_gpu_hours=1,
+            plan_sha256="b" * 64,
+            reject_existing=True,
+        )
+    with pytest.raises(BudgetError, match="TRIAL_IDENTITY_CONFLICT"):
+        budget.admit(
+            "retryable",
+            cost_class="medium",
+            estimated_gpu_hours=1,
+            plan_sha256=digest,
+            reject_existing=True,
+        )
+
+    retry = budget.admit(
+        "retryable",
+        cost_class="low",
+        estimated_gpu_hours=1,
+        plan_sha256=digest,
+        reject_existing=True,
+    )
+    assert retry.state == "admitted"
+    assert retry.fencing_token == first.fencing_token + 1
+
+    with pytest.raises(BudgetError, match="STALE_FENCING_TOKEN"):
+        budget.settle(
+            "retryable",
+            fencing_token=first.fencing_token,
+            actual_gpu_hours=0.5,
+            receipt_ref="cas://sha256/" + "c" * 64,
+            plan_sha256=digest,
+        )
+    settled = budget.settle(
+        "retryable",
+        fencing_token=retry.fencing_token,
+        actual_gpu_hours=0.5,
+        receipt_ref="cas://sha256/" + "c" * 64,
+        plan_sha256=digest,
+    )
+    assert settled.state == "settled"
+
+
 def test_concurrent_first_admissions_have_only_one_winner(tmp_path):
     budget = ledger(tmp_path)
     def admit():

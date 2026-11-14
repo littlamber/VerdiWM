@@ -189,3 +189,108 @@ def test_corrupt_partial_receipt_does_not_mask_executor_failure(tmp_path, monkey
     refs = [Path(ref) for ref in state(options)['evidence_refs'] if 'execution-snapshots' in ref]
     assert refs[0].read_bytes() == b'{incomplete'
     assert state(options)['phase'] == 'blocked'
+
+
+def method_catalog(candidate_id):
+    return {
+        "schema_version": 1, "artifact_type": "verdiwm-method-candidate-catalog",
+        "catalog_id": "pipeline-catalog-fixture", "model_family": "cpu_fixture",
+        "candidates": [{
+            "candidate_id": candidate_id, "primitive_reference": None,
+            "source": "local_cpu_fixture",
+            "mechanism_hypothesis": "Exercise pipeline candidate selection without model claims.",
+            "required_hooks": ["H3"], "failure_signatures": ["fixture_symptom"],
+            "applicability_conditions": ["CPU fixture only"],
+            "failure_boundaries": ["No model or GPU claim"],
+            "estimated_gpu_hours": 0.01, "historical_candidate_ids": [],
+            "required_files": [], "candidate_template": {"candidate_id": candidate_id},
+        }],
+        "capability_gaps": [],
+        "claim_boundary": "Synthetic catalog for pipeline orchestration only.",
+    }
+
+
+@pytest.mark.parametrize("with_user_catalog", [False, True])
+@pytest.mark.parametrize("with_blocked_work_order", [False, True])
+def test_no_ready_literature_candidates_preserve_existing_execution_inputs(
+    tmp_path, monkeypatch, with_user_catalog, with_blocked_work_order,
+):
+    options, _ = setup_pipeline(tmp_path, monkeypatch)
+    options = replace(options, literature_query="CPU fixture research")
+    original_catalog = None
+    if with_user_catalog:
+        original_catalog = tmp_path / "user-catalog.json"
+        original_catalog.write_text(json.dumps(method_catalog("user-candidate")))
+        options = replace(options, candidate_catalog=original_catalog)
+    source_bytes = (tmp_path / "template.json").read_bytes()
+    observed_catalogs = []
+    original_compile = pipeline.compile_and_plan
+
+    def compile_candidates(**kwargs):
+        observed_catalogs.append(kwargs["candidate_catalog"])
+        return original_compile(**kwargs)
+
+    monkeypatch.setattr(pipeline, "compile_and_plan", compile_candidates)
+    monkeypatch.setattr(pipeline, "run_literature_retrieval", lambda **_: {
+        "state": "offline", "record_count": 0, "rows": [],
+    })
+
+    def stage_methods(**kwargs):
+        destination = kwargs["output_root"]
+        destination.mkdir(parents=True)
+        orders = {}
+        if with_blocked_work_order:
+            order = tmp_path / "blocked-work-order.json"
+            order.write_text(json.dumps({"literature_method": {"candidate_id": "unimplemented"}}))
+            orders["unimplemented"] = str(order)
+        manifest = {
+            "artifact_type": "wmloop-literature-method-staging-manifest",
+            "work_order_paths": orders,
+        }
+        (destination / "manifest.json").write_text(json.dumps(manifest))
+        return manifest
+
+    monkeypatch.setattr(pipeline, "run_literature_method_staging", stage_methods)
+    monkeypatch.setattr(pipeline, "run_literature_method_prompt_batch", lambda **_: {"state": "ready"})
+    # The real materializer emits an empty science catalog, even when it has
+    # retained blocked work orders. Neither case grants execution authority.
+    result = pipeline.run_autonomous_pipeline(options)
+    assert result["state"] == "settled"
+    assert observed_catalogs == [original_catalog]
+    assert (tmp_path / "template.json").read_bytes() == source_bytes
+    assert result["literature"]["state"] == "offline"
+    materialization = result["literature_method_materialization"]
+    assert materialization["ready_count"] == 0
+    assert materialization["blocked_count"] == int(with_blocked_work_order)
+    assert materialization["candidate_selection"] == {
+        "state": "degraded", "reason": "LITERATURE_NO_EXECUTABLE_CANDIDATES",
+        "retained_source": "user_catalog" if with_user_catalog else "evaluator_template",
+    }
+    catalog = json.loads(Path(materialization["candidate_catalog_path"]).read_bytes())
+    assert catalog["candidates"] == []
+    assert len(catalog["capability_gaps"]) == int(with_blocked_work_order)
+
+
+def test_ready_literature_catalog_still_reaches_candidate_compilation(tmp_path, monkeypatch):
+    options, _ = setup_pipeline(tmp_path, monkeypatch)
+    options = replace(options, literature_query="CPU fixture research")
+    generated = tmp_path / "generated-catalog.json"
+    generated.write_text(json.dumps(method_catalog("new-candidate")))
+    observed_catalogs = []
+    original_compile = pipeline.compile_and_plan
+
+    def compile_candidates(**kwargs):
+        observed_catalogs.append(kwargs["candidate_catalog"])
+        return original_compile(**kwargs)
+
+    monkeypatch.setattr(pipeline, "compile_and_plan", compile_candidates)
+    monkeypatch.setattr(pipeline, "run_literature_retrieval", lambda **_: {"state": "ready"})
+    monkeypatch.setattr(pipeline, "run_literature_method_staging", lambda **_: {"state": "ready"})
+    monkeypatch.setattr(pipeline, "run_literature_method_prompt_batch", lambda **_: {"state": "ready"})
+    monkeypatch.setattr(pipeline, "run_literature_method_materialization", lambda **_: {
+        "state": "ready", "ready_count": 1, "candidate_catalog_path": str(generated),
+    })
+    result = pipeline.run_autonomous_pipeline(options)
+    assert result["state"] == "settled"
+    assert observed_catalogs == [generated]
+    assert "candidate_selection" not in result["literature_method_materialization"]

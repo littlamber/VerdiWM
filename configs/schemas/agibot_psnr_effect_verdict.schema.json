@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "claim_boundary", "authority",
+    "verdict", "reason", "goal_id", "goal_ref", "goal_sha256",
+    "measurement_ref", "measurement_sha256", "evaluator_digest",
+    "dataset_sha256", "support_sha256", "validation_sample_ids", "seed_cohort",
+    "checkpoint_sha256", "statistics", "threshold_check", "report_only_metrics"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-psnr-effect-verdict"},
+    "claim_boundary": {"type": "string", "minLength": 48},
+    "authority": {"const": "measured_paired_rollout_effect"},
+    "verdict": {"enum": ["ACCEPT", "REJECT"]},
+    "reason": {"enum": ["PSNR_LOWER_BOUND_ABOVE_2_DB", "PSNR_LOWER_BOUND_NOT_ABOVE_2_DB"]},
+    "goal_id": {"type": "string", "pattern": "^agibot-psnr-[a-f0-9]{24}$"},
+    "goal_ref": {"$ref": "#/$defs/cas_ref"},
+    "goal_sha256": {"$ref": "#/$defs/hash"},
+    "measurement_ref": {"$ref": "#/$defs/cas_ref"},
+    "measurement_sha256": {"$ref": "#/$defs/hash"},
+    "evaluator_digest": {"$ref": "#/$defs/hash"},
+    "dataset_sha256": {"$ref": "#/$defs/hash"},
+    "support_sha256": {"$ref": "#/$defs/hash"},
+    "validation_sample_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "seed_cohort": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "integer", "minimum": 0}},
+    "checkpoint_sha256": {
+      "type": "object", "additionalProperties": false,
+      "required": ["baseline", "candidate"],
+      "properties": {"baseline": {"$ref": "#/$defs/hash"}, "candidate": {"$ref": "#/$defs/hash"}}
+    },
+    "statistics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metric", "mean_paired_delta_db", "standard_error_db", "lower_bound_db", "upper_bound_db", "confidence_interval", "sample_count"],
+      "properties": {
+        "metric": {"const": "psnr_db"}, "mean_paired_delta_db": {"type": "number"},
+        "standard_error_db": {"type": "number", "minimum": 0}, "lower_bound_db": {"type": "number"},
+        "upper_bound_db": {"type": "number"}, "confidence_interval": {"const": "student_t_two_sided_95"},
+        "sample_count": {"type": "integer", "minimum": 3}
+      }
+    },
+    "threshold_check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["minimum_effect_db", "rule", "state"],
+      "properties": {"minimum_effect_db": {"const": 2.0}, "rule": {"const": "lower_bound_db > minimum_effect_db"}, "state": {"enum": ["above_threshold", "at_or_below_threshold"]}}
+    },
+    "report_only_metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ssim", "lpips"],
+      "properties": {
+        "ssim": {
+          "type": "object", "additionalProperties": false,
+          "required": ["baseline_mean", "candidate_mean", "mean_delta"],
+          "properties": {"baseline_mean": {"type": "number"}, "candidate_mean": {"type": "number"}, "mean_delta": {"type": "number"}}
+        },
+        "lpips": {"type": "object", "additionalProperties": false, "required": ["state", "value"], "properties": {"state": {"const": "not_measured"}, "value": {"type": "null"}}}
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "cas_ref": {"type": "string", "pattern": "^cas://sha256/[a-f0-9]{64}$"}
+  }
+}

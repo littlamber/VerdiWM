@@ -9,7 +9,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from wmloop.contracts import validate_document
+from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.method_candidate_compiler import MethodCandidateCompilerError
 from wmloop.control.onboarding import (
     OnboardingError,
@@ -69,10 +69,11 @@ from wmloop.execute.pipeline.journal import (
 from wmloop.execute.pipeline.policy import (
     _nondefault_resource_policy as _nondefault_resource_policy,
 )
+from wmloop.execute.agibot_psnr_contract import build_agibot_psnr_execution_status
 from wmloop.execute.pipeline.retrieval import (
     _runtime_retrieval_manifest as _runtime_retrieval_manifest,
+    build_agibot_psnr_memory_context_for_pipeline,
     build_irg_context,
-    build_literature_query,
 )
 from wmloop.execute.pipeline.state import (
     _bind_output_root as _bind_output_root,
@@ -98,6 +99,11 @@ from wmloop.retrieve.index import ProbeRetrievalError, retrieve_probe_experience
 from wmloop.retrieve.literature import (
     LiteratureRetrievalError,
     run_literature_retrieval,
+)
+from wmloop.retrieve.query_planning import (
+    LiteratureQueryPlanError,
+    build_literature_query_plan,
+    write_literature_query_plan,
 )
 from wmloop.retrieve.method_staging import (
     LiteratureMethodStagingError,
@@ -382,6 +388,13 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
 
         probe_manifest: dict[str, object] | None = None
         retrieval_context: dict[str, object] = {"state": "cold_start", "matches": []}
+        retrieval_context["agibot_psnr_execution"] = build_agibot_psnr_execution_status()
+        retrieval_context["agibot_psnr_memory"] = (
+            build_agibot_psnr_memory_context_for_pipeline(
+                archive_db=archive_db,
+                cas_root=cas_root,
+            )
+        )
         irg_failure_signatures: tuple[str, ...] = ()
         irg_model_family: str | None = None
         irg_guided_context: dict[str, object] | None = None
@@ -439,6 +452,13 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                 "archive_db": str(archive_db),
                 "cas_root": str(cas_root),
             }
+            retrieval_context["agibot_psnr_memory"] = (
+                build_agibot_psnr_memory_context_for_pipeline(
+                    archive_db=archive_db,
+                    cas_root=cas_root,
+                )
+            )
+            retrieval_context["agibot_psnr_execution"] = build_agibot_psnr_execution_status()
             # Preserve the model-conditioned IRG plan when probe retrieval is
             # also active.  It is part of the same immutable routing context,
             # not a competing retrieval mode.
@@ -462,13 +482,28 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             "Diagnostic observations and retrieval evidence are available; causes remain hypotheses.",
             evidence_refs=[*journal.read()["evidence_refs"], str(capsule_path)],
         )
-        literature_query = build_literature_query(
+        query_plan = build_literature_query_plan(
             explicit_query=options.literature_query,
             retrieval_context=retrieval_context,
             probe_manifest=probe_manifest,
             irg_failure_signatures=irg_failure_signatures,
             irg_model_family=irg_model_family,
         )
+        query_plan_path = write_literature_query_plan(
+            destination / "retrieval" / "literature-query-plan.json", query_plan
+        )
+        retrieval_context["literature_query_plan"] = query_plan
+        retrieval_context["literature_query_plan_path"] = str(query_plan_path)
+        retrieval_context["literature_status"] = {
+            key: query_plan[key] for key in ("state", "reason", "suggested_action")
+        }
+        literature_query = query_plan["query"]
+        if literature_query is None and research_mode != "causal_discovery":
+            literature_manifest = run_literature_retrieval(
+                query=None, output_root=literature_root,
+                max_results=options.literature_max_results,
+                timeout_seconds=options.literature_timeout_seconds, query_plan=query_plan,
+            )
         if literature_query and research_mode != "causal_discovery":
             stage = "literature_retrieval"
             literature_manifest = run_literature_retrieval(
@@ -476,6 +511,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                 output_root=literature_root,
                 max_results=options.literature_max_results,
                 timeout_seconds=options.literature_timeout_seconds,
+                query_plan=query_plan,
             )
             stage = "literature_method_staging"
             literature_method_manifest = run_literature_method_staging(
@@ -533,8 +569,30 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                     isinstance(generated_catalog, str)
                     and Path(generated_catalog).is_file()
                 ):
-                    generated_path = Path(generated_catalog).resolve()
-                    if candidate_catalog is None:
+                    generated_path = checked_path(
+                        Path(generated_catalog),
+                        code="LITERATURE_MATERIALIZATION_CATALOG_INVALID",
+                        error=LiteratureMaterializationError,
+                    )
+                    generated = _load_json(
+                        generated_path, "LITERATURE_MATERIALIZATION_CATALOG_INVALID"
+                    )
+                    try:
+                        validate_document("method_candidate_catalog", generated)
+                    except ContractValidationError as exc:
+                        raise LiteratureMaterializationError(
+                            "LITERATURE_MATERIALIZATION_CATALOG_INVALID"
+                        ) from exc
+                    if not generated["candidates"]:
+                        literature_method_materialization_manifest["candidate_selection"] = {
+                            "state": "degraded",
+                            "reason": "LITERATURE_NO_EXECUTABLE_CANDIDATES",
+                            "retained_source": (
+                                "user_catalog" if candidate_catalog is not None
+                                else "evaluator_template"
+                            ),
+                        }
+                    elif candidate_catalog is None:
                         candidate_catalog = generated_path
                     else:
                         candidate_catalog = _merge_method_catalogs(
@@ -944,6 +1002,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         OnboardingError,
         DiagnosticProbeError,
         LiteratureRetrievalError,
+        LiteratureQueryPlanError,
         LiteratureMethodStagingError,
         MethodCandidateCompilerError,
         EvidenceCapsuleError,

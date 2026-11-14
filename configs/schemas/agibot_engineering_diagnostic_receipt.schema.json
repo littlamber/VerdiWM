@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "stage",
+    "evidence_class",
+    "quality_eligible",
+    "model_run_id",
+    "checkpoint_identity",
+    "checkpoint_training_progress",
+    "checkpoint_reload",
+    "support_bindings",
+    "consumed_sample_window_ids",
+    "consumption_trace",
+    "metrics",
+    "claim_boundary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-engineering-diagnostic-evaluation-receipt"},
+    "state": {"const": "complete"},
+    "stage": {"const": "engineering_diagnostic"},
+    "evidence_class": {"const": "runtime_only"},
+    "quality_eligible": {"const": false},
+    "model_run_id": {"type": "string", "pattern": "^model-run-[0-9a-f]{24}$"},
+    "checkpoint_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "checkpoint_training_progress": {"$ref": "#/$defs/checkpointTrainingProgress"},
+    "checkpoint_reload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verified", "state_key_count", "checkpoint_meta_sha256", "native_config_sha256"],
+      "properties": {
+        "verified": {"const": true},
+        "state_key_count": {"type": "integer", "minimum": 1},
+        "checkpoint_meta_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "native_config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "support_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agibot_support_digest",
+        "shard_catalog_sha256",
+        "train_episode_uids_sha256",
+        "train_window_set_sha256",
+        "validation_sample_window_ids_sha256"
+      ],
+      "properties": {
+        "agibot_support_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "shard_catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "train_episode_uids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "train_window_set_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "validation_sample_window_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "consumed_sample_window_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "consumption_trace": {"$ref": "#/$defs/consumptionTrace"},
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value", "units", "aggregation", "sample_count", "window_ids_sha256"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "value": {"type": "number"},
+          "units": {"type": "string", "minLength": 1},
+          "aggregation": {"type": "string", "minLength": 1},
+          "sample_count": {"type": "integer", "minimum": 1},
+          "window_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "claim_boundary": {"type": "string", "minLength": 12}
+  },
+  "$defs": {
+    "checkpointTrainingProgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "planned_optimizer_updates",
+        "completed_optimizer_updates",
+        "planned_microsteps",
+        "completed_microsteps",
+        "training_loss_rows"
+      ],
+      "properties": {
+        "seed": {"type": "integer", "minimum": 0, "maximum": 9223372036854775807},
+        "planned_optimizer_updates": {"type": "integer", "minimum": 1},
+        "completed_optimizer_updates": {"type": "integer", "minimum": 1},
+        "planned_microsteps": {"type": "integer", "minimum": 1},
+        "completed_microsteps": {"type": "integer", "minimum": 1},
+        "training_loss_rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/trainingLossRow"}
+        }
+      }
+    },
+    "trainingLossRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optimizer_update", "microstep", "loss", "sample_count", "train_window_ids_sha256"],
+      "properties": {
+        "optimizer_update": {"type": "integer", "minimum": 1},
+        "microstep": {"type": "integer", "minimum": 1},
+        "loss": {"type": "number"},
+        "sample_count": {"type": "integer", "minimum": 1},
+        "train_window_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "consumptionTrace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rows", "sha256"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/consumptionTraceRow"}
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "consumptionTraceRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["window_id", "loss"],
+      "properties": {
+        "window_id": {"type": "string", "minLength": 1},
+        "loss": {"type": "number"}
+      }
+    }
+  }
+}

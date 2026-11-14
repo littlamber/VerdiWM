@@ -30,6 +30,22 @@ _EXPORTS = MappingProxyType(
             "wmloop.retrieve.index",
             "retrieve_probe_experiences",
         ),
+        "AgibotPSNRMemory": (
+            "wmloop.retrieve.agibot_psnr_memory",
+            "AgibotPSNRMemory",
+        ),
+        "AgibotPSNRMemoryError": (
+            "wmloop.retrieve.agibot_psnr_memory",
+            "AgibotPSNRMemoryError",
+        ),
+        "retrieve_agibot_psnr_memories": (
+            "wmloop.retrieve.agibot_psnr_memory",
+            "retrieve_agibot_psnr_memories",
+        ),
+        "build_agibot_psnr_memory_context": (
+            "wmloop.retrieve.agibot_psnr_memory",
+            "build_agibot_psnr_memory_context",
+        ),
         "LiteratureRecord": ("wmloop.retrieve.literature", "LiteratureRecord"),
         "LiteratureRetrievalError": (
             "wmloop.retrieve.literature",

@@ -3,21 +3,22 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 from concurrent.futures import ThreadPoolExecutor
 import json
-import os
-import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from wmloop.control.campaign_api import CampaignAPIError, CampaignStore
+from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.execute.model_runner import execute_model_run
+from wmloop.process_lifecycle import LocalCommandSignals, LocalProcessTree, retire_process_group
 from wmloop.storage import checked_path, exclusive_file_lock
 
 
@@ -50,6 +51,24 @@ def run_dispatcher(
     *,
     runner: Runner | None = None,
     sleeper: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    # HTTP handlers run off the main thread and use store cancellation. CLI
+    # dispatch owns a main-thread signal scope shared explicitly with workers.
+    signal_context = (
+        LocalCommandSignals()
+        if threading.current_thread() is threading.main_thread()
+        else nullcontext()
+    )
+    with signal_context as signals:
+        return _dispatch_campaigns(options, runner=runner, sleeper=sleeper, signals=signals)
+
+
+def _dispatch_campaigns(
+    options: DispatcherOptions,
+    *,
+    runner: Runner | None,
+    sleeper: Callable[[float], None],
+    signals: LocalCommandSignals | None,
 ) -> dict[str, Any]:
     if (
         options.max_cycles < 1
@@ -85,6 +104,8 @@ def run_dispatcher(
         cancelled_ids.extend(recovered["cancelled"])
         selected_ids = set(options.campaign_ids)
         for cycle in range(options.max_cycles):
+            if signals is not None:
+                signals.check()
             paths = sorted(
                 path
                 for path in pending.glob("*.json")
@@ -109,6 +130,7 @@ def run_dispatcher(
                             failed=failed,
                             cancelled=cancelled,
                             runner=runner,
+                            stop_requested=lambda: signals is not None and signals.stop_requested,
                         ),
                         batch,
                     )
@@ -144,6 +166,7 @@ def _dispatch_one(
     failed: Path,
     cancelled: Path,
     runner: Runner | None,
+    stop_requested: Callable[[], bool] = lambda: False,
 ) -> tuple[str, str]:
     campaign_id = source.stem
     active = running / source.name
@@ -156,22 +179,25 @@ def _dispatch_one(
         if claimed is None:
             return "cancelled", campaign_id
         dispatch = claimed
+        if stop_requested():
+            store.cancel(campaign_id)
         if _cancel_requested(store, campaign_id):
             raise CampaignDispatchError("DISPATCH_CANCELLED_BEFORE_LAUNCH")
+        cancel_requested = lambda: stop_requested() or _cancel_requested(store, campaign_id)
         if runner is None and dispatch.get("model_run") is not None:
-            result = dict(execute_model_run(dispatch["model_run"]))
+            result = dict(execute_model_run(dispatch["model_run"], cancel_requested=cancel_requested))
         elif runner is None:
             result = dict(
                 _run_subprocess(
                     dispatch["execution"],
-                    cancel_requested=lambda: _cancel_requested(store, campaign_id),
+                    cancel_requested=cancel_requested,
                 )
             )
         else:
             result = dict(runner(dispatch["execution"]))
-        if result.get("cancelled") and not _cancel_requested(store, campaign_id):
+        state = _dispatch_result_status(result)
+        if state == "cancelled" and not _cancel_requested(store, campaign_id):
             store.cancel(campaign_id)
-        state = "blocked" if result.get("outcome") == "blocked" else "completed"
         state = store.settle_dispatch(campaign_id, dispatch=dispatch, status=state, result=result)
         return state, campaign_id
     except Exception as exc:
@@ -186,6 +212,36 @@ def _cancel_requested(store: CampaignStore, campaign_id: str) -> bool:
         return store.get(campaign_id).get("status") == "cancelled"
     except CampaignAPIError as exc:
         raise CampaignDispatchError("DISPATCH_STATE_UNAVAILABLE") from exc
+
+
+def _dispatch_result_status(result: Mapping[str, Any]) -> str:
+    """Map controller and model-run terminal receipts to public campaign states.
+
+    Protocol-v3 recovery returns an already-settled receipt directly. Such
+    receipts use ``state`` (including ``timed_out`` and
+    ``cancelled_before_launch``), while older controller results use
+    ``outcome``. Unknown explicit terminal values fail closed so a malformed
+    or newly introduced failure state cannot be presented as success.
+    """
+
+    outcome = result.get("outcome")
+    if result.get("cancelled") is True or outcome == "cancelled":
+        return "cancelled"
+    if outcome in {"completed", "blocked", "failed"}:
+        return str(outcome)
+
+    state = result.get("state")
+    if state in {"completed", "blocked"}:
+        return str(state)
+    if state in {"failed", "failed_before_launch", "timed_out"}:
+        return "failed"
+    if state in {"cancelled", "cancelled_before_launch"}:
+        return "cancelled"
+    if outcome is None and state is None:
+        # Keep support for legacy runner callbacks that signal success by
+        # returning normally without a status document.
+        return "completed"
+    return "failed"
 
 
 def _recover_interrupted(
@@ -309,6 +365,10 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
                 "literature_max_results": "--literature-max-results",
                 "literature_timeout_seconds": "--literature-timeout-seconds",
                 "research_mode": "--research-mode",
+                "candidate_catalog": "--candidate-catalog",
+                "settlement_manifest": "--settlement-manifest",
+                "model_irg_path": "--model-irg",
+                "runtime_timeout_seconds": "--runtime-timeout-seconds",
                 "cpbe_request": "--cpbe-request",
                 "cpbe_history": "--cpbe-history",
                 "max_files": "--max-files",
@@ -325,6 +385,13 @@ def _build_command(execution: Mapping[str, Any]) -> list[str]:
             },
         )
         _append_assets(command, execution.get("asset_bindings"))
+        _append_adapter_asset_parameters(command, execution.get("adapter_asset_parameters"))
+        for metric in execution.get("irg_protected_metrics", ()):
+            command.extend(["--irg-protected-metric", str(metric)])
+        if execution.get("adapter_contract_ready") is True:
+            command.append("--adapter-contract-ready")
+        if execution.get("stop_on_success") is True:
+            command.append("--stop-on-success")
         if execution.get("probe_imports") is False:
             command.append("--no-import-probe")
         if execution.get("budget_require_high_cost_approval") is False:
@@ -390,33 +457,20 @@ def _run_subprocess(
             text=True,
             start_new_session=True,
         )
+        tree = None
         try:
-            while process.poll() is None:
+            tree = LocalProcessTree(process)
+            while tree.poll() is None:
+                tree.observe()
                 if cancel_requested():
                     cancelled = True
-                    termination = "SIGTERM"
-                    try:
-                        os.killpg(process.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
-                    try:
-                        process.wait(timeout=terminate_grace_seconds)
-                    except subprocess.TimeoutExpired:
-                        termination = "SIGKILL"
-                        try:
-                            os.killpg(process.pid, signal.SIGKILL)
-                        except ProcessLookupError:
-                            pass
-                        process.wait()
+                    termination = tree.terminate(grace_seconds=terminate_grace_seconds)
                     break
                 time.sleep(poll_seconds)
-        except BaseException:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
-            raise
+        finally:
+            # Also retire descendants if the outer daemon exits before a
+            # nested adapter or training session has finished.
+            retire_process_group(process, tree=tree)
         returncode = process.wait()
         stdout.seek(0)
         stderr.seek(0)
@@ -433,6 +487,22 @@ def _run_subprocess(
         "cancelled": cancelled,
         "termination": termination,
     }
+    if execution.get("kind") == "evolution" and not cancelled:
+        manifest = _evolution_manifest(stdout_text, result=result)
+        state = manifest["state"]
+        result.update(
+            evolution_manifest=manifest,
+            stop_reason=manifest["stop_reason"],
+            rounds_completed=manifest["settled_iterations"],
+            outcome={
+                "completed": "completed", "blocked": "blocked", "exhausted": "blocked",
+                "stopped": "cancelled", "interrupted": "failed",
+            }[state],
+            cancelled=state == "stopped",
+        )
+        if returncode != 0 and state == "completed":
+            raise CampaignProcessError(f"DISPATCH_PROCESS_FAILED:{returncode}", result)
+        return result
     if pipeline_manifest is not None:
         result["pipeline_manifest"] = pipeline_manifest
         result["outcome"] = "blocked"
@@ -442,6 +512,25 @@ def _run_subprocess(
             f"DISPATCH_PROCESS_FAILED:{returncode}", result
         )
     return result
+
+
+def _evolution_manifest(stdout: str, *, result: Mapping[str, Any]) -> dict[str, Any]:
+    """Read the controller's terminal receipt before shortening process logs."""
+    for line in reversed(stdout.splitlines()):
+        try:
+            manifest = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(manifest, dict) or manifest.get("artifact_type") != "verdiwm-evolution-daemon-manifest":
+            continue
+        try:
+            validate_document("pipeline_evolution_manifest", manifest)
+        except ContractValidationError as exc:
+            raise CampaignProcessError("DISPATCH_EVOLUTION_MANIFEST_INVALID", result) from exc
+        if manifest["state"] == "running":
+            raise CampaignProcessError("DISPATCH_EVOLUTION_NOT_TERMINAL", result)
+        return manifest
+    raise CampaignProcessError("DISPATCH_EVOLUTION_MANIFEST_MISSING", result)
 
 
 def _blocked_pipeline_manifest(
@@ -512,7 +601,12 @@ def _append_options(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--state-root", type=Path, required=True)
+    parser.add_argument(
+        "--state-root",
+        type=Path,
+        required=True,
+        help="Verdi state root containing campaigns/ (same meaning as `verdi run --state-root`)",
+    )
     parser.add_argument("--poll-seconds", type=float, default=10.0)
     parser.add_argument("--max-cycles", type=int, default=1)
     parser.add_argument("--max-parallel", type=int, default=1)
@@ -522,7 +616,10 @@ def main() -> int:
         json.dumps(
             run_dispatcher(
                 DispatcherOptions(
-                    state_root=args.state_root,
+                    # The public command follows `verdi run --state-root`; the
+                    # Python API above intentionally keeps its CampaignStore-root
+                    # contract for existing internal callers.
+                    state_root=args.state_root.expanduser() / "campaigns",
                     poll_seconds=args.poll_seconds,
                     max_cycles=args.max_cycles,
                     max_parallel=args.max_parallel,

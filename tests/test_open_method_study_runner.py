@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 import sys
 
+import pytest
+
 from test_open_method_study import request as study_request
 from wmloop.control.open_method_study import compile_open_method_study
 from wmloop.execute.gpu_lease import GpuLeaseManager
@@ -460,6 +462,52 @@ def test_failed_trial_charges_time_spent_under_gpu_lease(tmp_path, monkeypatch):
     assert result["state"] == "failed"
     assert result["gpu_seconds"] == 15.0
     assert lease.released
+
+
+@pytest.mark.parametrize("manager_base", [object, GpuLeaseManager])
+def test_trial_cancels_after_legacy_manager_returns_lease(tmp_path, monkeypatch, manager_base):
+    import wmloop.execute.open_method_study_runner as runner
+    from wmloop.process_lifecycle import LocalProcessCancelled
+
+    class Scope:
+        stop_requested = False
+
+        def check(self):
+            if self.stop_requested:
+                raise LocalProcessCancelled("LOCAL_PROCESS_CANCELLED")
+
+    scope = Scope()
+
+    class Lease:
+        released = False
+
+        def release(self):
+            self.released = True
+
+    lease = Lease()
+
+    class Manager(manager_base):
+        # Deliberately retain the pre-cancellation keyword contract.
+        def acquire(self, indices, *, wait_seconds):
+            assert indices == [0]
+            assert wait_seconds == 7
+            scope.stop_requested = True
+            return lease
+
+    def unexpected_operation(**kwargs):
+        pytest.fail("candidate launched after cancellation during lease handover")
+
+    monkeypatch.setattr(runner, "run_candidate_operation", unexpected_operation)
+    with pytest.raises(LocalProcessCancelled, match="LOCAL_PROCESS_CANCELLED"):
+        runner._run_trial(
+            study_path=tmp_path, study={}, arm={"role": "baseline"}, method={},
+            seed=1, phase="selection", paths={}, verifier_spec={},
+            output_root=tmp_path / "trial", runtime_python=Path(sys.executable),
+            gpu_indices=[0], lease_manager=Manager(), gpu_wait_seconds=7,
+            signal_scope=scope,
+        )
+    assert lease.released
+    assert not (tmp_path / "trial" / "trial.json").exists()
 
 
 def test_input_drift_does_not_publish_execution_receipt(tmp_path, monkeypatch):

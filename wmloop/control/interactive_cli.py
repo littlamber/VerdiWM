@@ -22,8 +22,10 @@ import time
 from typing import Callable, Iterable, TextIO
 
 from wmloop.control.campaign_api import CampaignAPIError
+from wmloop.control.interactive_intent import parse_round_intent
 from wmloop.control.llm_setup import inspect_llm_config
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.research_request import matching_terminal_research_result
 from wmloop.control.terminal_ui import Dashboard, Theme as _Theme, render_commands, render_dashboard
 
 
@@ -43,6 +45,7 @@ class SessionState:
     """Ephemeral context that makes consecutive shell commands composable."""
 
     last_goal: str | None = None
+    last_rounds: int | None = None
     last_plan: str | None = None
     last_campaign_id: str | None = None
     last_state: str | None = None
@@ -54,11 +57,11 @@ COMMANDS: tuple[InteractiveCommand, ...] = (
     InteractiveCommand("help", ("h", "?"), "显示命令面板和使用说明", "/help"),
     InteractiveCommand("research", ("r",), "进入研究计划或执行流程", "/research plan ..."),
     InteractiveCommand("start", ("go", "next"), "按当前项目状态继续下一步", "/start"),
-    InteractiveCommand("plan", (), "生成可审阅的研究计划（只读）", "/plan \"研究目标\""),
-    InteractiveCommand("run", (), "预览并确认后执行研究计划", "/run  或  /run --plan PATH --confirm"),
+    InteractiveCommand("plan", (), "生成可审阅的研究计划（只读）", "/plan \"研究目标\" --rounds 2 [--stop-on-success]"),
+    InteractiveCommand("run", (), "选择轮数、预览并确认研究计划", "/run [--rounds 2] [--stop-on-success]"),
     InteractiveCommand("status", ("s",), "查看 campaign 状态", "/status [CAMPAIGN_ID]"),
     InteractiveCommand("recent", (), "查看最近计划、任务和下一步", "/recent"),
-    InteractiveCommand("resume", (), "恢复最近任务或审阅默认计划", "/resume"),
+    InteractiveCommand("resume", (), "查看活动任务或审阅默认计划", "/resume"),
     InteractiveCommand("progress", ("p",), "查看最近任务的进度", "/progress [CAMPAIGN_ID]"),
     InteractiveCommand("cancel", (), "取消一个排队或运行中的任务", "/cancel CAMPAIGN_ID"),
     InteractiveCommand("check", (), "检查项目接入和本地 readiness", "/check"),
@@ -163,6 +166,9 @@ def _readiness_snapshot(config: dict[str, object] | None, project_root: Path) ->
             data=str(config.get("data", config.get("dataset"))) if config.get("data", config.get("dataset")) else None,
             evaluator_contract=str(config.get("evaluator_contract")) if config.get("evaluator_contract") else None,
             runtime_python=str(config.get("runtime_python")) if config.get("runtime_python") else None,
+            adapter_profile=str(config.get("adapter_profile")) if config.get("adapter_profile") else None,
+            adapter=str(config.get("adapter")) if config.get("adapter") else None,
+            goal=str(config.get("goal")) if config.get("goal") else None,
         )
     except Exception as exc:
         return {
@@ -191,6 +197,7 @@ def _next_step(
     plan_path: Path | None = None,
     campaigns: Iterable[dict[str, object]] = (),
 ) -> tuple[str, str]:
+    campaigns = tuple(campaigns)
     if not config:
         return "SETUP", "/setup"
     if not config.get("goal"):
@@ -208,6 +215,9 @@ def _next_step(
     if plan_path is not None and plan_path.is_file():
         payload, _ = _plan_summary(plan_path)
         if payload is not None and payload.get("state") in {"ready", "ready_with_deferred_discovery"}:
+            terminal = matching_terminal_research_result(payload, list(campaigns))
+            if terminal is not None:
+                return "PREVIOUS RUN " + str(terminal["state"]).upper(), "/resume"
             return "PLAN READY", "/run"
         return "PLAN BLOCKED", "/check"
     return "READY", "/start"
@@ -341,8 +351,18 @@ def _render_command_help(command: InteractiveCommand, *, stdout: TextIO, theme: 
         stdout.write("  说明  自动发现 model/ 和 data/；项目已准备好时直接生成研究计划。\n")
     elif command.name == "plan":
         stdout.write("  说明  只读生成计划；目标可直接作为第一个参数，不会启动 GPU。\n")
+        stdout.write("  轮数  --rounds N 设置最多研究轮数，默认 1；--budget 是所有轮次共享的总预算。\n")
+        stdout.write("  目标  --stop-on-success 仅在冻结验证器正式确认目标收益后提前停止。\n")
     elif command.name == "run":
-        stdout.write("  说明  无参数时会预览默认计划并询问确认；正式 campaign 仍必须带 --confirm。\n")
+        stdout.write("  说明  无参数时预览最近计划并选择轮数，回车沿用计划值；确认后执行。\n")
+        stdout.write("  轮数  /run --rounds 2 先生成并预览派生计划，再询问一次确认；所有轮次共享总预算。\n")
+        stdout.write("  目标  --stop-on-success 仅由冻结验证器正式确认后提前停；筛选通过或诊断重复都不能代替。\n")
+        stdout.write("  范围  多轮仍属一个 campaign，统一使用 /status 与 /cancel；独立 daemon 入口也继续兼容。\n")
+        stdout.write("  停止  另一个终端可用 /cancel CAMPAIGN_ID 请求取消，再用 /status 核对；详见 docs/RUN_LIFECYCLE.md。\n")
+    elif command.name == "cancel":
+        stdout.write("  说明  取消请求写入持久状态；用 /status 核对执行器是否已退出。独立 daemon 需向控制器发送停止信号。\n")
+    elif command.name == "resume":
+        stdout.write("  说明  有活动 campaign 时显示进度，否则回到计划确认；不会自动重启失败训练或独立 daemon。\n")
     elif command.name == "llm":
         stdout.write("  说明  研究助手的 API 配置教程；/llm status 只读检查，不会发送网络请求或显示密钥。\n")
     stdout.write("\n")
@@ -354,14 +374,22 @@ def _guided_setup(
     dispatch: Dispatch,
     theme: _Theme,
 ) -> bool:
-    """Collect only the three facts needed for a first project configuration."""
+    """Collect first-project inputs and delegate validation to public setup."""
+
+    from wmloop.control.first_contact import infer_source_root
 
     model_default, data_default = _discovered_inputs()
     stdout.write("\n" + theme.title("  首次接入 Verdi") + "\n")
-    stdout.write(theme.muted("  只需回答三个问题，系统会生成本地 verdiwm.toml。\n"))
+    stdout.write(theme.muted("  填写模型、源码、数据和目标，系统会生成本地 verdiwm.toml；回车接受默认值，Ctrl-C / Ctrl-D 取消。\n"))
     model = _prompt_value(stdin, stdout, "模型目录", default=model_default)
     if model is None:
         stdout.write(theme.warn("  已取消设置。输入 /setup --help 查看完整参数。\n"))
+        return True
+    inferred_source = infer_source_root(Path(model))
+    source_default = str(inferred_source or model)
+    source = _prompt_value(stdin, stdout, "源码目录（默认推断或复用模型位置；权重单独存放时填写训练/评测源码）", default=source_default)
+    if source is None:
+        stdout.write(theme.warn("  已取消设置。\n"))
         return True
     data = _prompt_value(stdin, stdout, "数据目录", default=data_default)
     if data is None:
@@ -371,9 +399,13 @@ def _guided_setup(
     if goal is None:
         stdout.write(theme.warn("  还需要一句研究目标；设置未执行。\n"))
         return True
+    args = ["--model", model, "--data", data, "--goal", goal]
+    # Preserve setup's implicit-source behavior for the model-path fallback.
+    if inferred_source is not None or source != model:
+        args.extend(["--source", source])
     result = _dispatch_slash(
         "setup",
-        ["--model", model, "--data", data, "--goal", goal],
+        args,
         dispatch,
         stdout=stdout,
         theme=theme,
@@ -396,13 +428,94 @@ def _plan_summary(path: Path) -> tuple[dict[str, object] | None, str | None]:
 
 
 def _render_plan_preview(payload: dict[str, object], path: Path, *, stdout: TextIO, theme: _Theme) -> None:
+    from wmloop.control.terminal_results import render_execution_policy
+
     stdout.write(theme.title("  研究计划") + "\n")
     stdout.write(f"    Goal     {payload.get('goal', '未填写')}\n")
     stdout.write(f"    Model    {payload.get('model', '未绑定')}\n")
-    stdout.write(f"    Budget   {payload.get('budget', '未填写')}\n")
+    stdout.write(f"    Budget   {payload.get('budget', '未填写')}（所有轮次共享总预算）\n")
+    render_execution_policy(payload, stdout=stdout)
     stdout.write(f"    Mode     {payload.get('mode', '未填写')}\n")
     stdout.write(f"    State    {payload.get('state', 'unknown')}\n")
     stdout.write(f"    File     {path}\n")
+
+
+def _review_run(
+    args: list[str], dispatch: Dispatch, *, stdin: TextIO | None,
+    stdout: TextIO, theme: _Theme, session: SessionState | None,
+) -> bool:
+    """Review the exact persisted policy before the terminal grants execution."""
+
+    plan_path = Path(session.last_plan) if session and session.last_plan else _default_plan_path()
+    confirmed = False
+    if not args:
+        payload, error = _plan_summary(plan_path)
+        if payload is None:
+            stdout.write(theme.warn(f"  {error or '还没有默认研究计划；输入 /plan 先生成。'}\n"))
+            return True
+        _render_plan_preview(payload, plan_path, stdout=stdout, theme=theme)
+        if payload.get("state") not in {"ready", "ready_with_deferred_discovery"}:
+            stdout.write(theme.bad("  计划当前不可执行；请先解决 blocker，再输入 /plan 重新生成。\n"))
+            return True
+        policy = payload.get("execution_policy")
+        planned_rounds = policy.get("rounds", 1) if isinstance(policy, dict) else 1
+        choice = _prompt_value(
+            stdin, stdout, "最多运行轮数（回车沿用；y 确认创建并执行当前计划；n 取消）", default=str(planned_rounds),
+        ) if stdin is not None else None
+        if choice is None or choice.casefold() in {"n", "no"}:
+            stdout.write(theme.muted("  已取消执行；计划仍保留在原路径。\n"))
+            return True
+        confirmed = choice.casefold() in {"y", "yes"}
+        if not confirmed:
+            if not re.fullmatch(r"[1-9]\d*", choice):
+                stdout.write(theme.warn("  轮数必须是正整数；未创建 campaign。输入 /run 可重新选择。\n"))
+                return True
+            if int(choice) != planned_rounds:
+                args = ["--rounds", choice]
+    if args:
+        if not any(item == "--plan" or item.startswith("--plan=") for item in args):
+            args = ["--plan", str(plan_path), *args]
+        preview_state = SessionState()
+        _dispatch_command(
+            ["research", "run", *args], dispatch,
+            stdout=stdout, theme=theme, label="/run 预览", session=preview_state,
+        )
+        if preview_state.last_state != "awaiting_confirmation" or not preview_state.last_plan:
+            return True
+        plan_path = Path(preview_state.last_plan)
+        payload, error = _plan_summary(plan_path)
+        if payload is None:
+            stdout.write(theme.bad(f"  {error or '预览未返回可读取的计划；未创建 campaign。'}\n"))
+            return True
+        _render_plan_preview(payload, plan_path, stdout=stdout, theme=theme)
+        if payload.get("state") not in {"ready", "ready_with_deferred_discovery"}:
+            stdout.write(theme.bad("  计划当前不可执行；请先解决 blocker，再重新生成计划。\n"))
+            return True
+        if session is not None:
+            session.last_plan = str(plan_path)
+            session.last_goal = preview_state.last_goal or session.last_goal
+            session.last_rounds = preview_state.last_rounds or session.last_rounds
+    if not confirmed and (stdin is None or not _prompt_confirmation(stdin, stdout, theme, "确认创建并执行这个 campaign？")):
+        stdout.write(theme.muted("  已取消执行；审阅过的计划仍保留，可用 /run 继续。\n"))
+        return True
+    # Keep execution options, but send the reviewed plan as the sole policy
+    # authority.  Backend argparse has already validated the preview arguments.
+    retained: list[str] = []
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token in {"--plan", "--rounds"}:
+            index += 2
+            continue
+        if token.startswith(("--plan=", "--rounds=")) or token in {"--stop-on-success", "--no-stop-on-success"}:
+            index += 1
+            continue
+        retained.append(token)
+        index += 1
+    return _dispatch_command(
+        ["research", "run", "--plan", str(plan_path), *retained, "--confirm"], dispatch,
+        stdout=stdout, theme=theme, label="/run", session=session,
+    )
 
 
 def _render_recent(
@@ -603,6 +716,14 @@ def _dispatch_slash_command(
             campaign_id = str(active.get("campaign_id"))
             stdout.write(theme.accent(f"  发现进行中的 campaign：{campaign_id}\n"))
             return _dispatch_slash("progress", [campaign_id], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
+        payload, _ = _plan_summary(_default_plan_path(root))
+        terminal = matching_terminal_research_result(payload, campaigns) if payload is not None else None
+        if terminal is not None:
+            _render_result(json.dumps(terminal, ensure_ascii=False), stdout=stdout, theme=theme)
+            if session is not None:
+                session.last_campaign_id = str(terminal["campaign"]["campaign_id"])
+                session.last_state = str(terminal["state"])
+            return True
         return _dispatch_slash("run", [], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session)
     if name == "progress":
         campaign_id = args[0] if args else (session.last_campaign_id if session else None)
@@ -709,23 +830,6 @@ def _dispatch_slash_command(
         else:
             stdout.write(theme.warn(f"  未知命令 /{command}。输入 / 查看可用命令。\n"))
         return True
-    if name == "run" and not args:
-        plan_path = _default_plan_path(Path.cwd())
-        payload, error = _plan_summary(plan_path)
-        if payload is None:
-            stdout.write(theme.warn(f"  {error or '还没有默认研究计划；输入 /plan 先生成。'}\n"))
-            return True
-        _render_plan_preview(payload, plan_path, stdout=stdout, theme=theme)
-        if payload.get("state") not in {"ready", "ready_with_deferred_discovery"}:
-            stdout.write(theme.bad("  计划当前不可执行；请先解决 blocker，再输入 /plan 重新生成。\n"))
-            return True
-        if stdin is None or not _prompt_confirmation(stdin, stdout, theme, "确认创建并执行这个 campaign？"):
-            stdout.write(theme.muted("  已取消执行；计划仍保留在原路径。\n"))
-            return True
-        args = ["--plan", str(plan_path), "--confirm"]
-        argv = ["research", "run", *args]
-    if name == "run" and "--confirm" in args:
-        stdout.write(theme.warn("  即将执行已确认计划；Verdi 会继续遵守计划和证据门禁。\n"))
     # Friendly shorthand: ``/plan \"goal\"`` and ``/run PLAN`` are expanded
     # into the explicit argparse forms while retaining the same safety gates.
     if name == "plan" and argv[2:] and not argv[2].startswith("-") and "--goal" not in argv[2:]:
@@ -737,7 +841,23 @@ def _dispatch_slash_command(
         argv = ["research", "plan", "--goal", " ".join(argv[2:first_option]), *argv[first_option:]]
     elif name == "run" and len(argv) > 2 and not argv[2].startswith("-"):
         argv = ["research", "run", "--plan", argv[2], *argv[3:]]
-    return _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label=f"/{name}", session=session)
+    if name == "plan" and session is not None:
+        if "--goal" not in argv and not any(item.startswith("--goal=") for item in argv) and session.last_goal:
+            argv.extend(["--goal", session.last_goal])
+        if "--rounds" not in argv and not any(item.startswith("--rounds=") for item in argv) and session.last_rounds is not None:
+            argv.extend(["--rounds", str(session.last_rounds)])
+    if name == "run":
+        if "--confirm" not in argv and not {"--help", "-h"}.intersection(argv):
+            return _review_run(argv[2:], dispatch, stdin=stdin, stdout=stdout, theme=theme, session=session)
+        if "--confirm" in argv:
+            if not any(item == "--plan" or item.startswith("--plan=") for item in argv):
+                plan_path = session.last_plan if session and session.last_plan else str(_default_plan_path())
+                argv.extend(["--plan", plan_path])
+            stdout.write(theme.warn("  即将执行已确认计划；Verdi 会继续遵守计划和证据门禁。\n"))
+    result = _dispatch_command(argv, dispatch, stdout=stdout, theme=theme, label=f"/{name}", session=session)
+    if name == "plan" and session is not None and session.last_state in {"ready", "ready_with_deferred_discovery"}:
+        stdout.write(theme.accent("  下一步输入 /run 选择轮数并确认执行，无需复制计划路径。\n"))
+    return result
 
 
 def _render_result(raw: str, *, stdout: TextIO, theme: _Theme) -> None:
@@ -825,6 +945,13 @@ def _dispatch_command(
                     session.last_state = str(latest["status"])
             if payload.get("state") is not None:
                 session.last_state = str(payload["state"])
+            document = payload.get("plan", payload)
+            if isinstance(document, dict):
+                if isinstance(document.get("goal"), str):
+                    session.last_goal = document["goal"]
+                policy = document.get("execution_policy")
+                if isinstance(policy, dict) and type(policy.get("rounds")) is int:
+                    session.last_rounds = policy["rounds"]
     error_text = captured_err.getvalue().strip()
     if error_text:
         if session is not None:
@@ -836,6 +963,57 @@ def _dispatch_command(
     else:
         stdout.write(theme.bad(f"  命令返回状态 {result}。\n"))
     return True
+
+
+def _prepare_round_request(text: str, *, dispatch: Dispatch, stdout: TextIO, theme: _Theme, session: SessionState) -> bool:
+    """Convert explicit natural-language round requests into read-only plans."""
+
+    try:
+        intent = parse_round_intent(text)
+    except ValueError as exc:
+        stdout.write(theme.warn(f"  {exc}\n"))
+        return True
+    if intent is None:
+        return False
+    try:
+        plan_path = Path(session.last_plan) if session.last_plan else _default_plan_path()
+        existing, error = _plan_summary(plan_path)
+        if error:
+            stdout.write(theme.warn(f"  {error}\n"))
+            return True
+        options: list[str] = []
+        if intent.rounds is not None:
+            session.last_rounds = intent.rounds
+            options.extend(["--rounds", str(intent.rounds)])
+            stdout.write(theme.accent(f"  最多运行 {intent.rounds} 轮；先准备计划，尚未启动 GPU。\n"))
+        if intent.stop_on_success is True:
+            options.append("--stop-on-success")
+            stdout.write(theme.accent("  冻结验证器正式确认目标收益后提前停；先准备计划，尚未启动 GPU。\n"))
+        if intent.goal is None and existing is not None and (session.last_goal is None or session.last_goal == existing.get("goal")):
+            stdout.write(f"  沿用研究目标：{existing.get('goal', '未填写')}\n")
+            result = _dispatch_command(
+                ["research", "run", "--plan", str(plan_path), *options], dispatch,
+                stdout=stdout, theme=theme, label="/plan 轮数", session=session,
+            )
+            if session.last_state == "awaiting_confirmation":
+                stdout.write(theme.accent("  下一步输入 /run 审阅并确认，无需复制计划路径。\n"))
+            return result
+        goal = intent.goal or session.last_goal
+        if goal is None:
+            config = _project_snapshot()
+            goal = str(config["goal"]) if config and config.get("goal") else None
+        if goal is None:
+            stdout.write(theme.warn(f'  还需要研究目标；输入 /plan "你的目标" {shlex.join(options)}。\n'))
+            return True
+        session.last_goal = goal
+        return _dispatch_slash(
+            "plan", ["--goal", goal, *options], dispatch,
+            stdout=stdout, theme=theme, session=session,
+        )
+    except ProjectConfigError as exc:
+        _render_project_config_error(exc, stdout=stdout, theme=theme)
+        session.last_error = str(exc)
+        return True
 
 
 def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | None = None, stderr: TextIO | None = None, dispatch: Dispatch | None = None) -> int:
@@ -911,8 +1089,10 @@ def run_interactive_session(*, stdin: TextIO | None = None, stdout: TextIO | Non
                 if not _dispatch_slash(tokens[0], tokens[1:], dispatch, stdout=stdout, theme=theme, stdin=stdin, session=session):
                     return 0
                 continue
-            # Natural-language input is intentionally advisory.  It gives the
-            # user the next safe command without silently allocating a GPU.
+            if _prepare_round_request(text, dispatch=dispatch, stdout=stdout, theme=theme, session=session):
+                continue
+            # Other natural-language input stays advisory; round requests
+            # above can prepare a plan but never grant GPU execution.
             goal = text
             session.last_goal = goal
             quoted = shlex.join([goal])

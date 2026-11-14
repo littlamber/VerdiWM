@@ -6,6 +6,12 @@
   "model_family": "wan22_coachworld",
   "capability_level": "L2",
   "execution_kind": "pipeline",
+  "execution_support": {
+    "state": "requires_interface_extension",
+    "reason": "The built-in training bridge cannot bind the frozen training scale and isolated output/checkpoint receipts; a complete WAN2.2 action/proprio/history campaign adapter is not implemented.",
+    "action": "Implement and validate the training budget, output and checkpoint bindings plus target action/history conformance before enabling this profile. Standalone arm-slot inference remains diagnostic only.",
+    "documentation": "docs/WAN22_DROID_ACWM_ONBOARDING.md"
+  },
   "repo_markers": [
     "sa_wm/world_model/causal_trainer.py",
     "scripts/training/train_world_model.py",

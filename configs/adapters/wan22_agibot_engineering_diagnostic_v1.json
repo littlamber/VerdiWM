@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-adapter-profile",
+  "profile_id": "wan22-agibot-engineering-diagnostic-v1",
+  "aliases": ["agibot", "wan22-agibot", "agibot-engineering-diagnostic"],
+  "model_family": "wan22_agibot_arm_slot",
+  "capability_level": "L2",
+  "execution_kind": "pipeline",
+  "repo_markers": [
+    "scripts/training/train_world_model.py",
+    "sa_wm/world_model/trainer.py",
+    "sa_wm/data/video_latent_dataset.py",
+    "sa_wm/data/video_latent_reader.py",
+    "sa_wm/data/video_latent.py",
+    "sa_wm/world_model/action_contract.py"
+  ],
+  "goal_keywords": [
+    "agibot",
+    "arm-slot",
+    "arm slot",
+    "engineering diagnostic",
+    "工程诊断",
+    "Agibot"
+  ],
+  "evaluator_contract": "configs/evaluators/agibot_engineering_diagnostic_v1.json",
+  "constitution_freeze": "configs/constitution/wan22_agibot_engineering_diagnostic_v1.freeze.json",
+  "runtime_candidates": [
+    "{env:VERDIWM_AGIBOT_PYTHON}",
+    "{source}/.venv/bin/python",
+    "{model}/.venv/bin/python"
+  ],
+  "asset_bindings": [
+    {"parameter": "--data-root", "kind": "directory", "candidates": ["{data}"]},
+    {
+      "parameter": "--base-model",
+      "kind": "directory",
+      "candidates": ["{env:VERDIWM_AGIBOT_BASE_MODEL}"]
+    },
+    {"parameter": "--init_from", "kind": "directory", "candidates": ["{model}"]},
+    {
+      "parameter": "--vae-checkpoint",
+      "kind": "file",
+      "candidates": [
+        "{env:VERDIWM_AGIBOT_VAE_CHECKPOINT}",
+        "{asset:--base-model}/Wan2.2_VAE.pth"
+      ]
+    }
+  ],
+  "agibot_engineering_diagnostic": {
+    "support_loader": {
+      "num_history": 5,
+      "num_frames": 3,
+      "sample_stride_video_frames": 8,
+      "history_selector": "sparse",
+      "history_offsets": [],
+      "history_dilations": [1, 2],
+      "history_collapse_prob": 0.15,
+      "history_eval_dilation": 2,
+      "generated_history_enabled": false,
+      "condition_view": "arm_slot_eef_pose",
+      "body_conditioning": true
+    },
+    "validation_sample_count": 128,
+    "stage_timeouts_seconds": {
+      "train": 2400,
+      "engineering_diagnostic": 1200
+    }
+  },
+  "runner": {
+    "protocol_version": 3,
+    "adapter_id": "wan22_agibot_arm_slot_diagnostic_v1",
+    "requires_training": true,
+    "train": [
+      "{source_root}/scripts/training/train_world_model.py",
+      "--config",
+      "{agibot_native_config}",
+      "--init_from",
+      "{asset:--init_from}"
+    ],
+    "evaluate": [
+      "{verdiwm_root}/wmloop/execute/agibot_checkpoint_evaluator.py",
+      "{model_run_manifest}",
+      "{trained_checkpoint}"
+    ],
+    "checkpoint_receipt": "receipts/agibot-checkpoint-receipt.json",
+    "evaluation_receipt": "receipts/agibot-engineering-diagnostic-receipt.json"
+  },
+  "probe_imports": false
+}

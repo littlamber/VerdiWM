@@ -76,6 +76,12 @@ class VerificationPolicy:
         }
 
     @property
+    def protected_metrics(self) -> tuple[str, ...]:
+        """Return declared non-primary outcomes guarded by this frozen policy."""
+
+        return tuple(metric for metric, _ in self.metric_directions if metric != self.primary_metric)
+
+    @property
     def sha256(self) -> str:
         return sha256_bytes(canonical_bytes(self.to_dict()))
 

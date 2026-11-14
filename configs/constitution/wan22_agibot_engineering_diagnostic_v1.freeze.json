@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "artifact_type": "wmloop-constitutional-freeze",
+  "constitution_id": "wan22_agibot_engineering_diagnostic_v1",
+  "goal_id": "wan22_agibot_engineering_diagnostic_v1",
+  "verdict_probe_ids": [
+    "native_training_loss",
+    "native_validation_loss",
+    "checkpoint_reload_match"
+  ],
+  "entries": [
+    {
+      "component": "adapter_profile",
+      "path": "configs/adapters/wan22_agibot_engineering_diagnostic_v1.json",
+      "sha256": "9cddcc2f634601d72ce2bfe34b80db799e8793f3f2915cc1a5a204777cd2a726",
+      "size": 2765
+    },
+    {
+      "component": "evaluator_contract",
+      "path": "configs/evaluators/agibot_engineering_diagnostic_v1.json",
+      "sha256": "ff4790ff5ac60832a668ea1d2c56f982efdb4a2ac517184ff74fa08da276b99b",
+      "size": 860
+    }
+  ],
+  "constitution_sha256": "991cd3d203262ad081e13f42bc86fc750f7d8822d9a28c89a43c0e71344aecd1"
+}

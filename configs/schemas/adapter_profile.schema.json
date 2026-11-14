@@ -31,6 +31,17 @@
     "model_family": {"type": "string", "minLength": 1},
     "capability_level": {"enum": ["L0", "L1", "L2", "L3"]},
     "execution_kind": {"enum": ["pipeline"]},
+    "execution_support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reason", "action", "documentation"],
+      "properties": {
+        "state": {"const": "requires_interface_extension"},
+        "reason": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "documentation": {"type": "string", "minLength": 1}
+      }
+    },
     "repo_markers": {
       "type": "array",
       "minItems": 1,
@@ -48,6 +59,46 @@
       "type": "array",
       "minItems": 1,
       "items": {"type": "string", "minLength": 1}
+    },
+    "agibot_engineering_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["support_loader", "validation_sample_count", "stage_timeouts_seconds"],
+      "properties": {
+        "support_loader": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "num_history", "num_frames", "sample_stride_video_frames", "history_selector",
+            "history_offsets", "history_dilations", "history_collapse_prob",
+            "history_eval_dilation", "generated_history_enabled", "condition_view",
+            "body_conditioning"
+          ],
+          "properties": {
+            "num_history": {"type": "integer", "minimum": 1},
+            "num_frames": {"type": "integer", "minimum": 1},
+            "sample_stride_video_frames": {"type": "integer", "minimum": 1},
+            "history_selector": {"enum": ["recent", "sparse", "first_recent", "first_offset_recent"]},
+            "history_offsets": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+            "history_dilations": {"type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}},
+            "history_collapse_prob": {"type": "number", "minimum": 0, "maximum": 1},
+            "history_eval_dilation": {"type": "integer", "minimum": 1},
+            "generated_history_enabled": {"const": false},
+            "condition_view": {"const": "arm_slot_eef_pose"},
+            "body_conditioning": {"const": true}
+          }
+        },
+        "validation_sample_count": {"type": "integer", "minimum": 1, "maximum": 1024},
+        "stage_timeouts_seconds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["train", "engineering_diagnostic"],
+          "properties": {
+            "train": {"type": "number", "exclusiveMinimum": 0, "maximum": 604800},
+            "engineering_diagnostic": {"type": "number", "exclusiveMinimum": 0, "maximum": 86400}
+          }
+        }
+      }
     },
     "constitution_freeze": {"type": "string", "minLength": 1},
     "runtime_candidates": {
@@ -67,6 +118,7 @@
             "type": "string",
             "pattern": "^--[A-Za-z0-9_-]+$"
           },
+          "kind": {"enum": ["file", "directory"]},
           "candidates": {
             "type": "array",
             "minItems": 1,
@@ -80,15 +132,59 @@
       "additionalProperties": false,
       "required": ["protocol_version", "requires_training", "train", "evaluate", "checkpoint_receipt", "evaluation_receipt", "adapter_id"],
       "properties": {
-        "protocol_version": {"enum": [1]},
+        "protocol_version": {"enum": [1, 2, 3]},
         "requires_training": {"const": true},
         "train": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
         "evaluate": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
         "checkpoint_receipt": {"type": "string", "minLength": 1},
-        "evaluation_receipt": {"type": "string", "minLength": 1}
-        ,"adapter_id": {"type": "string", "minLength": 1}
+        "evaluation_receipt": {"type": "string", "minLength": 1},
+        "adapter_id": {"type": "string", "minLength": 1}
       }
     },
     "probe_imports": {"type": "boolean"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"runner": {"properties": {"protocol_version": {"const": 3}}, "required": ["protocol_version"]}},
+        "required": ["runner"]
+      },
+      "then": {
+        "required": ["agibot_engineering_diagnostic"],
+        "properties": {
+          "agibot_engineering_diagnostic": {"type": "object"},
+          "runner": {
+            "properties": {
+              "requires_training": {"const": true},
+              "train": {
+                "prefixItems": [
+                  {"const": "{source_root}/scripts/training/train_world_model.py"},
+                  {"const": "--config"},
+                  {"const": "{agibot_native_config}"},
+                  {"const": "--init_from"},
+                  {"const": "{asset:--init_from}"}
+                ],
+                "minItems": 5,
+                "maxItems": 5
+              },
+              "evaluate": {
+                "allOf": [
+                  {"contains": {"const": "{model_run_manifest}"}, "minContains": 1, "maxContains": 1},
+                  {"contains": {"const": "{trained_checkpoint}"}, "minContains": 1, "maxContains": 1}
+                ]
+              }
+            },
+            "required": ["requires_training", "train", "evaluate"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"runner": {"properties": {"protocol_version": {"enum": [1, 2]}}, "required": ["protocol_version"]}},
+        "required": ["runner"]
+      },
+      "then": {"not": {"required": ["agibot_engineering_diagnostic"]}}
+    }
+  ]
 }

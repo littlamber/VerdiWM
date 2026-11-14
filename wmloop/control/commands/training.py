@@ -11,6 +11,7 @@ from wmloop.experiments.training_gain_attribution import (
     write_training_gain_attribution,
 )
 from wmloop.experiments.training_scale import (
+    TrainingScaleError,
     build_training_ladder,
     build_training_scale_plan,
     write_training_scale_plan,
@@ -30,6 +31,13 @@ def _root(args: argparse.Namespace) -> Path:
 
 
 def plan(args: argparse.Namespace) -> int:
+    dataset_root = getattr(args, "dataset_root", None)
+    train_manifest = getattr(args, "train_manifest", None)
+    val_manifest = getattr(args, "val_manifest", None)
+    if dataset_root is None and val_manifest is None:
+        raise TrainingScaleError("TRAINING_SCALE_VAL_MANIFEST_REQUIRED")
+    if dataset_root is not None and val_manifest is not None:
+        raise TrainingScaleError("TRAINING_SCALE_DATASET_INPUTS_CONFLICT")
     root = _root(args)
     profile = None
     if args.training_recipe:
@@ -38,14 +46,16 @@ def plan(args: argparse.Namespace) -> int:
         )
         profile = require_admitted_recipe(registry, args.training_recipe)
     result = build_training_scale_plan(
-        train_manifest=args.train_manifest,
-        val_manifest=args.val_manifest,
+        train_manifest=train_manifest,
+        val_manifest=val_manifest,
+        dataset_root=dataset_root,
         stage=args.stage,
         batch_size=args.batch_size,
         gradient_accumulation=args.gradient_accumulation,
         world_size=args.world_size,
         sequence_length=args.sequence_length,
         requested_seed_count=args.seed_count,
+        seed=args.seed,
         training_profile=profile,
         root=root,
     )
@@ -66,6 +76,7 @@ def ladder(args: argparse.Namespace) -> int:
         world_size=args.world_size,
         sequence_length=args.sequence_length,
         requested_seed_count=args.seed_count,
+        seed=args.seed,
         root=_root(args),
     )
     if args.output:

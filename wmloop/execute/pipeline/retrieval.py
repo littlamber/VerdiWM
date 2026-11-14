@@ -4,14 +4,93 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sqlite3
 from typing import Mapping
 
+from wmloop.execute.agibot_psnr_contract import build_agibot_psnr_execution_status
 from wmloop.execute.pipeline.io import _load_json
 from wmloop.execute.pipeline.types import AutonomousPipelineError
 from wmloop.retrieve.irg_guided_discovery import (
     IRGDiscoveryError,
     build_irg_discovery_request,
 )
+from wmloop.retrieve.query_planning import build_literature_query_plan
+
+
+def build_agibot_psnr_memory_context_for_pipeline(
+    *,
+    archive_db: Path,
+    cas_root: Path,
+    limit: int = 5,
+) -> dict[str, object]:
+    """Read settled Agibot PSNR memory without importing the RGB evaluator cold.
+
+    Most users run the control plane before any Agibot RGB evidence exists.  A
+    lightweight Archive probe keeps that path independent from optional image
+    decoding dependencies.  Once an Agibot settlement is present, the memory
+    reader replays its CAS evidence and surfaces dependency or integrity
+    failures as a pipeline error instead of silently treating the round as a
+    cold start.
+    """
+
+    archive = Path(archive_db)
+    cas = Path(cas_root)
+    if not archive.is_file() or not (cas / "cas").is_dir():
+        return _empty_agibot_psnr_memory("AGIBOT_PSNR_MEMORY_NOT_INITIALIZED")
+    try:
+        with sqlite3.connect(archive.as_uri() + "?mode=ro", uri=True) as connection:
+            row = connection.execute(
+                # ArchiveStore keeps settlement state in the canonical
+                # ``settlement_json`` projection; ``trials`` has no separate
+                # settlement_state column.  The memory reader performs the
+                # full binding/CAS replay once an Agibot row is present.
+                "SELECT 1 FROM trials WHERE library_version = ? LIMIT 1",
+                ("agibot-psnr-settlement-v1",),
+            ).fetchone()
+    except sqlite3.Error as exc:
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_AGIBOT_PSNR_ARCHIVE_INVALID"
+        ) from exc
+    if row is None:
+        return _empty_agibot_psnr_memory("AGIBOT_PSNR_MEMORY_NO_SETTLEMENT")
+    try:
+        from wmloop.retrieve.agibot_psnr_memory import (
+            AgibotPSNRMemoryError,
+            build_agibot_psnr_memory_context,
+        )
+
+        return build_agibot_psnr_memory_context(
+            archive_db=archive,
+            cas_root=cas,
+            limit=limit,
+            replay_measurement=True,
+        )
+    except ModuleNotFoundError as exc:
+        raise AutonomousPipelineError(
+            "AUTONOMOUS_PIPELINE_AGIBOT_PSNR_MEMORY_DEPENDENCY_UNAVAILABLE"
+        ) from exc
+    except AgibotPSNRMemoryError as exc:
+        raise AutonomousPipelineError(
+            f"AUTONOMOUS_PIPELINE_AGIBOT_PSNR_MEMORY_INVALID:{exc}"
+        ) from exc
+
+
+def _empty_agibot_psnr_memory(reason: str) -> dict[str, object]:
+    return {
+        "state": "cold_start",
+        "query": {
+            "dataset_sha256": None,
+            "support_sha256": None,
+            "evaluator_digest": None,
+        },
+        "match_count": 0,
+        "matches": [],
+        "reason": reason,
+        "claim_boundary": (
+            "No settled Agibot PSNR evidence is available. A cold start does not "
+            "establish a model effect."
+        ),
+    }
 
 
 def _runtime_retrieval_manifest(
@@ -40,6 +119,11 @@ def _runtime_retrieval_manifest(
         "capsule_path": retrieval.get("capsule_path"),
         "index_path": retrieval.get("index_path"),
         "irg_guided": retrieval.get("irg_guided"),
+        "literature_query_plan": retrieval.get("literature_query_plan"),
+        "literature_query_plan_path": retrieval.get("literature_query_plan_path"),
+        "literature_status": retrieval.get("literature_status"),
+        "agibot_psnr_memory": retrieval.get("agibot_psnr_memory"),
+        "agibot_psnr_execution": retrieval.get("agibot_psnr_execution"),
     }
 
 
@@ -96,48 +180,10 @@ def build_literature_query(
     irg_failure_signatures: tuple[str, ...],
     irg_model_family: str | None,
 ) -> str | None:
-    literature_query = explicit_query
-    irg_guided = retrieval_context.get("irg_guided")
-    if isinstance(irg_guided, Mapping):
-        request_payload = irg_guided.get("request")
-        if isinstance(request_payload, Mapping):
-            lenses = request_payload.get("cross_domain_lenses", ())
-            failures = request_payload.get("failure_signatures", ())
-            literature_query = " ".join(
-                str(value)
-                for value in (
-                    literature_query,
-                    request_payload.get("model_family"),
-                    *(lenses if isinstance(lenses, (list, tuple)) else ()),
-                    *(failures if isinstance(failures, (list, tuple)) else ()),
-                )
-                if value
-            )
-    if (
-        literature_query is None
-        and probe_manifest is not None
-        and retrieval_context.get("state") == "cold_start"
-    ):
-        probe_signatures = " ".join(
-            str(value).replace("_", " ")
-            for value in probe_manifest.get("failure_signatures", [])
-            if isinstance(value, str)
-        )
-        irg_signatures = " ".join(
-            value.replace("_", " ") for value in irg_failure_signatures
-        )
-        literature_query = " ".join(
-            value
-            for value in (
-                str(
-                    probe_manifest.get("model_family")
-                    or irg_model_family
-                    or "world model"
-                ),
-                "world model",
-                probe_signatures,
-                irg_signatures,
-            )
-            if value
-        )
-    return literature_query
+    return build_literature_query_plan(
+        explicit_query=explicit_query,
+        retrieval_context=retrieval_context,
+        probe_manifest=probe_manifest,
+        irg_failure_signatures=irg_failure_signatures,
+        irg_model_family=irg_model_family,
+    )["query"]

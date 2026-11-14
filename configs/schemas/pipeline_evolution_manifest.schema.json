@@ -33,7 +33,21 @@
       }
     },
     "max_failures": {"type": "integer", "minimum": 1},
-    "max_no_information": {"type": "integer", "minimum": 1},
+    "max_no_information": {"type": "integer", "minimum": 0},
+    "stop_on_success": {"type": "boolean"},
+    "goal_success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reason", "evidence_refs"],
+      "properties": {
+        "state": {"enum": ["confirmed", "not_confirmed"]},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^cas://sha256/[0-9a-f]{64}$"}
+        }
+      }
+    },
     "failure_count": {"type": "integer", "minimum": 0},
     "no_information_count": {"type": "integer", "minimum": 0},
     "settled_iterations": {"type": "integer", "minimum": 0},

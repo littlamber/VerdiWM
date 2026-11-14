@@ -64,6 +64,9 @@ def check_model(args: argparse.Namespace) -> int:
         runtime_python=str(args.runtime_python)
         if args.runtime_python
         else configured.get("runtime_python"),
+        adapter_profile=configured.get("adapter_profile"),
+        adapter=configured.get("adapter"),
+        goal=configured.get("goal"),
     )
     emit_json(result)
     return 0 if result["state"] == "ready_for_conformance" else 2

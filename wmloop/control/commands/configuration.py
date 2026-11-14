@@ -10,7 +10,10 @@ from pathlib import Path
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.control.adapter_profiles import AdapterProfileError
 from wmloop.execute.configured_llm_broker import ConfiguredBrokerError, load_config
-from wmloop.experiments.training_scale import TrainingScaleError
+from wmloop.experiments.training_scale import (
+    TrainingScaleError,
+    validate_training_scale_checkpoint_schedule,
+)
 
 
 def _configured_llm_adapter(config_path: Path | None) -> dict[str, object]:
@@ -78,6 +81,7 @@ def _load_training_scale_plan(path: Path, *, root: Path) -> dict[str, object]:
         )
     except ContractValidationError as exc:
         raise TrainingScaleError("TRAINING_SCALE_PLAN_INVALID") from exc
+    validate_training_scale_checkpoint_schedule(value)
     if value.get("state") != "ready":
         raise TrainingScaleError("TRAINING_SCALE_PLAN_NOT_READY")
     return value

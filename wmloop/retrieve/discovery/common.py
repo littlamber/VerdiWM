@@ -15,6 +15,7 @@ from wmloop.retrieve.discovery.types import (
     DiscoveryRequest,
     MechanismDiscoveryError,
 )
+from wmloop.retrieve.query_terms import query_terms as _query_terms
 from wmloop.storage import atomic_write, canonical_json_bytes, sha256_bytes
 
 
@@ -29,42 +30,6 @@ def _request_dict(request: DiscoveryRequest) -> dict[str, object]:
         "seed_arxiv_ids": list(request.seed_arxiv_ids),
         "cross_domain_lenses": list(request.cross_domain_lenses),
     }
-
-
-def _query_terms(value: str, *, maximum: int) -> tuple[str, ...]:
-    stop = {
-        "a",
-        "an",
-        "and",
-        "are",
-        "as",
-        "at",
-        "be",
-        "by",
-        "for",
-        "from",
-        "in",
-        "is",
-        "it",
-        "of",
-        "on",
-        "or",
-        "that",
-        "the",
-        "this",
-        "to",
-        "with",
-        "model",
-        "failure",
-        "metric",
-        "hook",
-    }
-    values = [
-        token
-        for token in re.findall(r"[a-z0-9]+", value.lower())
-        if len(token) > 1 and token not in stop
-    ]
-    return tuple(dict.fromkeys(values))[:maximum]
 
 
 def _join_query(*parts: Sequence[str]) -> str:

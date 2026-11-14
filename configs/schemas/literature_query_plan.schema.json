@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "state",
+    "authority",
+    "explicit_intent",
+    "current_diagnostic",
+    "signature_source",
+    "domain_terms",
+    "focus_terms",
+    "intent_terms",
+    "irg_lenses",
+    "memory_context",
+    "agibot_psnr_memory",
+    "query",
+    "queries",
+    "fallback_policy",
+    "claim_boundary",
+    "domain_source",
+    "reason",
+    "suggested_action"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_type": {
+      "const": "verdiwm-literature-query-plan"
+    },
+    "state": {
+      "enum": [
+        "planned",
+        "skipped"
+      ]
+    },
+    "authority": {
+      "const": "ranking_only"
+    },
+    "explicit_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "sha256",
+        "truncated"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "current_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_family",
+        "failure_signatures",
+        "manifest_sha256",
+        "probe_id",
+        "archive_trial_id",
+        "receipt_ref",
+        "result_ref"
+      ],
+      "properties": {
+        "model_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failure_signatures": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          }
+        },
+        "manifest_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "probe_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "archive_trial_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "receipt_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "signature_source": {
+      "enum": [
+        "current_diagnostic",
+        "irg",
+        "none"
+      ]
+    },
+    "domain_terms": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "focus_terms": {
+      "type": "array",
+      "maxItems": 9,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "intent_terms": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "irg_lenses": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      }
+    },
+    "memory_context": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "failure_signature",
+          "primitive",
+          "verdict",
+          "evidence",
+          "paired_outcomes",
+          "used_as_lens",
+          "lens_terms"
+        ],
+        "properties": {
+          "failure_signature": {
+            "type": "string"
+          },
+          "primitive": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verdict": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "archive_trial_id",
+              "receipt_ref",
+              "result_ref",
+              "receipt_hash"
+            ],
+            "properties": {
+              "archive_trial_id": {
+                "type": "string"
+              },
+              "receipt_ref": {
+                "type": "string"
+              },
+              "result_ref": {
+                "type": "string"
+              },
+              "receipt_hash": {
+                "type": "string"
+              }
+            }
+          },
+          "paired_outcomes": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "primitive",
+                "metric_name",
+                "outcome"
+              ],
+              "properties": {
+                "primitive": {
+                  "type": "string"
+                },
+                "metric_name": {
+                  "type": "string"
+                },
+                "outcome": {
+                  "enum": [
+                    "positive",
+                    "negative",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "used_as_lens": {
+            "type": "boolean"
+          },
+          "lens_terms": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "type": "string",
+              "maxLength": 256
+            }
+          }
+        }
+      }
+    },
+    "agibot_psnr_memory": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "trial_id",
+          "verdict",
+          "effect_verified",
+          "statistics",
+          "evidence",
+          "hypothesis",
+          "method",
+          "used_as_lens",
+          "lens_terms",
+          "claim_boundary"
+        ],
+        "properties": {
+          "trial_id": {"type": "string", "minLength": 1},
+          "verdict": {"enum": ["ACCEPT", "REJECT"]},
+          "effect_verified": {"type": "boolean"},
+          "statistics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mean_paired_delta_db", "lower_bound_db", "upper_bound_db"],
+            "properties": {
+              "mean_paired_delta_db": {"type": "number"},
+              "lower_bound_db": {"type": "number"},
+              "upper_bound_db": {"type": "number"}
+            }
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["receipt_ref", "verdict_ref", "measurement_ref"],
+            "properties": {
+              "receipt_ref": {"type": "string", "minLength": 1},
+              "verdict_ref": {"type": "string", "minLength": 1},
+              "measurement_ref": {"type": "string", "minLength": 1}
+            }
+          },
+          "hypothesis": {"type": "string", "minLength": 1},
+          "method": {"type": "string", "minLength": 1},
+          "used_as_lens": {"type": "boolean"},
+          "lens_terms": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {"type": "string", "maxLength": 256}
+          },
+          "claim_boundary": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "query": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 1024
+    },
+    "queries": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "view",
+          "query"
+        ],
+        "properties": {
+          "view": {
+            "enum": [
+              "evidence_lens",
+              "current_diagnostic",
+              "goal_focus"
+            ]
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      }
+    },
+    "fallback_policy": {
+      "const": "next_query_only_after_empty_network_response"
+    },
+    "claim_boundary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain_source": {
+      "enum": [
+        "explicit_intent",
+        "model_family",
+        "none"
+      ]
+    },
+    "reason": {
+      "enum": [
+        null,
+        "LITERATURE_TASK_TERMS_UNAVAILABLE"
+      ]
+    },
+    "suggested_action": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

@@ -90,6 +90,28 @@
       "type": "array",
       "items": {"type": "object"}
     },
+    "agibot_psnr_memory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "query", "match_count", "matches", "claim_boundary"],
+      "properties": {
+        "state": {"enum": ["matched", "cold_start"]},
+        "query": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dataset_sha256", "support_sha256", "evaluator_digest"],
+          "properties": {
+            "dataset_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+            "support_sha256": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
+            "evaluator_digest": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"}
+          }
+        },
+        "match_count": {"type": "integer", "minimum": 0},
+        "matches": {"type": "array", "maxItems": 5, "items": {"type": "object"}},
+        "reason": {"type": "string", "minLength": 1},
+        "claim_boundary": {"type": "string", "minLength": 1}
+      }
+    },
     "method_candidate_compilation": {
       "type": "object",
       "additionalProperties": false,

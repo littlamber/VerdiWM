@@ -34,6 +34,10 @@ from wmloop.control.intermediate_ir import (
     validate_experiment_ir,
 )
 from wmloop.experiments.engineering import lint_experiment_manifest
+from wmloop.experiments.training_scale import (
+    TrainingScaleError,
+    validate_training_scale_checkpoint_schedule,
+)
 
 
 class ResearchProposalError(ValueError):
@@ -79,6 +83,12 @@ def compile_proposal_to_experiment_manifest(
         validate_document("training_scale_plan", plan, root=base)
     except ContractValidationError as exc:
         raise ResearchProposalError(f"RESEARCH_PROPOSAL_SCALE_SCHEMA_INVALID:{exc}") from exc
+    try:
+        validate_training_scale_checkpoint_schedule(plan)
+    except TrainingScaleError as exc:
+        raise ResearchProposalError(
+            "RESEARCH_PROPOSAL_SCALE_CHECKPOINT_SCHEDULE_INVALID"
+        ) from exc
 
     workflow = _mapping(proposal, "workflow")
     try:

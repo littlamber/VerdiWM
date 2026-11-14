@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verdiwm-evaluator-contract",
+  "evaluator_id": "agibot-engineering-diagnostic-v1",
+  "command": [
+    "protocol-v3 package-owned checkpoint reload and held-out diagnostic"
+  ],
+  "input_artifacts": [
+    "training_trace",
+    "saved_checkpoint",
+    "frozen_validation_sample_ids"
+  ],
+  "output_artifacts": [
+    "checkpoint_reload_trace",
+    "native_validation_loss",
+    "engineering_diagnostic_receipt"
+  ],
+  "metrics": [
+    "native_training_loss",
+    "native_validation_loss",
+    "checkpoint_reload_match"
+  ],
+  "verifier": "protocol_v3_receipt_and_trace_binding",
+  "working_directory": "{source_root}",
+  "entrypoint_probe": "not_applicable_protocol_v3",
+  "claim_boundary": "Engineering diagnostic only. This contract does not establish model improvement, promotion eligibility, or generalization."
+}

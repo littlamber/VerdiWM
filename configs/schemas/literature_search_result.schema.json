@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "input_hash",
+    "records",
+    "search_trace"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_type": {
+      "const": "verdiwm-literature-search-result"
+    },
+    "input_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "arxiv_id",
+          "title",
+          "abstract",
+          "pdf_url",
+          "published"
+        ],
+        "properties": {
+          "arxiv_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "abstract": {
+            "type": "string"
+          },
+          "pdf_url": {
+            "type": "string"
+          },
+          "published": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "search_trace": {
+      "type": "object"
+    }
+  }
+}

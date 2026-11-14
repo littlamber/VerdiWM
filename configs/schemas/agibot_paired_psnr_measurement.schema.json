@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "artifact_type", "measurement_id", "claim_boundary",
+    "authority", "evaluator_id", "evaluator_digest", "input_manifest", "frozen_goal_ref", "frozen_goal_sha256", "cohort_sha256",
+    "dataset_sha256", "support_sha256", "validation_sample_ids", "seed_cohort",
+    "rollout_settings_sha256", "decode_settings_sha256", "checkpoint_sha256",
+    "evidence_bindings", "per_seed", "statistics", "threshold_check", "report_only_metrics"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "verdiwm-agibot-paired-psnr-measurement"},
+    "measurement_id": {"type": "string", "pattern": "^agibot-psnr-measurement-[a-f0-9]{24}$"},
+    "claim_boundary": {"type": "string", "minLength": 32},
+    "authority": {"const": "paired_measurement_only"},
+    "evaluator_id": {"const": "agibot-paired-rgb-psnr-v1"},
+    "evaluator_digest": {"$ref": "#/$defs/hash"},
+    "input_manifest": {"$ref": "#/$defs/cas_artifact"},
+    "frozen_goal_ref": {"$ref": "#/$defs/cas_artifact"},
+    "frozen_goal_sha256": {"$ref": "#/$defs/hash"},
+    "cohort_sha256": {"$ref": "#/$defs/hash"},
+    "dataset_sha256": {"$ref": "#/$defs/hash"},
+    "support_sha256": {"$ref": "#/$defs/hash"},
+    "validation_sample_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "seed_cohort": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 4294967295}},
+    "rollout_settings_sha256": {"$ref": "#/$defs/hash"},
+    "decode_settings_sha256": {"$ref": "#/$defs/hash"},
+    "checkpoint_sha256": {
+      "type": "object", "additionalProperties": false,
+      "required": ["baseline", "candidate"],
+      "properties": {"baseline": {"$ref": "#/$defs/hash"}, "candidate": {"$ref": "#/$defs/hash"}}
+    },
+    "evidence_bindings": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/evidence_binding"}},
+    "per_seed": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/seed_metrics"}},
+    "statistics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metric", "mean_paired_delta_db", "standard_error_db", "lower_bound_db", "upper_bound_db", "confidence_interval", "sample_count"],
+      "properties": {
+        "metric": {"const": "psnr_db"},
+        "mean_paired_delta_db": {"type": "number"},
+        "standard_error_db": {"type": "number", "minimum": 0},
+        "lower_bound_db": {"type": "number"},
+        "upper_bound_db": {"type": "number"},
+        "confidence_interval": {"const": "student_t_two_sided_95"},
+        "sample_count": {"type": "integer", "minimum": 3}
+      }
+    },
+    "threshold_check": {
+      "type": "object", "additionalProperties": false,
+      "required": ["minimum_effect_db", "rule", "state"],
+      "properties": {
+        "minimum_effect_db": {"const": 2.0},
+        "rule": {"const": "lower_bound_db > minimum_effect_db"},
+        "state": {"enum": ["above_threshold", "at_or_below_threshold"]}
+      }
+    },
+    "report_only_metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["global_ssim_rgb", "lpips"],
+      "properties": {
+        "global_ssim_rgb": {
+          "type": "object", "additionalProperties": false,
+          "required": ["baseline_mean", "candidate_mean", "mean_delta"],
+          "properties": {"baseline_mean": {"type": "number", "minimum": -1, "maximum": 1}, "candidate_mean": {"type": "number", "minimum": -1, "maximum": 1}, "mean_delta": {"type": "number", "minimum": -2, "maximum": 2}}
+        },
+        "lpips": {
+          "type": "object", "additionalProperties": false,
+          "required": ["state", "value", "claim_boundary"],
+          "properties": {"state": {"const": "not_measured"}, "value": {"type": "null"}, "claim_boundary": {"type": "string", "minLength": 16}}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "cas_artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sha256", "size_bytes", "media_type", "uri"],
+      "properties": {"sha256": {"$ref": "#/$defs/hash"}, "size_bytes": {"type": "integer", "minimum": 0}, "media_type": {"type": "string", "minLength": 1}, "uri": {"type": "string", "pattern": "^cas://sha256/[a-f0-9]{64}$"}}
+    },
+    "evidence_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["seed", "sample_id", "baseline_prediction", "candidate_prediction", "ground_truth"],
+      "properties": {
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "sample_id": {"type": "string", "minLength": 1},
+        "baseline_prediction": {"$ref": "#/$defs/cas_artifact"},
+        "candidate_prediction": {"$ref": "#/$defs/cas_artifact"},
+        "ground_truth": {"$ref": "#/$defs/cas_artifact"}
+      }
+    },
+    "sample_metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sample_id", "baseline_psnr_db", "candidate_psnr_db", "delta_psnr_db", "baseline_global_ssim_rgb", "candidate_global_ssim_rgb"],
+      "properties": {
+        "sample_id": {"type": "string", "minLength": 1},
+        "baseline_psnr_db": {"type": "number"},
+        "candidate_psnr_db": {"type": "number"},
+        "delta_psnr_db": {"type": "number"},
+        "baseline_global_ssim_rgb": {"type": "number", "minimum": -1, "maximum": 1},
+        "candidate_global_ssim_rgb": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "seed_metrics": {
+      "type": "object", "additionalProperties": false,
+      "required": ["seed", "baseline_mean_psnr_db", "candidate_mean_psnr_db", "paired_delta_psnr_db", "baseline_mean_global_ssim_rgb", "candidate_mean_global_ssim_rgb", "sample_metrics"],
+      "properties": {
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+        "baseline_mean_psnr_db": {"type": "number"},
+        "candidate_mean_psnr_db": {"type": "number"},
+        "paired_delta_psnr_db": {"type": "number"},
+        "baseline_mean_global_ssim_rgb": {"type": "number", "minimum": -1, "maximum": 1},
+        "candidate_mean_global_ssim_rgb": {"type": "number", "minimum": -1, "maximum": 1},
+        "sample_metrics": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/sample_metrics"}}
+      }
+    }
+  }
+}

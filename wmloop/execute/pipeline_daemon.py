@@ -54,8 +54,9 @@ def run_pipeline_daemon(
     *,
     pipeline_runner: PipelineRunner = run_autonomous_pipeline,
     sleeper: SleepFunction = time.sleep,
+    on_stop: Callable[[], None] | None = None,
 ) -> dict[str, object]:
-    """Run a pipeline until it settles, blocks, stops, or exhausts cycles."""
+    """Run a bounded pipeline and notify an enclosing controller on signals."""
 
     _validate_options(options)
     destination = Path(options.state_root).expanduser().resolve()
@@ -75,6 +76,8 @@ def run_pipeline_daemon(
     def request_stop(_signal: int, _frame: object) -> None:
         nonlocal stop_requested
         stop_requested = True
+        if on_stop is not None:
+            on_stop()
 
     previous_handlers: dict[int, Any] = {}
     state: dict[str, object] | None = None
@@ -110,6 +113,13 @@ def run_pipeline_daemon(
                     pipeline_output=Path(options.pipeline.output_root).resolve(),
                 )
                 cycle_record.update(outcome)
+            except (KeyboardInterrupt, SystemExit):
+                if not stop_requested:
+                    raise
+                state["state"] = "stopped"
+                state["last_outcome"] = None
+                state["last_error"] = None
+                cycle_record["outcome"] = "stopped"
             except Exception as exc:
                 if _is_resource_deferral(exc):
                     state["deferral_count"] = int(state["deferral_count"]) + 1

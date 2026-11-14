@@ -40,14 +40,22 @@ def load_yaml_document(path: Path) -> dict[str, Any]:
     converting a configuration error into an implicit default.
     """
 
-    raw_text = path.read_text(encoding="utf-8")
+    return parse_yaml_document_text(path.read_text(encoding="utf-8"), source=str(path))
+
+
+def parse_yaml_document_text(raw_text: str, *, source: str = "<memory>") -> dict[str, Any]:
+    """Parse a restricted YAML document already read at an input boundary.
+
+    Callers that bind file bytes can parse the same snapshot they hash, avoiding
+    a second read that could associate parsed policy with a different digest.
+    """
     if raw_text.lstrip().startswith("{"):
         try:
             parsed = json.loads(raw_text)
         except json.JSONDecodeError as exc:
-            raise ContractValidationError(f"YAML_JSON_INVALID:{path}") from exc
+            raise ContractValidationError(f"YAML_JSON_INVALID:{source}") from exc
         if not isinstance(parsed, dict):
-            raise ContractValidationError(f"YAML_ROOT_OBJECT_REQUIRED:{path}")
+            raise ContractValidationError(f"YAML_ROOT_OBJECT_REQUIRED:{source}")
         return parsed
     lines: list[tuple[int, str]] = []
     for raw in raw_text.splitlines():
@@ -56,13 +64,13 @@ def load_yaml_document(path: Path) -> dict[str, Any]:
             continue
         indent = len(content) - len(content.lstrip(" "))
         if "\t" in raw[: len(raw) - len(raw.lstrip())]:
-            raise ContractValidationError(f"YAML_TAB_INDENT:{path}")
+            raise ContractValidationError(f"YAML_TAB_INDENT:{source}")
         lines.append((indent, content.strip()))
     if not lines:
-        raise ContractValidationError(f"YAML_EMPTY:{path}")
+        raise ContractValidationError(f"YAML_EMPTY:{source}")
     value, next_index = _parse_yaml_block(lines, 0, lines[0][0])
     if next_index != len(lines) or not isinstance(value, dict):
-        raise ContractValidationError(f"YAML_ROOT_OBJECT_REQUIRED:{path}")
+        raise ContractValidationError(f"YAML_ROOT_OBJECT_REQUIRED:{source}")
     return value
 
 
@@ -173,7 +181,14 @@ def validate_document(schema_name: str, document: Mapping[str, Any], *, root: Pa
         schema["allOf"] = shared["allOf"]
     if paired_definition:
         schema = {"$defs": schema["$defs"], "$ref": "#/$defs/" + paired_definition}
-    if schema_name in {"diagnostic_probe_result", "auto_experiment_result", "auto_experiment_candidate_batch", "diagnostic_paired_observation", "diagnostic_paired_query", "diagnostic_paired_specification", "diagnostic_paired_protocol", "wan_arm_slot_native_execution", "frozen_future_video_recipe", "future_frame_measurement"}:
+    if schema_name in {
+        "diagnostic_probe_result", "auto_experiment_result", "auto_experiment_candidate_batch",
+        "diagnostic_paired_observation", "diagnostic_paired_query", "diagnostic_paired_specification",
+        "diagnostic_paired_protocol", "wan_arm_slot_native_execution", "frozen_future_video_recipe",
+        "future_frame_measurement", "agibot_psnr_rollout_cohort", "agibot_paired_psnr_measurement",
+        "agibot_psnr_frozen_goal",
+        "agibot_psnr_execution_contract",
+    }:
         # JSON Schema's numeric comparisons alone do not reject Python NaN.
         # This artifact crosses execution, routing, CAS and retrieval boundaries.
         try:

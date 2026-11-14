@@ -55,6 +55,14 @@ _COST_CAPS = ((0.5, "very_low"), (8.0, "low"), (48.0, "medium"), (120.0, "high")
 _METRIC_OPERATORS = {"gte", "lte", "gt", "lt"}
 
 
+def auto_experiment_lock_path(output_root: Path) -> Path:
+    """Return the persistent process lock owned by one experiment output."""
+
+    destination = checked_path(output_root, code="AUTO_EXPERIMENT_OUTPUT_ROOT_INVALID", error=AutoExperimentError)
+    name = sha256_bytes(os.fsencode(str(destination)))
+    return destination.parent / f".auto-experiment-{name}.lock"
+
+
 def run_auto_experiment(
     *,
     plan_path: Path,
@@ -76,8 +84,7 @@ def run_auto_experiment(
     plan_source = checked_path(plan_path, code="AUTO_EXPERIMENT_PLAN_PATH_INVALID", error=AutoExperimentError)
     workspace = checked_path(workspace_root, code="AUTO_EXPERIMENT_WORKSPACE_INVALID", error=AutoExperimentError)
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    name = sha256_bytes(os.fsencode(str(destination)))
-    lock = exclusive_file_lock(destination.parent / f".auto-experiment-{name}.lock", blocking=False)
+    lock = exclusive_file_lock(auto_experiment_lock_path(destination), blocking=False)
     try:
         lock.__enter__()
     except BlockingIOError as exc:

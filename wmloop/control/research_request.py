@@ -19,7 +19,11 @@ from pathlib import Path
 import time
 from typing import Any, Callable
 
-from wmloop.contracts import ContractValidationError, validate_document
+from wmloop.contracts import (
+    ContractValidationError,
+    parse_yaml_document_text,
+    validate_document,
+)
 from wmloop.control.adapter_profiles import (
     AdapterProfileError,
     compile_adapter_execution,
@@ -27,12 +31,21 @@ from wmloop.control.adapter_profiles import (
 )
 from wmloop.control.first_contact import infer_source_root, inspect_project
 from wmloop.control.project_config import ProjectConfigError, load_project_config
+from wmloop.control.research_execution_policy import (
+    ResearchExecutionPolicyError,
+    derive_research_plan_policy,
+    plan_execution_policy,
+    policy_input_paths,
+    policy_warnings,
+    research_execution_policy,
+)
 from wmloop.control.research_modes import (
     ResearchModeError,
     compile_research_mode_plan,
     normalize_research_mode,
 )
 from wmloop.storage import atomic_write, checked_path, exclusive_file_lock
+from wmloop.verify.acceptance_policy import verification_policy_from_goal
 
 
 class ResearchRequestError(ValueError):
@@ -258,6 +271,14 @@ def _metric_list(value: object) -> list[str]:
 
 def _adapter_blocker(error: BaseException) -> dict[str, object]:
     code = _error_code(error)
+    if isinstance(error, AdapterProfileError) and error.execution_support is not None:
+        support = error.execution_support
+        return _blocker(
+            code,
+            f"该适配器仍需扩展执行接口（{support['state']}）：{support['reason']}",
+            f"{support['action']} 参见 {support['documentation']}",
+            str(error),
+        )
     return _blocker(
         code,
         "还没有找到可以安全运行这个模型的版本化适配器。",
@@ -373,6 +394,11 @@ def _input_digest(bindings: Mapping[str, object]) -> str:
     return hashlib.sha256(_canonical(bindings).encode("utf-8")).hexdigest()
 
 
+# Public binding operations also serve separately reviewable policy revisions.
+bind_research_input = _path_digest
+research_input_digest = _input_digest
+
+
 def compile_research_plan(
     *,
     model: str | Path | None = None,
@@ -386,16 +412,23 @@ def compile_research_plan(
     runtime_python: str | Path | None = None,
     adapter_profile: str | Path | None = None,
     target_metrics: Sequence[str] | None = None,
+    protected_metrics: Sequence[str] | None = None,
     model_irg: str | Path | None = None,
     irg_protected_metrics: Sequence[str] | None = None,
     state_root: str | Path | None = None,
     project_root: str | Path | None = None,
     evidence_context: Mapping[str, object] | None = None,
+    rounds: int = 1,
+    stop_on_success: bool = False,
     progress_callback: ResearchProgressCallback | None = None,
 ) -> dict[str, object]:
     """Compile a deterministic plan without importing the model or running it."""
 
     _report_progress(progress_callback, "plan_compile", "started")
+    try:
+        execution_policy = research_execution_policy(rounds=rounds, stop_on_success=stop_on_success)
+    except ResearchExecutionPolicyError as exc:
+        raise ResearchRequestError(str(exc)) from exc
     base = Path(project_root or Path.cwd()).expanduser().resolve()
     configured = _project_values(base)
     model_path = _resolve(model or configured.get("model"), base=base)
@@ -433,6 +466,12 @@ def compile_research_plan(
         raise ResearchRequestError("DATA_PATH_REQUIRED")
     if not isinstance(normalized_goal, str) or not normalized_goal.strip():
         raise ResearchRequestError("GOAL_REQUIRED")
+    try:
+        requested_protected_metrics = _metric_list(protected_metrics)
+    except ResearchRequestError as exc:
+        raise ResearchRequestError(f"PROTECTED_METRICS_INVALID:{exc}") from exc
+    if protected_metrics is not None and len(set(requested_protected_metrics)) != len(requested_protected_metrics):
+        raise ResearchRequestError("PROTECTED_METRICS_DUPLICATE")
     if not model_path.is_dir() or model_path.is_symlink():
         raise ResearchRequestError("MODEL_PATH_INVALID")
     if not data_path.exists() or data_path.is_symlink():
@@ -441,6 +480,7 @@ def compile_research_plan(
     plan_seed = hashlib.sha256(_canonical({
         "model": str(model_path), "data": str(data_path), "goal": normalized_goal.strip(),
         "budget": budget_hours, "mode": normalized_mode, "adapter": adapter,
+        "execution_policy": execution_policy,
     }).encode("utf-8")).hexdigest()[:24]
     campaign_root = (Path(state_root).expanduser().resolve() if state_root is not None else base / ".verdiwm" / "state") / "campaigns"
     blockers: list[dict[str, object]] = []
@@ -468,6 +508,10 @@ def compile_research_plan(
             blockers.append(_blocker("ADAPTER_PROFILE_BINDING_MISSING", "系统选中了适配器，但计划没有锁定它的文件。", "显式提供 adapter profile。"))
         if evaluator_path is None:
             evaluator_path = _resolve(preview_execution.get("evaluator_contract"), base=repo_root)
+        else:
+            # Campaign creation applies the user-frozen evaluator over the
+            # profile default; preview the same contract before confirmation.
+            preview_execution["evaluator_contract"] = str(evaluator_path)
         if runtime_path is None:
             runtime_path = _resolve(preview_execution.get("runtime_python"), base=repo_root, preserve_symlink=True)
     except (AdapterProfileError, OSError, ValueError) as exc:
@@ -487,6 +531,7 @@ def compile_research_plan(
         data=str(data_path),
         evaluator_contract=(str(evaluator_path) if evaluator_was_explicit and evaluator_path is not None else None),
         runtime_python=str(runtime_path) if runtime_path is not None else None,
+        asset_bindings=preview_execution.get("asset_bindings") if preview_execution else None,
     )
     _report_progress(progress_callback, "onboarding_scan", "completed")
     blockers.extend(item for item in readiness.get("blockers", []) if isinstance(item, Mapping))
@@ -538,40 +583,84 @@ def compile_research_plan(
     elif normalized_mode == "causal_discovery":
         blockers.append(_blocker("RESEARCH_MODE_PREREQUISITES_MISSING", "因果发现模式需要先绑定可冻结的诊断输入。", "补充适配器 profile、probe contract 和 CPBE 输入。"))
 
-    asset_bindings = preview_execution.get("asset_bindings") if preview_execution else None
-    _report_progress(progress_callback, "input_digest", "started")
-    if isinstance(asset_bindings, Mapping):
+    policy_inputs: dict[str, Path] = {}
+    try:
+        policy_inputs = policy_input_paths(execution_policy, evaluator_path)
+    except ResearchExecutionPolicyError as exc:
+        blockers.append(_blocker(_error_code(exc), "研究计划的评测模板或冻结目标无效。", "检查 evaluator 的 scheduler_template 与 frozen_goal；模板应包含 screen、gate、confirm，目标应包含冻结的 v2 验收规则。", str(exc)))
+
+    frozen_protected_metrics: list[str] = []
+    frozen_goal_digest: str | None = None
+    frozen_goal_path = policy_inputs.get("frozen_goal")
+    frozen_policy_resolved = False
+    if frozen_goal_path is not None:
         try:
-            bindings = _input_bindings(
-                model=model_path, data=data_path, source=source_path,
-                evaluator=evaluator_path, runtime_python=runtime_path,
-                adapter_profile=selected_profile, model_irg=irg_path,
-                asset_bindings=asset_bindings, progress=progress_callback,
+            goal_bytes = frozen_goal_path.read_bytes()
+            frozen_goal_digest = hashlib.sha256(goal_bytes).hexdigest()
+            frozen_goal = parse_yaml_document_text(
+                goal_bytes.decode("utf-8"), source=str(frozen_goal_path)
             )
-        except ResearchRequestError as exc:
-            blockers.append(_blocker(_error_code(exc), "研究计划无法锁定所有输入文件。", "确认模型、数据、评测器和适配器资源都存在且可读取。", str(exc)))
-            bindings = {}
+            verification_policy = verification_policy_from_goal(frozen_goal)
+            if verification_policy is None:
+                raise ResearchRequestError("FROZEN_GOAL_POLICY_REQUIRED")
+            frozen_protected_metrics = list(verification_policy.protected_metrics)
+            frozen_policy_resolved = True
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            blockers.append(_blocker(
+                "FROZEN_GOAL_POLICY_INVALID",
+                "冻结目标中的正式保护指标无法读取。",
+                "检查 evaluator 绑定的 frozen_goal v2 验收规则。",
+                str(exc),
+            ))
+    if protected_metrics is not None:
+        if frozen_goal_path is None:
+            blockers.append(_blocker(
+                "PROTECTED_METRICS_REQUIRE_FROZEN_GOAL",
+                "正式保护指标必须来自 evaluator 绑定的冻结目标。",
+                "先在 evaluator 中绑定有效的 frozen_goal v2，再核对 --protected-metrics。",
+            ))
+        elif frozen_policy_resolved and set(requested_protected_metrics) != set(frozen_protected_metrics):
+            missing = sorted(set(frozen_protected_metrics) - set(requested_protected_metrics))
+            extra = sorted(set(requested_protected_metrics) - set(frozen_protected_metrics))
+            blockers.append(_blocker(
+                "PROTECTED_METRICS_FROZEN_GOAL_MISMATCH",
+                "--protected-metrics 必须与冻结目标中的完整保护指标集合一致。",
+                "按 evaluator 绑定的 frozen_goal v2 修改参数，或省略参数以直接预览冻结集合。",
+                f"missing={missing}; extra={extra}",
+            ))
+
+    # A blocked plan is a reviewable readiness report, not frozen execution
+    # evidence. Avoid traversing large assets until the user resolves its
+    # prerequisites; a fresh ready plan will bind and verify them in full.
+    bindings: dict[str, dict[str, object]] = {}
+    if blockers:
+        _report_progress(progress_callback, "input_digest", "deferred", reason="readiness_blocked")
     else:
+        asset_bindings = preview_execution.get("asset_bindings") if preview_execution else None
+        _report_progress(progress_callback, "input_digest", "started")
         try:
             bindings = _input_bindings(
                 model=model_path, data=data_path, source=source_path,
                 evaluator=evaluator_path, runtime_python=runtime_path,
                 adapter_profile=selected_profile, model_irg=irg_path,
-                asset_bindings=None, progress=progress_callback,
+                asset_bindings=asset_bindings if isinstance(asset_bindings, Mapping) else None,
+                progress=progress_callback,
             )
+            bindings.update({name: bind_research_input(path) for name, path in policy_inputs.items()})
+            if (
+                frozen_goal_digest is not None
+                and bindings.get("frozen_goal", {}).get("sha256") != frozen_goal_digest
+            ):
+                raise ResearchRequestError("FROZEN_GOAL_CHANGED_DURING_PLAN")
         except ResearchRequestError as exc:
-            blockers.append(_blocker(_error_code(exc), "研究计划无法锁定所有输入文件。", "确认模型、数据和评测器都存在且可读取。", str(exc)))
             bindings = {}
-    _report_progress(
-        progress_callback,
-        "input_digest",
-        "completed" if bindings else "blocked",
-    )
+            blockers.append(_blocker(_error_code(exc), "研究计划无法锁定所有输入文件。", "确认模型、数据、评测器和适配器资源都存在且可读取。", str(exc)))
+        _report_progress(progress_callback, "input_digest", "completed" if bindings else "blocked")
     input_digest = _input_digest(bindings) if bindings else None
     state = "blocked" if blockers else ("ready_with_deferred_discovery" if mode_plan and mode_plan.get("state") == "ready_with_deferred_discovery" else "ready")
     request_id = "research-request-" + hashlib.sha256(_canonical({"goal": normalized_goal.strip(), "model": str(model_path), "data": str(data_path), "input_digest": input_digest}).encode("utf-8")).hexdigest()[:24]
     plan: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 3,
         "artifact_type": "verdiwm-research-plan",
         "plan_id": "research-plan-" + plan_seed,
         "request_id": request_id,
@@ -584,7 +673,13 @@ def compile_research_plan(
         "data": str(data_path),
         "source": str(source_path) if source_path is not None else None,
         "target_metrics": _metric_list(target_metrics),
+        "protected_metrics": frozen_protected_metrics,
+        "protected_metrics_requested": (
+            requested_protected_metrics if protected_metrics is not None else None
+        ),
         "budget": {"gpu_hours": budget_hours},
+        "execution_policy": execution_policy,
+        "warnings": policy_warnings(execution_policy, policy_inputs),
         "mode": normalized_mode,
         "adapter": adapter,
         "adapter_profile": str(selected_profile) if selected_profile is not None else None,
@@ -610,7 +705,7 @@ def compile_research_plan(
         "confirmation_required": True,
         "side_effects": {"model_import_executed": False, "gpu_execution_started": False, "source_modified": False},
         "blockers": _dedupe_blockers(blockers),
-        "claim_boundary": "本计划只证明输入已绑定、执行路径可编译和门禁是否齐全；任何真实提升都必须由目标侧冻结 verifier、配对试验和 held-out confirmation 建立，检索、代码生成和校准不能单独形成科学结论。",
+        "claim_boundary": "阻塞计划只报告接入状态，输入尚未冻结；就绪计划只证明输入已绑定、执行路径可编译和门禁齐全。任何真实提升都必须由目标侧冻结 verifier、配对试验和 held-out confirmation 建立，检索、代码生成和校准不能单独形成科学结论。",
     }
     plan["plan_digest"] = hashlib.sha256(_canonical(plan).encode("utf-8")).hexdigest()
     try:
@@ -621,14 +716,25 @@ def compile_research_plan(
     return plan
 
 
-def write_research_plan(plan: Mapping[str, object], output: str | Path) -> Path:
-    """Validate and atomically write a plan artifact."""
+def validate_research_plan(payload: Mapping[str, object]) -> None:
+    """Apply the same artifact and integrity boundary before saving or using it."""
 
-    payload = dict(plan)
     try:
         validate_document("research_plan", payload, root=Path(__file__).resolve().parents[2])
     except ContractValidationError as exc:
         raise ResearchRequestError(f"RESEARCH_PLAN_INVALID:{exc}") from exc
+    unsigned = dict(payload)
+    unsigned.pop("plan_digest", None)
+    expected = hashlib.sha256(_canonical(unsigned).encode("utf-8")).hexdigest()
+    if payload.get("plan_digest") != expected:
+        raise ResearchRequestError("RESEARCH_PLAN_DIGEST_MISMATCH")
+
+
+def write_research_plan(plan: Mapping[str, object], output: str | Path) -> Path:
+    """Validate and atomically write a plan artifact."""
+
+    payload = dict(plan)
+    validate_research_plan(payload)
     _ensure_outside_inputs(Path(output), tuple(_resolve(payload.get(name), base=Path(payload.get("project_root", Path.cwd()))) for name in ("model", "data", "source")))
     try:
         return _write_json(Path(output), payload)
@@ -646,16 +752,7 @@ def load_research_plan(path: str | Path) -> dict[str, object]:
         raise ResearchRequestError("RESEARCH_PLAN_INVALID") from exc
     if not isinstance(payload, dict):
         raise ResearchRequestError("RESEARCH_PLAN_INVALID")
-    try:
-        validate_document("research_plan", payload, root=Path(__file__).resolve().parents[2])
-    except ContractValidationError as exc:
-        raise ResearchRequestError(f"RESEARCH_PLAN_INVALID:{exc}") from exc
-    digest = payload.get("plan_digest")
-    unsigned = dict(payload)
-    unsigned.pop("plan_digest", None)
-    expected = hashlib.sha256(_canonical(unsigned).encode("utf-8")).hexdigest()
-    if digest != expected:
-        raise ResearchRequestError("RESEARCH_PLAN_DIGEST_MISMATCH")
+    validate_research_plan(payload)
     return payload
 
 
@@ -691,14 +788,49 @@ def verify_research_plan_inputs(
     return {"state": "verified" if not drift else "blocked", "input_digest": observed_digest, "drift": drift}
 
 
+def _verify_protected_metrics_preview(plan: Mapping[str, object]) -> None:
+    """Ensure a ready plan's display fields still match its bound frozen goal."""
+
+    if "protected_metrics" not in plan:
+        return  # Historical schema versions did not carry this preview.
+    bindings = plan.get("input_bindings")
+    frozen_binding = bindings.get("frozen_goal") if isinstance(bindings, Mapping) else None
+    expected: list[str] = []
+    if isinstance(frozen_binding, Mapping):
+        path_value = frozen_binding.get("path")
+        if not isinstance(path_value, str) or not path_value:
+            raise ResearchRequestError("PROTECTED_METRICS_FROZEN_GOAL_BINDING_INVALID")
+        try:
+            goal = parse_yaml_document_text(
+                Path(path_value).read_bytes().decode("utf-8"), source=path_value
+            )
+            policy = verification_policy_from_goal(goal)
+        except (OSError, UnicodeDecodeError, ValueError) as exc:
+            raise ResearchRequestError("PROTECTED_METRICS_FROZEN_GOAL_INVALID") from exc
+        if policy is None:
+            raise ResearchRequestError("PROTECTED_METRICS_FROZEN_GOAL_POLICY_REQUIRED")
+        expected = list(policy.protected_metrics)
+    if plan.get("protected_metrics") != expected:
+        raise ResearchRequestError("PROTECTED_METRICS_PLAN_BINDING_MISMATCH")
+    requested = plan.get("protected_metrics_requested")
+    if requested is not None and (
+        not isinstance(requested, Sequence)
+        or isinstance(requested, (str, bytes, bytearray))
+        or set(requested) != set(expected)
+    ):
+        raise ResearchRequestError("PROTECTED_METRICS_PLAN_REQUEST_MISMATCH")
+
+
 def plan_to_campaign_payload(
     plan: Mapping[str, object], *, progress_callback: ResearchProgressCallback | None = None
 ) -> dict[str, object]:
     if plan.get("state") not in {"ready", "ready_with_deferred_discovery"}:
         raise ResearchRequestError("RESEARCH_PLAN_BLOCKED")
+    validate_research_plan(plan)
     verification = verify_research_plan_inputs(plan, progress_callback=progress_callback)
     if verification["state"] != "verified":
         raise ResearchRequestError("RESEARCH_PLAN_INPUT_DIGEST_DRIFT")
+    _verify_protected_metrics_preview(plan)
     preview = plan.get("adapter_preview")
     if not isinstance(preview, Mapping):
         raise ResearchRequestError("RESEARCH_PLAN_ADAPTER_PREVIEW_MISSING")
@@ -715,8 +847,11 @@ def plan_to_campaign_payload(
         "research_mode": str(plan["mode"]),
         "literature_query": str(plan["goal"]),
         "open_method_policy": dict(plan.get("open_method_policy") or _OPEN_METHOD_POLICY),
+        "execution_policy": plan_execution_policy(plan),
         "plan_binding": {"plan_id": plan.get("plan_id"), "plan_digest": plan.get("plan_digest"), "input_digest": plan.get("input_digest")},
     }
+    if plan.get("schema_version") == 3:
+        payload["campaign_id"] = "research-" + str(plan["plan_digest"])[:24]
     if isinstance(assets, Mapping):
         payload["assets"] = {str(key): str(value) for key, value in assets.items()}
     if plan.get("evaluator_contract"):
@@ -732,6 +867,45 @@ def plan_to_campaign_payload(
     return {key: value for key, value in payload.items() if value is not None}
 
 
+def terminal_research_result(campaign: Mapping[str, object]) -> dict[str, object] | None:
+    """Present a durable terminal attempt without confirming or rerunning it."""
+
+    status = str(campaign.get("status"))
+    if status not in {"completed", "blocked", "failed", "cancelled"}:
+        return None
+    if status in {"blocked", "failed"}:
+        next_step = (
+            "本次尝试已经终止。查看 campaign 中的 execution_error / execution_result 处理根因；"
+            "源码或策略修复后可用原计划再次 /run，由系统创建新 revision。"
+            "若要在相同输入下创建新尝试，重新 /plan，再审阅并 /run。"
+            "脚本入口对应 verdi research plan 与 verdi research run --plan PLAN --confirm。"
+        )
+    else:
+        next_step = "本次尝试已结束。需要新实验时重新 /plan，审阅新计划后 /run；旧结果与证据保留。"
+    return {"state": status, "campaign": dict(campaign), "reused_terminal_result": True, "next_step": next_step}
+
+
+def matching_terminal_research_result(
+    plan: Mapping[str, object], campaigns: Sequence[Mapping[str, object]],
+) -> dict[str, object] | None:
+    """Find a terminal attempt bound to this exact plan, for read-only UI."""
+
+    digest = plan.get("plan_digest")
+    if not isinstance(digest, str) or not digest:
+        return None
+    for campaign in campaigns:
+        execution = campaign.get("execution")
+        binding = execution.get("research_plan_binding") if isinstance(execution, Mapping) else None
+        bound_digest = binding.get("plan_digest") if isinstance(binding, Mapping) else None
+        if bound_digest == digest or (
+            binding is None
+            and plan.get("schema_version") == 3
+            and campaign.get("campaign_id") == "research-" + digest[:24]
+        ):
+            return terminal_research_result(campaign)
+    return None
+
+
 def run_research_plan(
     plan: Mapping[str, object],
     *,
@@ -739,19 +913,36 @@ def run_research_plan(
     confirm: bool,
     queue_only: bool = False,
     max_parallel: int = 1,
+    rounds: int | None = None,
+    stop_on_success: bool | None = None,
     progress_callback: ResearchProgressCallback | None = None,
 ) -> dict[str, object]:
     """Create/confirm/dispatch a plan through CampaignStore after one confirmation."""
 
+    original_digest = plan.get("plan_digest")
+    try:
+        selected = derive_research_plan_policy(plan, rounds=rounds, stop_on_success=stop_on_success)
+    except ResearchExecutionPolicyError as exc:
+        raise ResearchRequestError(str(exc)) from exc
+    metadata: dict[str, object] = {"execution_policy": plan_execution_policy(selected), "budget": selected["budget"], "policy_changed": selected.get("plan_digest") != original_digest}
+    if metadata["policy_changed"]:
+        from wmloop.control.research_plan_history import write_default_research_plan
+
+        destination = write_default_research_plan(selected, Path(str(selected["project_root"])))
+        metadata.update(plan_path=str(destination), derived_plan=selected)
+    plan = selected
     if not confirm:
-        return {"state": "awaiting_confirmation", "plan_id": plan.get("plan_id"), "plan_digest": plan.get("plan_digest"), "next_step": "再次运行 verdiwm research run --plan PLAN --confirm。"}
+        return {"state": "awaiting_confirmation", "plan": plan, "plan_id": plan.get("plan_id"), "plan_digest": plan.get("plan_digest"), "next_step": "检查轮数、停止条件和跨轮总预算后，运行 verdi research run --plan PLAN --confirm。", **metadata}
     payload = plan_to_campaign_payload(plan, progress_callback=progress_callback)
     created = store.create(payload)
+    terminal = terminal_research_result(created)
+    if terminal is not None:
+        return {**terminal, "plan_id": plan.get("plan_id"), **metadata}
     queued = store.confirm(str(created["campaign_id"]))
     if queue_only:
-        return {"state": "queued", "campaign": queued, "plan_id": plan.get("plan_id")}
+        return {"state": "queued", "campaign": queued, "plan_id": plan.get("plan_id"), **metadata}
     from wmloop.control.campaign_dispatcher import DispatcherOptions, run_dispatcher
 
     dispatcher = run_dispatcher(DispatcherOptions(state_root=store.root, max_cycles=1, max_parallel=max_parallel, campaign_ids=(str(created["campaign_id"]),)))
     campaign = store.get(str(created["campaign_id"]))
-    return {"state": str(campaign.get("status")), "campaign": campaign, "dispatcher": dispatcher, "plan_id": plan.get("plan_id")}
+    return {"state": str(campaign.get("status")), "campaign": campaign, "dispatcher": dispatcher, "plan_id": plan.get("plan_id"), **metadata}

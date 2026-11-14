@@ -3,11 +3,14 @@
 import hashlib
 import json
 import sqlite3
+from pathlib import Path
 
 import pytest
 
 from wmloop.archive.store import ArchiveStore, ContentAddressedStore, SettledTrialRecord
 from wmloop.diagnose import probe_campaign
+from wmloop.execute import auto_experiment
+from wmloop.execute.budget import BudgetError
 from wmloop.retrieve.index import retrieve_probe_experiences
 from wmloop.storage import canonical_bytes
 
@@ -101,6 +104,59 @@ def test_recovery_rejects_symlink_paths_before_execution(recovered, tmp_path, li
         real.write_text(json.dumps({"trial_id": "trial"}))
         (kwargs["output_root"] / "probe-plan.json").symlink_to(real)
     with pytest.raises(probe_campaign.DiagnosticProbeError):
+        probe_campaign.run_diagnostic_probe(**kwargs)
+    assert not calls
+    assert not kwargs["retrieval_db"].exists()
+
+
+def test_unsettled_probe_retry_preserves_budget_error_and_runner_lock(recovered, tmp_path, monkeypatch):
+    kwargs, calls, _, _ = recovered
+    source = Path(__file__).resolve().parents[1]
+    plan = json.loads((source / "configs/smoke/auto_experiment_cuda_smoke_v1.json").read_bytes())
+    monkeypatch.setattr(probe_campaign, "_build_plan", lambda *args, **kwargs: plan)
+    monkeypatch.setattr(probe_campaign, "run_auto_experiment", auto_experiment.run_auto_experiment)
+    monkeypatch.setattr(auto_experiment, "_execute_trial", lambda **kwargs: pytest.fail("budget denied execution"))
+    kwargs.update(
+        output_root=tmp_path / "budget-probe", workspace_root=source,
+        budget_db=tmp_path / "shared-budget.db", budget_total_gpu_hours=0.005,
+    )
+    lock_path = auto_experiment.auto_experiment_lock_path(kwargs["output_root"] / "run")
+    lock_inode = None
+    for _ in range(2):
+        # The real runner creates and retains its process lock before the real
+        # ledger refuses the plan. Retrying must expose that same budget cause.
+        with pytest.raises(BudgetError, match="^GLOBAL_BUDGET_EXHAUSTED$"):
+            probe_campaign.run_diagnostic_probe(**kwargs)
+        assert lock_path.is_file()
+        if lock_inode is None:
+            lock_inode = lock_path.stat().st_ino
+        assert lock_path.stat().st_ino == lock_inode
+        with sqlite3.connect(kwargs["budget_db"]) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM trials").fetchone()[0] == 0
+    assert not calls
+    assert not (kwargs["output_root"] / "manifest.json").exists()
+    assert not kwargs["retrieval_db"].exists()
+
+
+@pytest.mark.parametrize("unbound_member", ["unexpected_lock", "lock_symlink", "lock_directory", "arbitrary_file"])
+def test_unsettled_probe_accepts_only_its_regular_runner_lock(recovered, tmp_path, unbound_member):
+    kwargs, calls, _, _ = recovered
+    out = kwargs["output_root"]
+    (out / "manifest.json").unlink()
+    lock_path = auto_experiment.auto_experiment_lock_path(out / "run")
+    if unbound_member == "unexpected_lock":
+        other_lock = out / (".auto-experiment-" + "0" * 64 + ".lock")
+        assert other_lock != lock_path
+        other_lock.touch()
+    elif unbound_member == "lock_symlink":
+        external = tmp_path / "external-lock"
+        external.touch()
+        lock_path.symlink_to(external)
+    elif unbound_member == "lock_directory":
+        lock_path.mkdir()
+    else:
+        (out / "unexpected.json").write_text("{}")
+    with pytest.raises(probe_campaign.DiagnosticProbeError, match="DIAGNOSTIC_PROBE_OUTPUT_UNBOUND"):
         probe_campaign.run_diagnostic_probe(**kwargs)
     assert not calls
     assert not kwargs["retrieval_db"].exists()

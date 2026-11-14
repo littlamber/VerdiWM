@@ -264,6 +264,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return run_interactive_session()
         parser.print_help()
         return 0
+    # Public run/cancel commands are primarily used by people at a terminal.
+    # Keep their default concise while allowing scripts to opt into the full
+    # JSON record explicitly.  Direct service callers with no format value
+    # retain the historical JSON behavior.
+    if args.command in {"run", "cancel"} and getattr(args, "format", None) is None:
+        args.format = "text"
     try:
         return int(args.handler(args))
     except OSError as exc:

@@ -45,12 +45,22 @@ def campaign_store(
     return CampaignStore(resolve_state_root(explicit, configured) / "campaigns", read_only=read_only)
 
 
+def configured_dataset_root(configured: dict[str, Any]) -> Any | None:
+    """Read the supported dataset setting aliases in documented priority order."""
+
+    for key in ("data", "dataset_root", "dataset"):
+        value = configured.get(key)
+        if value:
+            return value
+    return None
+
+
 def _resolve_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
     """Resolve human intent and project defaults into the legacy run shape."""
 
     configured = _load_project_intent()
     model = args.model or configured.get("model")
-    data = args.data or configured.get("data", configured.get("dataset"))
+    data = args.data or configured_dataset_root(configured)
     if model is None:
         candidate = Path.cwd() / "model"
         model = str(candidate) if candidate.is_dir() else None
@@ -69,7 +79,7 @@ def _resolve_run_inputs(args: argparse.Namespace) -> dict[str, Any]:
         )
     if not data:
         raise CampaignAPIError(
-            "DATA_PATH_REQUIRED:configure project.data or pass --data"
+            "DATA_PATH_REQUIRED:configure project.data or pass --data/--dataset-root"
         )
     source = args.source or configured.get("source")
     if source is None:

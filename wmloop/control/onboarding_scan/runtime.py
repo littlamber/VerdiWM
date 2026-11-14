@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -16,7 +17,7 @@ from wmloop.control.onboarding_scan.types import (
     _PIP_PLATFORM_WARNING,
     validate_runtime_timeout,
 )
-from wmloop.process_lifecycle import retire_process_group
+from wmloop.process_lifecycle import LocalProcessTree, retire_process_group
 
 
 def _discover_runtime(
@@ -243,13 +244,19 @@ def _run_runtime_command(
 ) -> subprocess.CompletedProcess[str]:
     """Retire the complete probe group on timeout, cancellation and success."""
     timeout_seconds = validate_runtime_timeout(timeout_seconds)
-    process = subprocess.Popen(
-        command, cwd=cwd, env=dict(env), stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, start_new_session=True,
-    )
-    try:
-        stdout, stderr = process.communicate(timeout=timeout_seconds)
-        return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
-    finally:
-        retire_process_group(process)
-        process.communicate()
+    with tempfile.TemporaryFile(mode='w+', encoding='utf-8') as stdout, tempfile.TemporaryFile(
+        mode='w+', encoding='utf-8'
+    ) as stderr:
+        process = subprocess.Popen(
+            command, cwd=cwd, env=dict(env), stdout=stdout,
+            stderr=stderr, text=True, start_new_session=True,
+        )
+        tree = None
+        try:
+            tree = LocalProcessTree(process)
+            tree.wait(timeout=timeout_seconds)
+        finally:
+            retire_process_group(process, tree=tree)
+        stdout.seek(0)
+        stderr.seek(0)
+        return subprocess.CompletedProcess(command, process.returncode, stdout.read(), stderr.read())

@@ -23,7 +23,7 @@ import imageio.v2 as imageio
 import numpy as np
 
 from wmloop.storage import atomic_write, canonical_bytes, checked_path, exclusive_file_lock, sha256_bytes
-from wmloop.process_lifecycle import LocalCommandSignals, retire_process_group
+from wmloop.process_lifecycle import LocalCommandSignals, LocalProcessTree, retire_process_group
 from wmloop.contracts import ContractValidationError, validate_document
 from wmloop.evaluate import future_video_recipe
 from wmloop.evaluate.future_video_recipe import (
@@ -192,14 +192,16 @@ def recompute_future_video_metrics(*, prediction: bytes, ground_truth: bytes) ->
         (root / "ground-truth.mp4").write_bytes(ground_truth)
         try:
             scope = LocalCommandSignals() if threading.current_thread() is threading.main_thread() else nullcontext(None)
-            with scope as signals:
+            with scope as signals, tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
                 process = subprocess.Popen(
                     [sys.executable, "-I", "-m", "wmloop.evaluate.future_video_metrics", "--worker-root", str(root)],
-                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    stdin=subprocess.DEVNULL, stdout=stdout_file, stderr=stderr_file,
                     start_new_session=True,
                 )
                 deadline = time.monotonic() + 45.0
+                tree = None
                 try:
+                    tree = LocalProcessTree(process)
                     while True:
                         if signals is not None:
                             signals.check()
@@ -207,12 +209,14 @@ def recompute_future_video_metrics(*, prediction: bytes, ground_truth: bytes) ->
                         if remaining <= 0:
                             raise subprocess.TimeoutExpired(process.args, 45.0)
                         try:
-                            stdout, _stderr = process.communicate(timeout=min(0.2, remaining))
+                            tree.wait(timeout=min(0.2, remaining))
                             break
                         except subprocess.TimeoutExpired:
                             continue
                 finally:
-                    retire_process_group(process)
+                    retire_process_group(process, tree=tree)
+                stdout_file.seek(0)
+                stdout = stdout_file.read()
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise FutureVideoMetricError("FUTURE_VIDEO_REPLAY_FAILED") from exc
         if process.returncode != 0:

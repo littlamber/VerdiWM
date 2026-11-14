@@ -10,6 +10,8 @@ import sqlite3
 import tempfile
 
 from wmloop.contracts import validate_document
+from wmloop.archive.settlement_evidence import read_settled_trial_rows
+from wmloop.archive.store import ArchiveInvariantError
 from wmloop.geometry.settled_evidence import build_settled_evidence
 from wmloop.experiments.community_export import export_community_knowledge
 from wmloop.experiments.community_files import bounded_read
@@ -52,16 +54,10 @@ def project_archive_evidence(*, archive: Path, cas: Path, output_root: Path,
         connection = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True)
         connection.row_factory = sqlite3.Row
         connection.execute("BEGIN")
-        # LEFT JOIN exposes incomplete settlements instead of silently omitting them.
-        rows = connection.execute("""
-            SELECT t.*, r.receipt_ref AS settled_receipt_ref, r.receipt_hash,
-                   v.verdict_ref AS settled_verdict_ref, p.proposal_id AS settled_proposal_id,
-                   p.goal_id AS settled_goal_id, p.library_version AS settled_library_version
-            FROM trials t LEFT JOIN receipts r ON r.trial_id=t.trial_id
-            LEFT JOIN verdicts v ON v.trial_id=t.trial_id
-            LEFT JOIN proposals p ON p.trial_id=t.trial_id
-            ORDER BY t.trial_id LIMIT ?
-        """, (max_trials + 1,)).fetchall()
+        try:
+            rows = read_settled_trial_rows(connection, limit=max_trials + 1)
+        except ArchiveInvariantError as exc:
+            raise EvidenceProjectionError("EVIDENCE_SETTLEMENT_BINDING_INVALID") from exc
         if len(rows) > max_trials:
             raise EvidenceProjectionError("EVIDENCE_TRIAL_LIMIT_EXCEEDED")
         if not rows:
@@ -70,15 +66,7 @@ def project_archive_evidence(*, archive: Path, cas: Path, output_root: Path,
         for row in rows:
             settlement = json.loads(row["settlement_json"])
             fingerprint = json.loads(row["fingerprint_json"])
-            if (not isinstance(settlement, dict) or not isinstance(fingerprint, dict)
-                or settlement.get("state") != "settled"
-                or row["receipt_ref"] != row["settled_receipt_ref"]
-                or row["verdict_ref"] != row["settled_verdict_ref"]
-                or row["proposal_id"] != row["settled_proposal_id"]
-                or row["goal_id"] != row["settled_goal_id"]
-                or row["library_version"] != row["settled_library_version"]
-                or settlement.get("receipt_hash") != row["receipt_hash"]
-                or row["receipt_hash"] != str(row["receipt_ref"]).rsplit("/", 1)[-1]):
+            if not isinstance(fingerprint, dict):
                 raise EvidenceProjectionError("EVIDENCE_SETTLEMENT_BINDING_INVALID")
             read_cas(row["receipt_ref"])
             read_cas(row["failure_context_ref"])
