@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from wmloop.cli import _parser, main
+from wmloop.cli import _parser, _workbench, main
 from wmloop.control.commands.inputs import _resolve_run_inputs
 
 
@@ -19,6 +19,58 @@ def test_short_cli_name_is_used_when_invoked_as_verdi(monkeypatch) -> None:
 def test_legacy_cli_name_remains_stable(monkeypatch) -> None:
     monkeypatch.setattr(sys, "argv", ["/tmp/bin/verdiwm"])
     assert _parser().prog == "verdiwm"
+
+
+def test_workbench_is_discoverable_from_public_cli() -> None:
+    args = _parser().parse_args(
+        [
+            "workbench",
+            "--host",
+            "localhost",
+            "--port",
+            "9876",
+            "--state-root",
+            ".verdi/state",
+            "--evidence-root",
+            "runs/evidence",
+        ]
+    )
+    assert args.command == "workbench"
+    assert args.host == "localhost"
+    assert args.port == 9876
+    assert args.state_root == Path(".verdi/state")
+    assert args.evidence_root == Path("runs/evidence")
+
+
+def test_workbench_forwards_to_single_server_entrypoint(monkeypatch, tmp_path) -> None:
+    import wmloop.control.workbench as workbench
+
+    observed = []
+    monkeypatch.setattr(
+        workbench,
+        "main",
+        lambda argv: observed.append(list(argv)) or 7,
+    )
+    args = _parser().parse_args(
+        [
+            "workbench",
+            "--port",
+            "9876",
+            "--state-root",
+            str(tmp_path / "state"),
+        ]
+    )
+    assert _workbench(args) == 7
+    assert observed == [
+        [
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "9876",
+            "--state-root",
+            str(tmp_path / "state"),
+        ]
+    ]
 
 
 def test_bare_verdi_prints_guide_and_exits_successfully(capsys) -> None:

@@ -64,6 +64,30 @@ def build_parser(
     doctor.add_argument("--repo-root", type=Path)
     doctor.set_defaults(handler=handlers["_doctor"])
 
+    workbench = commands.add_parser(
+        "workbench", help="启动本地可视化研究工作台和证据图谱"
+    )
+    workbench.add_argument(
+        "--host",
+        default="127.0.0.1",
+        choices=("127.0.0.1", "::1", "localhost"),
+        help="只允许回环地址；默认 127.0.0.1",
+    )
+    workbench.add_argument("--port", type=int, default=8765)
+    workbench.add_argument(
+        "--state-root",
+        type=Path,
+        default=None,
+        help="状态目录；默认读取 verdiwm.toml 或 ~/.local/state/verdiwm",
+    )
+    workbench.add_argument(
+        "--evidence-root",
+        type=Path,
+        default=None,
+        help="实验产物目录；默认使用 state-root",
+    )
+    workbench.set_defaults(handler=handlers["_workbench"])
+
     llm = commands.add_parser(
         "llm", help="配置或检查用于研究助手、检索和方法生成的 LLM API"
     )

@@ -195,6 +195,22 @@ def _interactive(args: argparse.Namespace) -> int:
     return run_interactive_session()
 
 
+def _workbench(args: argparse.Namespace) -> int:
+    """Start the local visual workbench through the public ``verdi`` CLI."""
+
+    # Keep the server's argument parser and lifecycle in one place.  The
+    # top-level command is only a discoverable convenience alias, so it must
+    # not duplicate any HTTP or state-management implementation.
+    from wmloop.control.workbench import main as workbench_main
+
+    forwarded = ["--host", args.host, "--port", str(args.port)]
+    if args.state_root is not None:
+        forwarded.extend(("--state-root", str(args.state_root)))
+    if args.evidence_root is not None:
+        forwarded.extend(("--evidence-root", str(args.evidence_root)))
+    return int(workbench_main(forwarded))
+
+
 def _parser() -> argparse.ArgumentParser:
     return build_parser(
         handlers={
@@ -237,6 +253,7 @@ def _parser() -> argparse.ArgumentParser:
             "_status": _status,
             "_training_recipes": _training_recipes,
             "_wan22_droid": _wan22_droid,
+            "_workbench": _workbench,
         },
         program_name=_cli_program_name(),
         installed_version=_installed_version(),

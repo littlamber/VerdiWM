@@ -439,8 +439,11 @@ uv run verdiwm reproduce CAMPAIGN_ID
 Start the local interface:
 
 ```bash
-uv run verdiwm-workbench --port 8765
+uv run verdi workbench --port 8765
 ```
+
+The standalone `verdiwm-workbench` command remains available for scripts and
+backward compatibility.
 
 The workbench discovers materialized `graph.json` files below `state_root` by
 default. When immutable experiment artifacts are kept elsewhere, bind that

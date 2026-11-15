@@ -466,8 +466,10 @@ uv run python scripts/evaluate_psnr_ssim_smoke.py \
 启动 workbench：
 
 ```bash
-uv run verdiwm-workbench --port 8765
+uv run verdi workbench --port 8765
 ```
+
+独立的 `verdiwm-workbench` 命令仍然保留，适合脚本和旧有启动方式。
 
 默认会在 `state_root` 下发现已物化的 `graph.json` 以及历史运行目录；如果实验
 产物保存在独立目录，可显式绑定证据根目录：
