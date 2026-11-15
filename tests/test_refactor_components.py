@@ -234,14 +234,13 @@ def test_pipeline_retrieval_retains_cross_domain_lenses_and_explicit_intent():
         irg_model_family=None,
     )
 
-    # Search the user's goal and cross-domain lens first. The current
-    # observation remains available as a follow-up query if that search is
-    # empty, rather than narrowing the primary search to a diagnosis.
+    # Search the user's goal and compatible lens under the current diagnosis;
+    # keep a goal-only query for the bounded empty-result fallback.
     assert query == plan["queries"][0]["query"]
     assert 'all:"trajectory" AND all:"consistency"' in query
     assert 'all:"belief" OR all:"filtering"' in query
-    assert plan["queries"][1]["view"] == "current_diagnostic"
-    assert 'all:"history" AND all:"drift"' in plan["queries"][1]["query"]
+    assert 'all:"history" AND all:"drift"' in query
+    assert plan["queries"][1]["view"] == "goal_focus"
 
 
 def test_pipeline_retrieval_without_observation_does_not_invent_query():

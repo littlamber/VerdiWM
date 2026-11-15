@@ -39,6 +39,9 @@ try:
         inspect_agibot_history_reference_parameters,
         should_scan_restored_history_reference,
     )
+    from wmloop.execute._agibot_native_config_preflight import (
+        _optional_native_config_bool,
+    )
 
     checkpoint_root = Path(sys.argv[2])
     checkpoint_path = checkpoint_root / "dit_model.safetensors"
@@ -83,7 +86,9 @@ try:
         report = compare_agibot_checkpoint_architecture(
             checkpoint_shapes,
             target_shapes,
-            history_ref_enabled=bool(config.world_model.history_ref_enabled),
+            history_ref_enabled=_optional_native_config_bool(
+                config.world_model, "history_ref_enabled"
+            ),
         )
         if not report.compatible:
             raise RuntimeError("checkpoint architecture mismatch: " + report.summary())
@@ -93,8 +98,12 @@ try:
         # own state gate checks that initialized branch. Only scan a restored
         # branch, using the same rules as _validate_reference_training_state.
         scan_history_reference = should_scan_restored_history_reference(
-            enabled=bool(config.world_model.history_ref_enabled),
-            null_enabled=bool(config.world_model.history_ref_null),
+            enabled=_optional_native_config_bool(
+                config.world_model, "history_ref_enabled"
+            ),
+            null_enabled=_optional_native_config_bool(
+                config.world_model, "history_ref_null"
+            ),
             expected_names=report.history_reference_expected,
             missing_names=report.history_reference_missing,
         )
@@ -124,8 +133,9 @@ try:
                 reason = (
                     "history-reference checkpoint integrity failed ("
                     + " and ".join(categories)
-                    + "). Verify the corrected H1 checkpoint-134750 before use, "
-                    "then retry with a new campaign ID"
+                    + "). Select a checkpoint compatible with the chosen native "
+                    + "source and training configuration, verify its restored "
+                    + "history-reference weights, then retry with a new campaign ID"
                 )
                 if details:
                     reason += "; affected=" + details
@@ -135,6 +145,21 @@ except Exception as exc:
     sys.stdout.write(json.dumps({"error_type": type(exc).__name__, "reason": reason}) + "\\n")
     raise SystemExit(1)
 """
+
+
+def _optional_native_config_bool(config: object, name: str) -> bool:
+    """Read an optional native setting, defaulting an absent field to false.
+
+    Older Wan training sources do not define the history-reference settings.
+    Treating those absent optional flags as disabled preserves compatibility;
+    explicit values still need to be real booleans so strings such as ``false``
+    cannot silently enable a feature through Python truthiness.
+    """
+
+    value = getattr(config, name, False)
+    if type(value) is not bool:
+        raise TypeError(f"world_model.{name} must be a boolean")
+    return value
 
 
 class AgibotNativeConfigPreflightError(RuntimeError):

@@ -87,6 +87,31 @@ def test_missing_template_blocks_before_hashing_or_campaign_creation(ready_conte
         plan_to_campaign_payload(plan)
 
 
+def test_blocked_plan_preview_reports_reasons_without_allowing_confirmation(ready_context):
+    ready_context["evaluator_contract"].write_text("{}")
+    plan = compile_research_plan(**ready_context, rounds=2)
+    assert plan["state"] == "blocked"
+
+    class CampaignStoreSpy:
+        def __init__(self) -> None:
+            self.create_calls = 0
+
+        def create(self, payload):
+            self.create_calls += 1
+            return payload
+
+    store = CampaignStoreSpy()
+    preview = run_research_plan(plan, store=store, confirm=False)
+
+    assert preview["state"] == "blocked"
+    assert preview["blockers"] == plan["blockers"]
+    assert "未创建 campaign" in preview["next_step"]
+    assert "重新运行 verdi research plan" in preview["next_step"]
+    with pytest.raises(ResearchRequestError, match="RESEARCH_PLAN_BLOCKED"):
+        run_research_plan(plan, store=store, confirm=True)
+    assert store.create_calls == 0
+
+
 def test_policy_asset_disappearing_during_hashing_returns_an_unbound_blocked_plan(ready_context, monkeypatch):
     def disappeared(_path):
         raise ResearchRequestError("RESEARCH_PLAN_INPUT_MISSING")

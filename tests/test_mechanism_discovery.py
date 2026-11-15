@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -45,6 +46,27 @@ def test_query_plan_uses_diagnostic_and_cross_domain_views() -> None:
     }
     assert all("self forcing" not in row["query"] for row in queries)
     assert any("belief" in row["query"] for row in queries)
+    diagnostic = next(row for row in queries if row["view"] == "diagnostic_symptom")
+    assert " AND " in diagnostic["search_expression"]
+    assert 'all:"video"' in diagnostic["search_expression"]
+    assert 'all:"flip"' in diagnostic["search_expression"]
+    changed_diagnostic = build_multiview_queries(
+        replace(_request(), failure_signatures=("motion_collapse",))
+    )
+    changed_query = next(row for row in changed_diagnostic if row["view"] == "diagnostic_symptom")
+    assert changed_query["search_expression"] != diagnostic["search_expression"]
+    assert 'all:"motion"' in changed_query["search_expression"]
+    assert 'all:"collapse"' in changed_query["search_expression"]
+    changed_symptom = build_multiview_queries(
+        replace(
+            _request(),
+            symptom_description="Camera exposure degradation during long rollout",
+        )
+    )
+    symptom_query = next(row for row in changed_symptom if row["view"] == "diagnostic_symptom")
+    assert symptom_query["search_expression"] != diagnostic["search_expression"]
+    assert 'all:"exposure"' in symptom_query["search_expression"]
+    assert 'all:"degradation"' in symptom_query["search_expression"]
 
 
 def test_light_discovery_budget_keeps_the_default_route_small(tmp_path: Path) -> None:
@@ -61,6 +83,97 @@ def test_light_discovery_budget_keeps_the_default_route_small(tmp_path: Path) ->
     assert report["complexity_budget"]["name"] == "light"
     assert report["complexity_budget"]["query_view_count"] == 4
     assert report["complexity_budget"]["query_views_truncated"] is True
+
+
+def test_light_budget_executes_diagnostic_guided_cross_domain_lens(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def search(query: str, **kwargs: Any):
+        del kwargs
+        calls.append(query)
+        return ({
+            "arxiv_id": "2601.12345",
+            "title": "Video prediction with adaptive temporal memory",
+            "abstract": "We study video history conditioning, context drift, belief state updates, and rollout mismatch.",
+        },), "network"
+
+    manifest = run_mechanism_discovery(
+        request=_request(),
+        seed_records=(),
+        output_root=tmp_path / "atlas",
+        repo_root=ROOT,
+        citation_depth=0,
+        max_papers=1,
+        search_results_per_view=1,
+        search_client=search,
+        full_text_fetcher=lambda arxiv_id, timeout_seconds: ("", (), "unavailable"),
+        metadata_fetcher=lambda arxiv_id, timeout_seconds: {},
+    )
+    report = json.loads(Path(manifest["atlas_path"]).read_text(encoding="utf-8"))
+    views = [row["view"] for row in report["query_plan"]]
+
+    assert report["complexity_budget"]["query_view_count"] == 4
+    assert len(calls) == 4
+    assert views == ["diagnostic_symptom", "state_update_operator", "training_distribution", "cross_domain_1"]
+    assert "belief" in report["query_plan"][-1]["query"]
+    assert all(row["source_state"] == "network" for row in report["query_plan"])
+    assert all(row["candidate_count"] == 1 for row in report["query_plan"])
+    assert all(row["candidates"][0]["title"].startswith("Video prediction") for row in report["query_plan"])
+    assert "history" in report["query_plan"][0]["candidates"][0]["matched_anchor_terms"]
+    assert "context_local_anchor_sign_flip" in report["query_plan"][0]["relevance_basis"]
+    assert all(" AND " in query for query in calls)
+
+
+def test_low_relevance_search_hits_are_audited_but_not_extracted(tmp_path: Path) -> None:
+    candidates = (
+        {
+            "arxiv_id": "2601.10001",
+            "title": "Adaptive history memory for long-horizon video diffusion",
+            "abstract": (
+                "A video diffusion world model uses temporal history and memory state with "
+                "adaptive confidence update operators to stabilize autoregressive rollout "
+                "generation during training and inference."
+            ),
+        },
+        {
+            "arxiv_id": "2601.10002",
+            "title": "DeepC-MVS: Multi-view state prediction for diabetes risk",
+            "abstract": (
+                "We predict patient state from medical records and estimate confidence "
+                "updates for long-term diabetes risk."
+            ),
+        },
+    )
+
+    def search(query: str, **kwargs: Any):
+        del query, kwargs
+        return candidates, "network"
+
+    manifest = run_mechanism_discovery(
+        request=_request(),
+        seed_records=(),
+        output_root=tmp_path / "atlas-relevance-gate",
+        repo_root=ROOT,
+        citation_depth=0,
+        max_papers=2,
+        search_results_per_view=2,
+        search_client=search,
+        full_text_fetcher=lambda arxiv_id, timeout_seconds: ("", (), "unavailable"),
+        metadata_fetcher=lambda arxiv_id, timeout_seconds: {},
+    )
+    report = json.loads(Path(manifest["atlas_path"]).read_text(encoding="utf-8"))
+    diagnostic_view = next(
+        row for row in report["query_plan"] if row["view"] == "diagnostic_symptom"
+    )
+    by_id = {row["arxiv_id"]: row for row in diagnostic_view["candidates"]}
+
+    assert diagnostic_view["candidate_count"] == 2
+    assert diagnostic_view["accepted_seed_count"] == 1
+    assert by_id["2601.10001"]["relevance_state"] == "anchor_gate_passed"
+    assert by_id["2601.10002"]["relevance_state"] == "low_relevance"
+    assert "2601.10002" not in {row["source"]["arxiv_id"] for row in report["entries"]}
+    assert report["paper_count"] == 1
+    assert report["entries"][0]["source"]["title"] == candidates[0]["title"]
 
 
 def test_light_discovery_rejects_unbounded_paper_request(tmp_path: Path) -> None:

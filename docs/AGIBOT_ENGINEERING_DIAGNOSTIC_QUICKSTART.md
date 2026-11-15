@@ -8,8 +8,25 @@
 
 以下命令从 VerdiWM 仓库根目录运行。先安装项目声明的控制端依赖，并确认命令可用：
 
+使用 Astral 官方独立安装脚本安装 `uv`，它不会向系统 Python 写入，能避开
+Linux 上 PEP 668 对系统 Python 的保护限制：
+
 ```bash
-python -m pip install uv==0.12.10
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+该脚本支持 Linux 和 macOS；VerdiWM 当前文档要求在 Linux 或 WSL2 中运行。
+Windows 用户请在 WSL2 中用上面的 Linux 命令安装并运行 VerdiWM。若只需在
+Windows 本机安装 `uv`，Astral 也提供 PowerShell 安装脚本；VerdiWM 命令仍应在
+WSL2 中运行：
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+安装后若终端提示找不到 `uv`，请重新打开终端以载入更新后的 `PATH`。然后继续：
+
+```bash
 uv sync --locked
 uv run verdi doctor
 ```
@@ -109,19 +126,20 @@ campaign 入队前阻断，并显示估算值与预算值；
 若提供 `--training-scale-plan`，并行度以该显式计划为准，因此不能再传 `--world-size`。
 
 如果预检或原生训练器报告恢复的 `history_reference` encoder/QKV 权重为非有限值或全零，
-表示该检查点不适用于本次运行。失败诊断中的原生训练器建议从 H1 的
-`checkpoint-134750` 开始。只有该检查点通过 GPU 前预检后，才将
-`WAN5B_CHECKPOINT` 指向它，分配新的 campaign ID，并重跑上面的命令：
+表示当前检查点不适用于本次运行。请核对你选择的原生源码、训练配置和检查点来源，
+再选择架构及恢复分支兼容的检查点；不要只凭模型名称或通用示例假定权重兼容。确认所选
+检查点通过 GPU 前预检后，将 `WAN5B_CHECKPOINT` 指向你的检查点目录，分配新的 campaign ID，
+并重跑上面的命令：
 
 ```bash
-export WAN5B_CHECKPOINT=/path/to/etherwm/checkpoint-134750
+export WAN5B_CHECKPOINT=/path/to/your-compatible-checkpoint
 export VERDIWM_CAMPAIGN_ID="agibot-wan5b-retry-$(date -u +%Y%m%d-%H%M%S)"
 # 使用上面的 verdi run 命令重新运行
 ```
 
-保留原失败 campaign、ID 和回执供追溯；不要复用旧 ID 或删除证据。如果建议的检查点
-也没有通过预检，应暂停并调查其来源，或换用架构及恢复分支权重均通过检查的检查点。
-其他配置或资产失败也应先修正输入，再使用新的 campaign ID。campaign 的失败恢复、状态和取消语义见
+保留原失败 campaign、ID 和回执供追溯；不要复用旧 ID 或删除证据。如果新选择的检查点
+也没有通过预检，应暂停并调查它与当前源码、配置及恢复分支的兼容性。其他配置或资产失败也应
+先修正输入，再使用新的 campaign ID。campaign 的失败恢复、状态和取消语义见
 [运行生命周期说明](RUN_LIFECYCLE.md)。
 
 训练进程的当前目录、HOME、临时目录和常用模型缓存都放在本次 campaign 输出目录中；

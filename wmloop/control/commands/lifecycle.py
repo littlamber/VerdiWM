@@ -106,11 +106,12 @@ def _mapping(value: object) -> Mapping[str, Any]:
 def _campaign_rounds_and_stop(record: Mapping[str, Any]) -> tuple[str, str]:
     result = _mapping(record.get("execution_result"))
     manifest = _mapping(result.get("evolution_manifest"))
+    status = str(record.get("status", ""))
     rounds = result.get("rounds_completed", manifest.get("settled_iterations"))
     if isinstance(rounds, int) and not isinstance(rounds, bool) and rounds >= 0:
         rounds_text = str(rounds) if rounds <= 999_999 else "999999+"
     else:
-        rounds_text = "尚无结果"
+        rounds_text = "不适用" if status == "completed" else "尚无结果"
     reason = result.get("stop_reason", manifest.get("stop_reason"))
     if reason is not None:
         stop_text = _bounded_status_value(reason, limit=72)
@@ -119,11 +120,12 @@ def _campaign_rounds_and_stop(record: Mapping[str, Any]) -> tuple[str, str]:
         # controller's stop-policy stage yet.  Cancellation is already a
         # terminal user decision, so describing it as "not stopped" is
         # misleading when the record is viewed immediately after cancel.
-        status = str(record.get("status", ""))
         stop_text = {
             "cancelled": "用户取消",
+            "completed": "任务已完成",
             "created": "尚未开始",
             "confirmed": "尚未开始",
+            "failed": "执行失败",
             "queued": "尚未开始",
             "running": "执行中",
         }.get(status, "尚未停止")

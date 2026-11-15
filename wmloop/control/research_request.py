@@ -932,6 +932,23 @@ def run_research_plan(
         metadata.update(plan_path=str(destination), derived_plan=selected)
     plan = selected
     if not confirm:
+        if plan.get("state") == "blocked":
+            blockers = plan.get("blockers")
+            reported_blockers = (
+                list(blockers)
+                if isinstance(blockers, Sequence)
+                and not isinstance(blockers, (str, bytes, bytearray))
+                else []
+            )
+            return {
+                "state": "blocked",
+                "plan": plan,
+                "plan_id": plan.get("plan_id"),
+                "plan_digest": plan.get("plan_digest"),
+                "blockers": reported_blockers,
+                "next_step": "计划存在硬性阻塞项，未创建 campaign，也未调度实验。请查看 blockers 中的原因并补齐评测器、运行环境或适配器配置，然后重新运行 verdi research plan；生成可执行计划后再审阅并确认。",
+                **metadata,
+            }
         return {"state": "awaiting_confirmation", "plan": plan, "plan_id": plan.get("plan_id"), "plan_digest": plan.get("plan_digest"), "next_step": "检查轮数、停止条件和跨轮总预算后，运行 verdi research run --plan PLAN --confirm。", **metadata}
     payload = plan_to_campaign_payload(plan, progress_callback=progress_callback)
     created = store.create(payload)

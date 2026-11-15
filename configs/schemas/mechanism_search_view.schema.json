@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "view",
+    "query",
+    "search_expression",
+    "relevance_groups",
+    "required_relevance_groups",
+    "source_state",
+    "candidate_count",
+    "accepted_seed_count",
+    "candidates",
+    "relevance_basis"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "artifact_type": {"const": "wmloop-mechanism-search-view"},
+    "view": {"type": "string", "minLength": 1, "maxLength": 128},
+    "query": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "search_expression": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "relevance_groups": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "terms"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 64},
+          "terms": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 64}
+          }
+        }
+      }
+    },
+    "required_relevance_groups": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 64}
+    },
+    "source_state": {"enum": ["network", "cached", "offline", "disabled"]},
+    "candidate_count": {"type": "integer", "minimum": 0, "maximum": 20},
+    "accepted_seed_count": {"type": "integer", "minimum": 0, "maximum": 20},
+    "candidates": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "arxiv_id",
+          "title",
+          "abstract_excerpt",
+          "matched_anchor_terms",
+          "matched_anchor_groups",
+          "relevance_state"
+        ],
+        "properties": {
+          "arxiv_id": {"type": "string", "pattern": "^[0-9]{4}\\.[0-9]{4,5}(v[0-9]+)?$"},
+          "title": {"type": "string", "maxLength": 1000},
+          "abstract_excerpt": {"type": "string", "maxLength": 1200},
+          "matched_anchor_terms": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 64}
+          },
+          "matched_anchor_groups": {
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {"type": "string", "minLength": 1, "maxLength": 64}
+          },
+          "relevance_state": {"enum": ["anchor_gate_passed", "low_relevance"]}
+        }
+      }
+    },
+    "relevance_basis": {"type": "string", "minLength": 1, "maxLength": 2048}
+  }
+}

@@ -229,22 +229,29 @@ def _matching_assets(
             "ckpt",
             "data",
             "dataset",
-            "meta",
-            "info",
         }
     }
+    field_tokens = set(re.split(r"[^a-z0-9]+", field))
     candidates = [asset for asset in assets if asset.get("kind") == kind]
+    if kind == "dataset_or_metadata" and field_tokens & {
+        "dir",
+        "directory",
+        "root",
+    }:
+        # A file inventory cannot prove that an individual file is a dataset
+        # root. Require an explicit path or a profile-owned directory binding.
+        return []
     if kind == "checkpoint" and not tokens:
         candidates = sorted(
             candidates,
             key=lambda asset: (-int(asset.get("size_bytes", -1)), str(asset["path"])),
         )
         return [str(asset["path"]) for asset in candidates[:3]]
+    if not tokens:
+        return []
     matches = [
         str(asset["path"])
         for asset in candidates
         if tokens and any(token in str(asset["path"]).lower() for token in tokens)
     ]
-    if kind == "dataset_or_metadata" and not matches and not tokens:
-        matches = [str(asset["path"]) for asset in candidates]
     return sorted(matches)[:3]

@@ -10,6 +10,7 @@ experiment or source-mutation authority.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -85,6 +86,37 @@ from wmloop.retrieve.discovery.types import (
     MechanismDiscoveryError as MechanismDiscoveryError,
     MechanismExtractionClient as MechanismExtractionClient,
 )
+
+
+def _search_relevance_basis(view: str, request: DiscoveryRequest) -> str:
+    if view == "diagnostic_symptom":
+        signatures = ", ".join(request.failure_signatures[:5]) or "none recorded"
+        return (
+            f"Targets the current symptom ({request.symptom_description[:512]}) and "
+            f"current failure signatures ({signatures})."
+        )
+    if view == "state_update_operator":
+        metrics = ", ".join(request.target_metrics[:5])
+        return f"Searches state and update mechanisms that could affect the current target metrics: {metrics}."
+    if view == "training_distribution":
+        return (
+            "Searches training, rollout, and inference-distribution methods in the context "
+            f"of the current symptom: {request.symptom_description[:384]}."
+        )
+    if view == "architecture_hook":
+        hooks = ", ".join(request.available_hooks[:8])
+        return f"Searches temporal and conditioning mechanisms that may map to available hooks: {hooks}."
+    match = re.fullmatch(r"cross_domain_([0-9]+)", view)
+    if match:
+        index = int(match.group(1)) - 1
+        lenses = request.cross_domain_lenses or (
+            "belief state estimation confidence update",
+            "adaptive memory retention forgetting",
+            "online system identification uncertainty",
+        )
+        if index < len(lenses):
+            return f"Tests the current cross-domain lens against the target task: {lenses[index][:384]}."
+    raise MechanismDiscoveryError("MECHANISM_SEARCH_VIEW_INVALID")
 
 
 def run_mechanism_discovery(
@@ -182,7 +214,18 @@ def run_mechanism_discovery(
     fetch_text = full_text_fetcher or _fetch_ar5iv_text
     fetch_metadata = metadata_fetcher or _fetch_arxiv_metadata
     all_queries = build_multiview_queries(request)
-    queries = all_queries[: int(budget["max_query_views"])]
+    query_limit = int(budget["max_query_views"])
+    queries = all_queries[:query_limit]
+    cross_domain = next(
+        (row for row in all_queries if row["view"].startswith("cross_domain_")),
+        None,
+    )
+    if (
+        cross_domain is not None
+        and len(all_queries) > query_limit
+        and not any(row["view"].startswith("cross_domain_") for row in queries)
+    ):
+        queries = (*queries[:-1], cross_domain)
     searched_records, search_states = _collect_query_seeds(
         queries,
         max_results=search_results_per_view,
@@ -190,12 +233,29 @@ def run_mechanism_discovery(
         search_client=search_client,
     )
     combined_seeds = _deduplicate_seed_records((*seed_records, *searched_records))
+    query_plan = []
+    for query in queries:
+        view = str(query["view"])
+        search_result = search_states[view]
+        query_view = {
+            "schema_version": 1,
+            "artifact_type": "wmloop-mechanism-search-view",
+            **query,
+            **search_result,
+            "relevance_basis": _search_relevance_basis(view, request),
+        }
+        try:
+            validate_document("mechanism_search_view", query_view, root=root)
+        except ContractValidationError as exc:
+            raise MechanismDiscoveryError(f"MECHANISM_SEARCH_VIEW_INVALID:{exc}") from exc
+        query_plan.append(query_view)
     input_payload = {
         "request": _request_dict(request),
         "seed_records": [dict(row) for row in combined_seeds],
         "citation_depth": citation_depth,
         "max_papers": max_papers,
         "search_results_per_view": search_results_per_view,
+        "query_plan": query_plan,
         "complexity_budget": complexity_budget,
         "query_view_count": len(queries),
         "profiles_sha256": _sha256(profiles_path.read_bytes()),
@@ -288,10 +348,7 @@ def run_mechanism_discovery(
         "state": "ready",
         "input_hash": _sha256(_canonical_json(input_payload)),
         "request": _request_dict(request),
-        "query_plan": [
-            {**query, "source_state": search_states.get(query["view"], "disabled")}
-            for query in queries
-        ],
+        "query_plan": query_plan,
         "complexity_budget": {
             "name": complexity_budget,
             "max_papers": int(budget["max_papers"]),

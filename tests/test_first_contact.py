@@ -7,9 +7,12 @@ import unittest
 
 import pytest
 
+from wmloop.cli import main as verdi_main
 import wmloop.control.first_contact as first_contact
+from wmloop.control.onboarding import scan_repository
 from wmloop.control.first_contact import explain_blocker, infer_source_root, initialize_project, inspect_project
 from wmloop.control.onboarding_assistant import build_onboarding_questionnaire, write_onboarding_questionnaire
+from wmloop.control.onboarding_scan.types import OnboardingOptions
 from wmloop.control.project_config import load_project_config
 
 
@@ -229,6 +232,138 @@ def test_external_adapter_asset_is_used_by_the_source_readiness_scan(tmp_path):
     assert "MODEL_SCAN_FAILED" in {row["code"] for row in linked["blockers"]}
 
 
+def test_onboarding_asset_scan_excludes_latent_shards_and_camera_configs(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    files = {
+        "evaluate.py": (
+            "import argparse\n"
+            "def evaluate():\n"
+            "    parser = argparse.ArgumentParser()\n"
+            "    parser.add_argument('--checkpoint')\n"
+            "    parser.add_argument('--dataset_root')\n"
+            "    parser.add_argument('--dataset_index_path')\n"
+            "if __name__ == '__main__':\n"
+            "    evaluate()\n"
+        ),
+        "weights/pytorch_model.bin": "model-weights",
+        "latents/shard-000.bin": "a" * 128,
+        "latent_shards/0001.bin": "b" * 128,
+        "data/train.index.jsonl": '{"episode_id":"train-1"}\n',
+        "data/stats/normalization.json": '{"mean":0}\n',
+        "metadata/normalization.json": '{"scale":1}\n',
+        "configs/camera.json": '{"intrinsics":[]}\n',
+        "data/camera/front.json": '{"extrinsics":[]}\n',
+    }
+    for relative, payload in files.items():
+        path = source / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(payload, encoding="utf-8")
+
+    evaluator = tmp_path / "evaluator.json"
+    evaluator.write_text(
+        json.dumps(
+            {
+                "evaluator_id": "asset-discovery-test",
+                "command": [
+                    "{python}",
+                    "evaluate.py",
+                    "--checkpoint",
+                    "{asset:--checkpoint}",
+                    "--dataset_root",
+                    "{asset:--dataset_root}",
+                    "--dataset_index_path",
+                    "{asset:--dataset_index_path}",
+                ],
+                "input_artifacts": ["checkpoint", "dataset"],
+                "output_artifacts": ["result.json"],
+                "metrics": ["quality"],
+                "verifier": "frozen-test",
+                "entrypoint_probe": "skip",
+            }
+        ),
+        encoding="utf-8",
+    )
+    report = scan_repository(
+        OnboardingOptions(
+            repo_root=source,
+            evaluator_contract=evaluator,
+            probe_imports=False,
+        )
+    )
+
+    assets = {row["path"]: row["kind"] for row in report["assets"]}
+    assert assets["weights/pytorch_model.bin"] == "checkpoint"
+    assert assets["latents/shard-000.bin"] == "dataset_or_metadata"
+    assert assets["latent_shards/0001.bin"] == "dataset_or_metadata"
+    assert assets["data/train.index.jsonl"] == "dataset_or_metadata"
+    assert assets["data/stats/normalization.json"] == "dataset_or_metadata"
+    assert assets["metadata/normalization.json"] == "dataset_or_metadata"
+    assert "configs/camera.json" not in assets
+    assert "data/camera/front.json" not in assets
+
+    bindings = {
+        row["parameter"]: row
+        for row in report["connector"]["asset_bindings"]
+    }
+    assert bindings["--checkpoint"]["evidence"] == ["weights/pytorch_model.bin"]
+    assert bindings["--dataset_root"]["state"] == "binding_required"
+    assert bindings["--dataset_root"]["evidence"] == []
+    assert bindings["--dataset_index_path"]["evidence"] == [
+        "data/train.index.jsonl"
+    ]
+
+    chosen_data = tmp_path / "chosen-data"
+    chosen_data.mkdir()
+    explicit_report = scan_repository(
+        OnboardingOptions(
+            repo_root=source,
+            evaluator_contract=evaluator,
+            asset_bindings=(("--dataset_root", chosen_data),),
+            probe_imports=False,
+        )
+    )
+    explicit_binding = next(
+        row
+        for row in explicit_report["connector"]["asset_bindings"]
+        if row["parameter"] == "--dataset_root"
+    )
+    assert explicit_binding["binding_source"] == "explicit"
+    assert explicit_binding["resolved_path"] == str(chosen_data)
+
+
+def test_verdi_init_prefers_explicit_paths_and_keeps_json_stdout(
+    tmp_path, monkeypatch, capsys
+):
+    for name in ("model", "data", "selected-model", "selected-data"):
+        (tmp_path / name).mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    status = verdi_main(
+        [
+            "init",
+            "--model",
+            "selected-model",
+            "--data",
+            "selected-data",
+            "--goal",
+            "Improve the target capability",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert status == 0
+    assert len(captured.out.splitlines()) == 1
+    result = json.loads(captured.out)
+    assert result["state"] == "ready"
+    assert result["project_created"] is True
+    assert result["readiness_state"] != "ready"
+    assert result["can_start_experiment"] is False
+    config = load_project_config(cwd=tmp_path)
+    assert Path(config.values["model"]) == tmp_path / "selected-model"
+    assert Path(config.values["data"]) == tmp_path / "selected-data"
+
+
 @pytest.mark.parametrize(
     ("readiness_state", "blockers", "next_step", "expected_action"),
     [
@@ -262,6 +397,9 @@ def test_setup_next_steps_follow_readiness_state(
 
     result = initialize_project(root=tmp_path, goal="提升预测稳定性")
 
+    assert result["project_created"] is True
+    assert result["readiness_state"] == readiness_state
+    assert result["can_start_experiment"] is False
     next_steps = "\n".join(result["next_steps"])
     assert expected_action in next_steps
     assert "verdiwm run" not in next_steps
@@ -269,6 +407,24 @@ def test_setup_next_steps_follow_readiness_state(
         assert "--confirm" in next_steps
     if readiness_state == "blocked":
         assert next_step in next_steps
+
+
+def test_init_marks_experiment_startable_only_when_readiness_is_ready(
+    tmp_path: Path, monkeypatch
+):
+    (tmp_path / "model").mkdir()
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr(
+        first_contact,
+        "inspect_project",
+        lambda **_: {"state": "ready", "blockers": [], "next_step": ""},
+    )
+
+    result = initialize_project(root=tmp_path, goal="提升预测稳定性")
+
+    assert result["project_created"] is True
+    assert result["readiness_state"] == "ready"
+    assert result["can_start_experiment"] is True
 
 
 if __name__ == "__main__":

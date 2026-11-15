@@ -41,9 +41,9 @@ def build_literature_query_plan(
     The capsule is the index's bounded projection of verified settled records.
     Paired outcomes can suggest a mechanism lens, but neither a diagnostic
     outcome nor PASS is an effect verdict. Old signatures never override a
-    current observation. The first view searches the stated goal (optionally
-    informed by verified memory); a current-diagnostic view is the fallback
-    after an empty successful response.
+    current observation. The first view combines the stated goal, compatible
+    memory and current diagnosis; the goal-only view is the fallback after an
+    empty successful response.
     """
 
     if explicit_query is not None and not isinstance(explicit_query, str):
@@ -77,7 +77,9 @@ def build_literature_query_plan(
     domain_terms = explicit_domain_terms or fallback_task_terms[:2] or family_domain_terms
     intent_terms = tuple(
         term for term in intent_words
-        if term not in set(domain_terms) and term not in _DATASET_WORDS
+        if term not in set(domain_terms)
+        and term not in _DATASET_WORDS
+        and term not in {"quality", "performance", "accuracy"}
     )[:5]
     irg_lenses = _strings(request.get("cross_domain_lenses"))[:2]
     memory = _memory_context(retrieval_context.get("capsule"), current_signatures)
@@ -103,21 +105,20 @@ def build_literature_query_plan(
         goal_clauses.append(f"({intent})")
     # With no English canonical evidence, do not pretend to translate a goal.
     goal_base = " AND ".join(clause for clause in goal_clauses if clause)
-    diagnostic_clauses = list(goal_clauses)
-    if symptom_groups:
-        diagnostic_clauses.append("(" + " OR ".join(arxiv_clause(group, operator="AND") for group in symptom_groups) + ")")
-    diagnostic_query = " AND ".join(clause for clause in diagnostic_clauses if clause)
     queries: list[dict[str, str]] = []
     if goal_base and (domain_terms or structured_intent):
         refinements = [arxiv_clause(intent_terms), arxiv_clause(lens_terms)]
         refinement = " AND ".join(clause for clause in refinements if clause)
         goal_query = goal_base + (" AND " + refinement if refinement else "")
-        if refinement:
-            queries.append({"view": "evidence_lens" if lens_terms else "goal_focus", "query": goal_query})
+        if symptom_groups:
+            symptom_clause = "(" + " OR ".join(
+                arxiv_clause(group, operator="AND") for group in symptom_groups
+            ) + ")"
+            diagnostic_query = goal_query + " AND " + symptom_clause
+            queries.append({"view": "current_diagnostic", "query": diagnostic_query})
+            queries.append({"view": "goal_focus", "query": goal_query})
         else:
             queries.append({"view": "goal_focus", "query": goal_query})
-        if symptom_groups:
-            queries.append({"view": "current_diagnostic", "query": diagnostic_query})
     if any(len(row["query"]) > 1024 for row in queries):
         raise LiteratureQueryPlanError("LITERATURE_QUERY_PLAN_TOO_LONG")
     diagnostic = {

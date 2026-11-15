@@ -176,6 +176,26 @@ def test_status_text_describes_queued_and_cancelled_records_without_fake_stop_re
     assert "尚未停止" not in cancelled_output
 
 
+def test_completed_one_shot_campaign_status_does_not_claim_rounds_or_stop_are_missing(
+    monkeypatch, capsys
+) -> None:
+    from wmloop.control.commands import lifecycle
+
+    record = _record(
+        campaign_id="completed-diagnostic",
+        status="completed",
+        execution_result={"stages": [{"stage": "train", "returncode": 0}]},
+        execution_error=None,
+    )
+    monkeypatch.setattr(lifecycle, "_store", lambda _: _Store([record]))
+
+    assert main(["status", "completed-diagnostic", "--format", "text"]) == 0
+
+    output = capsys.readouterr().out
+    assert "轮数: 不适用 · 停止原因: 任务已完成" in output
+    assert "尚未停止" not in output
+
+
 def test_run_text_summary_is_bounded_and_json_remains_available(
     monkeypatch, capsys, tmp_path
 ) -> None:

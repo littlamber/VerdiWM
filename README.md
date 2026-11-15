@@ -24,10 +24,28 @@ responsibility of each deployment.
 
 Requirements: Linux (or WSL2), Python 3.12, and [uv](https://docs.astral.sh/uv/).
 
+Install `uv` with Astral's standalone installer so it does not need to write
+into the system Python environment (which may be protected by PEP 668):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+The installer supports Linux and macOS; VerdiWM's documented runtime target is
+Linux or WSL2. On Windows, install and run VerdiWM inside WSL2 using the Linux
+command above. If you need the `uv` executable on Windows itself, Astral also
+provides this PowerShell installer, but run VerdiWM commands in WSL2:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+If `uv` is not found after installation, open a new terminal so the updated
+`PATH` is loaded. Then clone and set up the project:
+
 ```bash
 git clone https://github.com/littlamber/VerdiWM.git
 cd VerdiWM
-python -m pip install uv==0.12.10
 uv sync --locked --group dev
 uv run verdiwm doctor
 ```

@@ -22,30 +22,122 @@ from wmloop.control.onboarding_scan.types import (
 )
 
 
+_DATASET_DIRECTORY_MARKERS = frozenset(
+    {
+        "annotation",
+        "annotations",
+        "data",
+        "dataset",
+        "datasets",
+        "droid",
+        "latent",
+        "latent_videos",
+        "latents",
+        "meta",
+        "metadata",
+        "shard",
+        "shards",
+        "stat",
+        "stats",
+        "subset",
+        "test",
+        "train",
+        "training",
+        "trajectory",
+        "trajectories",
+        "val",
+        "validation",
+        "video",
+        "videos",
+    }
+)
+_DATASET_FILENAME_MARKERS = frozenset(
+    {
+        "annotation",
+        "annotations",
+        "dataset",
+        "index",
+        "manifest",
+        "metadata",
+        "meta",
+        "stat",
+        "stats",
+        "test",
+        "train",
+        "trajectory",
+        "val",
+        "validation",
+    }
+)
+_CHECKPOINT_DIRECTORY_MARKERS = frozenset(
+    {"checkpoint", "checkpoints", "ckpt", "weights", "weight"}
+)
+_CHECKPOINT_FILENAME_MARKERS = frozenset(
+    {"checkpoint", "ckpt", "ema", "model", "pytorch", "weight", "weights"}
+)
+_CAMERA_CONFIG_MARKERS = frozenset(
+    {"calibration", "camera", "cameras", "extrinsics", "intrinsics"}
+)
+_CONFIG_SUFFIXES = frozenset({".cfg", ".ini", ".json", ".toml", ".yaml", ".yml"})
+
+
 def _discover_assets(files: Sequence[Path], repo: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     for path in files:
-        parts = set(re.split(r"[^a-z0-9]+", _relative(path, repo).lower()))
         suffix = path.suffix.lower()
-        dataset_marker = bool(
-            parts
-            & {
-                "dataset",
-                "annotation",
-                "trajectory",
-                "data_stat",
-                "latent_videos",
-                "videos",
-            }
+        relative = Path(_relative(path, repo)).as_posix().lower()
+        segments = relative.split("/")
+        directory_tokens = {
+            token
+            for segment in segments[:-1]
+            for token in re.split(r"[^a-z0-9]+", segment)
+            if token
+        }
+        filename_tokens = {
+            token
+            for token in re.split(r"[^a-z0-9]+", path.stem.lower())
+            if token
+        }
+        path_tokens = directory_tokens | filename_tokens
+        latent_shard = bool(
+            path_tokens & {"latent", "latents"}
+            and path_tokens & {"shard", "shards"}
         )
-        checkpoint = (
-            suffix in _CHECKPOINT_SUFFIXES
-            or bool(parts & {"checkpoint", "ckpt", "weights"})
-        ) and not dataset_marker
-        dataset = suffix in _DATA_METADATA_SUFFIXES or dataset_marker
+        dataset_marker = bool(
+            directory_tokens & _DATASET_DIRECTORY_MARKERS
+            or filename_tokens & _DATASET_FILENAME_MARKERS
+        )
+        camera_config = (
+            suffix in _CONFIG_SUFFIXES
+            and bool(path_tokens & _CAMERA_CONFIG_MARKERS)
+        )
+        checkpoint_directory = bool(
+            directory_tokens & _CHECKPOINT_DIRECTORY_MARKERS
+        )
+        checkpoint_filename = bool(
+            filename_tokens & _CHECKPOINT_FILENAME_MARKERS
+        )
+        checkpoint = not latent_shard and (
+            (
+                suffix in _CHECKPOINT_SUFFIXES - {".bin"}
+                and (checkpoint_directory or checkpoint_filename or not dataset_marker)
+            )
+            or (
+                suffix == ".bin"
+                and (checkpoint_directory or checkpoint_filename)
+            )
+        )
+        dataset = (
+            latent_shard
+            or (
+                not camera_config
+                and dataset_marker
+                and suffix in _DATA_METADATA_SUFFIXES
+            )
+        )
         if suffix in _SOURCE_OR_DOCUMENT_SUFFIXES:
             dataset = False
-        model_dependency = bool(parts & {"vae", "clip", "svd"})
+        model_dependency = bool(path_tokens & {"vae", "clip", "svd"})
         if not (checkpoint or dataset or model_dependency):
             continue
         if checkpoint:

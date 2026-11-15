@@ -11,8 +11,26 @@ formal promotion.
 Run the following commands from the VerdiWM repository root. Install the
 declared control-plane dependencies and verify the CLI first:
 
+Install `uv` with Astral's standalone installer so it does not need to write
+into the system Python environment (which may be protected by PEP 668):
+
 ```bash
-python -m pip install uv==0.12.10
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+The installer supports Linux and macOS; VerdiWM's documented runtime target is
+Linux or WSL2. On Windows, install and run VerdiWM inside WSL2 using the Linux
+command above. If you need the `uv` executable on Windows itself, Astral also
+provides this PowerShell installer, but run VerdiWM commands in WSL2:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+If `uv` is not found after installation, open a new terminal so the updated
+`PATH` is loaded. Then continue:
+
+```bash
 uv sync --locked
 uv run verdi doctor
 ```
@@ -132,24 +150,26 @@ parallelism is authoritative and `--world-size` cannot be combined with it.
 
 If preflight or the native trainer reports that the restored
 `history_reference` encoder/QKV weights are non-finite or dead, the checkpoint
-is not usable for this run. The failed diagnostic's native trainer recommended
-starting from the H1 `checkpoint-134750` checkpoint. Point `WAN5B_CHECKPOINT`
-at that checkpoint directory only after it passes the GPU-free preflight,
-assign a new campaign ID, and rerun the command above:
+is not usable for this run. Check the native source, training configuration,
+and checkpoint lineage you selected, then choose a checkpoint whose
+architecture and restored branch are compatible; do not infer compatibility
+from a model name or a generic example. After the selected checkpoint passes
+the GPU-free preflight, point `WAN5B_CHECKPOINT` at its directory, assign a new
+campaign ID, and rerun the command above:
 
 ```bash
-export WAN5B_CHECKPOINT=/path/to/etherwm/checkpoint-134750
+export WAN5B_CHECKPOINT=/path/to/your-compatible-checkpoint
 export VERDIWM_CAMPAIGN_ID="agibot-wan5b-retry-$(date -u +%Y%m%d-%H%M%S)"
 # Run the same `uv run verdi run` command shown above.
 ```
 
 Keep the failed campaign, its ID, and its receipts for traceability; do not
-reuse the old ID or delete its evidence. If the recommended checkpoint also
-fails preflight, stop and investigate its source or use another checkpoint
-whose architecture and restored history-reference weights pass. For other
-configuration or asset failures, correct the local YAML or model assets and
-also use a new campaign ID. See the [run lifecycle guide](RUN_LIFECYCLE.md)
-for failure recovery, status, and cancellation behavior.
+reuse the old ID or delete its evidence. If the newly selected checkpoint also
+fails preflight, stop and investigate its compatibility with the chosen
+source, configuration, and restored branch. For other configuration or asset
+failures, correct the local YAML or model assets and also use a new campaign
+ID. See the [run lifecycle guide](RUN_LIFECYCLE.md) for failure recovery,
+status, and cancellation behavior.
 
 The training process's working directory, `HOME`, temporary directory, and
 common model caches are placed under this campaign's output directory. Its

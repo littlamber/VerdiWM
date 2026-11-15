@@ -46,11 +46,13 @@ def test_current_observation_changes_search_despite_same_explicit_intent():
     first = plan(signature="history_drift")
     second = plan(signature="motion_collapse")
     assert first["explicit_intent"] == second["explicit_intent"]
-    assert first["query"] == second["query"], "The frozen goal view must not be replaced by this round's diagnosis."
+    assert first["queries"][1]["query"] == second["queries"][1]["query"]
+    assert first["query"] != second["query"], "The current diagnosis must affect the actual first search."
     assert second["focus_terms"] == ["motion", "collapse"]
     assert second["current_diagnostic"]["manifest_sha256"] != first["current_diagnostic"]["manifest_sha256"]
-    assert 'all:"motion" AND all:"collapse"' in second["queries"][-1]["query"]
-    assert second["queries"][-1]["view"] == "current_diagnostic"
+    assert 'all:"motion" AND all:"collapse"' in second["query"]
+    assert second["queries"][0]["view"] == "current_diagnostic"
+    assert second["queries"][1]["view"] == "goal_focus"
 
 
 def test_stale_irg_signature_does_not_override_new_observation():
@@ -59,7 +61,7 @@ def test_stale_irg_signature_does_not_override_new_observation():
     assert actual["signature_source"] == "current_diagnostic"
     assert "obsolete" not in actual["query"]
     assert "belief" in actual["query"]
-    assert "obsolete" not in actual["queries"][-1]["query"]
+    assert "obsolete" not in actual["queries"][1]["query"]
 
 
 def test_verified_paired_signs_are_context_not_success_keywords():
@@ -134,8 +136,8 @@ def test_chinese_intent_retains_provenance_and_uses_canonical_english_evidence()
     assert actual["explicit_intent"]["text"] == "改善视频生成的时间一致性，并减少长期漂移"
     assert actual["domain_source"] == "model_family"
     assert actual["domain_terms"] == ["video", "diffusion"]
-    assert "改善" not in actual["query"] and 'all:"drift"' not in actual["query"]
-    assert 'all:"drift"' in actual["queries"][-1]["query"]
+    assert "改善" not in actual["query"] and 'all:"drift"' in actual["query"]
+    assert 'all:"drift"' not in actual["queries"][1]["query"]
 
 
 def test_unknown_family_with_chinese_intent_explicitly_skips_and_explains(tmp_path, monkeypatch):
@@ -178,10 +180,9 @@ def test_optimizer_oom_diagnosis_does_not_replace_goal_view_or_add_threshold_uni
     assert 'all:"action-conditioned"' in oom["query"]
     assert 'all:"psnr"' in oom["query"]
     assert all(f'all:"{term}"' not in oom["query"] for term in ("more", "than", "least", "db", "agibot"))
-    assert "oom" not in oom["query"] and "optimizer" not in oom["query"]
-    assert oom["query"] == other_diagnostic["query"]
-    assert 'all:"optimizer" AND all:"state" AND all:"oom"' in oom["queries"][-1]["query"]
-    assert "memory" in other_diagnostic["queries"][-1]["query"]
+    assert 'all:"optimizer" AND all:"state" AND all:"oom"' in oom["query"]
+    assert "memory" in other_diagnostic["query"]
+    assert oom["queries"][1]["query"] == other_diagnostic["queries"][1]["query"]
 
 
 def test_query_is_bounded_and_current_observation_survives_long_intent():
@@ -189,8 +190,8 @@ def test_query_is_bounded_and_current_observation_survives_long_intent():
     assert actual["explicit_intent"]["truncated"] is True
     assert len(actual["explicit_intent"]["text"]) == 4096
     assert all(len(row["query"]) <= 1024 for row in actual["queries"])
-    assert 'all:"motion"' not in actual["query"]
-    assert 'all:"motion" AND all:"collapse"' in actual["queries"][-1]["query"]
+    assert 'all:"motion" AND all:"collapse"' in actual["query"]
+    assert 'all:"motion"' not in actual["queries"][1]["query"]
 
 
 def test_plan_persistence_is_immutable_locked_and_schema_validated(tmp_path):
@@ -245,10 +246,16 @@ def test_structured_query_and_network_trace_match_actual_request(tmp_path, monke
         observed.append(request.full_url)
         return Response(ATOM)
     monkeypatch.setattr(literature.urllib.request, "urlopen", fetch)
-    actual = plan()
+    actual = plan(
+        intent="Improve video prediction quality and temporal consistency",
+        signature="motion_collapse",
+    )
     result = literature.run_literature_retrieval(query=actual["query"], query_plan=actual, output_root=tmp_path)
     assert result["state"] == "network" and result["record_count"] == 1
-    assert urllib.parse.parse_qs(urllib.parse.urlparse(observed[0]).query)["search_query"] == [actual["query"]]
+    actual_expression = urllib.parse.parse_qs(urllib.parse.urlparse(observed[0]).query)["search_query"][0]
+    assert actual_expression == actual["query"]
+    assert 'all:"motion" AND all:"collapse"' in actual_expression
+    assert "quality" not in actual_expression and "quality" not in actual["intent_terms"]
     trace = json.loads((tmp_path / "search-trace.json").read_bytes())
     validate_document("literature_search_trace", trace)
     assert trace["attempts"][0]["http_status"] == 200 and trace["attempts"][0]["error_code"] is None
@@ -256,17 +263,17 @@ def test_structured_query_and_network_trace_match_actual_request(tmp_path, monke
     assert trace["attempts"][0]["started_at"] <= trace["attempts"][0]["completed_at"]
 
 
-def test_empty_strict_lens_falls_back_with_truthful_staging_provenance(tmp_path, monkeypatch):
+def test_empty_diagnostic_query_falls_back_with_truthful_staging_provenance(tmp_path, monkeypatch):
     responses = iter([EMPTY, ATOM])
     monkeypatch.setattr(literature.urllib.request, "urlopen", lambda *a, **k: Response(next(responses)))
     actual = plan(context=memory())
     result = literature.run_literature_retrieval(query=actual["query"], query_plan=actual, output_root=tmp_path)
     fallback = actual["queries"][-1]["query"]
     assert len(result["search_trace"]["attempts"]) == 2
-    assert result["search_trace"]["attempts"][0]["view"] == "evidence_lens"
-    assert result["search_trace"]["attempts"][1]["view"] == "current_diagnostic"
+    assert result["search_trace"]["attempts"][0]["view"] == "current_diagnostic"
+    assert result["search_trace"]["attempts"][1]["view"] == "goal_focus"
     assert result["search_trace"]["attempts"][1]["query"] == fallback
-    assert 'all:"long" AND all:"horizon" AND all:"drift"' in fallback
+    assert all(f'all:"{term}"' in fallback for term in ("long", "horizon", "drift"))
     assert result["query"] == actual["query"] and result["effective_query"] == fallback
     assert json.loads((tmp_path / "records.json").read_bytes())["query"] == fallback
     candidate = json.loads(Path(result["rows"][0]["path"]).read_bytes())
@@ -293,6 +300,77 @@ def test_provider_failures_keep_root_cause_and_do_not_trigger_query_fallback(tmp
     result = literature.run_literature_retrieval(query=actual["query"], query_plan=actual, output_root=tmp_path)
     assert result["state"] == "offline" and len(calls) == 1
     assert result["search_trace"]["attempts"][0]["error_code"] == code
+
+
+def test_offline_retrieval_retries_in_new_attempt_without_rewriting_prior_evidence(tmp_path, monkeypatch):
+    calls = []
+    responses = iter([urllib.error.URLError("temporarily unavailable"), Response(ATOM)])
+
+    def fetch(*args, **kwargs):
+        calls.append(1)
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(literature.urllib.request, "urlopen", fetch)
+    first = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert first["state"] == "offline" and first["delivery"]["fresh_request"] is True
+    prior_files = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+
+    retried = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert retried["state"] == "network" and retried["staged_count"] == 1
+    assert retried["delivery"] == {
+        "mode": "retry",
+        "fresh_request": True,
+        "attempt": 2,
+        "prior_attempt_path": str(tmp_path / "manifest.json"),
+    }
+    assert Path(retried["manifest_path"]) == tmp_path / "attempts" / "attempt-0002" / "manifest.json"
+    assert len(calls) == 2
+    assert all((tmp_path / relative).read_bytes() == content for relative, content in prior_files.items())
+    assert json.loads((tmp_path / "manifest.json").read_bytes())["state"] == "offline"
+
+    resumed = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert resumed["state"] == "network"
+    assert resumed["delivery"] == {"mode": "resume", "fresh_request": False}
+    assert resumed["manifest_path"] == retried["manifest_path"]
+    assert len(calls) == 2
+
+
+def test_cached_fallback_does_not_prevent_later_provider_retry(tmp_path, monkeypatch):
+    calls = []
+
+    def fetch(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            cache_record = literature.LiteratureRecord(
+                "2601.12345",
+                "Cached video prediction paper",
+                "A cached candidate record.",
+                "https://arxiv.org/pdf/2601.12345",
+                "2026-01-01",
+            )
+            (tmp_path / "cache.json").write_text(
+                json.dumps({"query": "video prediction", "records": [cache_record.to_dict()]})
+            )
+            raise urllib.error.URLError("temporarily unavailable")
+        return Response(ATOM)
+
+    monkeypatch.setattr(literature.urllib.request, "urlopen", fetch)
+    first = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert first["state"] == "cached"
+    assert first["search_trace"]["attempts"][0]["error_code"] == "LITERATURE_NETWORK_ERROR"
+
+    retried = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert retried["state"] == "network"
+    assert retried["delivery"]["mode"] == "retry"
+    assert retried["record_count"] == 1
+    assert len(calls) == 2
 
 
 def test_empty_valid_cache_is_distinguished_from_offline(tmp_path, monkeypatch):
@@ -358,6 +436,151 @@ def test_partial_input_binding_rejects_changed_goal_and_recovers_cache_interrupt
     with pytest.raises(literature.LiteratureRetrievalError, match="INPUT_MISMATCH"):
         literature.run_literature_retrieval(query="different goal", output_root=tmp_path)
     assert literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)["staged_count"] == 1
+
+
+@pytest.mark.parametrize("source_state", ["offline", "cached"])
+def test_interrupted_offline_checkpoint_retries_without_overwriting_prior_evidence(tmp_path, monkeypatch, source_state):
+    calls = []
+    cached_record = literature.LiteratureRecord(
+        "2601.12345",
+        "Cached video prediction paper",
+        "A cached candidate record.",
+        "https://arxiv.org/pdf/2601.12345",
+        "2026-01-01",
+    )
+
+    def fetch(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            if source_state == "cached":
+                (tmp_path / "cache.json").write_text(
+                    json.dumps({"query": "video prediction", "records": [cached_record.to_dict()]})
+                )
+            raise urllib.error.URLError("temporarily unavailable")
+        return Response(ATOM)
+
+    monkeypatch.setattr(literature.urllib.request, "urlopen", fetch)
+    original_write = literature._write_json
+
+    def interrupt_after_checkpoint(path, payload):
+        original_write(path, payload)
+        if path.name == "search-result.json":
+            raise RuntimeError("interrupt after search result committed")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(literature, "_write_json", interrupt_after_checkpoint)
+        with pytest.raises(RuntimeError, match="search result committed"):
+            literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+
+    assert (tmp_path / "input-binding.json").is_file()
+    assert (tmp_path / "search-result.json").is_file()
+    assert not (tmp_path / "manifest.json").exists()
+    checkpoint = json.loads((tmp_path / "search-result.json").read_bytes())
+    assert checkpoint["search_trace"]["source_state"] == source_state
+    prior_files = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+
+    retried = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+
+    assert retried["state"] == "network" and retried["staged_count"] == 1
+    assert retried["delivery"] == {
+        "mode": "retry",
+        "fresh_request": True,
+        "attempt": 2,
+        "prior_attempt_path": str(tmp_path / "search-result.json"),
+    }
+    assert Path(retried["manifest_path"]) == tmp_path / "attempts" / "attempt-0002" / "manifest.json"
+    assert len(calls) == 2
+    assert all((tmp_path / relative).read_bytes() == content for relative, content in prior_files.items())
+    assert json.loads((tmp_path / "search-result.json").read_bytes()) == checkpoint
+
+    completed_retry_files = {
+        path.relative_to(tmp_path): path.read_bytes()
+        for path in tmp_path.rglob("*")
+        if path.is_file()
+    }
+    resumed = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert resumed["state"] == "network"
+    assert resumed["delivery"] == {"mode": "resume", "fresh_request": False}
+    assert resumed["manifest_path"] == retried["manifest_path"]
+    assert len(calls) == 2
+    assert all((tmp_path / relative).read_bytes() == content for relative, content in completed_retry_files.items())
+    assert [item.name for item in (tmp_path / "attempts").iterdir()] == ["attempt-0002"]
+
+
+def test_failed_retry_checkpoint_is_linked_as_prior_evidence(tmp_path, monkeypatch):
+    calls = []
+
+    def fetch(*args, **kwargs):
+        calls.append(1)
+        if len(calls) < 3:
+            raise urllib.error.URLError("temporarily unavailable")
+        return Response(ATOM)
+
+    monkeypatch.setattr(literature.urllib.request, "urlopen", fetch)
+    literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    original_write = literature._write_json
+
+    def interrupt_retry_checkpoint(path, payload):
+        original_write(path, payload)
+        if path.name == "search-result.json" and path.parent.name == "attempt-0002":
+            raise RuntimeError("interrupt failed retry checkpoint")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(literature, "_write_json", interrupt_retry_checkpoint)
+        with pytest.raises(RuntimeError, match="failed retry checkpoint"):
+            literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+
+    failed_checkpoint = tmp_path / "attempts" / "attempt-0002" / "search-result.json"
+    checkpoint_bytes = failed_checkpoint.read_bytes()
+    retried = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert retried["state"] == "network"
+    assert retried["delivery"]["attempt"] == 3
+    assert retried["delivery"]["prior_attempt_path"] == str(failed_checkpoint)
+    assert failed_checkpoint.read_bytes() == checkpoint_bytes
+
+    resumed = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    assert resumed["delivery"] == {"mode": "resume", "fresh_request": False}
+    assert resumed["manifest_path"] == retried["manifest_path"]
+    assert len(calls) == 3
+
+
+def test_interrupted_retry_without_search_checkpoint_resumes_in_place(tmp_path, monkeypatch):
+    calls = []
+
+    def fetch(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise urllib.error.URLError("temporarily unavailable")
+        return Response(ATOM)
+
+    monkeypatch.setattr(literature.urllib.request, "urlopen", fetch)
+    literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+    original_write = literature._write_json
+
+    def interrupt_after_retry_binding(path, payload):
+        original_write(path, payload)
+        if path.name == "input-binding.json" and path.parent.name == "attempt-0002":
+            raise RuntimeError("interrupt retry binding")
+
+    with monkeypatch.context() as fault:
+        fault.setattr(literature, "_write_json", interrupt_after_retry_binding)
+        with pytest.raises(RuntimeError, match="retry binding"):
+            literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+
+    attempt_root = tmp_path / "attempts" / "attempt-0002"
+    assert (attempt_root / "input-binding.json").is_file()
+    assert not (attempt_root / "search-result.json").exists()
+    recovered = literature.run_literature_retrieval(query="video prediction", output_root=tmp_path)
+
+    assert recovered["state"] == "network"
+    assert recovered["delivery"] == {"mode": "recovery", "fresh_request": True}
+    assert recovered["manifest_path"] == str(attempt_root / "manifest.json")
+    assert [item.name for item in (tmp_path / "attempts").iterdir()] == ["attempt-0002"]
+    assert len(calls) == 2
 
 
 def test_simultaneous_identical_retrieval_uses_one_network_transaction(tmp_path, monkeypatch):

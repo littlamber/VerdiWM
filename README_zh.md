@@ -16,10 +16,27 @@ VerdiWM 是一个面向世界模型的意图驱动研究工作台：用户提供
 
 环境要求：Linux（或 WSL2）、Python 3.12 和 [uv](https://docs.astral.sh/uv/)。
 
+使用 Astral 官方独立安装脚本安装 `uv`，它不会向系统 Python 写入，能避开
+Linux 上 PEP 668 对系统 Python 的保护限制：
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+该脚本支持 Linux 和 macOS；VerdiWM 当前文档要求在 Linux 或 WSL2 中运行。
+Windows 用户请在 WSL2 中用上面的 Linux 命令安装并运行 VerdiWM。若只需在
+Windows 本机安装 `uv`，Astral 也提供 PowerShell 安装脚本；VerdiWM 命令仍应在
+WSL2 中运行：
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+安装后若终端提示找不到 `uv`，请重新打开终端以载入更新后的 `PATH`。然后克隆并配置项目：
+
 ```bash
 git clone https://github.com/littlamber/VerdiWM.git
 cd VerdiWM
-python -m pip install uv==0.12.10
 uv sync --locked --group dev
 uv run verdiwm doctor
 ```

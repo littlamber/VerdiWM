@@ -182,10 +182,11 @@ def run_literature_retrieval(
     destination = checked_path(output_root, code="LITERATURE_OUTPUT_INVALID", error=LiteratureRetrievalError)
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with exclusive_file_lock(destination.parent / f".{destination.name}.literature.lock"):
-        return _run_literature_retrieval_locked(
+        result = _run_literature_retrieval_locked(
             query=query, destination=destination, max_results=max_results,
             timeout_seconds=timeout_seconds, query_plan=query_plan,
         )
+    return {**result, "manifest_path": result.get("manifest_path", str(destination / "manifest.json"))}
 
 
 def _run_literature_retrieval_locked(
@@ -220,6 +221,7 @@ def _run_literature_retrieval_locked(
         raise LiteratureRetrievalError("LITERATURE_INPUT_INVALID") from exc
     manifest_path = destination / "manifest.json"
     binding_path = destination / "input-binding.json"
+    checkpoint_path = destination / "search-result.json"
     if destination.exists() or destination.is_symlink():
         if destination.is_symlink() or not destination.is_dir():
             raise LiteratureRetrievalError("LITERATURE_OUTPUT_INVALID")
@@ -227,15 +229,61 @@ def _run_literature_retrieval_locked(
             existing = _load_mapping(manifest_path)
             if existing.get("input_hash") != input_hash:
                 raise LiteratureRetrievalError("LITERATURE_INPUT_MISMATCH")
-            # Historical evidence is immutable. A resume returns a read-only
-            # delivery projection rather than rewriting its original trace.
-            return {**existing, "delivery": {"mode": "resume", "fresh_request": False}}
+            retry_root = _retry_root(destination)
+            attempts = _retry_attempts(retry_root)
+            if attempts:
+                return _continue_retry_attempt(
+                    query=query,
+                    destination=destination,
+                    attempts=attempts,
+                    input_hash=input_hash,
+                    max_results=max_results,
+                    timeout_seconds=timeout_seconds,
+                    query_plan=query_plan,
+                )
+            elif existing.get("state") not in {"offline", "cached"}:
+                # Historical evidence is immutable. A resume returns a
+                # read-only delivery projection of the completed attempt.
+                return {
+                    **existing,
+                    "delivery": {"mode": "resume", "fresh_request": False},
+                    "manifest_path": str(manifest_path),
+                }
+            return _start_retry_attempt(
+                query=query,
+                destination=destination,
+                input_hash=input_hash,
+                prior_manifest=attempts[-1] / "manifest.json" if attempts else manifest_path,
+                max_results=max_results,
+                timeout_seconds=timeout_seconds,
+                query_plan=query_plan,
+            )
+        attempts = _retry_attempts(_retry_root(destination))
+        if attempts:
+            return _continue_retry_attempt(
+                query=query, destination=destination,
+                attempts=attempts,
+                input_hash=input_hash,
+                max_results=max_results,
+                timeout_seconds=timeout_seconds,
+                query_plan=query_plan,
+            )
         if binding_path.exists():
             existing_binding = _load_checked_artifact(binding_path, "literature_input_binding")
             if existing_binding != binding:
                 raise LiteratureRetrievalError("LITERATURE_INPUT_MISMATCH")
         elif any(destination.iterdir()):
             raise LiteratureRetrievalError("LITERATURE_OUTPUT_UNBOUND")
+        if _checkpoint_source_state(destination, input_hash=input_hash) in {"offline", "cached"}:
+            return _start_retry_attempt(
+                query=query,
+                destination=destination,
+                input_hash=input_hash,
+                prior_manifest=checkpoint_path,
+                max_results=max_results,
+                timeout_seconds=timeout_seconds,
+                query_plan=query_plan,
+            )
     if not binding_path.exists():
         _write_json(binding_path, binding)
     if query is None:
@@ -249,7 +297,6 @@ def _run_literature_retrieval_locked(
         }
         _write_json(manifest_path, manifest)
         return manifest
-    checkpoint_path = destination / "search-result.json"
     recovered = checkpoint_path.exists()
     if recovered:
         checkpoint = _load_checked_artifact(checkpoint_path, "literature_search_result")
@@ -308,6 +355,144 @@ def _run_literature_retrieval_locked(
     }
     _write_json(manifest_path, manifest)
     return manifest
+
+
+def _retry_root(destination: Path) -> Path:
+    retry_root = destination / "attempts"
+    if retry_root.is_symlink() or (retry_root.exists() and not retry_root.is_dir()):
+        raise LiteratureRetrievalError("LITERATURE_OUTPUT_INVALID")
+    return retry_root
+
+
+def _retry_attempts(retry_root: Path) -> list[Path]:
+    if not retry_root.exists():
+        return []
+    attempts: list[tuple[int, Path]] = []
+    for path in retry_root.iterdir():
+        match = re.fullmatch(r"attempt-([0-9]{4,})", path.name)
+        if match is None or path.is_symlink() or not path.is_dir():
+            raise LiteratureRetrievalError("LITERATURE_OUTPUT_INVALID")
+        attempts.append((int(match.group(1)), path))
+    attempts.sort(key=lambda item: item[0])
+    if len({number for number, _ in attempts}) != len(attempts):
+        raise LiteratureRetrievalError("LITERATURE_OUTPUT_INVALID")
+    return [path for _, path in attempts]
+
+
+def _continue_retry_attempt(
+    *,
+    query: str | None,
+    destination: Path,
+    attempts: Sequence[Path],
+    input_hash: str,
+    max_results: int,
+    timeout_seconds: float,
+    query_plan: Mapping[str, object] | None,
+) -> dict[str, object]:
+    latest = attempts[-1]
+    latest_manifest = latest / "manifest.json"
+    if latest_manifest.is_symlink():
+        raise LiteratureRetrievalError("LITERATURE_OUTPUT_INVALID")
+    if latest_manifest.is_file():
+        latest_result = _load_mapping(latest_manifest)
+        if latest_result.get("input_hash") != input_hash:
+            raise LiteratureRetrievalError("LITERATURE_INPUT_MISMATCH")
+        if latest_result.get("state") not in {"offline", "cached"}:
+            # A completed retry is the current result even if its parent run
+            # was interrupted before publishing its top-level manifest.
+            return {
+                **latest_result,
+                "delivery": {"mode": "resume", "fresh_request": False},
+                "manifest_path": str(latest_manifest),
+            }
+        prior_attempt = latest_manifest
+        return _start_retry_attempt(
+            query=query,
+            destination=destination,
+            input_hash=input_hash,
+            prior_manifest=prior_attempt,
+            max_results=max_results,
+            timeout_seconds=timeout_seconds,
+            query_plan=query_plan,
+        )
+    else:
+        checkpoint_state = _checkpoint_source_state(latest, input_hash=input_hash)
+        if checkpoint_state in {"offline", "cached"}:
+            prior_attempt = latest / "search-result.json"
+            return _start_retry_attempt(
+                query=query,
+                destination=destination,
+                input_hash=input_hash,
+                prior_manifest=prior_attempt,
+                max_results=max_results,
+                timeout_seconds=timeout_seconds,
+                query_plan=query_plan,
+            )
+        else:
+            recovered = _run_literature_retrieval_locked(
+                query=query,
+                destination=latest,
+                max_results=max_results,
+                timeout_seconds=timeout_seconds,
+                query_plan=query_plan,
+            )
+            return {
+                **recovered,
+                "delivery": {
+                    "mode": "recovery",
+                    "fresh_request": checkpoint_state is None,
+                },
+                "manifest_path": str(latest_manifest),
+            }
+
+
+def _checkpoint_source_state(destination: Path, *, input_hash: str) -> str | None:
+    checkpoint_path = destination / "search-result.json"
+    if not checkpoint_path.exists():
+        return None
+    checkpoint = _load_checked_artifact(checkpoint_path, "literature_search_result")
+    if checkpoint["input_hash"] != input_hash:
+        raise LiteratureRetrievalError("LITERATURE_INPUT_MISMATCH")
+    trace = checkpoint["search_trace"]
+    validate_document("literature_search_trace", trace)
+    return str(trace["source_state"])
+
+
+def _start_retry_attempt(
+    *,
+    query: str | None,
+    destination: Path,
+    input_hash: str,
+    prior_manifest: Path,
+    max_results: int,
+    timeout_seconds: float,
+    query_plan: Mapping[str, object] | None,
+) -> dict[str, object]:
+    retry_root = _retry_root(destination)
+    retry_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    existing = _retry_attempts(retry_root)
+    attempt_number = max((int(path.name.removeprefix("attempt-")) for path in existing), default=1) + 1
+    attempt_root = retry_root / f"attempt-{attempt_number:04d}"
+    attempt_root.mkdir(mode=0o700)
+    result = _run_literature_retrieval_locked(
+        query=query,
+        destination=attempt_root,
+        max_results=max_results,
+        timeout_seconds=timeout_seconds,
+        query_plan=query_plan,
+    )
+    if result.get("input_hash") != input_hash:
+        raise LiteratureRetrievalError("LITERATURE_INPUT_MISMATCH")
+    return {
+        **result,
+        "delivery": {
+            "mode": "retry",
+            "fresh_request": True,
+            "attempt": attempt_number,
+            "prior_attempt_path": str(prior_manifest),
+        },
+        "manifest_path": str(attempt_root / "manifest.json"),
+    }
 
 
 def _parse_atom(payload: bytes) -> tuple[LiteratureRecord, ...]:

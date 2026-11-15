@@ -407,6 +407,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
         if irg_guided_context is not None:
             retrieval_context["irg_guided"] = irg_guided_context
         literature_manifest: dict[str, object] | None = None
+        literature_manifest_path = literature_root / "manifest.json"
         literature_method_manifest: dict[str, object] | None = None
         literature_method_prompt_manifest: dict[str, object] | None = None
         literature_method_materialization_manifest: dict[str, object] | None = None
@@ -504,6 +505,9 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                 max_results=options.literature_max_results,
                 timeout_seconds=options.literature_timeout_seconds, query_plan=query_plan,
             )
+            literature_manifest_path = Path(
+                str(literature_manifest.get("manifest_path") or literature_manifest_path)
+            )
         if literature_query and research_mode != "causal_discovery":
             stage = "literature_retrieval"
             literature_manifest = run_literature_retrieval(
@@ -513,9 +517,12 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
                 timeout_seconds=options.literature_timeout_seconds,
                 query_plan=query_plan,
             )
+            literature_manifest_path = Path(
+                str(literature_manifest.get("manifest_path") or literature_manifest_path)
+            )
             stage = "literature_method_staging"
             literature_method_manifest = run_literature_method_staging(
-                literature_manifest=literature_root / "manifest.json",
+                literature_manifest=literature_manifest_path,
                 output_root=literature_method_root,
                 repo_root=repo,
                 failure_signatures=tuple(
@@ -672,9 +679,7 @@ def _run_autonomous_pipeline(options: AutonomousPipelineOptions) -> dict[str, ob
             ),
             retrieval_context=retrieval_context,
             literature_manifest=(
-                (literature_root / "manifest.json")
-                if literature_manifest is not None
-                else None
+                literature_manifest_path if literature_manifest is not None else None
             ),
             literature_method_manifest=(
                 (literature_method_root / "manifest.json")
