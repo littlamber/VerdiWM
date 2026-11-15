@@ -35,7 +35,12 @@ from wmloop.execute.experiment_scheduler import (
     run_selected_queue,
 )
 from wmloop.execute.gpu_lease import GpuLeaseError
-from wmloop.storage import canonical_json_bytes, sha256_bytes
+from wmloop.storage import (
+    acquire_exclusive_file_lock,
+    atomic_write,
+    canonical_json_bytes,
+    sha256_bytes,
+)
 
 
 class CampaignDaemonError(RuntimeError):
@@ -93,7 +98,7 @@ def run_campaign_daemon(
         budget_total_gpu_hours=budget_total,
     )
     _bind_output(destination, input_hash=input_hash, queue_paths=queue_paths)
-    _acquire_daemon_lock(destination)
+    daemon_lock = _acquire_daemon_lock(destination)
     runner = queue_runner or run_selected_queue
     stop_requested = False
 
@@ -262,7 +267,7 @@ def run_campaign_daemon(
         raise
     finally:
         _restore_signal_handlers(previous_handlers)
-        _release_daemon_lock(destination)
+        _release_daemon_lock(destination, daemon_lock)
 
 
 def _validate_options(options: CampaignDaemonOptions, *, queue_paths: Sequence[Path]) -> None:
@@ -391,41 +396,32 @@ def _bind_output(
     )
 
 
-def _acquire_daemon_lock(destination: Path) -> None:
-    lock_path = destination / "daemon.lock"
-    payload = (
-        json.dumps({"pid": os.getpid(), "created_at": _utc_now()}, sort_keys=True)
-        + "\n"
-    )
+def _acquire_daemon_lock(destination: Path):
+    lock_path = destination / ".daemon.lock"
     try:
-        descriptor = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        existing = _load_json(lock_path)
-        pid = existing.get("pid")
-        if isinstance(pid, int) and pid > 0 and _pid_alive(pid):
-            raise CampaignDaemonError("CAMPAIGN_DAEMON_ALREADY_RUNNING")
-        try:
-            lock_path.unlink()
-        except FileNotFoundError:
-            pass
-        try:
-            descriptor = os.open(
-                lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
-            )
-        except FileExistsError as exc:
-            raise CampaignDaemonError("CAMPAIGN_DAEMON_ALREADY_RUNNING") from exc
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(payload)
+        lock = acquire_exclusive_file_lock(lock_path)
+    except BlockingIOError as exc:
+        raise CampaignDaemonError("CAMPAIGN_DAEMON_ALREADY_RUNNING") from exc
+    try:
+        payload = json.dumps(
+            {"pid": os.getpid(), "created_at": _utc_now()}, sort_keys=True
+        ).encode() + b"\n"
+        atomic_write(destination / "daemon.lock", payload)
+    except BaseException:
+        lock.__exit__(None, None, None)
+        raise
+    return lock
 
 
-def _release_daemon_lock(destination: Path) -> None:
+def _release_daemon_lock(destination: Path, lock) -> None:
     path = destination / "daemon.lock"
     try:
-        lock = _load_json(path)
-        if lock.get("pid") == os.getpid():
-            path.unlink()
-    except (CampaignDaemonError, OSError):
-        return
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    finally:
+        lock.__exit__(None, None, None)
 
 
 def _load_state(

@@ -96,6 +96,20 @@ def exclusive_file_lock(path: Path, *, blocking: bool = True):
         os.close(descriptor)
 
 
+def acquire_exclusive_file_lock(path: Path):
+    """Acquire a non-blocking kernel lock and return its live context.
+
+    Long-running controllers need to hold a lock across their main loop while
+    still performing cleanup before releasing it.  Keeping the context object
+    here makes that lifetime explicit and reuses the same ``O_NOFOLLOW`` and
+    descriptor cleanup guarantees as :func:`exclusive_file_lock`.
+    """
+
+    context = exclusive_file_lock(path, blocking=False)
+    context.__enter__()
+    return context
+
+
 def require_exact_tree(root: Path, members: set[str], *, code: str, error: type[ValueError] = ValueError) -> None:
     expected_dirs = {p.as_posix() for name in members for p in Path(name).parents if p != Path(".")}
     files, directories = set(), set()

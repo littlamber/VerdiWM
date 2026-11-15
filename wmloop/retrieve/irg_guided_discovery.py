@@ -21,6 +21,7 @@ from wmloop.retrieve.mechanism_discovery import (
     DiscoveryRequest,
     run_mechanism_discovery,
 )
+from wmloop.storage import checked_path
 
 
 class IRGDiscoveryError(ValueError):
@@ -201,8 +202,21 @@ def run_irg_guided_mechanism_discovery(
         top_k=top_k,
         cross_domain_lenses=cross_domain_lenses,
     )
-    destination = Path(output_root).expanduser().resolve()
-    destination.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Validate the raw output path before creating it.  Resolving first would
+    # follow a pre-existing symlink and let a caller accidentally write the
+    # public request into an unrelated directory.  ``checked_path`` also
+    # rejects symlinked parents, matching the archive and execution writers.
+    destination = checked_path(
+        Path(output_root).expanduser(),
+        code="IRG_DISCOVERY_OUTPUT_INVALID",
+        error=IRGDiscoveryError,
+    )
+    if destination.exists() or destination.is_symlink():
+        raise IRGDiscoveryError("IRG_DISCOVERY_OUTPUT_EXISTS")
+    try:
+        destination.mkdir(mode=0o700, parents=True, exist_ok=False)
+    except OSError as exc:
+        raise IRGDiscoveryError("IRG_DISCOVERY_OUTPUT_INVALID") from exc
     (destination / "irg-guided-request.json").write_text(
         json.dumps(plan, sort_keys=True, ensure_ascii=True, indent=2) + "\n",
         encoding="utf-8",

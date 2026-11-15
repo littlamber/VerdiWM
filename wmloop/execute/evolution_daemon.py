@@ -38,7 +38,13 @@ from wmloop.execute.pipeline_daemon import (
     PipelineDaemonOptions,
     run_pipeline_daemon,
 )
-from wmloop.storage import canonical_json_bytes, checked_path, sha256_bytes
+from wmloop.storage import (
+    acquire_exclusive_file_lock,
+    atomic_write,
+    canonical_json_bytes,
+    checked_path,
+    sha256_bytes,
+)
 from wmloop.verify.goal_success import (
     capture_settled_receipt_refs,
     evaluate_iteration_goal_success,
@@ -121,7 +127,7 @@ def run_evolution_daemon(
     input_document = _input_document(options)
     input_hash = _sha256(_canonical_json(input_document))
     _bind_root(state_root, input_document=input_document, input_hash=input_hash)
-    _acquire_lock(state_root)
+    daemon_lock = _acquire_lock(state_root)
     stop_requested = False
 
     def request_stop(_signal: int | None = None, _frame: object = None) -> None:
@@ -311,7 +317,7 @@ def run_evolution_daemon(
         raise
     finally:
         _restore_signal_handlers(previous_handlers)
-        _release_lock(state_root)
+        _release_lock(state_root, daemon_lock)
 
 
 def _record_iteration_result(
@@ -1046,32 +1052,21 @@ def _sha256(payload: bytes) -> str:
     return sha256_bytes(payload)
 
 
-def _acquire_lock(root: Path) -> None:
-    path = root / "daemon.lock"
+def _acquire_lock(root: Path):
+    path = root / ".daemon.lock"
     try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        existing = _load_json(path)
-        pid = existing.get("pid")
-        if isinstance(pid, int) and pid > 0 and _pid_alive(pid):
-            raise EvolutionDaemonError("EVOLUTION_ALREADY_RUNNING")
-        try:
-            path.unlink()
-        except FileNotFoundError:
-            pass
-        try:
-            descriptor = os.open(
-                path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
-            )
-        except FileExistsError as exc:
-            raise EvolutionDaemonError("EVOLUTION_ALREADY_RUNNING") from exc
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(
-            json.dumps(
-                {"pid": os.getpid(), "created_at": _utc_now()}, sort_keys=True
-            )
-            + "\n"
-        )
+        lock = acquire_exclusive_file_lock(path)
+    except BlockingIOError as exc:
+        raise EvolutionDaemonError("EVOLUTION_ALREADY_RUNNING") from exc
+    try:
+        payload = json.dumps(
+            {"pid": os.getpid(), "created_at": _utc_now()}, sort_keys=True
+        ).encode() + b"\n"
+        atomic_write(root / "daemon.lock", payload)
+    except BaseException:
+        lock.__exit__(None, None, None)
+        raise
+    return lock
 
 
 def _pid_alive(pid: int) -> bool:
@@ -1084,14 +1079,15 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
-def _release_lock(root: Path) -> None:
+def _release_lock(root: Path, lock) -> None:
     path = root / "daemon.lock"
     try:
-        payload = _load_json(path)
-        if payload.get("pid") == os.getpid():
-            path.unlink()
-    except (OSError, EvolutionDaemonError):
-        return
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+    finally:
+        lock.__exit__(None, None, None)
 
 
 def _install_signal_handlers(handler: Callable[[int, object], None]) -> dict[int, Any]:

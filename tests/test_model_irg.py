@@ -4,9 +4,12 @@ import json
 import math
 from pathlib import Path
 
+import pytest
+
 from wmloop.control.intermediate_ir import build_model_capability_ir
 from wmloop.control.model_portrait import build_model_portrait
 from wmloop.experiments.portable_knowledge_graph import build_portable_knowledge_graph
+from wmloop.geometry.assets import IRGChartSource, compose_irg_asset
 from wmloop.geometry.model_irg import (
     build_model_irg,
     detect_model_irg_collisions,
@@ -14,10 +17,11 @@ from wmloop.geometry.model_irg import (
     rank_method_effects_by_irg,
     validate_model_irg,
 )
-from wmloop.geometry.assets import IRGChartSource, compose_irg_asset
 from wmloop.retrieve.irg_guided_discovery import (
+    IRGDiscoveryError,
     build_irg_discovery_request,
     derive_irg_bottlenecks,
+    run_irg_guided_mechanism_discovery,
 )
 
 
@@ -216,3 +220,32 @@ def test_irg_guides_bottleneck_hypotheses_and_cross_domain_queries() -> None:
     assert request.cross_domain_lenses
     assert plan["authority"] == "shadow_only"
     assert "global model ceiling" in plan["claim_boundary"]
+
+
+def test_irg_discovery_rejects_symlinked_output_before_writing_request(
+    tmp_path, monkeypatch
+) -> None:
+    """A public output path must not redirect writes through a symlink."""
+
+    irg_path = tmp_path / "irg.json"
+    irg_path.write_text(
+        json.dumps(build_model_irg(portrait=_portrait(), asset=_asset(), root=ROOT))
+    )
+    target = tmp_path / "target"
+    target.mkdir()
+    output = tmp_path / "output"
+    output.symlink_to(target, target_is_directory=True)
+    monkeypatch.setattr(
+        "wmloop.retrieve.irg_guided_discovery.run_mechanism_discovery",
+        lambda **kwargs: pytest.fail("discovery must not run for a symlinked output"),
+    )
+
+    with pytest.raises(IRGDiscoveryError, match="IRG_DISCOVERY_OUTPUT_INVALID"):
+        run_irg_guided_mechanism_discovery(
+            model_irg_path=irg_path,
+            protected_metrics=("protected",),
+            output_root=output,
+            repo_root=ROOT,
+            search_results_per_view=0,
+        )
+    assert not (target / "irg-guided-request.json").exists()
