@@ -136,11 +136,11 @@ bundle workflow described in [Community Bundles](docs/COMMUNITY_BUNDLES.md).
 
 ## Configure the research LLM
 
-VERDI uses an LLM as a bounded research assistant: it can read IRG and
-diagnostic results, help retrieve cross-domain methods, propose candidates, and
-draft an adapter in an isolated workspace. This is separate from the Wan, JEPA,
-or other world model that you want to evaluate. Model weights, datasets, and
-GPU runtimes remain on your machine.
+VERDI can optionally connect to an OpenAI-compatible LLM to support the research
+workflow. It can organize IRG and diagnostic results, retrieve cross-domain
+methods, propose candidate ideas, and draft an adapter in an isolated workspace.
+The LLM is optional; the local project supplies the model, data, and runtime
+configuration used by an experiment.
 
 The fastest setup uses a local, owner-only token file. Create the configuration
 and credential separately so the key is never written to a project file:

@@ -133,9 +133,9 @@ uv run python examples/portrait_first_minimal_loop_v1/run.py
 
 ## 配置研究 LLM
 
-VERDI 使用 LLM 作为受约束的研究助手：读取 IRG 和诊断结果、跨领域检索方法、
-提出候选 idea，并在隔离目录中起草 adapter。它和你要评测的 Wan、JEPA 或其他
-世界模型是两件事；模型权重、数据集和 GPU 运行环境仍保留在你的机器上。
+VERDI 可以接入兼容 OpenAI API 的 LLM，辅助整理 IRG 与诊断结果、检索跨领域方法、
+提出候选方案，并在隔离工作区起草 adapter。LLM 配置是可选的；模型、数据和运行环境
+按项目配置提供给本地工作流。
 
 推荐把配置和密钥分开保存。默认配置路径是
 `~/.config/verdiwm/config.toml`，密钥文件必须是只有当前用户可读的普通文件：
